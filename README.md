@@ -16,7 +16,7 @@ yourself. This is a tool for the part of the work that happens *before* hardware
 exists, which — with first Microduck deliveries around Christmas 2026 — is all of
 the work anyone is doing right now.
 
-Bundle id `com.opencastor.duckstudio` · team `WYGG3JXWMG` · iPhone-only,
+Bundle id `com.duckstudio.ios` · team `WYGG3JXWMG` · iPhone-only,
 portrait, iOS 17+.
 
 ---
