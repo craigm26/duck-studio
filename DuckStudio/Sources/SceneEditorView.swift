@@ -5,7 +5,9 @@ import StudioKit
 /// The places you can put the robot.
 struct SceneListView: View {
     @ObservedObject var store: SceneStore
-    @State private var editing: DuckScene?
+    /// On an id, not a copy — see `DraftID`. Holding the scene meant the sheet
+    /// carried a value that went stale on the first slider tick.
+    @State private var editing: SceneID?
 
     var body: some View {
         List {
@@ -15,7 +17,7 @@ struct SceneListView: View {
             }
             Section {
                 ForEach(store.scenes) { scene in
-                    Button { editing = scene } label: { row(scene) }
+                    Button { editing = SceneID(id: scene.id) } label: { row(scene) }
                         .buttonStyle(.plain)
                 }
                 .onDelete { store.delete(at: $0) }
@@ -24,17 +26,17 @@ struct SceneListView: View {
                 Button {
                     let fresh = DuckScene(name: "New scene")
                     store.add(fresh)
-                    editing = fresh
+                    editing = SceneID(id: fresh.id)
                 } label: { Label("Empty floor", systemImage: "plus") }
                 Button {
                     let stairs = DuckScene.staircase()
                     store.add(stairs)
-                    editing = stairs
+                    editing = SceneID(id: stairs.id)
                 } label: { Label("A flight of steps", systemImage: "stairs") }
                 Button {
                     let corridor = DuckScene.corridor()
                     store.add(corridor)
-                    editing = corridor
+                    editing = SceneID(id: corridor.id)
                 } label: { Label("A corridor", systemImage: "rectangle.split.3x1") }
             } header: {
                 Text("Start from")
@@ -43,9 +45,12 @@ struct SceneListView: View {
             }
         }
         .navigationTitle("Scenes")
-        .sheet(item: $editing) { scene in
+        .sheet(item: $editing) { wrapper in
             NavigationStack {
-                SceneEditorView(scene: scene) { store.update($0) }
+                if let current = store.scenes.first(where: { $0.id == wrapper.id }) {
+                    SceneEditorView(scene: current) { store.update($0) }
+                        .onDisappear { store.flush() }
+                }
             }
         }
     }
@@ -80,6 +85,8 @@ struct SceneEditorView: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var orbit = OrbitState()
+    @State private var original: DuckScene?
+    @State private var confirmingDiscard = false
     @State private var stance: Stance = .standing
 
     /// Where to stand the robot while the scene is being built.
@@ -156,11 +163,30 @@ struct SceneEditorView: View {
         }
         .navigationTitle("Edit scene")
         .navigationBarTitleDisplayMode(.inline)
+        // TWO WAYS OUT, BOTH ALWAYS PRESENT — and Done only dismisses, because
+        // every change is already written. Publishing to the store and
+        // dismissing in the same tick makes the presenting list re-render while
+        // the sheet is going away.
         .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel", role: .cancel) {
+                    guard original != scene, original != nil else { return dismiss() }
+                    confirmingDiscard = true
+                }
+            }
             ToolbarItem(placement: .confirmationAction) {
-                Button("Done") { onChange(scene); dismiss() }
+                Button("Done") { dismiss() }.fontWeight(.semibold)
             }
         }
+        .confirmationDialog("Throw away these changes?", isPresented: $confirmingDiscard,
+                            titleVisibility: .visible) {
+            Button("Throw them away", role: .destructive) {
+                if let original { scene = original; onChange(original) }
+                dismiss()
+            }
+            Button("Keep editing", role: .cancel) {}
+        }
+        .onAppear { if original == nil { original = scene } }
         .onChange(of: scene) { _, new in onChange(new) }
     }
 
@@ -171,6 +197,11 @@ struct SceneEditorView: View {
               let top = scene.steps.max(by: { $0.top < $1.top }) else { return .home }
         return .onTop(of: top)
     }
+}
+
+/// A scene's identity, so a sheet can be presented on something stable.
+struct SceneID: Identifiable, Hashable {
+    let id: UUID
 }
 
 private struct StepEditor: View {

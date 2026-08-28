@@ -20,10 +20,18 @@ struct IntentAuthorView: View {
     @State private var playhead: TimeInterval = 0
     @State private var isRunning = false
     @State private var orbit = OrbitState()
-    @State private var selected: Int = 0
+    /// THE SELECTED KEYFRAME BY IDENTITY, NOT BY INDEX. `ordered` is sorted by
+    /// time and the times are editable, so an index means a different keyframe
+    /// the moment somebody drags one past its neighbour — and means NO keyframe
+    /// at all once one is deleted, which left the Pose tab silently blank.
+    @State private var selectedKey: UUID?
+    /// What the draft looked like on the way in, so Cancel has something to go
+    /// back to.
+    @State private var original: IntentDraft?
     @State private var panel: Panel = .joints
     @State private var outgoing: Outgoing?
     @State private var failure: String?
+    @State private var confirmingDiscard = false
 
     enum Panel: String, CaseIterable, Identifiable {
         case joints = "Pose", timeline = "Keyframes", checks = "Checks"
@@ -31,6 +39,18 @@ struct IntentAuthorView: View {
     }
 
     private var ordered: [IntentDraft.Key] { draft.keys.sorted { $0.time < $1.time } }
+
+    /// The keyframe being edited, falling back to the first. A selection can go
+    /// stale — the keyframe it named was deleted — and the right answer then is
+    /// to edit something rather than to show an empty panel.
+    private var editingKey: IntentDraft.Key? {
+        ordered.first { $0.id == selectedKey } ?? ordered.first
+    }
+
+    private var hasUnsavedChanges: Bool {
+        guard let original else { return false }
+        return original != draft
+    }
     private var scene: DuckScene? { scenes.scenes.first { $0.id == draft.sceneID } }
 
     /// What to draw. Scrubbing shows the interpolated motion; standing on a
@@ -72,11 +92,19 @@ struct IntentAuthorView: View {
         }
         .navigationTitle(draft.name)
         .navigationBarTitleDisplayMode(.inline)
+        // TWO WAYS OUT, BOTH ALWAYS PRESENT. The first version had one — a
+        // "Save" button that both wrote to the store and dismissed in the same
+        // tick — and a person who did not want to keep what they had made had
+        // nowhere to go. Done only dismisses, because the work is already
+        // saved; Cancel puts back what was there on the way in.
         .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Save") { onSave(draft); dismiss() }
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel", role: .cancel) { discard() }
             }
-            ToolbarItem(placement: .topBarLeading) {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Done") { dismiss() }.fontWeight(.semibold)
+            }
+            ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Button { share() } label: {
                         Label("Export the motion", systemImage: "square.and.arrow.up")
@@ -90,6 +118,16 @@ struct IntentAuthorView: View {
                 } label: { Image(systemName: "ellipsis.circle") }
             }
         }
+        .confirmationDialog("Throw away this motion?", isPresented: $confirmingDiscard,
+                            titleVisibility: .visible) {
+            Button("Throw it away", role: .destructive) { reallyDiscard() }
+            Button("Keep editing", role: .cancel) {}
+        } message: {
+            Text(original == nil || (original?.keys.count ?? 0) < 3
+                 ? "It has not been saved anywhere else."
+                 : "Everything since you opened it will go back to how it was.")
+        }
+        .onAppear { if original == nil { original = draft } }
         .sheet(item: $outgoing) { out in
             NavigationStack {
                 ShareDestinationsView(title: draft.name, file: out.url, message: out.message)
@@ -116,30 +154,36 @@ struct IntentAuthorView: View {
         }
 
         Section {
-            Picker("Editing", selection: $selected) {
-                ForEach(Array(ordered.enumerated()), id: \.offset) { index, key in
-                    Text(String(format: "%.2f s", key.time)).tag(index)
+            Picker("Editing", selection: Binding(
+                get: { editingKey?.id },
+                set: { picked in
+                    selectedKey = picked
+                    // Jump the playhead to whatever was picked, so the robot on
+                    // screen is always the pose the sliders move. Editing one
+                    // keyframe while looking at another is how somebody drags a
+                    // joint for a minute and wonders why nothing happens.
+                    if let picked, let key = ordered.first(where: { $0.id == picked }) {
+                        playhead = key.time
+                    }
+                    isRunning = false
+                })) {
+                ForEach(ordered) { key in
+                    Text(String(format: "%.2f s", key.time)).tag(UUID?.some(key.id))
                 }
             }
             .pickerStyle(.segmented)
-            Button {
-                // Jump the playhead to the keyframe being edited, so the robot
-                // on screen is the pose the sliders move. Editing keyframe 3
-                // while looking at keyframe 1 is how somebody drags a joint for
-                // a minute and wonders why nothing happens.
-                if ordered.indices.contains(selected) { playhead = ordered[selected].time }
-                isRunning = false
-            } label: { Label("Show this keyframe", systemImage: "eye") }
         } header: {
             Text("Keyframe")
+        } footer: {
+            Text("Pick a moment, then move the joints. The robot above shows the keyframe you are editing.")
         }
 
-        if ordered.indices.contains(selected) {
+        if let key = editingKey {
             ForEach(JointGroup.all) { group in
                 Section {
                     ForEach(group.joints, id: \.self) { joint in
                         JointSlider(control: JointControl(index: joint),
-                                    value: binding(joint: joint))
+                                    value: binding(joint: joint, of: key.id))
                     }
                 } header: {
                     Text(group.title)
@@ -150,18 +194,18 @@ struct IntentAuthorView: View {
         }
     }
 
-    /// A slider drives ONE joint of ONE keyframe. The keyframe is found by id
-    /// rather than by index, because sorting by time means the index moves the
-    /// instant somebody drags a keyframe past its neighbour.
-    private func binding(joint: Int) -> Binding<Double> {
-        let id = ordered[selected].id
-        return Binding(
+    /// A slider drives ONE joint of ONE keyframe, found by id — sorting by time
+    /// means an index names a different keyframe the moment somebody drags one
+    /// past its neighbour, and names nothing once one is deleted.
+    private func binding(joint: Int, of id: UUID) -> Binding<Double> {
+        Binding(
             get: {
                 draft.keys.first { $0.id == id }?.pose[joint]
                     ?? JointControl(index: joint).home
             },
             set: { value in
-                guard let index = draft.keys.firstIndex(where: { $0.id == id }) else { return }
+                guard let index = draft.keys.firstIndex(where: { $0.id == id }),
+                      draft.keys[index].pose.indices.contains(joint) else { return }
                 draft.keys[index].pose[joint] = value
             })
     }
@@ -198,9 +242,10 @@ struct IntentAuthorView: View {
                 // nothing until you move something — which is the only
                 // behaviour that lets you refine a curve.
                 let time = nudged(playhead)
-                draft.keys.append(.init(time: time, pose: draft.pose(at: playhead)))
-                selected = draft.keys.sorted { $0.time < $1.time }
-                    .firstIndex { $0.time == time } ?? selected
+                let key = IntentDraft.Key(time: time, pose: draft.pose(at: playhead))
+                draft.keys.append(key)
+                selectedKey = key.id
+                playhead = time
                 panel = .joints
             } label: {
                 Label(String(format: "Add a keyframe at %.2f s", playhead), systemImage: "plus")
@@ -268,6 +313,22 @@ struct IntentAuthorView: View {
         case .impossible: return "gauge.with.dots.needle.100percent"
         case .caution:    return "info.circle"
         }
+    }
+
+    /// Leave without keeping the changes. Asks first only when there is
+    /// something to lose — a confirmation on an untouched draft is a dialog
+    /// that teaches people to tap through dialogs.
+    private func discard() {
+        guard hasUnsavedChanges else { return dismiss() }
+        confirmingDiscard = true
+    }
+
+    private func reallyDiscard() {
+        if let original {
+            draft = original
+            onSave(original)
+        }
+        dismiss()
     }
 
     private func share() {

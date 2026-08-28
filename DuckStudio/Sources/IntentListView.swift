@@ -23,7 +23,12 @@ struct IntentListView: View {
     @ObservedObject var store: SceneStore
     @ObservedObject var model: LibraryModel
     @ObservedObject var drafts: DraftStore
-    @State private var editing: IntentDraft?
+    /// PRESENTED ON AN ID, NOT ON A COPY. Holding the draft itself meant the
+    /// sheet carried a stale value that went out of date on the first
+    /// keystroke, and — because the editor writes to DraftStore as you type —
+    /// the list re-rendered continuously underneath it, re-running the sheet's
+    /// content closure on every change.
+    @State private var editing: DraftID?
     @State private var clips: [String: DuckIntentClip] = [:]
     @State private var picking = false
     /// Rolled-out rates, loaded once. The list is the place these matter most:
@@ -54,7 +59,7 @@ struct IntentListView: View {
 
             Section {
                 ForEach(drafts.drafts) { draft in
-                    Button { editing = draft } label: { draftRow(draft) }
+                    Button { editing = DraftID(id: draft.id) } label: { draftRow(draft) }
                         .buttonStyle(.plain)
                 }
                 .onDelete { offsets in
@@ -63,7 +68,7 @@ struct IntentListView: View {
                 Button {
                     let fresh = IntentDraft.blank()
                     drafts.save(fresh)
-                    editing = fresh
+                    editing = DraftID(id: fresh.id)
                 } label: { Label("Write a new motion", systemImage: "plus") }
             } header: {
                 Text("Written here")
@@ -125,9 +130,18 @@ struct IntentListView: View {
             clips = (try? DuckIntentClip.bundled()) ?? [:]
             odds = try? DuckIntentSuccess.bundled()
         }
-        .sheet(item: $editing) { draft in
+        .sheet(item: $editing) { wrapper in
             NavigationStack {
-                IntentAuthorView(draft: draft, scenes: store) { drafts.save($0) }
+                // Looked up fresh, so the editor opens on what is actually
+                // stored rather than on whatever was in hand when the row was
+                // tapped.
+                if let current = drafts.drafts.first(where: { $0.id == wrapper.id }) {
+                    IntentAuthorView(draft: current, scenes: store) { drafts.save($0) }
+                        // Leaving the editor is the moment the file is
+                        // definitely current, whether they tapped Done or
+                        // swiped the sheet away.
+                        .onDisappear { drafts.flush() }
+                }
             }
         }
     }
@@ -204,7 +218,7 @@ struct IntentPlayerView: View {
     var store: SceneStore?
     var drafts: DraftStore?
 
-    @State private var remixed: IntentDraft?
+    @State private var remixed: DraftID?
     @State private var playhead: TimeInterval = 0
     @State private var isRunning = true
     @State private var orbit = OrbitState()
@@ -322,7 +336,7 @@ struct IntentPlayerView: View {
                             // motion that works.
                             let draft = IntentDraft.remix(clip)
                             drafts.save(draft)
-                            remixed = draft
+                            remixed = DraftID(id: draft.id)
                         } label: {
                             Label("Remix into a new motion", systemImage: "wand.and.stars")
                         }
@@ -339,10 +353,18 @@ struct IntentPlayerView: View {
             get: { shareFailure != nil }, set: { if !$0 { shareFailure = nil } })) {
             Button("OK", role: .cancel) {}
         } message: { Text(shareFailure ?? "") }
-        .sheet(item: $remixed) { draft in
+        .sheet(item: $remixed) { wrapper in
             NavigationStack {
-                IntentAuthorView(draft: draft, scenes: store ?? SceneStore()) {
-                    drafts?.save($0)
+                // `store` and `drafts` are both required to get here — the menu
+                // item that sets `remixed` only exists when they are present —
+                // so this asks for them rather than manufacturing a throwaway
+                // SceneStore on every render, which is what the first version
+                // did and which quietly gave the remix editor a different set
+                // of scenes from the rest of the app.
+                if let store, let drafts,
+                   let current = drafts.drafts.first(where: { $0.id == wrapper.id }) {
+                    IntentAuthorView(draft: current, scenes: store) { drafts.save($0) }
+                        .onDisappear { drafts.flush() }
                 }
             }
         }
@@ -611,6 +633,11 @@ struct TransportBar: View {
         }
         .buttonStyle(.borderless)
     }
+}
+
+/// A draft's identity, so a sheet can be presented on something stable.
+struct DraftID: Identifiable, Hashable {
+    let id: UUID
 }
 
 /// A file and the message that goes with it, made identifiable so it can drive
