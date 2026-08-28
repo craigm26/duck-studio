@@ -216,7 +216,7 @@ struct IntentPlayerView: View {
 
     enum Panel: String, CaseIterable, Identifiable {
         case story = "What happened", numbers = "Numbers"
-        case reward = "Reward", odds = "How often"
+        case curves = "Over time", reward = "Reward", odds = "How often"
         var id: String { rawValue }
     }
 
@@ -284,6 +284,7 @@ struct IntentPlayerView: View {
 
                 switch panel {
                 case .numbers:  numbers
+                case .curves:   curves
                 case .reward:   reward
                 case .odds:     odds
                 case .story:    story
@@ -432,6 +433,22 @@ struct IntentPlayerView: View {
             } footer: {
                 Text("Two rates rather than one, because they are different questions and they come apart on exactly the motions that matter. A stair move that reliably ends upright on the floor repeats perfectly and achieves nothing.")
             }
+        }
+    }
+
+    // MARK: - over time
+
+    /// A summary says how far; a curve says when. Roulade is supposed to go
+    /// past 90° and step_up is not, and in a table of peaks the two are
+    /// indistinguishable.
+    @ViewBuilder private var curves: some View {
+        let series = RunSeries(clip: clip)
+        Section {
+            Text("Sampled once per tick at \(Int(clip.hz)) Hz, unsmoothed. The interesting features here are the sharp ones — the instant a foot lands, the tick a joint hits its stop — and a filter would remove exactly those. The orange line is the playhead.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+        ForEach(series.tracks) { track in
+            Section { RunChart(track: track, playhead: playhead) }
         }
     }
 
