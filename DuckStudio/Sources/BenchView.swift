@@ -345,3 +345,64 @@ private struct TransportBar: View {
         .buttonStyle(.borderless)
     }
 }
+
+/// One observation input: what it is, what it is set to, and how far out of
+/// distribution that is.
+private struct SlotRow: View {
+    let slot: ObservationSlot
+    let reading: ZScoreStrip.Reading
+    let onChange: (Float) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Text(slot.label).font(.caption).lineLimit(1)
+                Spacer()
+                if slot.isNeverEmitted {
+                    Text("unused").font(.caption2).foregroundStyle(.tertiary)
+                }
+                Text(String(format: "%+.3f", reading.value))
+                    .font(.caption.monospacedDigit())
+                Text(slot.unit.rawValue).font(.caption2).foregroundStyle(.secondary)
+            }
+            HStack(spacing: 8) {
+                Slider(value: Binding(get: { Double(reading.value) },
+                                      set: { onChange(Float($0)) }),
+                       in: slot.lower...max(slot.upper, slot.lower + 1e-6))
+                // The z-score sits beside the slider rather than in a separate
+                // strip: the number only means anything next to the value that
+                // produced it.
+                Text(String(format: "%+.1fσ", reading.z))
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(reading.isOutlier ? .orange : .secondary)
+                    .frame(width: 52, alignment: .trailing)
+            }
+        }
+    }
+}
+
+/// One input's influence, as a bar against the strongest input at this
+/// observation — not against whatever the largest value happens to be, so the
+/// chart does not rescale every time a slider moves.
+private struct SensitivityRow: View {
+    let column: Sensitivity.Column
+    let peak: Float
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack {
+                Text(column.slot.label).font(.caption).lineLimit(1)
+                Spacer()
+                Text(column.strongestJoint).font(.caption2).foregroundStyle(.secondary)
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.secondary.opacity(0.15))
+                    Capsule().fill(Color.accentColor)
+                        .frame(width: geo.size.width * CGFloat(peak > 0 ? column.norm / peak : 0))
+                }
+            }
+            .frame(height: 5)
+        }
+    }
+}
