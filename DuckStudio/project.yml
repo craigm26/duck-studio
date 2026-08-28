@@ -74,6 +74,19 @@ targets:
             UTTypeTagSpecification:
               public.filename-extension:
                 - onnx
+        # REQUIRED ONCE CFBundleDocumentTypes IS DECLARED — ITMS-90737 on the
+        # first upload. Declaring the types says "this app opens documents";
+        # Apple then insists you say HOW, and there is no default.
+        #
+        # In place, not copied. The alternative is UISupportsDocumentBrowser,
+        # which is for apps built around a UIDocumentBrowserViewController and
+        # this is not one — it is handed a file and reads it. With this YES the
+        # app receives the original URL under a security-scoped grant, reads it,
+        # and writes its own copy into the container keyed by fingerprint; with
+        # NO the system would first duplicate the file into an Inbox folder that
+        # nothing here ever cleans up, to hand over a copy of a file this app
+        # never writes to anyway.
+        LSSupportsOpeningDocumentsInPlace: true
         CFBundleDocumentTypes:
           - CFBundleTypeName: ONNX model
             LSItemContentTypes:
@@ -89,7 +102,7 @@ targets:
         DEVELOPMENT_TEAM: WYGG3JXWMG
         CODE_SIGN_STYLE: Automatic
         MARKETING_VERSION: "1.0"
-        CURRENT_PROJECT_VERSION: "1"
+        CURRENT_PROJECT_VERSION: "2"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         SWIFT_VERSION: "5.9"
         TARGETED_DEVICE_FAMILY: "1,2"
