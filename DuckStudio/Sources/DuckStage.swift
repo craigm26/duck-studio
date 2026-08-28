@@ -471,7 +471,8 @@ struct StageLegend: View {
     private var ground: (text: String, wrong: Bool)? {
         guard let probe = Self.clearance else { return nil }
         let metres = probe.clearance(jointAngles: pose.jointAngles, root: pose.root)
-        return (DuckGroundClearance.summary(clearanceMetres: metres), abs(metres) > 0.005)
+        return (DuckGroundClearance.summary(clearanceMetres: metres),
+                DuckGroundClearance.isWrong(clearanceMetres: metres))
     }
 
     private var context: String {
