@@ -105,6 +105,8 @@ struct PolicyDetailView: View {
     @ObservedObject var scenes: SceneStore
     @ObservedObject var drafts: DraftStore
     @State private var clips: [String: DuckIntentClip] = [:]
+    @State private var outgoing: Outgoing?
+    @State private var failure: String?
 
     /// Clips whose recorded-from policy is this file. Matched on the filename
     /// the recorder wrote, which is the only link the clip carries.
@@ -113,6 +115,42 @@ struct PolicyDetailView: View {
     }
 
     var body: some View {
+        content
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { share() } label: { Image(systemName: "square.and.arrow.up") }
+                        .disabled(!entry.isRunnable && !entry.identity.isNetworkIdentity)
+                }
+            }
+            .sheet(item: $outgoing) { out in
+                NavigationStack {
+                    ShareDestinationsView(title: entry.displayName,
+                                          file: out.url, message: out.message)
+                }
+            }
+            .alert("Could not share", isPresented: Binding(
+                get: { failure != nil }, set: { if !$0 { failure = nil } })) {
+                Button("OK", role: .cancel) {}
+            } message: { Text(failure ?? "") }
+    }
+
+    /// Hand over the policy FILE, with a message that leads with the digest.
+    /// The person pasting this is about to ask strangers to run it on a robot,
+    /// so an unrecognised policy is described as unrecognised.
+    private func share() {
+        guard let data = PolicyStore.data(for: entry) else {
+            failure = "The policy file could not be re-read."
+            return
+        }
+        guard let url = ExportFile.write(data, named: entry.displayName) else {
+            failure = "The file could not be written."
+            return
+        }
+        outgoing = Outgoing(url: url,
+                            message: CommunityShare.message(forPolicy: entry, standing: standing))
+    }
+
+    private var content: some View {
         List {
             Section("Provenance") {
                 Text(DuckOfficialPolicies.summary(for: standing))

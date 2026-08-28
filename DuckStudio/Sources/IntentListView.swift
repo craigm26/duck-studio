@@ -210,7 +210,7 @@ struct IntentPlayerView: View {
     @State private var orbit = OrbitState()
     @State private var showProps = true
     @State private var elsewhere: DuckScene?
-    @State private var shareURL: URL?
+    @State private var outgoing: Outgoing?
     @State private var shareFailure: String?
     @State private var panel: Panel = .story
 
@@ -235,7 +235,10 @@ struct IntentPlayerView: View {
         RunMetrics(clip: clip, success: try? DuckIntentSuccess.bundled())
     }
 
-    /// Package the motion and hand it to the system.
+    /// Package the motion, draft what to say about it, and offer somewhere to
+    /// send it. The message carries how often the motion actually works — a
+    /// clip measured at 0 of 16 is a useful negative result, and sending it
+    /// without that number is not.
     private func share() {
         let export = IntentExport(clip: clip, policyFingerprint: nil)
         do {
@@ -244,7 +247,11 @@ struct IntentPlayerView: View {
                 shareFailure = "The file could not be written."
                 return
             }
-            shareURL = url
+            outgoing = Outgoing(
+                url: url,
+                message: CommunityShare.message(
+                    forIntent: export,
+                    outcome: (try? DuckIntentSuccess.bundled())?[clip.name]))
         } catch {
             shareFailure = "\(error)"
         }
@@ -323,9 +330,10 @@ struct IntentPlayerView: View {
                 } label: { Image(systemName: "ellipsis.circle") }
             }
         }
-        .sheet(item: Binding(get: { shareURL.map(SharePayload.init) },
-                             set: { shareURL = $0?.url })) { payload in
-            ShareSheet(items: [payload.url])
+        .sheet(item: $outgoing) { out in
+            NavigationStack {
+                ShareDestinationsView(title: clip.name, file: out.url, message: out.message)
+            }
         }
         .alert("Could not share", isPresented: Binding(
             get: { shareFailure != nil }, set: { if !$0 { shareFailure = nil } })) {
@@ -554,8 +562,10 @@ struct TransportBar: View {
     }
 }
 
-/// A URL made identifiable, so it can drive a sheet.
-private struct SharePayload: Identifiable {
+/// A file and the message that goes with it, made identifiable so it can drive
+/// a sheet.
+struct Outgoing: Identifiable {
     let url: URL
+    let message: String
     var id: String { url.absoluteString }
 }

@@ -22,7 +22,7 @@ struct IntentAuthorView: View {
     @State private var orbit = OrbitState()
     @State private var selected: Int = 0
     @State private var panel: Panel = .joints
-    @State private var shareURL: URL?
+    @State private var outgoing: Outgoing?
     @State private var failure: String?
 
     enum Panel: String, CaseIterable, Identifiable {
@@ -90,9 +90,10 @@ struct IntentAuthorView: View {
                 } label: { Image(systemName: "ellipsis.circle") }
             }
         }
-        .sheet(item: Binding(get: { shareURL.map(DraftPayload.init) },
-                             set: { shareURL = $0?.url })) { payload in
-            ShareSheet(items: [payload.url])
+        .sheet(item: $outgoing) { out in
+            NavigationStack {
+                ShareDestinationsView(title: draft.name, file: out.url, message: out.message)
+            }
         }
         .alert("Could not export", isPresented: Binding(
             get: { failure != nil }, set: { if !$0 { failure = nil } })) {
@@ -276,7 +277,7 @@ struct IntentAuthorView: View {
                 failure = "The file could not be written."
                 return
             }
-            shareURL = url
+            outgoing = Outgoing(url: url, message: CommunityShare.message(forDraft: draft))
         } catch let error as DuckMove.Invalid {
             failure = error.message
         } catch {
@@ -313,7 +314,4 @@ private struct JointSlider: View {
     }
 }
 
-private struct DraftPayload: Identifiable {
-    let url: URL
-    var id: String { url.absoluteString }
-}
+
