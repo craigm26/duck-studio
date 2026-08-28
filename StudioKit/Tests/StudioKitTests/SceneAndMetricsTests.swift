@@ -188,3 +188,44 @@ final class DuckStanceTests: XCTestCase {
         XCTAssertEqual(stance.root.y, 0.1)
     }
 }
+
+extension RunMetricsTests {
+
+    /// The panel shows the criterion beside the rate, always. "0 of 16" with no
+    /// statement of what was being counted is a number nobody can act on.
+    func testARateAlwaysArrivesWithItsCriterion() throws {
+        let success = try DuckIntentSuccess.bundled()
+        let clip = try XCTUnwrap(try DuckIntentClip.bundled()["climb"])
+        let metrics = RunMetrics(clip: clip, success: success)
+        let achieves = try XCTUnwrap(metrics.success.first { $0.label == "Does what it is for" })
+        XCTAssertEqual(achieves.value, "0 of 16")
+        XCTAssertTrue(achieves.detail?.contains("on the flight") == true)
+        XCTAssertEqual(metrics.achievedFraction, 0)
+
+        let repeats = try XCTUnwrap(metrics.success.first { $0.label == "Ends as it was recorded" })
+        XCTAssertTrue(repeats.detail?.contains("standing") == true)
+        XCTAssertGreaterThan(metrics.repeatedFraction ?? 0, 0.5)
+    }
+
+    /// The distribution is on screen with the rate, attributed.
+    func testTheRandomisationIsShownWithTheRate() throws {
+        let metrics = RunMetrics(clip: try XCTUnwrap(try DuckIntentClip.bundled()["hold"]),
+                                 success: try DuckIntentSuccess.bundled())
+        let varied = try XCTUnwrap(metrics.success.first { $0.label == "Varied between runs" })
+        XCTAssertTrue(varied.detail?.contains("microduck_rl") == true)
+        XCTAssertTrue(varied.detail?.contains("Footpad friction") == true)
+    }
+
+    /// A motion nobody has rolled out gets no rate at all, rather than a zero.
+    func testAnUnmeasuredMotionShowsNothingRatherThanZero() throws {
+        let clip = try XCTUnwrap(try DuckIntentClip.bundled()["hold"])
+        let renamed = DuckIntentClip(
+            name: "somebody else's motion", hz: clip.hz, frames: clip.frames,
+            roots: clip.roots, netYaw: clip.netYaw, loops: false,
+            startsFrom: clip.startsFrom, endsIn: clip.endsIn,
+            policy: clip.policy, authored: false, environment: clip.environment)
+        let metrics = RunMetrics(clip: renamed, success: try DuckIntentSuccess.bundled())
+        XCTAssertTrue(metrics.success.isEmpty)
+        XCTAssertNil(metrics.achievedFraction)
+    }
+}

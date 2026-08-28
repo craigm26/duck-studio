@@ -204,6 +204,13 @@ public struct RunMetrics: Equatable, Sendable {
     public let rewards: [RewardTerm]
     /// Terms the config carries that no recording can answer.
     public let unevaluated: [Reading]
+    /// How often the motion works when it is run again under varied
+    /// conditions. Absent for a clip nobody has rolled out — an imported
+    /// motion, for instance, whose sender ran it once.
+    public let success: [Reading]
+    /// The two rates as fractions, for anything that wants to draw them.
+    public let achievedFraction: Double?
+    public let repeatedFraction: Double?
 
     /// The single sentence to put above the panel.
     public var provenance: String {
@@ -217,7 +224,8 @@ public struct RunMetrics: Equatable, Sendable {
 
     // MARK: - building
 
-    public init(clip: DuckIntentClip) {
+    public init(clip: DuckIntentClip,
+                success outcomes: DuckIntentSuccess? = nil) {
         clipName = clip.name
         policy = clip.policy
         task = Task.forPolicy(clip.policy)
@@ -359,6 +367,52 @@ public struct RunMetrics: Equatable, Sendable {
         // ── Pollen's reward terms ─────────────────────────────────────────
         rewards = Self.rewardTerms(clip: clip, task: task, dt: dt)
         unevaluated = (task?.unevaluable ?? []).map { Reading($0.0, "not in a recording", $0.1) }
+
+        // ── how often it works ────────────────────────────────────────────
+        if let outcome = outcomes?[clip.name] {
+            success = Self.successReadings(outcome, randomisation: outcomes?.randomisation)
+            achievedFraction = outcome.achievedFraction
+            repeatedFraction = outcome.repeatedFraction
+        } else {
+            success = []
+            achievedFraction = nil
+            repeatedFraction = nil
+        }
+    }
+
+    /// TWO RATES, NEVER ONE. `achieves` asks whether the move did what it is
+    /// FOR; `repeats` asks only whether it did again what it did the day it was
+    /// recorded. They come apart on exactly the clips that matter — a stair
+    /// move that reliably ends upright on the floor repeats perfectly and
+    /// achieves nothing — and a single "success rate" would have to pick one of
+    /// them silently.
+    private static func successReadings(_ o: DuckIntentSuccess.Outcome,
+                                        randomisation: DuckIntentSuccess.Randomisation?) -> [Reading] {
+        var out: [Reading] = [
+            Reading("Does what it is for", "\(o.achieves) of \(o.rollouts)", o.criterion),
+            Reading("Ends as it was recorded", "\(o.repeats) of \(o.rollouts)",
+                    o.recordedEnding.map { "The recording ended \($0)." }),
+        ]
+        if o.unstable > 0 {
+            out.append(Reading("Physics gave up", "\(o.unstable) of \(o.rollouts)",
+                               "The state went to NaN on a contact impulse. Neither a success "
+                             + "nor a failure of the move — Pollen's config terminates on it too."))
+        }
+        if let median = o.medianHeight {
+            out.append(Reading("Median finish height", mm(median),
+                               o.worstHeight.map { "Worst run finished at \(mm($0))." }))
+        }
+        if !o.endings.isEmpty {
+            let tally = o.endings.sorted { $0.value > $1.value }
+                .map { "\($0.key) ×\($0.value)" }.joined(separator: ", ")
+            out.append(Reading("How the runs ended", "", tally))
+        }
+        if let randomisation {
+            out.append(Reading("Varied between runs", "",
+                               randomisation.lines.joined(separator: " · ")
+                             + ". Read from \(randomisation.source)."))
+        }
+        return out
     }
 
     // MARK: - reward evaluation

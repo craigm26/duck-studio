@@ -24,6 +24,10 @@ struct IntentListView: View {
     @ObservedObject var model: LibraryModel
     @State private var clips: [String: DuckIntentClip] = [:]
     @State private var picking = false
+    /// Rolled-out rates, loaded once. The list is the place these matter most:
+    /// scanning fourteen motions for the ones that actually work is the whole
+    /// reason to have measured them.
+    @State private var odds: DuckIntentSuccess?
 
     private var fromPollen: [DuckIntentClip] {
         sorted(clips.values.filter { !$0.authored && $0.credit == nil })
@@ -96,7 +100,10 @@ struct IntentListView: View {
             // AirDropped end up in the same place having had the same checks.
             if case .success(let urls) = result, let url = urls.first { model.open(url) }
         }
-        .onAppear { clips = (try? DuckIntentClip.bundled()) ?? [:] }
+        .onAppear {
+            clips = (try? DuckIntentClip.bundled()) ?? [:]
+            odds = try? DuckIntentSuccess.bundled()
+        }
     }
 
     private func row(_ clip: DuckIntentClip) -> some View {
@@ -122,6 +129,14 @@ struct IntentListView: View {
                     Image(systemName: "arrow.right").font(.caption2)
                     Text(clip.endsIn.rawValue)
                         .foregroundStyle(worrying(clip.endsIn) ? .orange : .secondary)
+                    if let outcome = odds?[clip.name] {
+                        Text("·")
+                        // The measured rate, not the posture. `climb` ends
+                        // standing every time and gets up the flight none of
+                        // them, and the posture alone cannot say that.
+                        Text("works \(outcome.achieves)/\(outcome.rollouts)")
+                            .foregroundStyle(outcome.achieves == 0 ? .orange : .secondary)
+                    }
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -154,7 +169,8 @@ struct IntentPlayerView: View {
     @State private var panel: Panel = .story
 
     enum Panel: String, CaseIterable, Identifiable {
-        case story = "What happened", numbers = "Numbers", reward = "Reward"
+        case story = "What happened", numbers = "Numbers"
+        case reward = "Reward", odds = "How often"
         var id: String { rawValue }
     }
 
@@ -169,7 +185,9 @@ struct IntentPlayerView: View {
         return showProps ? clip.environment : .bareFloor
     }
 
-    private var metrics: RunMetrics { RunMetrics(clip: clip) }
+    private var metrics: RunMetrics {
+        RunMetrics(clip: clip, success: try? DuckIntentSuccess.bundled())
+    }
 
     /// Package the motion and hand it to the system.
     private func share() {
@@ -221,6 +239,7 @@ struct IntentPlayerView: View {
                 switch panel {
                 case .numbers:  numbers
                 case .reward:   reward
+                case .odds:     odds
                 case .story:    story
                 }
             }
@@ -321,6 +340,31 @@ struct IntentPlayerView: View {
             Text(m.telemetryMissing
                  ? "This recording stored the robot's joint angles only. The network's own output was not kept, so nothing here can be derived from it."
                  : "The network's raw output, before the gait scales it and before the travel stops clamp it.")
+        }
+    }
+
+    // MARK: - how often it works
+
+    /// A RATE CANNOT COME FROM A RECORDING, and this panel exists because
+    /// somebody will read "ends standing" and hear "works". A clip is one run;
+    /// the number here comes from running the motion again, many times, with
+    /// the drop height, the footpad friction, the shove and the trunk's centre
+    /// of mass all varied over the ranges Pollen train against.
+    @ViewBuilder private var odds: some View {
+        let m = metrics
+        if m.success.isEmpty {
+            Section {
+                Text("Nobody has rolled this motion out. A rate needs repeated runs under varied conditions, and this clip has only ever been recorded once — which is one run, not a measurement.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+        } else {
+            Section {
+                ForEach(m.success) { ReadingRow(reading: $0) }
+            } header: {
+                Text("Measured by rolling it out again")
+            } footer: {
+                Text("Two rates rather than one, because they are different questions and they come apart on exactly the motions that matter. A stair move that reliably ends upright on the floor repeats perfectly and achieves nothing.")
+            }
         }
     }
 
