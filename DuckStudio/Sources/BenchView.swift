@@ -114,8 +114,6 @@ struct BenchView: View {
                 case .actions:
                     EmptyView()
                 }
-                    }
-                }
 
                 if let stages, tab == .actions {
                     Section("What the policy commands") {
@@ -148,9 +146,9 @@ struct BenchView: View {
         .onChange(of: preset) { _, _ in run() }
     }
 
-    /// The pose to draw. A clip being played wins over the policy's own
-    /// answer, because while a recording is running THAT is what you are
-    /// looking at and the label says so.
+    /// The pose to draw: the policy's clamped targets, or the home stance
+    /// while nothing has run. Nothing PLAYS here — a network has no time axis,
+    /// and recordings live in the Intents tab.
     private var jointAngles: [Double] {
         stages?.clamped ?? ObservationPreset.restingPose
     }
