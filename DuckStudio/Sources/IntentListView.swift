@@ -349,7 +349,17 @@ struct IntentPlayerView: View {
         .onReceive(Timer.publish(every: 1.0 / DuckModel.tickHz, on: .main, in: .common).autoconnect()) { _ in
             guard isRunning else { return }
             playhead += 1.0 / DuckModel.tickHz
-            if pose.hasFinished && !clip.loops { playhead = 0 }
+            // `hold` LOOPS AND HAS NO END, so `hasFinished` is never true for
+            // it and the old `!clip.loops` guard excluded it from the only
+            // reset. Its playhead grew without bound: after a minute the
+            // transport read 60.00 s against a two-second slider. `pose(at:)`
+            // wraps correctly forever, so this was cosmetic — and the readout
+            // is the thing anybody scrubbing is looking at.
+            if clip.loops {
+                playhead = playhead.truncatingRemainder(dividingBy: max(clip.duration, 1e-9))
+            } else if pose.hasFinished {
+                playhead = 0
+            }
         }
     }
 

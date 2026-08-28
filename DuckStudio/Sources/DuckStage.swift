@@ -168,7 +168,8 @@ struct DuckStage: UIViewRepresentable {
         c.shadow?.position = SIMD3(pose.groundPosition.x, 0.0015, pose.groundPosition.z)
         c.rebuildProps(environment)
         c.rebuildPath(trail)
-        c.reveal(progress: progress)
+        c.includeTrail(trail)
+        c.reveal(progress: progress, ticks: trail.count)
 
         // Fixed looks at the middle of the run so the whole motion stays in
         // frame; following looks at the trunk.
@@ -193,7 +194,9 @@ struct DuckStage: UIViewRepresentable {
         private var lastScale: CGFloat = 1
         private var shownEnvironment: DuckIntentClip.Environment?
         private var shownTrail: Int = -1
-        private var markers: [Entity] = []
+        /// Each segment with the tick it ends on, so the line can be revealed
+        /// against time rather than against its own index.
+        private var markers: [(entity: ModelEntity, endTick: Int)] = []
 
         // MARK: - the floor
 
@@ -275,8 +278,19 @@ struct DuckStage: UIViewRepresentable {
             wallMaterial.roughness = 0.9
             wallMaterial.metallic = 0.0
 
-            var extremes = SIMD3<Float>(0, 0.09, 0)
-            var count: Float = 1
+            // A BOUNDING BOX, NOT A MEAN. Averaging the props pulled the
+            // fixed camera two-thirds of the way up a four-step flight, and
+            // `climb` then spent 96 of its 206 ticks outside the frustum while
+            // `riser_up` spent 94 of 154 outside it. A box that contains
+            // everything worth seeing contains the robot too.
+            var low = SIMD3<Float>(0, 0, 0)
+            var high = SIMD3<Float>(0, 0.18, 0)
+            func include(_ point: SIMD3<Float>) {
+                low = SIMD3(Swift.min(low.x, point.x), Swift.min(low.y, point.y),
+                            Swift.min(low.z, point.z))
+                high = SIMD3(Swift.max(high.x, point.x), Swift.max(high.y, point.y),
+                             Swift.max(high.z, point.z))
+            }
 
             for step in environment.steps {
                 let entity = ModelEntity(
@@ -305,8 +319,10 @@ struct DuckStage: UIViewRepresentable {
                                      Float(step.top) + 0.0014,
                                      Float(-step.y))
                 props.addChild(lip)
-                extremes += SIMD3(Float(step.x), Float(step.top), Float(-step.y))
-                count += 1
+                include(SIMD3(Float(step.x - step.halfDepth), Float(step.top),
+                              Float(-step.y - step.halfWidth)))
+                include(SIMD3(Float(step.x + step.halfDepth), Float(step.top),
+                              Float(-step.y + step.halfWidth)))
             }
             for wall in environment.walls {
                 let entity = ModelEntity(
@@ -318,20 +334,47 @@ struct DuckStage: UIViewRepresentable {
                                         Float(wall.height / 2),
                                         Float(-wall.y))
                 props.addChild(entity)
-                extremes += SIMD3(Float(wall.x), Float(wall.height / 2), Float(-wall.y))
-                count += 1
+                include(SIMD3(Float(wall.x - wall.halfLength), Float(wall.height),
+                              Float(-wall.y)))
+                include(SIMD3(Float(wall.x + wall.halfLength), 0, Float(-wall.y)))
             }
-            centre = extremes / count
+            centre = (low + high) / 2
+        }
+
+        /// Take the path into account too, so a motion that walks away from its
+        /// props is still framed. Called after the trail is built, because the
+        /// trail is the half of the scene the props cannot describe.
+        func includeTrail(_ trail: [DuckIntentClip.Root]) {
+            guard !trail.isEmpty else { return }
+            var low = centre, high = centre
+            for root in trail {
+                let point = SIMD3(Float(root.x), Float(root.z), Float(-root.y))
+                low = SIMD3(Swift.min(low.x, point.x), Swift.min(low.y, point.y),
+                            Swift.min(low.z, point.z))
+                high = SIMD3(Swift.max(high.x, point.x), Swift.max(high.y, point.y),
+                             Swift.max(high.z, point.z))
+            }
+            centre = (low + high) / 2
         }
 
         // MARK: - the path
 
         /// Where the robot has been, as a line on the floor.
         ///
-        /// Built once for the whole run and revealed as the playhead moves,
-        /// rather than rebuilt per frame: a hundred entities created sixty
-        /// times a second is a stutter, and the line is the same line either
-        /// way. Every fourth tick is enough to read a curve at this scale.
+        /// ONE SEGMENT PER TICK, AND EACH REMEMBERS WHICH TICK IT ENDS ON.
+        /// The first version walked a four-tick stride and then revealed
+        /// `round(count * progress)` segments — indexing surviving SEGMENTS
+        /// rather than TIME. Two errors compounded: a stride of four means the
+        /// line can only end on every fourth tick, and dropping the
+        /// sub-0.1 mm segments made the index drift further still. Measured
+        /// against where the duck actually is, the head of the trail was out by
+        /// 255 mm on `roulade`, 91 mm on `climb`, 67 mm on `lever_up`. A line
+        /// that leads the robot by a quarter of a metre is worse than no line:
+        /// it looks like the robot is behind where it has got to.
+        ///
+        /// Per-tick segments with an explicit end tick fix both, and the tail
+        /// is no longer dropped — the old loop stopped four ticks short and
+        /// silently lost the end of every clip.
         func rebuildPath(_ trail: [DuckIntentClip.Root]) {
             guard let path, shownTrail != trail.count else { return }
             shownTrail = trail.count
@@ -341,14 +384,14 @@ struct DuckStage: UIViewRepresentable {
 
             let material = UnlitMaterial(color: UIColor(red: 0.35, green: 0.75,
                                                         blue: 1, alpha: 1))
-            var index = 0
-            while index + 4 < trail.count {
-                let a = trail[index], b = trail[index + 4]
+            for index in 1..<trail.count {
+                let a = trail[index - 1], b = trail[index]
                 let dx = Float(b.x - a.x), dz = Float(-(b.y - a.y))
                 let length = (dx * dx + dz * dz).squareRoot()
-                index += 4
-                // A stationary tick contributes no segment. Drawing a
-                // zero-length box gives a degenerate mesh and a warning.
+                // A stationary tick contributes no segment — a zero-length box
+                // is a degenerate mesh — but it still advances the clock,
+                // which is why the tick is stored rather than inferred from a
+                // position in the array.
                 guard length > 1e-4 else { continue }
                 let segment = ModelEntity(
                     mesh: .generateBox(width: length, height: 0.0012, depth: 0.005),
@@ -357,15 +400,22 @@ struct DuckStage: UIViewRepresentable {
                 segment.orientation = simd_quatf(angle: -atan2(dz, dx), axis: SIMD3(0, 1, 0))
                 segment.isEnabled = false
                 path.addChild(segment)
-                markers.append(segment)
+                markers.append((entity: segment, endTick: index))
             }
         }
 
         /// Show the part of the path already walked.
-        func reveal(progress: Double) {
-            guard !markers.isEmpty else { return }
-            let shown = Int((Double(markers.count) * min(max(progress, 0), 1)).rounded())
-            for (i, marker) in markers.enumerated() { marker.isEnabled = i < shown }
+        ///
+        /// Compared against the TICK the playhead is on, the same way
+        /// `DuckIntentClip.pose(at:)` samples — which floors rather than
+        /// rounds, so rounding here would put the line half a tick ahead of the
+        /// robot drawing it.
+        func reveal(progress: Double, ticks: Int) {
+            guard !markers.isEmpty, ticks > 1 else { return }
+            let now = min(max(progress, 0), 1) * Double(ticks - 1)
+            for marker in markers {
+                marker.entity.isEnabled = Double(marker.endTick) <= now
+            }
         }
 
         // MARK: - gestures
