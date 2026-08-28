@@ -1,0 +1,140 @@
+import SwiftUI
+import DuckKit
+import DuckEvidence
+import StudioKit
+
+/// The library: every policy this app holds, and where each one came from.
+///
+/// ORGANISED BY PROVENANCE, NOT BY FOLDER. The sections are "Released by Pollen
+/// Robotics" and "From elsewhere", and which section a policy lands in is
+/// decided by its parameter fingerprint — not by whether it shipped in the
+/// bundle. Those two answers diverge the moment anyone downloads a policy from
+/// Pollen's own repository, and a heading that said "Bundled" would be telling
+/// the reader where a file came from while looking like it was telling them
+/// what it is.
+struct PolicyListView: View {
+    @ObservedObject var model: LibraryModel
+
+    private var released: [PolicyLibrary.Entry] {
+        model.library.entries.filter { isReleased(model.standing(for: $0)) }
+    }
+    private var elsewhere: [PolicyLibrary.Entry] {
+        model.library.entries.filter { !isReleased(model.standing(for: $0)) }
+    }
+
+    var body: some View {
+        List {
+            if let message = model.lastImport {
+                Section { Text(message).font(.footnote).foregroundStyle(.secondary) }
+            }
+            if !released.isEmpty {
+                Section {
+                    ForEach(released) { row($0) }
+                } header: {
+                    Text("Released by Pollen Robotics")
+                } footer: {
+                    Text("Matched by fingerprint — a digest of the trained weights, not of the file. A re-export under a newer opset still matches; one changed weight does not.")
+                }
+            }
+            if !elsewhere.isEmpty {
+                Section {
+                    ForEach(elsewhere) { row($0) }
+                } header: {
+                    Text("From elsewhere")
+                } footer: {
+                    Text("Trained by someone else, or newer than this app knows about. This only says the weights are unfamiliar — not that they are bad.")
+                }
+            }
+            if model.library.entries.isEmpty {
+                Section {
+                    Text("No policies yet. Send one to Duck Studio from Files, Mail or AirDrop.")
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .navigationTitle("Policies")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Text("\(model.library.runnableCount) of \(model.library.entries.count) run")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func isReleased(_ standing: DuckOfficialPolicies.Standing) -> Bool {
+        if case .released = standing { return true }
+        return false
+    }
+
+    private func row(_ entry: PolicyLibrary.Entry) -> some View {
+        NavigationLink {
+            PolicyDetailView(entry: entry, standing: model.standing(for: entry))
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: entry.isRunnable ? "checkmark.seal" : "exclamationmark.triangle")
+                    .foregroundStyle(entry.isRunnable ? Color.accentColor : .orange)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(entry.displayName).font(.subheadline.weight(.medium))
+                    HStack(spacing: 6) {
+                        // Sixteen characters is what a person compares at a
+                        // glance; the full digest is on the detail screen,
+                        // because a truncated hash is a weaker claim and the
+                        // place it is VERIFIED should show the whole thing.
+                        Text(entry.shortIdentity).font(.caption2.monospaced())
+                        Text(entry.origin.label).font(.caption2)
+                    }
+                    .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+}
+
+/// One policy: what it is, where it came from, and what is inside it.
+struct PolicyDetailView: View {
+    let entry: PolicyLibrary.Entry
+    let standing: DuckOfficialPolicies.Standing
+
+    var body: some View {
+        List {
+            Section("Provenance") {
+                Text(DuckOfficialPolicies.summary(for: standing))
+                    .font(.footnote)
+                LabeledContent(entry.identity.isNetworkIdentity ? "Weights" : "File digest") {
+                    Text(entry.identity.value)
+                        .font(.caption2.monospaced())
+                        .textSelection(.enabled)
+                        .multilineTextAlignment(.trailing)
+                }
+                if !entry.identity.isNetworkIdentity {
+                    Text("This file does not load, so it has no weights to fingerprint. It is identified by the bytes of the file instead — which is a weaker kind of identity, and the reason it says so.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                LabeledContent("Arrived", value: entry.origin.label)
+            }
+
+            Section(entry.isRunnable ? "Verdict" : "Why it will not run") {
+                Text(entry.report.headline).font(.subheadline.weight(.medium))
+                if !entry.report.reason.isEmpty {
+                    Text(entry.report.reason).font(.footnote)
+                }
+                if let remedy = entry.report.remedy {
+                    Text(remedy).font(.footnote).foregroundStyle(.secondary)
+                }
+            }
+
+            Section("Structure") {
+                ForEach(entry.report.facts, id: \.label) { fact in
+                    LabeledContent(fact.label) {
+                        Text(fact.value)
+                            .font(.caption.monospaced())
+                            .multilineTextAlignment(.trailing)
+                    }
+                }
+            }
+        }
+        .navigationTitle(entry.displayName)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}

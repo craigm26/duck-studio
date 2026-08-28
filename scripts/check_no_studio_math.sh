@@ -33,7 +33,7 @@ PATTERNS=(
   'jointRanges'
   'mean\['
   'std\['
-  'exp('
+  'exp[(]'
   '\b61\b'
 )
 
@@ -41,11 +41,27 @@ status=0
 for pattern in "${PATTERNS[@]}"; do
   # --include limits this to shipping sources; previews and tests are exempt
   # because a preview inventing a number harms nobody.
-  hits=$(grep -rnE "$pattern" "$APP" \
-          --include='*.swift' \
-          | grep -v '_Preview' \
-          | grep -v '// math-ok:' \
-          || true)
+  # `|| true` on the pipeline would swallow a BROKEN PATTERN as a pass. It did:
+  # `exp(` is an unmatched group in ERE, grep exited 2, and the guard cheerfully
+  # reported the app target clean. Exit 1 means "no matches" and is fine; exit 2
+  # means grep could not run the pattern and must fail the check loudly.
+  # errexit has to come OFF around this: grep exits 1 for "no matches", which
+  # is the SUCCESS case here, and `set -e` would kill the script on the first
+  # clean pattern — the guard would then pass by dying quietly, which is the
+  # same false pass in a different costume.
+  # `rc` is grep's exit for THIS pattern; `status` accumulates across all of
+  # them. They were one variable, so each iteration clobbered the verdict — and
+  # since the last pattern normally finds nothing, grep's exit 1 became a
+  # permanent false FAILURE regardless of what any earlier pattern had found.
+  set +e
+  hits=$(grep -rnE "$pattern" "$APP" --include='*.swift' 2>&1)
+  rc=$?
+  set -e
+  if [ $rc -gt 1 ]; then
+    echo "BROKEN PATTERN '$pattern': $hits"
+    exit 2
+  fi
+  hits=$(printf '%s' "$hits" | grep -v '_Preview' | grep -v '// math-ok:' || true)
   if [ -n "$hits" ]; then
     echo "FORBIDDEN: '$pattern' in the app target — this belongs in StudioKit."
     echo "$hits"
