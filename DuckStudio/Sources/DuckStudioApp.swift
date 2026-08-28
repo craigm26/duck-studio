@@ -19,13 +19,14 @@ import StudioKit
 struct DuckStudioApp: App {
     @StateObject private var model = LibraryModel()
     @StateObject private var scenes = SceneStore()
+    @StateObject private var drafts = DraftStore()
 
     var body: some Scene {
         WindowGroup {
             TabView {
-                NavigationStack { PolicyListView(model: model, scenes: scenes) }
+                NavigationStack { PolicyListView(model: model, scenes: scenes, drafts: drafts) }
                     .tabItem { Label("Policies", systemImage: "cpu") }
-                NavigationStack { IntentListView(store: scenes, model: model) }
+                NavigationStack { IntentListView(store: scenes, model: model, drafts: drafts) }
                     .tabItem { Label("Intents", systemImage: "figure.walk.motion") }
                 // A THIRD KIND OF THING, and it earned its own tab the moment
                 // the stage started drawing one. A policy is a network, an

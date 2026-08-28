@@ -15,6 +15,7 @@ import StudioKit
 struct PolicyListView: View {
     @ObservedObject var model: LibraryModel
     @ObservedObject var scenes: SceneStore
+    @ObservedObject var drafts: DraftStore
 
     private var released: [PolicyLibrary.Entry] {
         model.library.entries.filter { isReleased(model.standing(for: $0)) }
@@ -75,7 +76,7 @@ struct PolicyListView: View {
 
     private func row(_ entry: PolicyLibrary.Entry) -> some View {
         NavigationLink {
-            PolicyDetailView(entry: entry, standing: model.standing(for: entry), scenes: scenes)
+            PolicyDetailView(entry: entry, standing: model.standing(for: entry), scenes: scenes, drafts: drafts)
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: entry.isRunnable ? "checkmark.seal" : "exclamationmark.triangle")
@@ -102,6 +103,7 @@ struct PolicyDetailView: View {
     let entry: PolicyLibrary.Entry
     let standing: DuckOfficialPolicies.Standing
     @ObservedObject var scenes: SceneStore
+    @ObservedObject var drafts: DraftStore
     @State private var clips: [String: DuckIntentClip] = [:]
 
     /// Clips whose recorded-from policy is this file. Matched on the filename
@@ -155,7 +157,7 @@ struct PolicyDetailView: View {
                 if !recordings.isEmpty {
                     Section {
                         ForEach(recordings, id: \.name) { clip in
-                            NavigationLink { IntentPlayerView(clip: clip, store: scenes) } label: {
+                            NavigationLink { IntentPlayerView(clip: clip, store: scenes, drafts: drafts) } label: {
                                 HStack {
                                     Text(clip.name).font(.subheadline)
                                     Spacer()

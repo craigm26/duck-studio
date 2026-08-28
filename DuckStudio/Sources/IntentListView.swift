@@ -22,6 +22,8 @@ import StudioKit
 struct IntentListView: View {
     @ObservedObject var store: SceneStore
     @ObservedObject var model: LibraryModel
+    @ObservedObject var drafts: DraftStore
+    @State private var editing: IntentDraft?
     @State private var clips: [String: DuckIntentClip] = [:]
     @State private var picking = false
     /// Rolled-out rates, loaded once. The list is the place these matter most:
@@ -48,6 +50,25 @@ struct IntentListView: View {
             Section {
                 Text("Motions recorded in MuJoCo from the trained policies, because the policy cannot run live on a phone. Playing one shows what the robot did; it does not re-run the network.")
                     .font(.footnote).foregroundStyle(.secondary)
+            }
+
+            Section {
+                ForEach(drafts.drafts) { draft in
+                    Button { editing = draft } label: { draftRow(draft) }
+                        .buttonStyle(.plain)
+                }
+                .onDelete { offsets in
+                    for index in offsets { drafts.delete(drafts.drafts[index]) }
+                }
+                Button {
+                    let fresh = IntentDraft.blank()
+                    drafts.save(fresh)
+                    editing = fresh
+                } label: { Label("Write a new motion", systemImage: "plus") }
+            } header: {
+                Text("Written here")
+            } footer: {
+                Text("Poses and times, interpolated. A phone has no physics engine, so this is what you asked the robot for — not what it would do. Every authored move already in this app was written the same way, and all four stair ones get up their flight 0 times in 16.")
             }
 
             if !fromPollen.isEmpty {
@@ -104,11 +125,16 @@ struct IntentListView: View {
             clips = (try? DuckIntentClip.bundled()) ?? [:]
             odds = try? DuckIntentSuccess.bundled()
         }
+        .sheet(item: $editing) { draft in
+            NavigationStack {
+                IntentAuthorView(draft: draft, scenes: store) { drafts.save($0) }
+            }
+        }
     }
 
     private func row(_ clip: DuckIntentClip) -> some View {
         NavigationLink {
-            IntentPlayerView(clip: clip, store: store)
+            IntentPlayerView(clip: clip, store: store, drafts: drafts)
         } label: {
             VStack(alignment: .leading, spacing: 3) {
                 HStack {
@@ -144,6 +170,24 @@ struct IntentListView: View {
         }
     }
 
+    private func draftRow(_ draft: IntentDraft) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack {
+                Text(draft.name).font(.subheadline.weight(.medium))
+                Spacer()
+                if !draft.isPlayable {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.caption2).foregroundStyle(.orange)
+                }
+                Text(String(format: "%.1fs", draft.duration))
+                    .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+            }
+            Text("\(draft.keys.count) keyframes · no physics")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+        .contentShape(Rectangle())
+    }
+
     /// Ending on the floor is worth colouring. Not an error — a roll passes
     /// through it deliberately — but it is what someone scanning the list is
     /// looking for.
@@ -158,7 +202,9 @@ struct IntentPlayerView: View {
     /// Scenes this phone holds, so a motion can be played somewhere other than
     /// where it was recorded. Optional because the bench opens this view too.
     var store: SceneStore?
+    var drafts: DraftStore?
 
+    @State private var remixed: IntentDraft?
     @State private var playhead: TimeInterval = 0
     @State private var isRunning = true
     @State private var orbit = OrbitState()
@@ -259,6 +305,20 @@ struct IntentPlayerView: View {
                             }
                         }
                     }
+                    if let drafts {
+                        Button {
+                            // A REMIX KEEPS THE SHAPES AND LOSES THE PHYSICS.
+                            // Eight smoothstepped keyframes are not a recording
+                            // at fifty hertz, and the draft's provenance line
+                            // says so — a remix of a clip that works is not a
+                            // motion that works.
+                            let draft = IntentDraft.remix(clip)
+                            drafts.save(draft)
+                            remixed = draft
+                        } label: {
+                            Label("Remix into a new motion", systemImage: "wand.and.stars")
+                        }
+                    }
                 } label: { Image(systemName: "ellipsis.circle") }
             }
         }
@@ -270,6 +330,13 @@ struct IntentPlayerView: View {
             get: { shareFailure != nil }, set: { if !$0 { shareFailure = nil } })) {
             Button("OK", role: .cancel) {}
         } message: { Text(shareFailure ?? "") }
+        .sheet(item: $remixed) { draft in
+            NavigationStack {
+                IntentAuthorView(draft: draft, scenes: store ?? SceneStore()) {
+                    drafts?.save($0)
+                }
+            }
+        }
         .onReceive(Timer.publish(every: 1.0 / DuckModel.tickHz, on: .main, in: .common).autoconnect()) { _ in
             guard isRunning else { return }
             playhead += 1.0 / DuckModel.tickHz
