@@ -121,8 +121,25 @@ struct IntentPlayerView: View {
     @State private var isRunning = true
     @State private var orbit = OrbitState()
     @State private var showProps = true
+    @State private var shareURL: URL?
+    @State private var shareFailure: String?
 
     private var pose: DuckIntentClip.Pose { clip.pose(at: playhead) }
+
+    /// Package the motion and hand it to the system.
+    private func share() {
+        let export = IntentExport(clip: clip, policyFingerprint: nil)
+        do {
+            let data = try export.encoded()
+            guard let url = ExportFile.write(data, named: export.suggestedFilename) else {
+                shareFailure = "The file could not be written."
+                return
+            }
+            shareURL = url
+        } catch {
+            shareFailure = "\(error)"
+        }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -169,6 +186,14 @@ struct IntentPlayerView: View {
                     }
                 }
 
+                Section {
+                    Button { share() } label: {
+                        Label("Share this motion", systemImage: "square.and.arrow.up")
+                    }
+                } footer: {
+                    Text("Sends a .duckintent file — the frames, the postures, and the digest of the policy it was recorded from. The digest lets whoever receives it check they hold the same network; it does not say who made the motion, because a signature nobody can anchor would not tell them that either.")
+                }
+
                 if clip.environment.hasProps {
                     Section {
                         Toggle("Show what it was recorded against", isOn: $showProps)
@@ -180,6 +205,19 @@ struct IntentPlayerView: View {
         }
         .navigationTitle(clip.name)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { share() } label: { Image(systemName: "square.and.arrow.up") }
+            }
+        }
+        .sheet(item: Binding(get: { shareURL.map(SharePayload.init) },
+                             set: { shareURL = $0?.url })) { payload in
+            ShareSheet(items: [payload.url])
+        }
+        .alert("Could not share", isPresented: Binding(
+            get: { shareFailure != nil }, set: { if !$0 { shareFailure = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: { Text(shareFailure ?? "") }
         .onReceive(Timer.publish(every: 1.0 / DuckModel.tickHz, on: .main, in: .common).autoconnect()) { _ in
             guard isRunning else { return }
             playhead += 1.0 / DuckModel.tickHz
@@ -214,4 +252,10 @@ struct TransportBar: View {
         }
         .buttonStyle(.borderless)
     }
+}
+
+/// A URL made identifiable, so it can drive a sheet.
+private struct SharePayload: Identifiable {
+    let url: URL
+    var id: String { url.absoluteString }
 }

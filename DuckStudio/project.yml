@@ -94,7 +94,23 @@ targets:
         # nothing here ever cleans up, to hand over a copy of a file this app
         # never writes to anyway.
         LSSupportsOpeningDocumentsInPlace: true
+        # A shared motion, which is this app's OWN format — so Exported here,
+        # unlike ONNX. Declaring it is what lets a .duckintent arriving in a
+        # chat or in Files offer Duck Studio to open it.
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: com.duckstudio.intent
+            UTTypeDescription: Microduck intent
+            UTTypeConformsTo:
+              - public.json
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - duckintent
         CFBundleDocumentTypes:
+          - CFBundleTypeName: Microduck intent
+            LSItemContentTypes:
+              - com.duckstudio.intent
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Owner
           - CFBundleTypeName: ONNX model
             LSItemContentTypes:
               - org.onnx.model
@@ -109,7 +125,7 @@ targets:
         DEVELOPMENT_TEAM: WYGG3JXWMG
         CODE_SIGN_STYLE: Automatic
         MARKETING_VERSION: "1.0"
-        CURRENT_PROJECT_VERSION: "8"
+        CURRENT_PROJECT_VERSION: "9"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         SWIFT_VERSION: "5.9"
         TARGETED_DEVICE_FAMILY: "1,2"
