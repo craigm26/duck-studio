@@ -124,6 +124,16 @@ struct PolicyDetailView: View {
                 }
             }
 
+            if entry.isRunnable {
+                Section {
+                    NavigationLink { BenchView(entry: entry) } label: {
+                        Label("Run it on the bench", systemImage: "slider.horizontal.below.square.filled.and.square")
+                    }
+                } footer: {
+                    Text("Feed the network an observation and see the fourteen numbers it answers with, and the robot they command.")
+                }
+            }
+
             Section("Structure") {
                 ForEach(entry.report.facts, id: \.label) { fact in
                     LabeledContent(fact.label) {
