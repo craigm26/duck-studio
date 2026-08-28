@@ -62,14 +62,17 @@ extension DuckStance {
     /// The trunk, in RealityKit's frame. MuJoCo is z-up, RealityKit is y-up:
     /// (x, y, z) → (x, z, −y), the same swap `DuckGhostEntity` applies to every
     /// vertex, so the robot and the world it stands in cannot disagree.
+    ///
+    /// FOR LOOKING AT, NOT FOR PLACING. Putting the entity here is the bug that
+    /// drew the robot floating; `DuckGhostEntity.place(root:jointAngles:)` owns
+    /// placement. This is what the camera aims at and what the legend prints.
     var position: SIMD3<Float> {
         SIMD3(Float(root.x), Float(root.z), Float(-root.y))
     }
 
-    /// The same change of basis for the trunk's orientation.
-    var orientation: simd_quatf {
-        simd_quatf(ix: Float(root.quaternion.1), iy: Float(root.quaternion.3),
-                   iz: Float(-root.quaternion.2), r: Float(root.quaternion.0))
+    /// The same point projected onto the floor — where the shadow goes.
+    var groundPosition: SIMD3<Float> {
+        SIMD3(Float(root.x), 0, Float(-root.y))
     }
 }
 
@@ -152,13 +155,16 @@ struct DuckStage: UIViewRepresentable {
 
     func updateUIView(_ view: ARView, context: Context) {
         let c = context.coordinator
-        c.duck?.apply(jointAngles: pose.jointAngles)
-        c.duck?.position = pose.position
-        c.duck?.orientation = pose.orientation
-        // A contact patch under the trunk, on the floor. It is the cheapest
-        // possible depth cue and it does the single job nothing else does:
-        // it says which part of the ground the robot is over.
-        c.shadow?.position = SIMD3(pose.position.x, 0.0015, pose.position.z)
+        // PLACED BY DUCKKIT, not by arithmetic here. `bodyPoses` works in the
+        // model's world frame with the trunk already 120 mm up, and a recorded
+        // root IS the trunk — setting position straight from it added the
+        // offset twice and drew the robot floating by its own trunk height.
+        c.duck?.place(root: pose.root, jointAngles: pose.jointAngles)
+        // A contact patch under the FEET, on the floor — not under the trunk.
+        // The trunk is the thing that leans, so a shadow tracking it slides out
+        // from under a robot that is bending down, which reads as the robot
+        // drifting rather than as the trunk moving.
+        c.shadow?.position = SIMD3(pose.groundPosition.x, 0.0015, pose.groundPosition.z)
         c.rebuildProps(environment)
         c.rebuildPath(trail)
         c.reveal(progress: progress)
