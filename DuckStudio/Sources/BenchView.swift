@@ -45,7 +45,7 @@ struct BenchView: View {
     var body: some View {
         VStack(spacing: 0) {
             ZStack(alignment: .bottomLeading) {
-                DuckStage(jointAngles: jointAngles, orbit: $orbit)
+                DuckStage(jointAngles: jointAngles, environment: playing?.environment, orbit: $orbit)
                     .background(Color(white: 0.08))
                 // What you are looking at, and how to move it. A 3D view with
                 // no label is a view where nobody knows whether the duck is
