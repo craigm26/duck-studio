@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Used for Duck Studio's App Store distribution.
+     Reuses the proven Exsiccatae/HearAura headless, API-key-signed flow.
+
+     manageAppVersionAndBuildNumber is FALSE deliberately. It defaults to true,
+     and on 2026-08-28 that silently turned an archive built as 60 into build 61
+     on App Store Connect, because 60 had already been uploaded on 2026-08-17.
+     The upload reported success and the repo went on saying 60, so the next
+     archive would have collided again and drifted to 62. An auto-increment
+     that nobody records is worse than a rejected upload: with this false, a
+     duplicate build number fails loudly and gets fixed here, where it is
+     written down. -->
+<plist version="1.0">
+<dict>
+	<key>method</key>
+	<string>app-store-connect</string>
+	<key>destination</key>
+	<string>upload</string>
+	<key>teamID</key>
+	<string>WYGG3JXWMG</string>
+	<key>signingStyle</key>
+	<string>automatic</string>
+	<key>manageAppVersionAndBuildNumber</key>
+	<false/>
+</dict>
+</plist>
