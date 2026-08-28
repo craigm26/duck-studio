@@ -9,6 +9,13 @@ import DuckKit
 /// Everything in both lists exists — no predicate reads a sensor the robot does
 /// not have, and no action names a motion nobody recorded.
 ///
+/// NOTHING HERE RUNS YET, AND SAYING SO IS PART OF THE TYPE. An adversarial
+/// review checked and `DuckToF` and `DuckState` are both INBOUND DECODERS —
+/// they read what the robot reports and have no output channel at all. So an
+/// `Automation` is a rule you can write, validate, read back and share; it is
+/// not a rule that fires. Executing one needs `DuckRPC` and a robot that does
+/// not exist yet. A UI presenting these must not imply otherwise.
+///
 /// A PROPOSED AUTOMATION IS NOT AN ADMITTED ONE. These values are cheap to make
 /// and anything can make one — a person tapping a form, or a language model
 /// turning a sentence into a struct. `AutomationValidator` is the single
