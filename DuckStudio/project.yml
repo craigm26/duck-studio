@@ -17,7 +17,7 @@ packages:
   # parser nobody can identify later.
   DuckKit:
     url: https://github.com/craigm26/duckkit.git
-    from: 1.7.0
+    from: 1.7.1
 targets:
   DuckStudio:
     type: application
