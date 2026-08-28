@@ -27,7 +27,7 @@ import DuckEvidence
 public enum PolicyCatalogue {
 
     /// A place Pollen publish from.
-    public struct Source: Equatable, Sendable, Identifiable {
+    public struct Source: Hashable, Sendable, Identifiable {
         public let id: String
         /// What to call it on screen.
         public let name: String

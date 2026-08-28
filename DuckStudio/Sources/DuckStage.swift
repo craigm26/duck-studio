@@ -101,7 +101,10 @@ struct DuckStage: UIViewRepresentable {
         let key = DirectionalLight()
         key.light.intensity = 3500
         key.light.color = .white
-        key.shadow = DirectionalLightShadowComponent(maximumDistance: 4, depthBias: 2)
+        // A cast shadow is what fixes the robot to the floor rather than
+        // floating over it. `DirectionalLight.Shadow` is the nested type; the
+        // top-level name reads better and does not exist.
+        key.shadow = DirectionalLightComponent.Shadow(maximumDistance: 4, depthBias: 2)
         key.look(at: .zero, from: SIMD3(0.6, 1.2, 0.8), relativeTo: nil)
         world.addChild(key)
 

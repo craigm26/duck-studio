@@ -16,9 +16,9 @@ import DuckKit
 /// starts, y is to its left, z is up — MuJoCo's convention, which is the
 /// robot's, which is the recording's. Every renderer converts once at the
 /// boundary rather than storing a second frame here.
-public struct DuckScene: Codable, Equatable, Identifiable, Sendable {
+public struct DuckScene: Codable, Hashable, Identifiable, Sendable {
 
-    public struct Step: Codable, Equatable, Identifiable, Sendable {
+    public struct Step: Codable, Hashable, Identifiable, Sendable {
         public var id: UUID
         /// The centre of the block in plan.
         public var x: Double
@@ -40,7 +40,7 @@ public struct DuckScene: Codable, Equatable, Identifiable, Sendable {
         }
     }
 
-    public struct Wall: Codable, Equatable, Identifiable, Sendable {
+    public struct Wall: Codable, Hashable, Identifiable, Sendable {
         public var id: UUID
         public var x: Double
         public var y: Double
