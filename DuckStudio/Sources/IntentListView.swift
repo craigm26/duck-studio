@@ -189,12 +189,12 @@ struct IntentPlayerView: View {
     var body: some View {
         VStack(spacing: 0) {
             ZStack(alignment: .bottomLeading) {
-                DuckStage(pose: StagePose(jointAngles: pose.jointAngles, root: pose.root),
+                DuckStage(pose: .at(pose),
                           environment: world,
                           trail: clip.roots,
                           progress: playhead / max(clip.duration, 1e-9),
                           orbit: $orbit)
-                StageLegend(pose: StagePose(jointAngles: pose.jointAngles, root: pose.root),
+                StageLegend(pose: .at(pose),
                             environment: world, orbit: $orbit)
             }
             .frame(maxHeight: 340)

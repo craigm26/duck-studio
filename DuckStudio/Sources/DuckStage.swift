@@ -46,24 +46,30 @@ struct OrbitState: Equatable {
 
 /// One frame to draw: the robot's joints, and where the robot IS.
 ///
-/// THE ROOT IS NOT OPTIONAL, and leaving it out was the bug this type exists to
-/// close. The stage used to take joint angles alone, so every clip played with
-/// the trunk pinned to the origin: `climb` walked 208 mm and 357 mm sideways in
+/// THE ROOT IS NOT OPTIONAL, and leaving it out was the bug this closes. The
+/// stage used to take joint angles alone, so every clip played with the trunk
+/// pinned to the origin: `climb` walked 208 mm forward and 357 mm sideways in
 /// the recording and stood perfectly still on screen, while the staircase it
 /// was supposed to reach sat off to one side untouched. A viewer could not tell
 /// a move that got there from one that fell short, because neither of them went
 /// anywhere.
-struct StagePose: Equatable {
-    var jointAngles: [Double]
-    var root: DuckIntentClip.Root
+///
+/// The pose itself is `DuckStance`, which lives in StudioKit and is tested
+/// there. This adds only the change of basis into RealityKit's frame.
+typealias StagePose = DuckStance
 
-    static let home = StagePose(
-        jointAngles: DuckModel.homePose,
-        root: .init(x: 0, y: 0, z: 0.11622, quaternion: (1, 0, 0, 0)))
-
-    /// The trunk, in RealityKit's frame.
+extension DuckStance {
+    /// The trunk, in RealityKit's frame. MuJoCo is z-up, RealityKit is y-up:
+    /// (x, y, z) → (x, z, −y), the same swap `DuckGhostEntity` applies to every
+    /// vertex, so the robot and the world it stands in cannot disagree.
     var position: SIMD3<Float> {
         SIMD3(Float(root.x), Float(root.z), Float(-root.y))
+    }
+
+    /// The same change of basis for the trunk's orientation.
+    var orientation: simd_quatf {
+        simd_quatf(ix: Float(root.quaternion.1), iy: Float(root.quaternion.3),
+                   iz: Float(-root.quaternion.2), r: Float(root.quaternion.0))
     }
 }
 
@@ -145,10 +151,7 @@ struct DuckStage: UIViewRepresentable {
         let c = context.coordinator
         c.duck?.apply(jointAngles: pose.jointAngles)
         c.duck?.position = pose.position
-        c.duck?.orientation = simd_quatf(ix: Float(pose.root.quaternion.1),
-                                         iy: Float(pose.root.quaternion.3),
-                                         iz: Float(-pose.root.quaternion.2),
-                                         r: Float(pose.root.quaternion.0))
+        c.duck?.orientation = pose.orientation
         // A contact patch under the trunk, on the floor. It is the cheapest
         // possible depth cue and it does the single job nothing else does:
         // it says which part of the ground the robot is over.

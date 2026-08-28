@@ -46,8 +46,7 @@ struct BenchView: View {
     var body: some View {
         VStack(spacing: 0) {
             ZStack(alignment: .bottomLeading) {
-                DuckStage(pose: StagePose(jointAngles: jointAngles,
-                                          root: StagePose.home.root),
+                DuckStage(pose: benchPose,
                           environment: scene?.environment ?? .bareFloor,
                           orbit: $orbit)
                 // What you are looking at, and how to move it. A 3D view with
@@ -55,8 +54,7 @@ struct BenchView: View {
                 // posed by the policy or just sitting at home.
                 VStack(alignment: .leading, spacing: 2) {
                     Text(poseSource).font(.caption2.weight(.medium))
-                    StageLegend(pose: StagePose(jointAngles: jointAngles,
-                                                root: StagePose.home.root),
+                    StageLegend(pose: benchPose,
                                 environment: scene?.environment ?? .bareFloor,
                                 orbit: $orbit)
                 }
@@ -173,6 +171,13 @@ struct BenchView: View {
     /// and recordings live in the Intents tab.
     private var jointAngles: [Double] {
         stages?.clamped ?? ObservationPreset.restingPose
+    }
+
+    /// The bench has no root of its own — a network has no position — so the
+    /// robot stands where every clip starts, wearing the pose the policy just
+    /// asked for.
+    private var benchPose: StagePose {
+        StagePose(jointAngles: jointAngles, root: StagePose.home.root)
     }
 
     private var poseSource: String {

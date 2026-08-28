@@ -169,9 +169,7 @@ struct SceneEditorView: View {
     private var preview: StagePose {
         guard stance == .onTopStep,
               let top = scene.steps.max(by: { $0.top < $1.top }) else { return .home }
-        return StagePose(jointAngles: DuckModel.homePose,
-                         root: .init(x: top.x, y: top.y, z: top.top + 0.11622,
-                                     quaternion: (1, 0, 0, 0)))
+        return .onTop(of: top)
     }
 }
 

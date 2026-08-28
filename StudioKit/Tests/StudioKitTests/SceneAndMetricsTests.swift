@@ -165,3 +165,26 @@ final class RunMetricsTests: XCTestCase {
         XCTAssertTrue(posture.value.contains("seated"), posture.value)
     }
 }
+
+final class DuckStanceTests: XCTestCase {
+
+    /// The standing height is the one the recorder actually settles at — not a
+    /// round number that would bury the feet.
+    func testHomeStandsAtTheHeightTheStandingClipSettlesAt() throws {
+        let hold = try XCTUnwrap(try DuckIntentClip.bundled()["hold"])
+        let settled = hold.roots.suffix(20).map(\.z).reduce(0, +) / 20
+        XCTAssertEqual(DuckStance.standingHeight, settled, accuracy: 0.002,
+                       "the home height must match what the standing policy does")
+        XCTAssertEqual(DuckStance.home.root.z, DuckStance.standingHeight)
+        XCTAssertEqual(DuckStance.home.jointAngles.count, DuckModel.jointCount)
+    }
+
+    /// Standing on a step means the trunk clears the step's top, not the floor.
+    func testStandingOnAStepAddsTheStepsHeight() {
+        let step = DuckScene.Step(x: 0.5, y: 0.1, top: 0.04)
+        let stance = DuckStance.onTop(of: step)
+        XCTAssertEqual(stance.root.z, 0.04 + DuckStance.standingHeight, accuracy: 1e-12)
+        XCTAssertEqual(stance.root.x, 0.5)
+        XCTAssertEqual(stance.root.y, 0.1)
+    }
+}
