@@ -49,13 +49,16 @@ public struct ObservationSlot: Equatable, Sendable, Identifiable {
     public let unit: Unit
     public let lower: Double
     public let upper: Double
-    /// True when this slot is structurally constant in training.
+    /// True when DuckKit never puts anything in this slot.
     ///
-    /// A constant slot has zero variance, so it cannot be normalised and cannot
-    /// be ranked by sensitivity — a z-score for it is a division by zero and a
-    /// Jacobian column for it is meaningless. Anything that ranks or normalises
-    /// must skip these and SAY it skipped them.
-    public let isConstantInTraining: Bool
+    /// NOT "constant in training", which is what this was first called and what
+    /// the derivation implied. Reading the trained normalizer settles it: slots
+    /// 55, 56 and 60 carry std 0.0129, 0.0129 and 0.0389 — training varied them.
+    /// What is true is narrower and still worth showing: `DuckObservation.build`
+    /// always writes zero there, so on this app's own observations the value
+    /// never moves, and a sensitivity ranking that put one of them near the top
+    /// would be ranking a slot the caller cannot actually vary.
+    public let isNeverEmitted: Bool
 
     public var id: Int { index }
 
@@ -63,7 +66,7 @@ public struct ObservationSlot: Equatable, Sendable, Identifiable {
          _ lower: Double, _ upper: Double, _ constant: Bool) {
         self.index = index; self.block = block; self.label = label
         self.unit = unit; self.lower = lower; self.upper = upper
-        self.isConstantInTraining = constant
+        self.isNeverEmitted = constant
     }
 
     /// All 61, in observation order.
@@ -137,6 +140,6 @@ public struct ObservationSlot: Equatable, Sendable, Identifiable {
         all.filter { $0.block == block }
     }
 
-    /// The slots nothing can normalise or rank.
-    public static var constantSlots: [ObservationSlot] { all.filter(\.isConstantInTraining) }
+    /// The slots this app's own observations never move.
+    public static var neverEmittedSlots: [ObservationSlot] { all.filter(\.isNeverEmitted) }
 }

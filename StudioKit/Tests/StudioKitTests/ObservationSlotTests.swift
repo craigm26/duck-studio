@@ -75,13 +75,13 @@ final class ObservationSlotTests: XCTestCase {
         }
     }
 
-    /// The three slots DuckKit never emits. Anything that normalises or ranks
-    /// has to skip them: their variance is zero, so a z-score is a division by
-    /// zero and a sensitivity column is meaningless.
-    func testTheConstantSlotsAreIdentified() {
-        let constant = ObservationSlot.constantSlots.map(\.index)
+    /// The three slots DuckKit never emits. Training DID vary them — the
+    /// trained normalizer gives them std 0.0129, 0.0129 and 0.0389 — so the
+    /// claim is only that this app's own observations never move them.
+    func testTheNeverEmittedSlotsAreIdentified() {
+        let constant = ObservationSlot.neverEmittedSlots.map(\.index)
         XCTAssertEqual(constant, [55, 56, 60], "body x, body y and body yaw")
-        for slot in ObservationSlot.constantSlots {
+        for slot in ObservationSlot.neverEmittedSlots {
             XCTAssertEqual(slot.lower, 0)
             XCTAssertEqual(slot.upper, 0)
             XCTAssertEqual(slot.block, .bodyCommand)
