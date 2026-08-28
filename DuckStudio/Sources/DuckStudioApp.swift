@@ -3,6 +3,13 @@ import StudioKit
 
 /// Duck Studio: open a Microduck policy and see what is actually in it.
 ///
+/// TWO TABS, BECAUSE THERE ARE TWO KINDS OF THING. A policy is a network with
+/// no time axis: hand it an observation, get fourteen numbers. An intent is a
+/// motion with nothing but a time axis: what happened over four seconds when a
+/// policy drove a robot in physics. One is probed, the other is watched, and
+/// putting them on one screen produced a bench that offered clips having
+/// nothing to do with the policy it was opened from.
+///
 /// The rule this app is built to: **StudioKit computes, DuckStudio displays.**
 /// No arithmetic here, and no sentence about a policy written here either —
 /// every one of them is built and asserted by `swift test` on Linux, because a
@@ -14,8 +21,11 @@ struct DuckStudioApp: App {
 
     var body: some Scene {
         WindowGroup {
-            NavigationStack {
-                PolicyListView(model: model)
+            TabView {
+                NavigationStack { PolicyListView(model: model) }
+                    .tabItem { Label("Policies", systemImage: "cpu") }
+                NavigationStack { IntentListView() }
+                    .tabItem { Label("Intents", systemImage: "figure.walk.motion") }
             }
             // A policy handed over from Files, Mail, AirDrop or another app.
             // Declared in Info.plist as an IMPORTED type — ONNX is not this

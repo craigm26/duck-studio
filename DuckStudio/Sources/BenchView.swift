@@ -32,20 +32,16 @@ struct BenchView: View {
     @State private var strip: ZScoreStrip?
     @State private var sensitivity: Sensitivity?
     @State private var orbit = OrbitState()
-    @State private var clips: [String: DuckIntentClip] = [:]
-    @State private var playing: DuckIntentClip?
-    @State private var playhead: TimeInterval = 0
-    @State private var isRunning = false
 
     enum Tab: String, CaseIterable, Identifiable {
-        case inputs = "Inputs", actions = "Actions", sensitivity = "Sensitivity", play = "Play"
+        case inputs = "Inputs", actions = "Actions", sensitivity = "Sensitivity"
         var id: String { rawValue }
     }
 
     var body: some View {
         VStack(spacing: 0) {
             ZStack(alignment: .bottomLeading) {
-                DuckStage(jointAngles: jointAngles, environment: playing?.environment, orbit: $orbit)
+                DuckStage(jointAngles: jointAngles, environment: nil, orbit: $orbit)
                     .background(Color(white: 0.08))
                 // What you are looking at, and how to move it. A 3D view with
                 // no label is a view where nobody knows whether the duck is
@@ -60,12 +56,6 @@ struct BenchView: View {
             }
             .frame(maxHeight: 320)
 
-            if let playing {
-                TransportBar(clip: playing, playhead: $playhead, isRunning: $isRunning,
-                             onStop: { self.playing = nil; self.isRunning = false })
-                    .padding(.horizontal).padding(.top, 6)
-            }
-
             Picker("View", selection: $tab) {
                 ForEach(Tab.allCases) { Text($0.rawValue).tag($0) }
             }
@@ -76,7 +66,7 @@ struct BenchView: View {
                 if let failure {
                     Section { Text(failure).font(.footnote).foregroundStyle(.orange) }
                 }
-                if let strip {
+                if let strip, tab != .actions {
                     Section { Text(strip.summary).font(.footnote) }
                 }
 
@@ -123,15 +113,7 @@ struct BenchView: View {
                     }
                 case .actions:
                     EmptyView()
-                case .play:
-                    Section("Recorded intents") {
-                        Text("Motions recorded from the trained policies in MuJoCo, because the policy cannot run live on a phone. Playing one shows the robot doing it; it does not re-run the network.")
-                            .font(.caption).foregroundStyle(.secondary)
-                        ForEach(clips.keys.sorted(), id: \.self) { name in
-                            ClipRow(clip: clips[name]!,
-                                    isPlaying: playing?.name == name,
-                                    onPlay: { start(clips[name]!) })
-                        }
+                }
                     }
                 }
 
@@ -162,17 +144,7 @@ struct BenchView: View {
         }
         .navigationTitle("Bench")
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear {
-            load()
-            clips = (try? DuckIntentClip.bundled()) ?? [:]
-        }
-        // 50 Hz is the robot's own control rate, so a clip plays at the speed
-        // it was recorded rather than at whatever the display happens to do.
-        .onReceive(Timer.publish(every: 1.0 / DuckModel.tickHz, on: .main, in: .common).autoconnect()) { _ in
-            guard isRunning, let playing else { return }
-            playhead += 1.0 / DuckModel.tickHz
-            if playing.pose(at: playhead).hasFinished && !playing.loops { isRunning = false }
-        }
+        .onAppear(perform: load)
         .onChange(of: preset) { _, _ in run() }
     }
 
@@ -180,15 +152,11 @@ struct BenchView: View {
     /// answer, because while a recording is running THAT is what you are
     /// looking at and the label says so.
     private var jointAngles: [Double] {
-        if let playing { return playing.pose(at: playhead).jointAngles }
-        return stages?.clamped ?? ObservationPreset.restingPose
+        stages?.clamped ?? ObservationPreset.restingPose
     }
 
     private var poseSource: String {
-        if let playing {
-            return "Playing \(playing.name) — \(playing.startsFrom.rawValue) to \(playing.endsIn.rawValue)"
-        }
-        return stages == nil ? "Home stance" : "Posed by the policy at this observation"
+        stages == nil ? "Home stance" : "Posed by the policy at this observation"
     }
 
     private func load() {
@@ -208,13 +176,6 @@ struct BenchView: View {
         } catch {
             failure = "\(error)"
         }
-    }
-
-    private func start(_ clip: DuckIntentClip) {
-        playing = clip
-        playhead = 0
-        isRunning = true
-        tab = .play
     }
 
     private func run() {
@@ -281,68 +242,6 @@ private struct ActionRow: View {
     /// value happens to be would rescale every time the observation changed.
     private var fraction: CGFloat {
         CGFloat(min(abs(Double(action)) / 1.5, 1))
-    }
-}
-
-/// One recorded intent in the list: what it is, and where it leaves the robot.
-private struct ClipRow: View {
-    let clip: DuckIntentClip
-    let isPlaying: Bool
-    let onPlay: () -> Void
-
-    var body: some View {
-        Button(action: onPlay) {
-            HStack(spacing: 10) {
-                Image(systemName: isPlaying ? "waveform" : "play.circle")
-                    .foregroundStyle(Color.accentColor)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(clip.name).font(.subheadline)
-                    // The measured start and end posture. step_up says
-                    // "standing to toppled" because that is what was recorded —
-                    // it falls over against a real stair.
-                    Text("\(clip.startsFrom.rawValue) → \(clip.endsIn.rawValue) · "
-                         + String(format: "%.1fs", clip.duration))
-                        .font(.caption2).foregroundStyle(.secondary)
-                }
-                Spacer()
-                if clip.credit != nil {
-                    Text("shared").font(.caption2).foregroundStyle(.tertiary)
-                }
-            }
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-/// Play, pause, scrub. A recording is a thing you watch, and watching needs a
-/// way to stop and go back to the bit that looked wrong.
-private struct TransportBar: View {
-    let clip: DuckIntentClip
-    @Binding var playhead: TimeInterval
-    @Binding var isRunning: Bool
-    let onStop: () -> Void
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Button { isRunning.toggle() } label: {
-                Image(systemName: isRunning ? "pause.fill" : "play.fill")
-            }
-            Button { playhead = 0; isRunning = true } label: {
-                Image(systemName: "arrow.counterclockwise")
-            }
-            Slider(value: $playhead, in: 0...max(clip.duration, 0.01)) { editing in
-                // Scrubbing pauses. Otherwise the playhead fights the thumb and
-                // the duck twitches between where you dragged and where the
-                // timer has got to.
-                if editing { isRunning = false }
-            }
-            Text(String(format: "%.2fs", playhead))
-                .font(.caption2.monospacedDigit())
-                .frame(width: 48, alignment: .trailing)
-            Button(action: onStop) { Image(systemName: "xmark.circle.fill") }
-                .foregroundStyle(.secondary)
-        }
-        .buttonStyle(.borderless)
     }
 }
 

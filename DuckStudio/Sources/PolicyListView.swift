@@ -95,6 +95,13 @@ struct PolicyListView: View {
 struct PolicyDetailView: View {
     let entry: PolicyLibrary.Entry
     let standing: DuckOfficialPolicies.Standing
+    @State private var clips: [String: DuckIntentClip] = [:]
+
+    /// Clips whose recorded-from policy is this file. Matched on the filename
+    /// the recorder wrote, which is the only link the clip carries.
+    private var madeFromThisPolicy: [DuckIntentClip] {
+        clips.values.filter { $0.policy == entry.displayName }.sorted { $0.name < $1.name }
+    }
 
     var body: some View {
         List {
@@ -127,10 +134,34 @@ struct PolicyDetailView: View {
             if entry.isRunnable {
                 Section {
                     NavigationLink { BenchView(entry: entry) } label: {
-                        Label("Run it on the bench", systemImage: "slider.horizontal.below.square.filled.and.square")
+                        Label("Probe this network", systemImage: "slider.horizontal.below.square.filled.and.square")
                     }
                 } footer: {
-                    Text("Feed the network an observation and see the fourteen numbers it answers with, and the robot they command.")
+                    Text("Hand it an observation and see the fourteen numbers it answers with, and the robot they command. A network has no time axis — nothing plays here.")
+                }
+
+                // The real link between the two halves of this app: a clip
+                // names the policy it was recorded from, so a policy can list
+                // its own recordings. Shown only when there ARE any, rather
+                // than as an empty section implying something is missing.
+                let recordings = madeFromThisPolicy
+                if !recordings.isEmpty {
+                    Section {
+                        ForEach(recordings, id: \.name) { clip in
+                            NavigationLink { IntentPlayerView(clip: clip) } label: {
+                                HStack {
+                                    Text(clip.name).font(.subheadline)
+                                    Spacer()
+                                    Text("\(clip.startsFrom.rawValue) → \(clip.endsIn.rawValue)")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    } header: {
+                        Text("Recorded from this policy")
+                    } footer: {
+                        Text("Motions this network produced when it drove a robot in physics. These play; the network itself does not.")
+                    }
                 }
             }
 
@@ -146,5 +177,6 @@ struct PolicyDetailView: View {
         }
         .navigationTitle(entry.displayName)
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear { clips = (try? DuckIntentClip.bundled()) ?? [:] }
     }
 }
