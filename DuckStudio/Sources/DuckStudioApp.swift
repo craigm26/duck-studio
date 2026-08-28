@@ -3,7 +3,7 @@ import StudioKit
 
 /// Duck Studio: open a Microduck policy and see what is actually in it.
 ///
-/// TWO TABS, BECAUSE THERE ARE TWO KINDS OF THING. A policy is a network with
+/// A TAB PER KIND OF THING. A policy is a network with
 /// no time axis: hand it an observation, get fourteen numbers. An intent is a
 /// motion with nothing but a time axis: what happened over four seconds when a
 /// policy drove a robot in physics. One is probed, the other is watched, and
@@ -18,14 +18,23 @@ import StudioKit
 @main
 struct DuckStudioApp: App {
     @StateObject private var model = LibraryModel()
+    @StateObject private var scenes = SceneStore()
 
     var body: some Scene {
         WindowGroup {
             TabView {
-                NavigationStack { PolicyListView(model: model) }
+                NavigationStack { PolicyListView(model: model, scenes: scenes) }
                     .tabItem { Label("Policies", systemImage: "cpu") }
-                NavigationStack { IntentListView() }
+                NavigationStack { IntentListView(store: scenes, model: model) }
                     .tabItem { Label("Intents", systemImage: "figure.walk.motion") }
+                // A THIRD KIND OF THING, and it earned its own tab the moment
+                // the stage started drawing one. A policy is a network, an
+                // intent is a motion, and a scene is a PLACE — the floor, the
+                // steps, the wall a motion is judged against. Folding places
+                // into the motion that happened to be recorded in one is what
+                // made every clip play in a void.
+                NavigationStack { SceneListView(store: scenes) }
+                    .tabItem { Label("Scenes", systemImage: "square.3.layers.3d") }
                 NavigationStack { AutomationChatView() }
                     .tabItem { Label("Rules", systemImage: "bubble.left.and.text.bubble.right") }
             }

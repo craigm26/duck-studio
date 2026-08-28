@@ -21,6 +21,7 @@ import StudioKit
 /// physics nobody ran.
 struct BenchView: View {
     let entry: PolicyLibrary.Entry
+    var store: SceneStore?
 
     @State private var policy: DuckPolicy?
     @State private var observation = DuckObservation.zeroed
@@ -32,6 +33,10 @@ struct BenchView: View {
     @State private var strip: ZScoreStrip?
     @State private var sensitivity: Sensitivity?
     @State private var orbit = OrbitState()
+    /// A place to stand the pose in. A network has no world of its own — but
+    /// looking at a crouch beside a step is how you find out whether the crouch
+    /// clears it, and a bench floating in a void cannot answer that.
+    @State private var scene: DuckScene?
 
     enum Tab: String, CaseIterable, Identifiable {
         case inputs = "Inputs", actions = "Actions", sensitivity = "Sensitivity"
@@ -41,17 +46,21 @@ struct BenchView: View {
     var body: some View {
         VStack(spacing: 0) {
             ZStack(alignment: .bottomLeading) {
-                DuckStage(jointAngles: jointAngles, environment: nil, orbit: $orbit)
-                    .background(Color(white: 0.08))
+                DuckStage(pose: StagePose(jointAngles: jointAngles,
+                                          root: StagePose.home.root),
+                          environment: scene?.environment ?? .bareFloor,
+                          orbit: $orbit)
                 // What you are looking at, and how to move it. A 3D view with
                 // no label is a view where nobody knows whether the duck is
                 // posed by the policy or just sitting at home.
                 VStack(alignment: .leading, spacing: 2) {
                     Text(poseSource).font(.caption2.weight(.medium))
-                    Text("Drag to orbit · pinch to zoom · double-tap to reset")
-                        .font(.caption2).foregroundStyle(.secondary)
+                    StageLegend(pose: StagePose(jointAngles: jointAngles,
+                                                root: StagePose.home.root),
+                                environment: scene?.environment ?? .bareFloor,
+                                orbit: $orbit)
                 }
-                .padding(10)
+                .padding(.bottom, 2)
                 .foregroundStyle(.white)
             }
             .frame(maxHeight: 320)
@@ -72,6 +81,19 @@ struct BenchView: View {
 
                 switch tab {
                 case .inputs:
+                    if let store, !store.scenes.isEmpty {
+                        Section {
+                            Picker("Stand it in", selection: $scene) {
+                                Text("Bare floor").tag(DuckScene?.none)
+                                ForEach(store.scenes) { s in
+                                    Text(s.name).tag(DuckScene?.some(s))
+                                }
+                            }
+                            .pickerStyle(.menu)
+                        } footer: {
+                            Text("A network has no world of its own. Standing the pose beside a step is how you see whether it clears one.")
+                        }
+                    }
                     Section("Start from") {
                         Picker("Preset", selection: $preset) {
                             ForEach(ObservationPreset.allCases) { Text($0.rawValue).tag($0) }

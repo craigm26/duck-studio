@@ -108,3 +108,76 @@ final class IntentExportTests: XCTestCase {
         XCTAssertTrue(keys.contains("policyfingerprint"), "the one checkable claim IS made")
     }
 }
+
+// MARK: - format 2: the world and the path travel with the motion
+
+extension IntentExportTests {
+
+    /// The thing format 1 promised in its own documentation and did not do.
+    func testAStairClimbTakesItsStaircaseAndItsPathWithIt() throws {
+        let clips = try DuckIntentClip.bundled()
+        let source = try XCTUnwrap(clips.values.first { $0.environment.hasProps })
+        let export = IntentExport(clip: source, policyFingerprint: nil)
+        let back = try IntentExport.decode(try export.encoded())
+
+        XCTAssertTrue(back.hasRecordedPath)
+        XCTAssertEqual(back.roots.count, source.frames.count)
+        XCTAssertEqual(back.environment?.steps.count, source.environment.steps.count)
+        XCTAssertEqual(back.environment?.walls.count, source.environment.walls.count)
+
+        let rebuilt = back.clip
+        XCTAssertEqual(rebuilt.roots.last?.x ?? 0, source.roots.last?.x ?? -1, accuracy: 1e-9)
+        XCTAssertEqual(rebuilt.roots.last?.z ?? 0, source.roots.last?.z ?? -1, accuracy: 1e-9)
+        XCTAssertEqual(rebuilt.environment, source.environment)
+    }
+
+    /// The reward panel has to work on the receiving phone too.
+    func testTelemetryTravelsSoTheRecipientCanScoreItToo() throws {
+        let clip = try XCTUnwrap(try DuckIntentClip.bundled()["kick_left"])
+        let back = try IntentExport.decode(
+            try IntentExport(clip: clip, policyFingerprint: nil).encoded())
+        XCTAssertFalse(back.telemetry.isEmpty)
+        let metrics = RunMetrics(clip: back.clip)
+        XCTAssertFalse(metrics.telemetryMissing)
+        XCTAssertTrue(metrics.rewards.contains { $0.name == "action_rate_l2" && $0.isEvaluated })
+    }
+
+    /// A format-1 file is still a real motion and must still open.
+    func testAFormatOneFileStillOpensAndSaysItHasNoPath() throws {
+        let json = """
+        {"format":"duck-intent/1","name":"old","hz":50,
+         "frames":[[0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0]],
+         "netYaw":0,"loops":false,"startsFrom":"standing","endsIn":"standing",
+         "policy":"alpha_walking.onnx","authored":false}
+        """
+        let export = try IntentExport.decode(Data(json.utf8))
+        XCTAssertFalse(export.hasRecordedPath)
+        // Placed standing at the origin — never drawn as a trail, because there
+        // is no path to draw and a flat line would look like a decision.
+        XCTAssertEqual(export.clip.roots.count, 2)
+        XCTAssertEqual(export.clip.roots[0].z, 0.11622, accuracy: 1e-9)
+    }
+
+    /// A short root array is dropped, not padded: padding snaps the tail of the
+    /// motion back to the origin, which is a plausible-looking lie.
+    func testAShortRootArrayIsDroppedRatherThanPadded() throws {
+        let json = """
+        {"format":"duck-intent/2","name":"short","hz":50,
+         "frames":[[0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0]],
+         "roots":[[0.5,0,0.1,1,0,0,0]],
+         "netYaw":0,"loops":false,"startsFrom":"standing","endsIn":"standing",
+         "policy":"x.onnx","authored":false}
+        """
+        let export = try IntentExport.decode(Data(json.utf8))
+        XCTAssertFalse(export.hasRecordedPath)
+        XCTAssertTrue(export.roots.isEmpty)
+    }
+
+    func testAnUnknownFormatIsStillRefusedByName() {
+        let json = #"{"format":"duck-intent/99","frames":[[0]]}"#
+        XCTAssertThrowsError(try IntentExport.decode(Data(json.utf8))) {
+            XCTAssertEqual($0 as? IntentExport.ImportError,
+                           .unsupportedFormat("duck-intent/99"))
+        }
+    }
+}

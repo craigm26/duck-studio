@@ -20,7 +20,10 @@ import StudioKit
 /// names the policy it was recorded from — is shown as a link rather than as an
 /// accident of layout.
 struct IntentListView: View {
+    @ObservedObject var store: SceneStore
+    @ObservedObject var model: LibraryModel
     @State private var clips: [String: DuckIntentClip] = [:]
+    @State private var picking = false
 
     private var fromPollen: [DuckIntentClip] {
         sorted(clips.values.filter { !$0.authored && $0.credit == nil })
@@ -61,6 +64,15 @@ struct IntentListView: View {
                     Text("A keyframe track riding on a standing policy as offsets — searched against a prop rather than trained. These are the ones most likely to fail, and the posture each ends in says whether it did.")
                 }
             }
+            if !model.importedClips.isEmpty {
+                Section {
+                    ForEach(model.importedClips, id: \.name) { row($0) }
+                } header: {
+                    Text("Sent to you")
+                } footer: {
+                    Text("Motions imported from a .duckintent file. Each names the policy it was recorded from by digest, so you can check whether you hold the same network.")
+                }
+            }
             if !shared.isEmpty {
                 Section {
                     ForEach(shared, id: \.name) { row($0) }
@@ -72,12 +84,24 @@ struct IntentListView: View {
             }
         }
         .navigationTitle("Intents")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { picking = true } label: { Image(systemName: "square.and.arrow.down") }
+            }
+        }
+        .fileImporter(isPresented: $picking,
+                      allowedContentTypes: [.json, .data],
+                      allowsMultipleSelection: false) { result in
+            // The same door as onOpenURL, so a motion picked from Files and one
+            // AirDropped end up in the same place having had the same checks.
+            if case .success(let urls) = result, let url = urls.first { model.open(url) }
+        }
         .onAppear { clips = (try? DuckIntentClip.bundled()) ?? [:] }
     }
 
     private func row(_ clip: DuckIntentClip) -> some View {
         NavigationLink {
-            IntentPlayerView(clip: clip)
+            IntentPlayerView(clip: clip, store: store)
         } label: {
             VStack(alignment: .leading, spacing: 3) {
                 HStack {
@@ -116,15 +140,36 @@ struct IntentListView: View {
 /// One recording, played.
 struct IntentPlayerView: View {
     let clip: DuckIntentClip
+    /// Scenes this phone holds, so a motion can be played somewhere other than
+    /// where it was recorded. Optional because the bench opens this view too.
+    var store: SceneStore?
 
     @State private var playhead: TimeInterval = 0
     @State private var isRunning = true
     @State private var orbit = OrbitState()
     @State private var showProps = true
+    @State private var elsewhere: DuckScene?
     @State private var shareURL: URL?
     @State private var shareFailure: String?
+    @State private var panel: Panel = .story
+
+    enum Panel: String, CaseIterable, Identifiable {
+        case story = "What happened", numbers = "Numbers", reward = "Reward"
+        var id: String { rawValue }
+    }
 
     private var pose: DuckIntentClip.Pose { clip.pose(at: playhead) }
+
+    /// What the robot is standing in. The recording's own world unless somebody
+    /// has deliberately moved the motion somewhere else — and when they have,
+    /// the screen says so, because a clip replayed against a different
+    /// staircase is no longer evidence about the one it was recorded on.
+    private var world: DuckIntentClip.Environment {
+        if let elsewhere { return elsewhere.environment }
+        return showProps ? clip.environment : .bareFloor
+    }
+
+    private var metrics: RunMetrics { RunMetrics(clip: clip) }
 
     /// Package the motion and hand it to the system.
     private func share() {
@@ -144,27 +189,80 @@ struct IntentPlayerView: View {
     var body: some View {
         VStack(spacing: 0) {
             ZStack(alignment: .bottomLeading) {
-                DuckStage(jointAngles: pose.jointAngles,
-                          environment: showProps ? clip.environment : nil,
+                DuckStage(pose: StagePose(jointAngles: pose.jointAngles, root: pose.root),
+                          environment: world,
+                          trail: clip.roots,
+                          progress: playhead / max(clip.duration, 1e-9),
                           orbit: $orbit)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(clip.environment.hasProps && showProps
-                         ? "Against the \(clip.environment.steps.isEmpty ? "wall" : "staircase") it was recorded on"
-                         : "On flat ground")
-                        .font(.caption2.weight(.medium))
-                    Text("Drag to orbit · pinch to zoom · double-tap to reset")
-                        .font(.caption2).foregroundStyle(.secondary)
-                }
-                .padding(10).foregroundStyle(.white)
+                StageLegend(pose: StagePose(jointAngles: pose.jointAngles, root: pose.root),
+                            environment: world, orbit: $orbit)
             }
             .frame(maxHeight: 340)
 
             TransportBar(duration: clip.duration, playhead: $playhead, isRunning: $isRunning)
                 .padding(.horizontal).padding(.vertical, 8)
 
+            Picker("Panel", selection: $panel) {
+                ForEach(Panel.allCases) { Text($0.rawValue).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal).padding(.bottom, 6)
+
             List {
-                Section("What happened") {
-                    LabeledContent("Starts", value: clip.startsFrom.rawValue)
+                if let elsewhere {
+                    Section {
+                        Label("Playing in \(elsewhere.name), not where it was recorded.",
+                              systemImage: "arrow.triangle.branch")
+                            .font(.footnote).foregroundStyle(.orange)
+                        Button("Back to the recorded world") { self.elsewhere = nil }
+                    }
+                }
+
+                switch panel {
+                case .numbers:  numbers
+                case .reward:   reward
+                case .story:    story
+                }
+            }
+        }
+        .navigationTitle(clip.name)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button { share() } label: {
+                        Label("Share this motion", systemImage: "square.and.arrow.up")
+                    }
+                    if let store, !store.scenes.isEmpty {
+                        Menu("Play somewhere else") {
+                            ForEach(store.scenes) { scene in
+                                Button(scene.name) { elsewhere = scene; playhead = 0 }
+                            }
+                        }
+                    }
+                } label: { Image(systemName: "ellipsis.circle") }
+            }
+        }
+        .sheet(item: Binding(get: { shareURL.map(SharePayload.init) },
+                             set: { shareURL = $0?.url })) { payload in
+            ShareSheet(items: [payload.url])
+        }
+        .alert("Could not share", isPresented: Binding(
+            get: { shareFailure != nil }, set: { if !$0 { shareFailure = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: { Text(shareFailure ?? "") }
+        .onReceive(Timer.publish(every: 1.0 / DuckModel.tickHz, on: .main, in: .common).autoconnect()) { _ in
+            guard isRunning else { return }
+            playhead += 1.0 / DuckModel.tickHz
+            if pose.hasFinished && !clip.loops { playhead = 0 }
+        }
+    }
+
+    // MARK: - what happened
+
+    @ViewBuilder private var story: some View {
+        Section("What happened") {
+            LabeledContent("Starts", value: clip.startsFrom.rawValue)
                     LabeledContent("Ends", value: clip.endsIn.rawValue)
                     LabeledContent("Turns") {
                         Text(String(format: "%+.2f rad", clip.netYaw)).monospacedDigit()
@@ -194,34 +292,108 @@ struct IntentPlayerView: View {
                     Text("Sends a .duckintent file — the frames, the postures, and the digest of the policy it was recorded from. The digest lets whoever receives it check they hold the same network; it does not say who made the motion, because a signature nobody can anchor would not tell them that either.")
                 }
 
-                if clip.environment.hasProps {
-                    Section {
-                        Toggle("Show what it was recorded against", isOn: $showProps)
-                    } footer: {
-                        Text("Hiding the props is how you see the motion alone; showing them is how you see whether it worked. \(clip.name) was performed against \(clip.environment.steps.isEmpty ? "a wall" : "a four-step flight"), and without it on screen a duck that falls over looks like it fell over for no reason.")
-                    }
+        if clip.environment.hasProps {
+            Section {
+                Toggle("Show what it was recorded against", isOn: $showProps)
+            } footer: {
+                Text("Hiding the props is how you see the motion alone; showing them is how you see whether it worked. \(clip.name) was performed against \(clip.environment.steps.isEmpty ? "a wall" : "a four-step flight"), and without it on screen a duck that falls over looks like it fell over for no reason.")
+            }
+        }
+    }
+
+    // MARK: - the numbers
+
+    /// EVERY MEASURABLE THING ABOUT THE RUN. A three-line summary is enough to
+    /// browse a list and not enough to judge a motion: "ends toppled" says a
+    /// move failed and not how close it came, and the difference between a
+    /// climb that stalls 4 mm short and one that never left the floor is the
+    /// whole of whether it is worth another attempt.
+    @ViewBuilder private var numbers: some View {
+        let m = metrics
+        Section("Where it went") { ForEach(m.travel) { ReadingRow(reading: $0) } }
+        Section("How it held itself") { ForEach(m.attitude) { ReadingRow(reading: $0) } }
+        Section("What the joints did") { ForEach(m.joints) { ReadingRow(reading: $0) } }
+        Section {
+            ForEach(m.control) { ReadingRow(reading: $0) }
+        } header: {
+            Text("What the policy emitted")
+        } footer: {
+            Text(m.telemetryMissing
+                 ? "This recording stored the robot's joint angles only. The network's own output was not kept, so nothing here can be derived from it."
+                 : "The network's raw output, before the gait scales it and before the travel stops clamp it.")
+        }
+    }
+
+    // MARK: - the reward
+
+    @ViewBuilder private var reward: some View {
+        let m = metrics
+        Section { Text(m.provenance).font(.footnote).foregroundStyle(.secondary) }
+
+        if !m.rewards.isEmpty {
+            Section("Scored on this recording") {
+                ForEach(m.rewards) { RewardRow(term: $0) }
+            }
+        }
+        if !m.unevaluated.isEmpty {
+            Section {
+                ForEach(m.unevaluated) { ReadingRow(reading: $0) }
+            } header: {
+                Text("Terms a recording cannot answer")
+            } footer: {
+                Text("These are real terms in the training config and they are not scored here, because each reads a sensor a clip does not carry. Listing them is the honest alternative to a shorter panel that looks complete.")
+            }
+        }
+        if m.rewards.isEmpty && m.unevaluated.isEmpty {
+            Section {
+                Text("No reward is scored for this motion. Weights belong to a training config, and attaching the wrong one would give every number on this screen an authority it has not earned.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+/// One measured number.
+private struct ReadingRow: View {
+    let reading: RunMetrics.Reading
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Text(reading.label).font(.subheadline)
+                Spacer()
+                Text(reading.value).font(.subheadline.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            if let detail = reading.detail {
+                Text(detail).font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+/// One of Pollen's reward terms, and what this recording could say about it.
+private struct RewardRow: View {
+    let term: RunMetrics.RewardTerm
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(term.name).font(.subheadline.monospaced())
+                Spacer()
+                switch term.standing {
+                case .evaluated(let mean, let weighted):
+                    Text(String(format: "%.3f × %+.3f = %+.3f", mean, term.weight, weighted))
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(weighted < 0 ? .orange : .secondary)
+                case .missing:
+                    Text("not scored").font(.caption).foregroundStyle(.secondary)
                 }
             }
-        }
-        .navigationTitle(clip.name)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { share() } label: { Image(systemName: "square.and.arrow.up") }
+            Text(term.purpose).font(.caption).foregroundStyle(.secondary)
+            if case .missing(let why) = term.standing {
+                Text("Not scored: \(why).").font(.caption).foregroundStyle(.orange)
             }
-        }
-        .sheet(item: Binding(get: { shareURL.map(SharePayload.init) },
-                             set: { shareURL = $0?.url })) { payload in
-            ShareSheet(items: [payload.url])
-        }
-        .alert("Could not share", isPresented: Binding(
-            get: { shareFailure != nil }, set: { if !$0 { shareFailure = nil } })) {
-            Button("OK", role: .cancel) {}
-        } message: { Text(shareFailure ?? "") }
-        .onReceive(Timer.publish(every: 1.0 / DuckModel.tickHz, on: .main, in: .common).autoconnect()) { _ in
-            guard isRunning else { return }
-            playhead += 1.0 / DuckModel.tickHz
-            if pose.hasFinished && !clip.loops { playhead = 0 }
         }
     }
 }

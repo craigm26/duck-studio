@@ -20,7 +20,18 @@ import DuckKit
 public struct IntentExport: Equatable, Sendable {
 
     /// Bumped when the shape changes in a way an older reader would misread.
-    public static let format = "duck-intent/1"
+    ///
+    /// FORMAT 2 ADDED THE WORLD AND THE PATH. Format 1's own documentation said
+    /// it carried "the props it was recorded against" and it did not: it
+    /// packaged joint angles, so a recipient opening a shared stair climb saw a
+    /// duck marching on the spot in an empty room, with the staircase and every
+    /// millimetre of travel left behind on the sender's phone. A motion without
+    /// its root is not a motion anybody can judge.
+    public static let format = "duck-intent/2"
+
+    /// Still read. A format-1 file is a real motion, and refusing it to keep
+    /// the reader tidy would break every intent already shared.
+    public static let readableFormats: Set<String> = ["duck-intent/1", "duck-intent/2"]
 
     public let name: String
     public let hz: Double
@@ -37,6 +48,15 @@ public struct IntentExport: Equatable, Sendable {
     public let policyFingerprint: String?
     public let authored: Bool
     public let note: String?
+    /// Where the trunk was and how it was oriented, per frame:
+    /// `[x, y, z, qw, qx, qy, qz]`. Empty in a format-1 file.
+    public let roots: [[Double]]
+    /// The props the motion was performed against, in the clip's own frame.
+    public let environment: DuckIntentClip.Environment?
+    /// What the policy emitted and was asked for, when the sender had it.
+    /// Carried because it is what makes the reward panel work on the receiving
+    /// phone as well as the sending one.
+    public let telemetry: DuckIntentClip.Telemetry
 
     public init(clip: DuckIntentClip, policyFingerprint: String?, note: String? = nil) {
         name = clip.name
@@ -50,7 +70,42 @@ public struct IntentExport: Equatable, Sendable {
         self.policyFingerprint = policyFingerprint
         authored = clip.authored
         self.note = note
+        roots = clip.roots.map { [$0.x, $0.y, $0.z, $0.quaternion.0,
+                                  $0.quaternion.1, $0.quaternion.2, $0.quaternion.3] }
+        environment = clip.environment
+        telemetry = clip.telemetry
     }
+
+    /// The motion, ready to play.
+    ///
+    /// A FORMAT-1 FILE GETS A STANDING ROOT AND SAYS SO. There is nowhere to
+    /// recover the path from, so every frame is placed at the origin at
+    /// standing height — which is what the sender's app drew anyway. What it
+    /// must never do is look like a robot that chose to stand still, so
+    /// `hasRecordedPath` is what a screen checks before drawing a trail.
+    public var clip: DuckIntentClip {
+        let standing = DuckIntentClip.Root(x: 0, y: 0, z: 0.11622, quaternion: (1, 0, 0, 0))
+        let path: [DuckIntentClip.Root] = roots.isEmpty
+            ? Array(repeating: standing, count: frames.count)
+            : roots.map { r in
+                DuckIntentClip.Root(
+                    x: r.count > 0 ? r[0] : 0, y: r.count > 1 ? r[1] : 0,
+                    z: r.count > 2 ? r[2] : 0.11622,
+                    quaternion: (r.count > 3 ? r[3] : 1, r.count > 4 ? r[4] : 0,
+                                 r.count > 5 ? r[5] : 0, r.count > 6 ? r[6] : 0))
+            }
+        return DuckIntentClip(
+            name: name, hz: hz, frames: frames, roots: path,
+            netYaw: netYaw, loops: loops,
+            startsFrom: DuckIntentClip.Posture(rawValue: startsFrom) ?? .standing,
+            endsIn: DuckIntentClip.Posture(rawValue: endsIn) ?? .standing,
+            policy: policyName, authored: authored,
+            environment: environment ?? .bareFloor,
+            credit: note, telemetry: telemetry)
+    }
+
+    /// Whether the sender's file actually said where the robot went.
+    public var hasRecordedPath: Bool { roots.count == frames.count && !roots.isEmpty }
 
     /// A filename a person will recognise in a Files listing or a chat.
     ///
@@ -70,6 +125,25 @@ public struct IntentExport: Equatable, Sendable {
         ]
         if let policyFingerprint { object["policyFingerprint"] = policyFingerprint }
         if let note { object["note"] = note }
+        if !roots.isEmpty { object["roots"] = roots }
+        if let environment {
+            object["environment"] = [
+                "ground": environment.ground, "yaw": environment.yaw,
+                "steps": environment.steps.map {
+                    ["x": $0.x, "y": $0.y, "top": $0.top, "halfDepth": $0.halfDepth,
+                     "halfWidth": $0.halfWidth, "halfHeight": $0.halfHeight]
+                },
+                "walls": environment.walls.map {
+                    ["x": $0.x, "y": $0.y, "halfThickness": $0.halfThickness,
+                     "height": $0.height, "halfLength": $0.halfLength]
+                },
+            ]
+        }
+        if !telemetry.isEmpty {
+            object["actions"] = telemetry.actions
+            object["commands"] = telemetry.commands
+            object["twists"] = telemetry.twists
+        }
         return try JSONSerialization.data(withJSONObject: object,
                                           options: [.prettyPrinted, .sortedKeys])
     }
@@ -102,7 +176,9 @@ public struct IntentExport: Equatable, Sendable {
             throw ImportError.notAnIntent
         }
         guard let format = object["format"] as? String else { throw ImportError.notAnIntent }
-        guard format == Self.format else { throw ImportError.unsupportedFormat(format) }
+        guard Self.readableFormats.contains(format) else {
+            throw ImportError.unsupportedFormat(format)
+        }
         guard let frames = object["frames"] as? [[Double]], !frames.isEmpty else {
             throw ImportError.noFrames
         }
@@ -120,16 +196,65 @@ public struct IntentExport: Equatable, Sendable {
             policyName: object["policy"] as? String ?? "unknown",
             policyFingerprint: object["policyFingerprint"] as? String,
             authored: object["authored"] as? Bool ?? false,
-            note: object["note"] as? String)
+            note: object["note"] as? String,
+            // A root array of the wrong length is DROPPED rather than padded.
+            // Padding would place the tail of the motion at the origin, which
+            // draws a robot that walks and then snaps back — a plausible-looking
+            // lie about where it ended up.
+            roots: {
+                let raw = object["roots"] as? [[Double]] ?? []
+                return raw.count == frames.count ? raw : []
+            }(),
+            environment: decodeEnvironment(object["environment"] as? [String: Any]),
+            telemetry: {
+                let actions = object["actions"] as? [[Double]] ?? []
+                let commands = object["commands"] as? [[Double]] ?? []
+                let twists = object["twists"] as? [[Double]] ?? []
+                guard actions.count == frames.count else { return .none }
+                return .init(actions: actions, commands: commands, twists: twists)
+            }())
     }
 
     init(name: String, hz: Double, frames: [[Double]], netYaw: Double, loops: Bool,
          startsFrom: String, endsIn: String, policyName: String,
-         policyFingerprint: String?, authored: Bool, note: String?) {
+         policyFingerprint: String?, authored: Bool, note: String?,
+         roots: [[Double]] = [], environment: DuckIntentClip.Environment? = nil,
+         telemetry: DuckIntentClip.Telemetry = .none) {
         self.name = name; self.hz = hz; self.frames = frames; self.netYaw = netYaw
         self.loops = loops; self.startsFrom = startsFrom; self.endsIn = endsIn
         self.policyName = policyName; self.policyFingerprint = policyFingerprint
         self.authored = authored; self.note = note
+        self.roots = roots; self.environment = environment; self.telemetry = telemetry
+    }
+
+    /// The props, read back out of a shared file.
+    ///
+    /// A LOCAL DECODER RATHER THAN DUCKKIT'S. DuckKit's own is internal to the
+    /// clip decoder, and reaching for it would mean widening that package's
+    /// surface so this one can read a slightly different file. Sizes fall back
+    /// to the recorder's own defaults, which is what a prop written by an older
+    /// exporter omits.
+    static func decodeEnvironment(_ raw: [String: Any]?) -> DuckIntentClip.Environment? {
+        guard let raw else { return nil }
+        let steps = (raw["steps"] as? [[String: Any]] ?? []).compactMap {
+            s -> DuckIntentClip.Environment.Step? in
+            guard let x = s["x"] as? Double, let y = s["y"] as? Double,
+                  let top = s["top"] as? Double else { return nil }
+            return .init(x: x, y: y, top: top,
+                         halfDepth: s["halfDepth"] as? Double ?? 0.17,
+                         halfWidth: s["halfWidth"] as? Double ?? 0.17,
+                         halfHeight: s["halfHeight"] as? Double ?? 0.10)
+        }
+        let walls = (raw["walls"] as? [[String: Any]] ?? []).compactMap {
+            w -> DuckIntentClip.Environment.Wall? in
+            guard let x = w["x"] as? Double, let y = w["y"] as? Double else { return nil }
+            return .init(x: x, y: y,
+                         halfThickness: w["halfThickness"] as? Double ?? 0.025,
+                         height: w["height"] as? Double ?? 0.6,
+                         halfLength: w["halfLength"] as? Double ?? 1.5)
+        }
+        return .init(ground: raw["ground"] as? Bool ?? true,
+                     yaw: raw["yaw"] as? Double ?? 0, steps: steps, walls: walls)
     }
 
     /// What to tell a recipient about where this came from.

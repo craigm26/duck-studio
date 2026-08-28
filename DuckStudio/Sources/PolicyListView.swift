@@ -14,6 +14,7 @@ import StudioKit
 /// what it is.
 struct PolicyListView: View {
     @ObservedObject var model: LibraryModel
+    @ObservedObject var scenes: SceneStore
 
     private var released: [PolicyLibrary.Entry] {
         model.library.entries.filter { isReleased(model.standing(for: $0)) }
@@ -54,10 +55,15 @@ struct PolicyListView: View {
         }
         .navigationTitle("Policies")
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .topBarLeading) {
                 Text("\(model.library.runnableCount) of \(model.library.entries.count) run")
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink { CatalogueView(model: model) } label: {
+                    Image(systemName: "antenna.radiowaves.left.and.right")
+                }
             }
         }
     }
@@ -69,7 +75,7 @@ struct PolicyListView: View {
 
     private func row(_ entry: PolicyLibrary.Entry) -> some View {
         NavigationLink {
-            PolicyDetailView(entry: entry, standing: model.standing(for: entry))
+            PolicyDetailView(entry: entry, standing: model.standing(for: entry), scenes: scenes)
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: entry.isRunnable ? "checkmark.seal" : "exclamationmark.triangle")
@@ -95,6 +101,7 @@ struct PolicyListView: View {
 struct PolicyDetailView: View {
     let entry: PolicyLibrary.Entry
     let standing: DuckOfficialPolicies.Standing
+    @ObservedObject var scenes: SceneStore
     @State private var clips: [String: DuckIntentClip] = [:]
 
     /// Clips whose recorded-from policy is this file. Matched on the filename
@@ -133,7 +140,7 @@ struct PolicyDetailView: View {
 
             if entry.isRunnable {
                 Section {
-                    NavigationLink { BenchView(entry: entry) } label: {
+                    NavigationLink { BenchView(entry: entry, store: scenes) } label: {
                         Label("Probe this network", systemImage: "slider.horizontal.below.square.filled.and.square")
                     }
                 } footer: {
@@ -148,7 +155,7 @@ struct PolicyDetailView: View {
                 if !recordings.isEmpty {
                     Section {
                         ForEach(recordings, id: \.name) { clip in
-                            NavigationLink { IntentPlayerView(clip: clip) } label: {
+                            NavigationLink { IntentPlayerView(clip: clip, store: scenes) } label: {
                                 HStack {
                                     Text(clip.name).font(.subheadline)
                                     Spacer()
