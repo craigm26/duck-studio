@@ -26,50 +26,8 @@ struct BenchView: View {
     @State private var observation = DuckObservation.zeroed
     @State private var actions: [Float] = Array(repeating: 0, count: DuckModel.policyJointCount)
     @State private var stages: DuckGait.Stages?
-    @State private var preset: Preset = .standing
+    @State private var preset: ObservationPreset = .standing
     @State private var failure: String?
-
-    /// Observations worth starting from, built with `DuckObservation.build` so
-    /// the app never assembles the 61 floats itself — that layout has exactly
-    /// one home, and two places that know it are two places that disagree.
-    enum Preset: String, CaseIterable, Identifiable {
-        case standing = "Standing still"
-        case walking = "Walking forward"
-        case turning = "Turning left"
-        case zeroed = "All zeros"
-        var id: String { rawValue }
-
-        var observation: DuckObservation {
-            let level: [Double] = [0, 0, -1]        // upright: gravity straight down
-            switch self {
-            case .zeroed:
-                // Not a robot state at all — an all-zero gravity vector
-                // describes free fall, and it sits about 32 training standard
-                // deviations off the mean. Kept because it is the warm-up input
-                // the runtime itself uses, and seeing what the network does with
-                // it is informative.
-                return .zeroed
-            case .standing:
-                return .build(gyro: [0, 0, 0], gravity: level,
-                              jointPositions: DuckModel.homePose,
-                              jointVelocities: Array(repeating: 0, count: DuckModel.jointCount),
-                              lastAction: Array(repeating: 0, count: DuckModel.policyJointCount),
-                              command: DuckCommand(twist: (0, 0, 0)))
-            case .walking:
-                return .build(gyro: [0, 0, 0], gravity: level,
-                              jointPositions: DuckModel.homePose,
-                              jointVelocities: Array(repeating: 0, count: DuckModel.jointCount),
-                              lastAction: Array(repeating: 0, count: DuckModel.policyJointCount),
-                              command: DuckCommand(twist: (0.15, 0, 0)))
-            case .turning:
-                return .build(gyro: [0, 0, 0], gravity: level,
-                              jointPositions: DuckModel.homePose,
-                              jointVelocities: Array(repeating: 0, count: DuckModel.jointCount),
-                              lastAction: Array(repeating: 0, count: DuckModel.policyJointCount),
-                              command: DuckCommand(twist: (0, 0, 1.0)))
-            }
-        }
-    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -83,11 +41,10 @@ struct BenchView: View {
                 }
                 Section("Observation") {
                     Picker("Preset", selection: $preset) {
-                        ForEach(Preset.allCases) { Text($0.rawValue).tag($0) }
+                        ForEach(ObservationPreset.allCases) { Text($0.rawValue).tag($0) }
                     }
                     .pickerStyle(.menu)
-                    Text("The 61 floats the network is given. Assembled by DuckObservation.build, never here.")
-                        .font(.caption).foregroundStyle(.secondary)
+                    Text(preset.detail).font(.caption).foregroundStyle(.secondary)
                 }
 
                 if let stages {
@@ -124,7 +81,7 @@ struct BenchView: View {
     /// The pose to draw: the policy's clamped targets, or the home stance while
     /// nothing has run.
     private var jointAngles: [Double] {
-        stages?.clamped ?? DuckModel.homePose
+        stages?.clamped ?? ObservationPreset.restingPose
     }
 
     private func load() {
