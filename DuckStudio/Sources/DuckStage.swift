@@ -103,8 +103,8 @@ struct DuckStage: UIViewRepresentable {
             shown = .some(environment)
             world.children.removeAll()
 
-            var floor = UnlitMaterial(color: UIColor(white: 0.16, alpha: 1))
-            floor.blending = .transparent(opacity: 1)
+            let floor = UnlitMaterial(color: UIColor(white: 0.16, alpha: 1))
+
             let ground = ModelEntity(mesh: .generateBox(width: 2, height: 0.002, depth: 2),
                                      materials: [floor])
             ground.position = SIMD3<Float>(0, -0.001, 0)
@@ -114,7 +114,7 @@ struct DuckStage: UIViewRepresentable {
             var solid = PhysicallyBasedMaterial()
             solid.baseColor = .init(tint: UIColor(white: 0.42, alpha: 1))
             solid.roughness = 0.9
-            solid.metallic = 0
+            solid.metallic = 0.0
 
             for step in environment.steps {
                 let entity = ModelEntity(
