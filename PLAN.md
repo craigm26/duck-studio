@@ -136,9 +136,15 @@ OpenCastor depends on it.
 
 ## Milestones
 
-**M0 — DuckKit grows (D-1..D-8).** In the duckkit repo. Green on the Pi.
-Nothing in this repo starts before D-1, D-2 and D-6 land, because every screen
-depends on at least one of them.
+**M0 — DuckKit grows (D-1..D-8). DONE, 2026-08-28, duckkit v1.4.0.** D-1 to
+D-4, D-6 and D-7 had already landed in earlier duckkit work; D-8 shipped as the
+`DuckEvidence` product. D-5 shipped last, and NOT as written: this plan said the
+fingerprint "brings swift-crypto into DuckKit", which had already been asked for
+once and refused, because DuckKit having no dependencies is what lets the real
+network run under `swift test` on the Pi. It split instead —
+`DuckPolicy.canonicalParameterBytes` in DuckKit (the byte order is robot truth
+and belongs beside the parser), `fingerprint` / `shortFingerprint` /
+`fingerprintRecord` as a `DuckEvidence` extension. D-9 remains optional.
 
 **M1 — Load and refuse.** `PolicyLibrary` + `PolicyReport`. Seven real policies
 load. The refusal corpus produces seven distinct, specific, quotable reasons.
@@ -186,18 +192,24 @@ notes, TestFlight, submit.
   `CanonicalValue`-generic `Journal` into DuckKit; point CastorKit at it.
 
 ### M1 — Load and refuse
+*T-011 and T-012 done 2026-08-28; the corpus is synthesized rather than mutated,
+see the script's own docstring for why. 14 tests green on the Pi.*
 - **T-010** Vendor the seven policies into `Fixtures/policies/`. Only
   `alpha_walking.onnx` (793,705 bytes) exists locally today; fetch the other six
   from `pollen-robotics/microduck` and record their sizes and SHA-256 in
   `Fixtures/policies/README.md`.
-- **T-011** `scripts/make_refusal_corpus.py` — generate mutated ONNX files from
-  `alpha_walking.onnx`, one per rejection reason: wrong op appended, ELU
-  replaced with ReLU, `transB` cleared on a Gemm, first Gemm widened to 62
-  inputs, output narrowed to 13, an initializer deleted, truncated mid-field.
-- **T-012** `PolicyReport` — turn a describe result plus a load outcome into the
-  exact strings the app shows. Tests assert the literal text for all seven
-  refusals and the seven successes. This is the app's value proposition as a
-  string comparison, which is the right way to pin it.
+- **T-011 DONE** `scripts/make_refusal_corpus.py`. Files are SYNTHESIZED, not
+  mutated: renaming an op is four bytes where there were three, so every
+  enclosing length prefix has to be recomputed, and writing that is writing a
+  protobuf encoder anyway. Building each file from nothing also means it carries
+  exactly ONE defect, which is what makes it fair to assert that the message
+  names that defect. Eleven files, including a synthetic control that must load
+  — without it the corpus would only prove the generator emits unusable bytes.
+- **T-012 DONE** `PolicyReport` — describe + load outcome into the exact strings
+  the app shows, with a third outcome the plan did not have: `.unreadable`, for
+  bytes that cannot be walked at all and therefore have no structure to display
+  beside the refusal. Tests assert the literal text, that every reason is
+  distinct, and that every refusal carries the ops/params/widths it objected to.
 - **T-013** `PolicyLibrary` — bundled seed, import, dedupe by fingerprint,
   persistence of imported files in the app container, deterministic ordering.
 - **T-014** URL loader: build a Hugging Face resolve URL from `owner/repo` plus
