@@ -229,3 +229,73 @@ extension RunMetricsTests {
         XCTAssertNil(metrics.achievedFraction)
     }
 }
+
+extension RunMetricsTests {
+
+    /// Every joint appears exactly once, busiest first.
+    func testThePerJointTableCoversAllFourteenSortedByWork() throws {
+        let metrics = RunMetrics(clip: try clip("kick_left"))
+        XCTAssertEqual(metrics.perJoint.count, DuckModel.policyJointCount)
+        XCTAssertEqual(Set(metrics.perJoint.map(\.name)).count, DuckModel.policyJointCount)
+        XCTAssertFalse(metrics.perJoint.contains { $0.name == "mouth" },
+                       "the mouth is outside every policy's action space")
+        for i in 1..<metrics.perJoint.count {
+            XCTAssertGreaterThanOrEqual(metrics.perJoint[i - 1].travel,
+                                        metrics.perJoint[i].travel)
+        }
+    }
+
+    /// A left kick is led by the left LEG and a right kick by the right leg —
+    /// the assertion that catches a mouth-index off-by-one, which would
+    /// silently attribute every joint's numbers to its neighbour.
+    ///
+    /// LEGS SPECIFICALLY, because the busiest joint overall is not always one:
+    /// in `kick_right` the head does more work than any leg joint (1.21 rad of
+    /// travel against the right knee's 0.99), which is the policy swinging the
+    /// head as a counterweight. A test written against "the busiest joint is on
+    /// the kicking side" fails on a correct implementation.
+    func testEachKickIsLedByItsOwnLeg() throws {
+        for (name, side) in [("kick_left", "left_"), ("kick_right", "right_")] {
+            let metrics = RunMetrics(clip: try clip(name))
+            let busiestLeg = try XCTUnwrap(metrics.perJoint.first {
+                $0.name.hasPrefix("left_") || $0.name.hasPrefix("right_")
+            })
+            XCTAssertTrue(busiestLeg.name.hasPrefix(side),
+                          "\(name) should be led by a \(side) joint, not \(busiestLeg.name)")
+        }
+    }
+
+    /// Travel and deviation answer different questions: a gait travels a long
+    /// way without ever going far from home.
+    func testTravelAndDeviationAreNotTheSameNumber() throws {
+        let metrics = RunMetrics(clip: try clip("hold"))
+        for reading in metrics.perJoint {
+            XCTAssertGreaterThanOrEqual(reading.travel, 0)
+            XCTAssertGreaterThanOrEqual(reading.peakDeviation, 0)
+            XCTAssertGreaterThanOrEqual(reading.usedFraction, 0)
+            XCTAssertLessThanOrEqual(reading.usedFraction, 1)
+            XCTAssertGreaterThanOrEqual(reading.atStopFraction, 0)
+            XCTAssertLessThanOrEqual(reading.atStopFraction, 1)
+        }
+        // Standing still travels almost nothing — 0.01 rad summed over four
+        // seconds — while sitting up to 0.12 rad away from `homePose`, because
+        // the STANDING POLICY'S settled stance is not the model's home pose.
+        // The two numbers being this far apart is the point: travel says how
+        // much a joint moved, deviation says where it sat.
+        let busiest = try XCTUnwrap(metrics.perJoint.first)
+        XCTAssertLessThan(busiest.travel, 0.05, "holding still barely moves")
+        XCTAssertGreaterThan(metrics.perJoint.map(\.peakDeviation).max() ?? 0, 0.05,
+                             "and yet it does not sit at the model's home pose")
+        XCTAssertLessThan(metrics.perJoint.map(\.peakDeviation).max() ?? 0, 0.15)
+    }
+
+    /// The deviation timestamp has to be inside the clip.
+    func testTheDeviationMomentIsWithinTheRun() throws {
+        let c = try clip("roulade")
+        let metrics = RunMetrics(clip: c)
+        for reading in metrics.perJoint {
+            XCTAssertGreaterThanOrEqual(reading.peakDeviationAt, 0, reading.name)
+            XCTAssertLessThanOrEqual(reading.peakDeviationAt, c.duration + 1e-9, reading.name)
+        }
+    }
+}

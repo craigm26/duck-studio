@@ -409,6 +409,13 @@ struct IntentPlayerView: View {
         Section("How it held itself") { ForEach(m.attitude) { ReadingRow(reading: $0) } }
         Section("What the joints did") { ForEach(m.joints) { ReadingRow(reading: $0) } }
         Section {
+            ForEach(m.perJoint) { JointRow(reading: $0) }
+        } header: {
+            Text("Joint by joint")
+        } footer: {
+            Text("Travel is how far the joint moved in total; deviation is how far from the home pose it got. They answer different questions — a gait travels a long way without ever going far — and the bar is the deviation against the room that joint actually has.")
+        }
+        Section {
             ForEach(m.control) { ReadingRow(reading: $0) }
         } header: {
             Text("What the policy emitted")
@@ -504,6 +511,40 @@ private struct ReadingRow: View {
             if let detail = reading.detail {
                 Text(detail).font(.caption).foregroundStyle(.secondary)
             }
+        }
+    }
+}
+
+/// One joint's share of the work.
+private struct JointRow: View {
+    let reading: RunMetrics.JointReading
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack {
+                Text(reading.name).font(.caption)
+                if reading.atStopFraction > 0 {
+                    Image(systemName: "arrow.up.and.down.and.arrow.left.and.right")
+                        .font(.caption2).foregroundStyle(.orange)
+                    Text("\(Int((reading.atStopFraction * 100).rounded()))% at its stop")
+                        .font(.caption2).foregroundStyle(.orange)
+                }
+                Spacer()
+                Text(String(format: "%.2f rad · %.0f rad/s", reading.travel, reading.peakRate))
+                    .font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.secondary.opacity(0.15))
+                    Capsule()
+                        .fill(reading.atStopFraction > 0 ? Color.orange : Color.accentColor)
+                        .frame(width: geo.size.width * CGFloat(reading.usedFraction))
+                }
+            }
+            .frame(height: 5)
+            Text(String(format: "furthest from home: %.2f rad at %.2f s",
+                        reading.peakDeviation, reading.peakDeviationAt))
+                .font(.caption2).foregroundStyle(.tertiary)
         }
     }
 }

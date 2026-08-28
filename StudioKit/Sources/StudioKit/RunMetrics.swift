@@ -165,6 +165,37 @@ public struct RunMetrics: Equatable, Sendable {
         }
     }
 
+    /// What one joint did over the run.
+    ///
+    /// THE AGGREGATE HIDES THE ANSWER. "Total joint travel 41 rad" says the
+    /// motion was busy; it does not say that the left ankle did a quarter of it
+    /// while the head never moved, which is what tells you whether a motion is
+    /// a gait, a reach, or a fall. And "3 joints reached a stop" is a count
+    /// where the useful thing is WHICH, and for how long — a joint held against
+    /// its stop is one the policy is still asking to move and cannot.
+    public struct JointReading: Equatable, Sendable, Identifiable {
+        public let name: String
+        /// Summed absolute change over the run, radians.
+        public let travel: Double
+        /// Fastest single tick, radians per second.
+        public let peakRate: Double
+        /// Furthest from the home pose, radians, and when.
+        public let peakDeviation: Double
+        public let peakDeviationAt: TimeInterval
+        /// Fraction of ticks spent within a milliradian of a travel stop.
+        public let atStopFraction: Double
+        /// Where the joint's travel actually is, so a deviation can be read
+        /// against the room it had.
+        public let travelSpan: Double
+        public var id: String { name }
+
+        /// How much of its available travel the joint used. A joint at 0.95 is
+        /// working against its limits; one at 0.02 is along for the ride.
+        public var usedFraction: Double {
+            travelSpan > 0 ? min(peakDeviation / travelSpan, 1) : 0
+        }
+    }
+
     /// One reward term, and what this recording could say about it.
     public struct RewardTerm: Equatable, Sendable, Identifiable {
         public enum Standing: Equatable, Sendable {
@@ -211,6 +242,8 @@ public struct RunMetrics: Equatable, Sendable {
     /// The two rates as fractions, for anything that wants to draw them.
     public let achievedFraction: Double?
     public let repeatedFraction: Double?
+    /// Joint by joint, sorted by how much work each did.
+    public let perJoint: [JointReading]
 
     /// The single sentence to put above the panel.
     public var provenance: String {
@@ -315,6 +348,37 @@ public struct RunMetrics: Equatable, Sendable {
                 }
             }
         }
+        // Per joint, and the deviation measured separately because a joint can
+        // travel a long way without ever going far from home — a gait does
+        // exactly that — and the two numbers answer different questions.
+        var peakDeviation = [Double](repeating: 0, count: DuckModel.policyJointCount)
+        var peakDeviationAt = [TimeInterval](repeating: 0, count: DuckModel.policyJointCount)
+        for (index, frame) in frames.enumerated() {
+            for slot in 0..<min(frame.count, DuckModel.policyJointCount) {
+                let joint = DuckModel.jointOfPolicySlot(slot)
+                let deviation = abs(frame[slot] - DuckModel.homePose[joint])
+                if deviation > peakDeviation[slot] {
+                    peakDeviation[slot] = deviation
+                    peakDeviationAt[slot] = Double(index) * dt
+                }
+            }
+        }
+        perJoint = (0..<DuckModel.policyJointCount).map { slot in
+            let joint = DuckModel.jointOfPolicySlot(slot)
+            let range = DuckModel.jointRanges[joint]
+            return JointReading(
+                name: DuckModel.jointNames[joint],
+                travel: travelPerJoint[slot],
+                peakRate: peakJointSpeed[slot],
+                peakDeviation: peakDeviation[slot],
+                peakDeviationAt: peakDeviationAt[slot],
+                atStopFraction: frames.isEmpty ? 0
+                    : Double(atStop[slot]) / Double(frames.count),
+                travelSpan: max(abs(range.upper - DuckModel.homePose[joint]),
+                                abs(DuckModel.homePose[joint] - range.lower)))
+        }
+        .sorted { $0.travel > $1.travel }
+
         let busiest = travelPerJoint.enumerated().max { $0.element < $1.element }
         let stopped = atStop.enumerated().filter { $0.element > 0 }
             .sorted { $0.element > $1.element }
