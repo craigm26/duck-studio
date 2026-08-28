@@ -26,6 +26,8 @@ struct DuckStudioApp: App {
                     .tabItem { Label("Policies", systemImage: "cpu") }
                 NavigationStack { IntentListView() }
                     .tabItem { Label("Intents", systemImage: "figure.walk.motion") }
+                NavigationStack { AutomationChatView() }
+                    .tabItem { Label("Rules", systemImage: "bubble.left.and.text.bubble.right") }
             }
             // A policy handed over from Files, Mail, AirDrop or another app.
             // Declared in Info.plist as an IMPORTED type — ONNX is not this
