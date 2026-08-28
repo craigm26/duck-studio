@@ -192,12 +192,15 @@ notes, TestFlight, submit.
   `CanonicalValue`-generic `Journal` into DuckKit; point CastorKit at it.
 
 ### M1 — Load and refuse
-*T-011 and T-012 done 2026-08-28; the corpus is synthesized rather than mutated,
-see the script's own docstring for why. 14 tests green on the Pi.*
-- **T-010** Vendor the seven policies into `Fixtures/policies/`. Only
-  `alpha_walking.onnx` (793,705 bytes) exists locally today; fetch the other six
-  from `pollen-robotics/microduck` and record their sizes and SHA-256 in
-  `Fixtures/policies/README.md`.
+*T-010, T-011, T-012, T-013, T-014 and T-016 done 2026-08-28. 32 tests green on
+the Pi against duckkit v1.4.0. Only T-015, the app target, is left — it needs
+the Mac.*
+- **T-010 DONE** Nine policies vendored, not seven — they were already sitting
+  in `duck-sounds/site` from the simulator work, so nothing had to be fetched.
+  Sizes and SHA-256 recorded. Note the README says plainly that the file digest
+  and `DuckPolicy.fingerprint` answer different questions and are expected to
+  differ. A test asserts all nine load: an inspector that cannot open the
+  policies it ships with is not shippable.
 - **T-011 DONE** `scripts/make_refusal_corpus.py`. Files are SYNTHESIZED, not
   mutated: renaming an op is four bytes where there were three, so every
   enclosing length prefix has to be recomputed, and writing that is writing a
@@ -210,14 +213,26 @@ see the script's own docstring for why. 14 tests green on the Pi.*
   bytes that cannot be walked at all and therefore have no structure to display
   beside the refusal. Tests assert the literal text, that every reason is
   distinct, and that every refusal carries the ops/params/widths it objected to.
-- **T-013** `PolicyLibrary` — bundled seed, import, dedupe by fingerprint,
-  persistence of imported files in the app container, deterministic ordering.
-- **T-014** URL loader: build a Hugging Face resolve URL from `owner/repo` plus
-  filename; show the full URL before fetching; size cap; no token field.
+- **T-013 DONE** `PolicyLibrary`. Identity turned out to need TWO rules, not
+  one: a policy that loads is identified by its parameter fingerprint, so one
+  network under two filenames is one entry — but a file that does NOT load has
+  no parameters to digest, and the refusal screen is the whole point, so those
+  fall back to a digest of the file. The rules cannot be merged. Ordering breaks
+  ties on identity, because two different networks exported under one filename
+  happens constantly during a run and the list would otherwise reshuffle between
+  launches. Stored files are named by identity, so two people sending you
+  `policy.onnx` do not collide.
+- **T-014 DONE** `PolicySource`. `resolve/` and not `blob/` — the latter fetches
+  the HTML page around the file and fails as a confusing protobuf error. https
+  only. 8 MB cap, ten times a real policy. The full URL is a named field on the
+  request so a screen has to have something to show before anything leaves the
+  device. No token field, and a test asserts the surface contains no such word,
+  so if one is ever wanted the argument happens there.
 - **T-015** App target scaffold — `project.yml`, `Info.plist` with the
   `org.onnx.model` `UTImportedTypeDeclarations` **and** `CFBundleDocumentTypes`,
   `PrivacyInfo.xcprivacy`, Policies screen. First MacInCloud build.
-- **T-016** `scripts/check_no_studio_math.sh` and wire it into `mac_build.py`.
+- **T-016 DONE** `scripts/check_no_studio_math.sh`. Exits 0 while there is no
+  app target. Still to wire into the Mac build with T-015.
 
 ### M2 — Observation editor
 - **T-020** `ObservationSlot` — the 61-slot table: block, index, label, unit,

@@ -28,7 +28,13 @@ let package = Package(
     targets: [
         .target(
             name: "StudioKit",
-            dependencies: [.product(name: "DuckKit", package: "duckkit")]
+            dependencies: [
+                .product(name: "DuckKit", package: "duckkit"),
+                // For the fingerprint. A library that deduplicates policies has
+                // to be able to say when two files are the same network, and
+                // that is a digest question, not a filename one.
+                .product(name: "DuckEvidence", package: "duckkit"),
+            ]
         ),
         .testTarget(
             name: "StudioKitTests",
