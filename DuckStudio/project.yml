@@ -44,6 +44,19 @@ targets:
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         UILaunchScreen: {}
         ITSAppUsesNonExemptEncryption: false
+        # REQUIRED because this ships to iPad as well as iPhone. iPad
+        # multitasking demands all four, and App Store Connect rejects the
+        # upload outright without them — "No orientations were specified" — at
+        # export time, long after the archive has succeeded.
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         # WITHOUT THESE TWO BLOCKS THE APP CANNOT BE HANDED A POLICY. iOS only
         # offers an app in the share sheet, in "Open With", and in Files for a
         # type it has declared. An inspector nobody can send a file to is a
