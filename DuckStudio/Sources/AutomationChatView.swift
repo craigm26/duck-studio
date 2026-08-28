@@ -42,7 +42,7 @@ struct AutomationChatView: View {
                 Section {
                     Text(availability.explanation)
                         .font(.footnote)
-                        .foregroundStyle(availability.isUsable ? .secondary : .orange)
+                        .foregroundStyle(availability.isUsable ? AnyShapeStyle(.secondary) : AnyShapeStyle(Color.orange))
                 }
 
                 Section {
