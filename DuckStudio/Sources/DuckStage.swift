@@ -2,6 +2,7 @@ import SwiftUI
 import RealityKit
 import DuckKit
 import DuckRender
+import DuckVisual
 import StudioKit
 
 /// Where the camera is looking from. Spherical, because that is what an orbit
@@ -405,9 +406,22 @@ struct StageLegend: View {
     let environment: DuckIntentClip.Environment
     @Binding var orbit: OrbitState
 
+    /// Loaded once for the process. Choosing the sample points sorts through
+    /// every body, which does not belong on a frame.
+    private static let clearance = try? DuckGroundClearance.bundled()
+
     private var place: String {
         String(format: "x %+.0f · y %+.0f · z %.0f mm",
                pose.root.x * 1000, pose.root.y * 1000, pose.root.z * 1000)
+    }
+
+    /// WHERE THE FEET ARE, which is the number a viewer actually wants and the
+    /// one that was wrong for a whole build. The trunk height alone cannot say
+    /// it: a duck standing and a duck floating are both at 116 mm.
+    private var ground: (text: String, wrong: Bool)? {
+        guard let probe = Self.clearance else { return nil }
+        let metres = probe.clearance(jointAngles: pose.jointAngles, root: pose.root)
+        return (DuckGroundClearance.summary(clearanceMetres: metres), abs(metres) > 0.005)
     }
 
     private var context: String {
@@ -441,6 +455,11 @@ struct StageLegend: View {
                 .tint(.white)
             }
             Text(context).font(.caption2).foregroundStyle(.white.opacity(0.65))
+            if let ground {
+                Text(ground.text)
+                    .font(.caption2)
+                    .foregroundStyle(ground.wrong ? Color.orange : .white.opacity(0.65))
+            }
             Text("Drag to orbit · pinch to zoom · double-tap to reset")
                 .font(.caption2).foregroundStyle(.white.opacity(0.45))
         }
