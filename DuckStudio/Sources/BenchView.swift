@@ -28,6 +28,14 @@ struct BenchView: View {
     @State private var stages: DuckGait.Stages?
     @State private var preset: ObservationPreset = .standing
     @State private var failure: String?
+    @State private var tab: Tab = .inputs
+    @State private var strip: ZScoreStrip?
+    @State private var sensitivity: Sensitivity?
+
+    enum Tab: String, CaseIterable, Identifiable {
+        case inputs = "Inputs", actions = "Actions", sensitivity = "Sensitivity"
+        var id: String { rawValue }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -35,19 +43,66 @@ struct BenchView: View {
                 .frame(maxHeight: 320)
                 .background(Color(white: 0.08))
 
+            Picker("View", selection: $tab) {
+                ForEach(Tab.allCases) { Text($0.rawValue).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal).padding(.top, 8)
+
             List {
                 if let failure {
                     Section { Text(failure).font(.footnote).foregroundStyle(.orange) }
                 }
-                Section("Observation") {
-                    Picker("Preset", selection: $preset) {
-                        ForEach(ObservationPreset.allCases) { Text($0.rawValue).tag($0) }
-                    }
-                    .pickerStyle(.menu)
-                    Text(preset.detail).font(.caption).foregroundStyle(.secondary)
+                if let strip {
+                    Section { Text(strip.summary).font(.footnote) }
                 }
 
-                if let stages {
+                switch tab {
+                case .inputs:
+                    Section("Start from") {
+                        Picker("Preset", selection: $preset) {
+                            ForEach(ObservationPreset.allCases) { Text($0.rawValue).tag($0) }
+                        }
+                        .pickerStyle(.menu)
+                        Text(preset.detail).font(.caption).foregroundStyle(.secondary)
+                    }
+                    if let strip {
+                        ForEach(ObservationSlot.Block.allCases, id: \.self) { block in
+                            Section(block.title) {
+                                ForEach(ObservationSlot.slots(in: block)) { slot in
+                                    SlotRow(slot: slot,
+                                            reading: strip.readings[slot.index],
+                                            onChange: { edit(slot: slot.index, to: $0) })
+                                }
+                            }
+                        }
+                    }
+                case .sensitivity:
+                    if let sensitivity {
+                        Section {
+                            Text("How much each input moves the output, from the exact Jacobian at this observation. A unit here is one training standard deviation, which is what makes the inputs comparable.")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        Section("What this policy listens to") {
+                            ForEach(sensitivity.ranked(limit: 15)) { column in
+                                SensitivityRow(column: column, peak: sensitivity.peak)
+                            }
+                        }
+                        let ignored = sensitivity.ignored()
+                        if !ignored.isEmpty {
+                            Section("Ignored entirely") {
+                                Text(ignored.map(\.slot.label).joined(separator: ", "))
+                                    .font(.caption)
+                                Text("These inputs move no output at all here. A policy trained without them shows up as a list rather than as a mystery in behaviour.")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                case .actions:
+                    EmptyView()
+                }
+
+                if let stages, tab == .actions {
                     Section("What the policy commands") {
                         // Walk the POLICY's fourteen slots and ask which joint
                         // each one drives, rather than walking the fifteen
@@ -106,8 +161,25 @@ struct BenchView: View {
     private func run() {
         guard let policy else { return }
         observation = preset.observation
+        recompute()
+    }
+
+    /// Move one input and see everything downstream change.
+    private func edit(slot: Int, to value: Float) {
+        observation = observation.replacing(slot: slot, with: value)
+        recompute()
+    }
+
+    /// The whole chain, in the order it actually runs: the network, then the
+    /// gait that turns its output into joint targets, then the two analyses of
+    /// what just happened. The Jacobian is fourteen reverse passes — about
+    /// 560 microseconds — so it is comfortably live while a slider moves.
+    private func recompute() {
+        guard let policy else { return }
         actions = policy.infer(observation)
         stages = DuckGait.stages(action: actions, previousTargets: nil)
+        strip = ZScoreStrip(observation: observation, policy: policy)
+        sensitivity = Sensitivity(policy: policy, observation: observation)
     }
 }
 
@@ -189,4 +261,65 @@ private struct DuckStage: UIViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     @MainActor final class Coordinator { var duck: DuckGhostEntity? }
+}
+
+/// One observation input: what it is, what it is set to, and how far out of
+/// distribution that is.
+private struct SlotRow: View {
+    let slot: ObservationSlot
+    let reading: ZScoreStrip.Reading
+    let onChange: (Float) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Text(slot.label).font(.caption).lineLimit(1)
+                Spacer()
+                if slot.isNeverEmitted {
+                    Text("unused").font(.caption2).foregroundStyle(.tertiary)
+                }
+                Text(String(format: "%+.3f", reading.value))
+                    .font(.caption.monospacedDigit())
+                Text(slot.unit.rawValue).font(.caption2).foregroundStyle(.secondary)
+            }
+            HStack(spacing: 8) {
+                Slider(value: Binding(get: { Double(reading.value) },
+                                      set: { onChange(Float($0)) }),
+                       in: slot.lower...max(slot.upper, slot.lower + 1e-6))
+                // The z-score sits beside the slider rather than in a separate
+                // strip: the number only means anything next to the value that
+                // produced it.
+                Text(String(format: "%+.1fσ", reading.z))
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(reading.isOutlier ? .orange : .secondary)
+                    .frame(width: 52, alignment: .trailing)
+            }
+        }
+    }
+}
+
+/// One input's influence, as a bar against the strongest input at this
+/// observation — not against whatever the largest value happens to be, so the
+/// chart does not rescale every time a slider moves.
+private struct SensitivityRow: View {
+    let column: Sensitivity.Column
+    let peak: Float
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack {
+                Text(column.slot.label).font(.caption).lineLimit(1)
+                Spacer()
+                Text(column.strongestJoint).font(.caption2).foregroundStyle(.secondary)
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.secondary.opacity(0.15))
+                    Capsule().fill(Color.accentColor)
+                        .frame(width: geo.size.width * CGFloat(peak > 0 ? column.norm / peak : 0))
+                }
+            }
+            .frame(height: 5)
+        }
+    }
 }
