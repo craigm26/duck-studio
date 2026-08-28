@@ -23,7 +23,7 @@ let package = Package(
         // By tag, never by sibling path: an inspector that reports which
         // network it loaded has to be built against a pinned reader, or its
         // report describes a parser nobody can identify later.
-        .package(url: "https://github.com/craigm26/duckkit.git", from: "1.4.0")
+        .package(url: "https://github.com/craigm26/duckkit.git", from: "1.7.0")
     ],
     targets: [
         .target(
@@ -38,7 +38,7 @@ let package = Package(
         ),
         .testTarget(
             name: "StudioKitTests",
-            dependencies: ["StudioKit"],
+            dependencies: ["StudioKit", .product(name: "DuckEvidence", package: "duckkit")],
             // The synthesized refusal corpus. Each file carries exactly one
             // defect, so the message naming it can be asserted literally.
             resources: [.copy("Fixtures")]
