@@ -222,4 +222,72 @@ final class PolicyManifestTests: XCTestCase {
             "the policy door must keep refusing non-networks")
         XCTAssertThrowsError(try PolicySource.huggingFaceManifest(repository: "nope"))
     }
+
+    // MARK: - pasting a link
+
+    /// Every shape a Hugging Face address actually arrives in.
+    func testItAcceptsEveryShapeOfHuggingFaceLink() throws {
+        let expected = "RemiFabre/microduck-flamingo-cycle"
+        for text in [
+            "RemiFabre/microduck-flamingo-cycle",
+            "  RemiFabre/microduck-flamingo-cycle  ",
+            "https://huggingface.co/RemiFabre/microduck-flamingo-cycle",
+            "https://huggingface.co/RemiFabre/microduck-flamingo-cycle/",
+            "https://www.huggingface.co/RemiFabre/microduck-flamingo-cycle?library=true",
+            "https://huggingface.co/RemiFabre/microduck-flamingo-cycle/tree/main",
+            "https://huggingface.co/api/models/RemiFabre/microduck-flamingo-cycle",
+        ] {
+            let reference = try PolicyCatalogue.communityReference(from: text)
+            XCTAssertEqual(reference.repository, expected, text)
+            XCTAssertEqual(reference.revision, "main", text)
+            XCTAssertEqual(reference.policyFile, "policy.onnx", text)
+        }
+    }
+
+    /// blob is the HTML page around a file; resolve is the file. Both are
+    /// pasted, and both must end up fetching the file.
+    func testBlobAndResolveBothReachTheFile() throws {
+        for marker in ["blob", "resolve"] {
+            let reference = try PolicyCatalogue.communityReference(
+                from: "https://huggingface.co/RemiFabre/microduck-flamingo-cycle/\(marker)/main/policy.onnx")
+            XCTAssertEqual(reference.file, "policy.onnx", marker)
+            XCTAssertEqual(try reference.policyRequest().displayURL,
+                "https://huggingface.co/RemiFabre/microduck-flamingo-cycle/resolve/main/policy.onnx",
+                "\(marker) must resolve to the file, never the page")
+        }
+    }
+
+    /// A link to something that is not a network means the repository.
+    func testALinkToTheManifestStillImportsThePolicy() throws {
+        let reference = try PolicyCatalogue.communityReference(
+            from: "https://huggingface.co/RemiFabre/microduck-flamingo-cycle/blob/main/manifest.json")
+        XCTAssertNil(reference.file)
+        XCTAssertEqual(reference.policyFile, "policy.onnx")
+        XCTAssertEqual(try reference.manifestRequest().displayURL,
+            "https://huggingface.co/RemiFabre/microduck-flamingo-cycle/resolve/main/manifest.json")
+    }
+
+    func testANonDefaultRevisionSurvives() throws {
+        let reference = try PolicyCatalogue.communityReference(
+            from: "https://huggingface.co/RemiFabre/microduck-flamingo-cycle/resolve/v2/policy.onnx")
+        XCTAssertEqual(reference.revision, "v2")
+        XCTAssertTrue(try reference.policyRequest().displayURL.contains("/resolve/v2/"))
+    }
+
+    /// Refusals name what is wrong in words somebody can act on.
+    func testItRefusesWhatItCannotFetch() {
+        for (text, expected) in [
+            ("", PolicyCatalogue.ReferenceError.empty),
+            ("   ", .empty),
+            ("https://example.com/some/model", .notHuggingFace("example.com")),
+            ("http://huggingface.co/a/b", .insecure("http")),
+            ("justonename", .malformed("justonename")),
+        ] {
+            XCTAssertThrowsError(try PolicyCatalogue.communityReference(from: text), text) {
+                XCTAssertEqual($0 as? PolicyCatalogue.ReferenceError, expected, text)
+            }
+        }
+        XCTAssertTrue(PolicyCatalogue.ReferenceError.notHuggingFace("example.com")
+            .message.contains("example.com"))
+    }
 }

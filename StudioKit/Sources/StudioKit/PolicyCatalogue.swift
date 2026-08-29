@@ -111,6 +111,105 @@ public enum PolicyCatalogue {
                                     suggestedName: "microduck policies")
     }
 
+    /// A Hugging Face address somebody pasted, reduced to what to fetch.
+    ///
+    /// EVERY SHAPE A LINK ARRIVES IN. People copy the address bar (the repo
+    /// page), the "copy path" button (`owner/name`), or a link to the file
+    /// itself — and the file link is as likely to be `blob/` (the HTML page
+    /// wrapped around the file) as `resolve/` (the file). Asking someone to
+    /// hand-edit blob into resolve is asking them to know a Hugging Face
+    /// implementation detail, so this does it.
+    public struct CommunityReference: Equatable, Sendable {
+        public let repository: String
+        public let revision: String
+        /// The file named in the link, when one was. A bare repository link
+        /// means "the policy", which by the sharing format is policy.onnx.
+        public let file: String?
+
+        public var policyFile: String { file ?? "policy.onnx" }
+        public var webURL: String { "https://huggingface.co/\(repository)" }
+
+        public func policyRequest() throws -> PolicySource.Request {
+            try PolicySource.huggingFace(repository: repository, file: policyFile,
+                                         revision: revision)
+        }
+        public func manifestRequest() throws -> PolicySource.Request {
+            try PolicySource.huggingFaceManifest(repository: repository, revision: revision)
+        }
+    }
+
+    public enum ReferenceError: Error, Equatable {
+        case empty
+        case notHuggingFace(String)
+        case insecure(String)
+        case malformed(String)
+
+        public var message: String {
+            switch self {
+            case .empty:
+                return "Paste a Hugging Face address, or an owner/name like RemiFabre/microduck-flamingo-cycle."
+            case .notHuggingFace(let host):
+                return "That address is on \(host). This imports from huggingface.co; a file "
+                     + "anywhere else can still be opened with the file picker."
+            case .insecure(let scheme):
+                return "That address is \(scheme), not https."
+            case .malformed(let text):
+                return "\"\(text)\" is not a Hugging Face repository — it should look like "
+                     + "owner/name."
+            }
+        }
+    }
+
+    /// Turn whatever was pasted into something fetchable.
+    public static func communityReference(from text: String) throws -> CommunityReference {
+        var trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw ReferenceError.empty }
+
+        if trimmed.contains("://") {
+            guard let url = URL(string: trimmed), let host = url.host else {
+                throw ReferenceError.malformed(trimmed)
+            }
+            guard url.scheme?.lowercased() == "https" else {
+                throw ReferenceError.insecure(url.scheme ?? "an unknown scheme")
+            }
+            guard host == "huggingface.co" || host == "www.huggingface.co" else {
+                throw ReferenceError.notHuggingFace(host)
+            }
+            trimmed = url.path
+        }
+        // Strip a query or fragment somebody copied along with the address.
+        for cut in ["?", "#"] {
+            if let index = trimmed.firstIndex(of: Character(cut)) {
+                trimmed = String(trimmed[..<index])
+            }
+        }
+        var parts = trimmed.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
+        // "api/models/" prefixes the API form of the same address — people
+        // paste that too, having found the repository through a search.
+        if parts.first == "api" { parts.removeFirst() }
+        if parts.first == "models" { parts.removeFirst() }
+        guard parts.count >= 2 else { throw ReferenceError.malformed(trimmed) }
+        let repository = "\(parts[0])/\(parts[1])"
+        var revision = "main"
+        var file: String?
+        if parts.count > 2 {
+            // blob and resolve both carry <revision>/<path>; tree carries a
+            // revision and no file.
+            let marker = parts[2]
+            if ["blob", "resolve", "tree"].contains(marker), parts.count > 3 {
+                revision = parts[3]
+                let rest = parts.dropFirst(4).joined(separator: "/")
+                if !rest.isEmpty, marker != "tree" { file = rest }
+            }
+        }
+        if let name = file, !name.lowercased().hasSuffix(".onnx") {
+            // A link to the manifest, the video, the README — the repository
+            // is what was meant, and the policy is what is wanted.
+            file = nil
+        }
+        return CommunityReference(repository: repository, revision: revision, file: file)
+    }
+
     public static func parseCommunity(_ data: Data) throws -> [CommunityEntry] {
         guard let rows = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
             throw ScanError.notJSON

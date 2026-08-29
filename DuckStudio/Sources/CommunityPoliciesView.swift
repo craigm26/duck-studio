@@ -22,6 +22,11 @@ struct CommunityPoliciesView: View {
     @State private var busy = false
     @State private var working: String?
     @State private var failure: String?
+    @State private var pastedText = ""
+    /// References that arrived by paste, keyed by repository — they can name a
+    /// revision or a file the browse path never would.
+    @State private var pasted: [String: PolicyCatalogue.CommunityReference] = [:]
+    @FocusState private var typing: Bool
 
     private var listing: PolicySource.Request { PolicyCatalogue.communityListing() }
 
@@ -35,6 +40,25 @@ struct CommunityPoliciesView: View {
                     .textSelection(.enabled)
             } header: {
                 Text("Where to look")
+            }
+
+            Section {
+                HStack(spacing: 8) {
+                    TextField("huggingface.co/owner/name", text: $pastedText)
+                        .textFieldStyle(.roundedBorder)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .focused($typing)
+                        .onSubmit { Task { await open(pastedText) } }
+                    Button("Open") { Task { await open(pastedText) } }
+                        .buttonStyle(.bordered).controlSize(.small)
+                        .disabled(pastedText.trimmingCharacters(in: .whitespaces).isEmpty
+                                  || working != nil)
+                }
+            } header: {
+                Text("Paste a link")
+            } footer: {
+                Text("The repository page, an owner/name, or a link straight to the file — blob or resolve, either works. Anything that is not a policy file is taken to mean the repository it sits in.")
             }
 
             Section {
@@ -163,11 +187,39 @@ struct CommunityPoliciesView: View {
         }
     }
 
+    /// Open whatever was pasted: resolve it, read its manifest, and put it at
+    /// the top of the list so it reads exactly like a browsed one.
+    private func open(_ text: String) async {
+        failure = nil
+        let reference: PolicyCatalogue.CommunityReference
+        do {
+            reference = try PolicyCatalogue.communityReference(from: text)
+        } catch let error as PolicyCatalogue.ReferenceError {
+            failure = error.message
+            return
+        } catch {
+            failure = "\(error.localizedDescription)"
+            return
+        }
+        typing = false
+        pasted[reference.repository] = reference
+        let owner = String(reference.repository.split(separator: "/").first ?? "")
+        let entry = PolicyCatalogue.CommunityEntry(
+            id: reference.repository, author: owner, updated: nil,
+            downloads: 0, likes: 0, declaresPolicyTag: false)
+        if !entries.contains(where: { $0.id == entry.id }) {
+            entries.insert(entry, at: 0)
+        }
+        pastedText = ""
+        await readManifest(entry)
+    }
+
     private func readManifest(_ entry: PolicyCatalogue.CommunityEntry) async {
         working = entry.id; failure = nil
         defer { working = nil }
         do {
-            let request = try PolicySource.huggingFaceManifest(repository: entry.id)
+            let request = try (pasted[entry.id]?.manifestRequest()
+                               ?? PolicySource.huggingFaceManifest(repository: entry.id))
             let (data, response) = try await URLSession.shared.data(from: request.url)
             if let http = response as? HTTPURLResponse, http.statusCode != 200 {
                 noManifest.insert(entry.id)
@@ -190,7 +242,8 @@ struct CommunityPoliciesView: View {
         working = entry.id; failure = nil
         defer { working = nil }
         do {
-            let request = try PolicySource.huggingFace(repository: entry.id, file: "policy.onnx")
+            let request = try (pasted[entry.id]?.policyRequest()
+                               ?? PolicySource.huggingFace(repository: entry.id, file: "policy.onnx"))
             let (data, response) = try await URLSession.shared.data(from: request.url)
             if let http = response as? HTTPURLResponse, http.statusCode != 200 {
                 failure = "\(request.host) answered \(http.statusCode)."
