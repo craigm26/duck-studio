@@ -84,10 +84,16 @@ public struct RunMetrics: Equatable, Sendable {
             switch self {
             case .velocity, .ballKick: return (2.0, 0.05)
             case .groundPick:          return (0.2, 0.2)   // weight overridden; std left at mjlab's default
+            // roller_crouch KEEPS the shared term — its config deletes every
+            // reward not in {upright, body_ang_vel, angular_momentum,
+            // action_rate_l2} and then sets upright to 2.0 at mjlab's default
+            // variance. A first version lumped it in with the tasks below and
+            // denied an evaluable canon term to every roller-crouch clip.
+            case .rollerCrouch:        return (2.0, 0.2)
             // sitstand replaces `upright` with `upright_linear` and
             // `upright_while_tall`, and roulade with `roulade_upright_after_roll`
             // — different functions, so the shared term is not theirs to claim.
-            case .sitstand, .roulade, .rollerCrouch: return (0, 0)
+            case .sitstand, .roulade: return (0, 0)
             }
         }
 
@@ -103,18 +109,32 @@ public struct RunMetrics: Equatable, Sendable {
             }
         }
 
-        /// `action_rate_l2`'s weight. The velocity config starts at −0.1 and a
-        /// curriculum ramps it to −1.0 by iteration 1500, so the trained policy
-        /// lived under −1.0 and that is the figure worth showing.
+        /// `action_rate_l2`'s weight — the RAMP END, per task, because every
+        /// config ramps it and the trained policy lived under the final value.
+        /// A first version gave only velocity its ramp end and reported the
+        /// stage-zero −0.1 for everything else, understating five tasks. Read
+        /// from each config's `action_rate_weight` curriculum stages: velocity
+        /// and the kick ramp −0.1 → −1.0; sitstand the same; roulade's ceiling
+        /// was deliberately softened to −0.4 (tightening it was squeezing the
+        /// rise); ground-pick runs −0.8 → −2.0, the strongest smoothing in the
+        /// family; roller-crouch −0.5 → −1.0.
         var actionRateWeight: Double {
-            self == .velocity ? -1.0 : -0.1
+            switch self {
+            case .velocity, .ballKick, .sitstand, .rollerCrouch: return -1.0
+            case .roulade:    return -0.4
+            case .groundPick: return -2.0
+            }
         }
 
         /// Whether the command block is a velocity at all. It is a phase clock
-        /// for ground-pick and a flag for sit/stand, so tracking a "commanded
-        /// velocity" there would be arithmetic on a number that is not one.
+        /// for ground-pick AND for roller-crouch (both use
+        /// GroundPickPhaseCommand — cos/sin of a four-second phase), and a flag
+        /// for sit/stand, so tracking a "commanded velocity" there would be
+        /// arithmetic on a number that is not one. A first version treated
+        /// roller-crouch as a twist and scored three tracking terms its config
+        /// deletes outright.
         var commandIsATwist: Bool {
-            self == .velocity || self == .rollerCrouch
+            self == .velocity
         }
 
         /// Terms this config carries that a recording cannot answer, with the
@@ -565,9 +585,7 @@ public struct RunMetrics: Equatable, Sendable {
             let mean = sum / Double(telemetry.actions.count - 1)
             out.append(RewardTerm(
                 name: "action_rate_l2", weight: task.actionRateWeight,
-                purpose: task == .velocity
-                    ? "Penalises jerky commands. The velocity config starts this at −0.1 and a curriculum ramps it to −1.0 by iteration 1500, so −1.0 is what the trained policy lived under."
-                    : "Penalises jerky commands.",
+                purpose: "Penalises jerky commands. Every config ramps this weight over training, so the figure is the ramp end — what the trained policy actually lived under.",
                 standing: .evaluated(mean: mean, weighted: mean * task.actionRateWeight)))
         } else {
             out.append(RewardTerm(

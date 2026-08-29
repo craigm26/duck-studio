@@ -362,3 +362,33 @@ final class ClipNoteTests: XCTestCase {
         XCTAssertFalse(ClipNote.plantCaveat.lowercased().contains("may differ"))
     }
 }
+
+// MARK: - the reward table matches the configs, term by term
+
+extension RunMetricsTests {
+
+    /// roller_crouch's config DELETES every reward not in {upright,
+    /// body_ang_vel, angular_momentum, action_rate_l2} and its command is a
+    /// phase clock, not a twist. A first version scored three tracking terms
+    /// the config deletes and denied the upright term it keeps.
+    func testRollerCrouchKeepsUprightAndIsNotATwist() {
+        let task = RunMetrics.Task.rollerCrouch
+        XCTAssertTrue(task.hasSharedUpright)
+        XCTAssertEqual(task.upright.weight, 2.0)
+        XCTAssertEqual(task.upright.variance, 0.2)
+        XCTAssertFalse(task.commandIsATwist,
+                       "GroundPickPhaseCommand is cos/sin of a phase, not a velocity")
+    }
+
+    /// Every config ramps action_rate_l2; the figure shown is the ramp end.
+    /// Read from each config's weight_stages, not assumed uniform: roulade's
+    /// ceiling was deliberately softened to −0.4 and ground-pick runs to −2.0.
+    func testActionRateWeightsAreTheRampEnds() {
+        XCTAssertEqual(RunMetrics.Task.velocity.actionRateWeight, -1.0)
+        XCTAssertEqual(RunMetrics.Task.ballKick.actionRateWeight, -1.0)
+        XCTAssertEqual(RunMetrics.Task.sitstand.actionRateWeight, -1.0)
+        XCTAssertEqual(RunMetrics.Task.rollerCrouch.actionRateWeight, -1.0)
+        XCTAssertEqual(RunMetrics.Task.roulade.actionRateWeight, -0.4)
+        XCTAssertEqual(RunMetrics.Task.groundPick.actionRateWeight, -2.0)
+    }
+}
