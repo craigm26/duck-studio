@@ -3,13 +3,20 @@ import DuckKit
 
 /// What Duck Studio publishes, and what its card has to admit.
 ///
-/// A MOTION IS NOT A POLICY, AND THE REPOSITORY SAYS SO. Pollen's sharing
-/// format describes a trained network: an observation width, an action width,
-/// what each command slot means. This app trains nothing — it authors
-/// keyframes and records what a policy did — so publishing under
-/// `microduck-policy` with an invented `obs_len` would be a lie that an
-/// importer would then act on. The manifest declares `artifact: "motion"`, the
-/// tag is `microduck-motion`, and `PolicyManifest` refuses it by name.
+/// A MOVE IS A DATASET, NOT A MODEL. This app published motions as model
+/// repositories, and that was wrong in a way anyone can check: on the live
+/// Hub, `/api/datasets?filter=reachy_mini_community_moves` returns 30+
+/// repositories and `/api/models?filter=reachy_mini_community_moves` returns
+/// none. Pollen never put a trajectory in a model repo — a trajectory is data,
+/// and the Hub sorts data from networks. Publishing as a model put every move
+/// this app made in the one place nobody's loader looks.
+///
+/// A MOTION IS STILL NOT A POLICY, AND THE REPOSITORY SAYS SO. Pollen's
+/// sharing format for a network describes an observation width, an action
+/// width, what each command slot means. This app trains nothing — it authors
+/// keyframes and records what a policy did — so publishing with an invented
+/// `obs_len` would be a lie an importer would then act on. The manifest
+/// declares `artifact: "motion"`, and `PolicyManifest` refuses it by name.
 ///
 /// THE CARD LEADS WITH WHAT IS NOT TRUE OF IT. An authored motion is a
 /// request, not a result: the same keyframes fed through a standing policy on
@@ -18,11 +25,64 @@ import DuckKit
 /// for. Somebody downloading this needs that before they need anything else.
 public struct MotionPublication: Equatable, Sendable {
 
+    /// The tag that makes a move findable, and the repository type it has to
+    /// be published as for the tag to mean anything.
+    ///
+    /// OUR OWN TAG, THEIR SHAPE. Pollen's community moves carry
+    /// `reachy_mini_community_moves`; this is the same shape — underscores,
+    /// `<robot>_community_moves` — for a different robot, because we are not
+    /// Reachy Mini and tagging a duck's keyframes as one would put a motion
+    /// that no Reachy Mini can play into the results of everybody searching
+    /// for one.
+    public static let hubTag = "microduck_community_moves"
+
+    /// Datasets. Stated here rather than at the call site so the one decision
+    /// this type exists to get right lives beside the tag it goes with.
+    public static let repositoryKind = HuggingFacePublish.Repository.Kind.dataset
+
     public let name: String
+    /// The move's name on the other side, because a loader that globs
+    /// `*.json` takes the move's name from the file name. See `slug(for:)`.
+    public let slug: String
+    /// One sentence saying when to play this move.
+    public let whenToUse: String
     public let files: [HuggingFacePublish.File]
     public let summary: String
 
     public var totalBytes: Int { files.reduce(0) { $0 + $1.bytes } }
+
+    /// The move file's path in the repository: `<slug>.json`.
+    public var movePath: String { "\(slug).json" }
+
+    /// Where the manifest goes — DELIBERATELY NOT THE ROOT. Pollen's loader
+    /// globs `*.json` and treats every hit as a move, so a `manifest.json`
+    /// sitting beside the move would be loaded as a second move called
+    /// "manifest" that cannot parse. `*.json` is not `**/*.json`, so one
+    /// directory down is out of its reach and still one click away for a
+    /// person.
+    public static let manifestPath = "meta/manifest.json"
+
+    /// A name that survives being a filename — and it becomes the move's name
+    /// on the other side, so this is not cosmetic.
+    ///
+    /// ASCII ONLY, which is stricter than a filename needs. The same slug is
+    /// offered as the repository name, and `HuggingFacePublish.repository`
+    /// refuses anything outside letters, digits, dots, dashes and
+    /// underscores — so a motion called "élan" would slug to a filename that
+    /// is fine and a repository name that is refused at the last moment.
+    public static func slug(for name: String) -> String {
+        var out = ""
+        for character in name.lowercased() {
+            if character.isASCII && (character.isLetter || character.isNumber) {
+                out.append(character)
+            } else if !out.hasSuffix("-") {
+                out.append("-")
+            }
+        }
+        while out.hasPrefix("-") { out.removeFirst() }
+        while out.hasSuffix("-") { out.removeLast() }
+        return out.isEmpty ? "microduck-motion" : out
+    }
 
     /// Everything the author is told to expect, in the card and the manifest.
     public static func cautions(for draft: IntentDraft) -> [String] {
@@ -42,31 +102,53 @@ public struct MotionPublication: Equatable, Sendable {
         return out
     }
 
-    public init(draft: IntentDraft, note: String? = nil) throws {
+    /// - Parameter whenToUse: one sentence saying WHEN to play this move —
+    ///   "when you discover something extraordinary", not "the head nods".
+    ///   Pollen's emotions library gives every move exactly this and keys its
+    ///   `metadata.jsonl` on it, and it is the difference between a library
+    ///   somebody can browse and a folder of filenames. It is also the only
+    ///   thing a model choosing a move to play has to read. Required, and
+    ///   refused when blank, because a move without it is not findable.
+    public init(draft: IntentDraft, whenToUse: String, note: String? = nil) throws {
+        let sentence = whenToUse.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !sentence.isEmpty else { throw HuggingFacePublish.Refusal.noWhenToUse }
         name = draft.name
+        self.whenToUse = sentence
+        let stem = Self.slug(for: draft.name)
+        slug = stem
         let move = try draft.exported()
-        let manifest = Self.manifest(for: draft, note: note)
-        let card = Self.card(for: draft, note: note)
+        let manifest = Self.manifest(for: draft, whenToUse: sentence, note: note)
+        let card = Self.card(for: draft, slug: stem, whenToUse: sentence, note: note)
         files = [
-            .init(path: "motion.duckmove", contents: move, isText: true),
-            .init(path: "manifest.json", contents: manifest, isText: true),
+            // `<slug>.json`, NOT `motion.duckmove`. Pollen's
+            // `RecordedMoves.process()` globs `*.json` and nothing else, so a
+            // `.duckmove` is invisible to it however correct the repository
+            // type and the tags are — and the name it shows for the move is
+            // the file's own stem. The bytes are unchanged: a `.duckmove` was
+            // always JSON, so this is a rename, not a re-encoding.
+            .init(path: "\(stem).json", contents: move, isText: true),
+            .init(path: Self.manifestPath, contents: manifest, isText: true),
             .init(path: "README.md", contents: Data(card.utf8), isText: true),
         ]
-        summary = "Add \(draft.name) — a Microduck motion authored in Duck Studio"
+        summary = "Add \(draft.name) — a Microduck move authored in Duck Studio"
     }
 
-    static func manifest(for draft: IntentDraft, note: String?) -> Data {
+    static func manifest(for draft: IntentDraft, whenToUse: String, note: String?) -> Data {
         let body: [String: Any] = [
             "schema_version": 1,
             // The field an importer reads FIRST. Without it a motion and a
             // policy are both "a file in a microduck repository".
             "artifact": "motion",
             "name": draft.name,
+            // The same sentence the card leads with, where something reading
+            // the repository rather than the page can find it.
+            "when_to_use": whenToUse,
             "authored_in": "Duck Studio",
             "robot": ["model": "microduck", "hw_rev": 1,
                       "servos": "xl330", "control_hz": DuckModel.tickHz],
             "motion": [
                 "format": DuckMoveFile.format,
+                "file": "\(slug(for: draft.name)).json",
                 "joints": DuckModel.jointNames,
                 "keyframes": draft.keys.count,
                 "duration_s": draft.duration,
@@ -81,22 +163,48 @@ public struct MotionPublication: Equatable, Sendable {
                                             options: [.prettyPrinted, .sortedKeys])) ?? Data()
     }
 
-    static func card(for draft: IntentDraft, note: String?) -> String {
+    /// A YAML double-quoted scalar's two escapes. A move called `the "big" bow`
+    /// would otherwise close the quote early and make the whole front matter
+    /// unparseable, which on the Hub means an untagged, unfindable repository
+    /// rather than a visible error.
+    static func yamlQuoted(_ text: String) -> String {
+        let escaped = text
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        return "\"\(escaped)\""
+    }
+
+    static func card(for draft: IntentDraft, slug: String,
+                     whenToUse: String, note: String?) -> String {
         let cautionLines = cautions(for: draft).map { "- \($0)" }.joined(separator: "\n")
         let keyLines = draft.keys.enumerated().map { index, key in
             String(format: "| %d | %.2f s |", index + 1, key.time)
         }.joined(separator: "\n")
+        // FRONT MATTER IN A DATASET CARD'S SHAPE, copied from Pollen's
+        // community-moves convention: license, task_categories, language,
+        // tags, pretty_name. No `library_name` and no `pipeline_tag` — both
+        // are model-card fields, and on a dataset they are noise that says
+        // "whoever wrote this thought it was a model". No `configs:` block
+        // either: that is the audiofolder viewer's configuration, this ships
+        // no audio, and a viewer config pointing at files that do not exist
+        // renders as a broken dataset preview.
         return """
         ---
-        library_name: duckkit
-        tags: [microduck, microduck-motion, robotics]
         license: apache-2.0
+        task_categories: [robotics]
+        language: [en]
+        tags: [\(Self.hubTag)]
+        pretty_name: \(yamlQuoted("\(draft.name) • Microduck Moves"))
         ---
 
         # \(draft.name)
 
-        A motion for the Pollen Robotics [Microduck](https://github.com/pollen-robotics/microduck), \
+        A move for the Pollen Robotics [Microduck](https://github.com/pollen-robotics/microduck), \
         authored in Duck Studio. \(note ?? "")
+
+        ## When to play it
+
+        \(whenToUse)
 
         **This is a motion, not a policy.** It is a list of poses with times — \
         `\(DuckMoveFile.format)` — not a trained network. There is no observation, no action \
@@ -131,8 +239,11 @@ public struct MotionPublication: Equatable, Sendable {
 
         ## Files
 
-        - `motion.duckmove` — the motion, in the format DuckKit reads and writes
-        - `manifest.json` — the same facts, machine-readable
+        - `\(slug).json` — the move itself, in the `\(DuckMoveFile.format)` format DuckKit \
+        reads and writes. It is `.json` and not `.duckmove` because a loader that globs \
+        `*.json` cannot see anything else, and the move's name is this file's own name.
+        - `\(Self.manifestPath)` — the same facts, machine-readable. Kept out of the root so \
+        that same glob does not pick it up as a move called "manifest".
         - `README.md` — this card
         """
     }

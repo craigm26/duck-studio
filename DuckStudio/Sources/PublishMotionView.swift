@@ -18,12 +18,17 @@ struct PublishMotionView: View {
     @State private var repositoryName = ""
     @State private var isPrivate = true
     @State private var note = ""
+    /// One sentence saying WHEN to play this move. Required, and the reason is
+    /// in `MotionPublication`: it is what makes a library browsable and what a
+    /// model choosing a move has to read.
+    @State private var whenToUse = ""
     @State private var busy = false
     @State private var failure: String?
     @State private var published: String?
 
     private var publication: MotionPublication? {
-        try? MotionPublication(draft: draft, note: note.isEmpty ? nil : note)
+        try? MotionPublication(draft: draft, whenToUse: whenToUse,
+                               note: note.isEmpty ? nil : note)
     }
 
     var body: some View {
@@ -50,11 +55,22 @@ struct PublishMotionView: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                     Toggle("Private repository", isOn: $isPrivate)
+                    TextField("When should this be played?", text: $whenToUse, axis: .vertical)
+                        .lineLimit(1...3)
                     TextField("A line about it (optional)", text: $note, axis: .vertical)
                         .lineLimit(1...3)
                     if let account, !repositoryName.isEmpty {
-                        Text("huggingface.co/\(account)/\(repositoryName)")
+                        // THE `datasets/` PREFIX IS SHOWN BECAUSE ITS ABSENCE
+                        // IS INVISIBLE: huggingface.co/<you>/<name> does not
+                        // 404 for a dataset when a model of that name exists,
+                        // it silently opens the model instead.
+                        Text("huggingface.co/datasets/\(account)/\(repositoryName)")
                             .font(.caption2.monospaced()).foregroundStyle(.secondary)
+                    }
+                    if whenToUse.trimmingCharacters(in: .whitespaces).isEmpty {
+                        Text("Say when to play it — \"when you find something surprising\" — "
+                             + "before this can be published.")
+                            .font(.caption2).foregroundStyle(.orange)
                     }
                 } header: {
                     Text("Where it goes")
@@ -115,22 +131,12 @@ struct PublishMotionView: View {
             }
             .onAppear {
                 token = TokenStore.load() ?? ""
-                if repositoryName.isEmpty { repositoryName = slug(draft.name) }
+                // The kit's slug, not a second copy of the rule: the same
+                // string names the repository AND the move's file, and the
+                // move's name on the other side is that filename.
+                if repositoryName.isEmpty { repositoryName = MotionPublication.slug(for: draft.name) }
             }
         }
-    }
-
-    /// A repository name Hugging Face will accept, from a motion's own name.
-    private func slug(_ text: String) -> String {
-        let lowered = text.lowercased()
-        var out = ""
-        for character in lowered {
-            if character.isLetter || character.isNumber { out.append(character) }
-            else if !out.hasSuffix("-") { out.append("-") }
-        }
-        while out.hasPrefix("-") { out.removeFirst() }
-        while out.hasSuffix("-") { out.removeLast() }
-        return out.isEmpty ? "microduck-motion" : out
     }
 
     private func check() async {
@@ -161,8 +167,12 @@ struct PublishMotionView: View {
         busy = true; failure = nil
         defer { busy = false }
         do {
-            let repository = try HuggingFacePublish.repository(namespace: account,
-                                                               name: repositoryName)
+            // A DATASET, NOT A MODEL. A trajectory is data; Pollen's community
+            // moves are all datasets, and a move published as a model is one
+            // nobody's loader will look for.
+            let repository = try HuggingFacePublish.repository(
+                namespace: account, name: repositoryName,
+                kind: MotionPublication.repositoryKind)
             let create = HuggingFacePublish.urlRequest(
                 for: HuggingFacePublish.create(repository, isPrivate: isPrivate), token: token)
             let (_, createResponse) = try await URLSession.shared.data(for: create)

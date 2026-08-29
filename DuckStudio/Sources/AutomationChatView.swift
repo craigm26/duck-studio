@@ -1,4 +1,5 @@
 import SwiftUI
+import Foundation
 import DuckKit
 import StudioKit
 #if canImport(FoundationModels)
@@ -33,9 +34,21 @@ struct AutomationChatView: View {
     @State private var thinking = false
     @State private var clips: [String: DuckIntentClip] = [:]
     @State private var previewing: DraftID?
+    /// How many tries the model gets, how long it gets, and when to stop
+    /// asking it. Every one of those decisions lives in StudioKit where a test
+    /// drives it; this screen only calls it and shows what it says.
+    ///
+    /// THE CLOCK IS `systemUptime`, NOT A DATE. It counts forward from boot
+    /// and nothing a person does to the phone's calendar moves it, so a
+    /// deadline cannot be lengthened or expired by crossing a time zone.
+    @State private var gate = DraftGate(now: { ProcessInfo.processInfo.systemUptime })
     /// THE WAY OUT OF THE KEYBOARD. The first version had none: the field
     /// focused, the keyboard rose, and nothing on screen dismissed it.
     @FocusState private var typing: Bool
+
+    /// Drafting motions has stopped for this sitting. Rules are unaffected —
+    /// they go through a different resolver and have their own outcome.
+    private var motionDraftingStopped: Bool { mode == .motion && gate.isStopped }
 
     enum Mode: String, CaseIterable, Identifiable {
         case motion = "Motion", rule = "Rule"
@@ -131,15 +144,18 @@ struct AutomationChatView: View {
                     .textFieldStyle(.roundedBorder)
                     .lineLimit(1...3)
                     .focused($typing)
-                    .disabled(!availability.isUsable || thinking)
+                    .disabled(!availability.isUsable || thinking || motionDraftingStopped)
                 Button {
                     Task { await draft() }
                 } label: {
                     Image(systemName: thinking ? "ellipsis" : "arrow.up.circle.fill")
                         .font(.title2)
                 }
+                // A STOP THAT DOES NOT STOP ANYTHING IS A MESSAGE. When the
+                // gate has given up, the field goes with it — the reason is
+                // already the last thing in the list.
                 .disabled(typed.trimmingCharacters(in: .whitespaces).isEmpty
-                          || !availability.isUsable || thinking)
+                          || !availability.isUsable || thinking || motionDraftingStopped)
             }
             .padding()
         }
@@ -325,9 +341,20 @@ struct AutomationChatView: View {
                         },
                         mouthOpen: key.mouthOpen)
                 })
-            // The choke-point: names, units, travel — all judged in tested
-            // code, exactly as a typed draft would be.
-            let draft = try proposal.resolve()
+            // THE CHOKE-POINT, AND NOW ALSO THE BUDGET. Names, units and
+            // travel are judged in tested code exactly as a typed draft would
+            // be — and the gate around that counts the try, holds the
+            // deadline, and stops asking a model that keeps failing the same
+            // way. A refusal and a stop look the same on screen; the
+            // difference is that after a stop the field is closed.
+            let draft: IntentDraft
+            switch gate.draft(proposal) {
+            case .drafted(let resolved):
+                draft = resolved
+            case .feedback(let reason), .stopped(let reason):
+                entries.append(Entry(asked: asked, refusal: reason))
+                return
+            }
             // THE SAME JUDGE A HAND-MADE DRAFT FACES. A broken draft is a
             // refusal, not a preview; an impossible or cautioned one previews
             // with its problems named, so the chat matches the editor.
@@ -346,9 +373,10 @@ struct AutomationChatView: View {
             // became — playing, scrubable, every slider where the sentence
             // put it. Keep it, change it, or throw it away.
             previewing = DraftID(id: draft.id)
-        } catch let error as MotionProposal.Unresolvable {
-            entries.append(Entry(asked: asked, refusal: error.message))
         } catch {
+            // `MotionProposal.Unresolvable` no longer arrives here: resolution
+            // happens inside the gate, which turns it into feedback or a stop
+            // so that it is counted. What is left is the model itself failing.
             entries.append(Entry(asked: asked,
                                  refusal: "The model could not answer: \(error.localizedDescription)"))
         }

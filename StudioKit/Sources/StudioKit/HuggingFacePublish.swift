@@ -32,10 +32,51 @@ public enum HuggingFacePublish {
     }
 
     public struct Repository: Equatable, Sendable {
+
+        /// A model repository or a dataset repository. Hugging Face has both,
+        /// and a trajectory belongs in the second one.
+        ///
+        /// THE PROOF THIS IS NOT A TASTE QUESTION: on the live Hub,
+        /// `/api/datasets?filter=reachy_mini_community_moves` answers with 30+
+        /// repositories and `/api/models?filter=reachy_mini_community_moves`
+        /// answers with none. Pollen never put a move in a model repo. A move
+        /// published as one is a move nobody's loader goes looking for, in a
+        /// place their search does not reach.
+        public enum Kind: String, Equatable, Sendable {
+            case model
+            case dataset
+
+            /// The segment the COMMIT endpoint wants. This is the half that
+            /// genuinely differs: creation is one address for both kinds and
+            /// only the body's `type` changes, but a commit goes to
+            /// `api/models/…` or `api/datasets/…`, and a commit posted to the
+            /// wrong one addresses a repository that does not exist.
+            var apiSegment: String {
+                switch self {
+                case .model: return "models"
+                case .dataset: return "datasets"
+                }
+            }
+
+            /// The website needs `datasets/` in front of a dataset, and the
+            /// failure that prefix prevents is SILENT. `huggingface.co/<ns>/<name>`
+            /// for a dataset does not 404 when a model of the same name
+            /// exists — it quietly resolves to the MODEL. So an address printed
+            /// without the prefix can open a real page, look right, and be a
+            /// different artifact from the one just published.
+            var webPrefix: String {
+                switch self {
+                case .model: return ""
+                case .dataset: return "datasets/"
+                }
+            }
+        }
+
         public let namespace: String
         public let name: String
+        public let kind: Kind
         public var id: String { "\(namespace)/\(name)" }
-        public var webURL: String { "https://\(host)/\(id)" }
+        public var webURL: String { "https://\(host)/\(kind.webPrefix)\(id)" }
     }
 
     public enum Refusal: Error, Equatable {
@@ -44,6 +85,7 @@ public enum HuggingFacePublish {
         case tooLong(String)
         case noNamespace
         case nothingToPublish
+        case noWhenToUse
 
         public var message: String {
             switch self {
@@ -58,13 +100,24 @@ public enum HuggingFacePublish {
                 return "Sign in first: the account decides where this is published."
             case .nothingToPublish:
                 return "There are no files to publish."
+            case .noWhenToUse:
+                return "Say when this move should be played, in one sentence. A library of "
+                     + "moves with no descriptions is a list of filenames — that sentence is "
+                     + "what somebody browsing reads, and it is all a model choosing a move "
+                     + "has to go on."
             }
         }
     }
 
     /// Hugging Face's own rules for a repository name, checked here so a
     /// refusal arrives before a token is spent rather than as a 400.
-    public static func repository(namespace: String, name: String) throws -> Repository {
+    ///
+    /// `kind` HAS NO DEFAULT ON PURPOSE. A default is exactly how this app
+    /// came to publish motions as model repositories: nobody chose it, the
+    /// parameter simply already said so. Every call site now has to state
+    /// which kind of thing it is making, out loud.
+    public static func repository(namespace: String, name: String,
+                                  kind: Repository.Kind) throws -> Repository {
         let space = namespace.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !space.isEmpty else { throw Refusal.noNamespace }
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -79,7 +132,7 @@ public enum HuggingFacePublish {
               !".-".contains(first), !".-".contains(last) else {
             throw Refusal.badName(trimmed)
         }
-        return Repository(namespace: space, name: trimmed)
+        return Repository(namespace: space, name: trimmed, kind: kind)
     }
 
     /// Who the token belongs to. Asked BEFORE anything is created, so the
@@ -99,9 +152,15 @@ public enum HuggingFacePublish {
 
     /// Create the repository. `private` defaults TRUE: the safe default for a
     /// button that publishes is the one you can still change your mind about.
+    ///
+    /// ONE ADDRESS CREATES BOTH KINDS. There is no `/api/datasets/create` —
+    /// the URL below is the whole of it, and the only thing deciding which
+    /// kind you get is `type` in the body. This note is here so the next
+    /// person stops hunting for the endpoint that does not exist.
     public static func create(_ repository: Repository, license: String = "apache-2.0",
                               isPrivate: Bool = true) -> Call {
-        var body: [String: Any] = ["name": repository.name, "type": "model",
+        var body: [String: Any] = ["name": repository.name,
+                                   "type": repository.kind.rawValue,
                                    "private": isPrivate, "license": license]
         // The namespace is only sent when it is an organisation; for a personal
         // account Hugging Face infers it from the token.
@@ -149,7 +208,9 @@ public enum HuggingFacePublish {
         let body: [String: Any] = ["summary": summary, "description": description,
                                    "files": encoded]
         let json = try JSONSerialization.data(withJSONObject: body)
-        let path = "https://\(host)/api/models/\(repository.id)/commit/\(revision)"
+        // The one address here that is NOT shared between the two kinds.
+        let path = "https://\(host)/api/\(repository.kind.apiSegment)/\(repository.id)"
+                 + "/commit/\(revision)"
         return Call(method: "POST", url: URL(string: path)!,
                     contentType: "application/json", body: json)
     }

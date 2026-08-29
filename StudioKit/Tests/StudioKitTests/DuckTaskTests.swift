@@ -1,0 +1,770 @@
+import XCTest
+import DuckKit
+@testable import StudioKit
+
+/// quackd's `.duck` task format, pinned against REAL published files.
+///
+/// The two fixtures below are `ducks/find-and-kick.duck` and `ducks/fetch.duck` from
+/// `rokbenko/quackd`, byte for byte as GitHub served them at commit 56d752a on 2026-08-29.
+/// A hand-written approximation would prove only that this reader agrees with itself, and
+/// the entire value of this reader is that a file it accepts is a file quackd will run.
+///
+/// `fetch.duck` earns its place by carrying the two awkward shapes the starter set contains:
+/// three `#` comment lines above the opening fence, and a success criterion wrapped across
+/// two source lines as a folded plain scalar.
+final class DuckTaskTests: XCTestCase {
+
+    private let findAndKick = #"""
+---
+duck: 0
+name: find-and-kick
+description: Search the area for a ball, walk to it, kick it.
+author: rok
+verbs:
+  allow: [search_scan, walk_to, kick, quack, get_frame, stop]
+  confirm: []
+budgets:
+  max_steps: 40
+  max_minutes: 5
+  max_llm_calls: 40
+success:
+  - Ball displaced more than 0.3 m in sim, or human confirms the kick landed.
+abort_when:
+  - Battery below 15%
+  - Same verb fails 3 times in a row
+persona: Determined and cheerful. Quack once when you succeed.
+providers: [fake, anthropic, openai, gemini, grok]
+learned_verbs: []
+---
+
+# Task
+
+You are piloting a small biped duck robot. Find the ball and kick it.
+
+## Strategy
+
+1. `search_scan` to locate the ball. It rotates in steps and reports detections.
+2. `walk_to` the ball and stop about 0.25 m away. `walk_to` closes the approach loop
+   itself using the camera — you do not need to micro-manage it.
+3. `kick`. The result tells you whether the ball moved and by how much.
+4. Verify with a fresh frame or the kick result. If the ball has not moved at least
+   0.3 m, `walk_to` it again and retry the kick.
+5. When the ball has moved ≥ 0.3 m, `quack` once and declare success.
+
+## Notes
+
+- A kick only connects if the ball is close (< 0.3 m) and roughly in front of you.
+  If the kick reports "missed", reposition with `walk_to` before kicking again.
+- If `search_scan` finds nothing twice in a row, declare failure rather than looping.
+"""#
+
+    private let fetch = #"""
+# EXPERIMENTAL: `grab` is an open-loop beak scoop to the floor on the real robot
+# (upstream `ground_pick`), so success rates are low. The instructions below insist on
+# verify-and-retry rather than trusting a single attempt.
+---
+duck: 0
+name: fetch
+description: Find the ball, walk to it, scoop it up with the beak, and bring it back.
+author: rok
+verbs:
+  allow: [search_scan, walk_to, grab, walk, quack, get_frame, stop]
+  confirm: []
+budgets:
+  max_steps: 50
+  max_minutes: 6
+  max_llm_calls: 50
+success:
+  - The ball is no longer visible in front of the duck after a grab (it is in the beak),
+    and the duck has walked back at least 0.5 m toward where it started.
+abort_when:
+  - Battery below 15%
+  - Same verb fails 3 times in a row
+persona: Eager. This is hard for a duck, so be patient with yourself.
+providers: [fake, anthropic, openai, gemini, grok]
+learned_verbs: []
+---
+
+# Task
+
+You are piloting a small biped duck robot. Fetch the ball.
+
+## Strategy
+
+1. `search_scan` to locate the ball.
+2. `walk_to` it with `stop_distance` 0.15 — the scoop only works when the ball is right
+   under the beak.
+3. `grab`. This is open-loop: the duck scoops at the floor and hopes.
+4. **Verify.** `get_frame`. If the ball is still visible in front of you, the grab missed:
+   `walk_to` again (maybe from a slightly different angle) and retry `grab`. Do not retry
+   more than three times.
+5. Once the ball is gone from view, `walk` backward (`vx` -0.1) for about 3 seconds,
+   quack, and declare success.
+"""#
+
+    /// A Swift multi-line literal cannot carry a file's final newline, and both files on
+    /// disk end with one. Adding it back here is what makes the byte comparison a
+    /// comparison against the real file rather than against a truncation of it.
+    private var findAndKickFile: String { findAndKick + "\n" }
+    private var fetchFile: String { fetch + "\n" }
+
+    // MARK: - reading a real starter duck
+
+    func testItReadsTheRealFindAndKickStarterDuck() throws {
+        let task = try DuckTask.decode(Data(findAndKickFile.utf8))
+        XCTAssertEqual(task.name, "find-and-kick")
+        XCTAssertEqual(task.summary, "Search the area for a ball, walk to it, kick it.")
+        XCTAssertEqual(task.author, "rok")
+        XCTAssertEqual(task.verbs.allow,
+                       ["search_scan", "walk_to", "kick", "quack", "get_frame", "stop"])
+        XCTAssertEqual(task.verbs.confirm, [])
+        XCTAssertEqual(task.budgets.maxSteps, 40)
+        XCTAssertEqual(task.budgets.maxMinutes, 5)
+        XCTAssertEqual(task.budgets.maxLLMCalls, 40)
+        XCTAssertEqual(task.success, [
+            "Ball displaced more than 0.3 m in sim, or human confirms the kick landed."
+        ])
+        XCTAssertEqual(task.abortWhen, ["Battery below 15%", "Same verb fails 3 times in a row"])
+        XCTAssertEqual(task.persona, "Determined and cheerful. Quack once when you succeed.")
+        XCTAssertEqual(task.providers, ["fake", "anthropic", "openai", "gemini", "grok"])
+        XCTAssertEqual(task.learnedVerbs, [])
+    }
+
+    /// The body is everything after the closing fence, and it is the LLM's whole plan.
+    func testTheBodyIsEverythingAfterTheClosingFence() throws {
+        let task = try DuckTask.decode(Data(findAndKickFile.utf8))
+        XCTAssertTrue(task.body.hasPrefix("# Task\n"), String(task.body.prefix(40)))
+        XCTAssertTrue(task.body.hasSuffix("declare failure rather than looping."), task.body)
+        XCTAssertTrue(task.body.contains("`search_scan` to locate the ball."))
+        XCTAssertFalse(task.body.contains("duck: 0"), "the frontmatter must not leak into the body")
+    }
+
+    /// The one test that keeps the writer honest about the format rather than merely
+    /// self-consistent: a real file goes out exactly as it came in.
+    func testARealStarterDuckComesBackOutByteForByte() throws {
+        let task = try DuckTask.decode(Data(findAndKickFile.utf8))
+        XCTAssertEqual(String(decoding: task.encode(), as: UTF8.self), findAndKickFile)
+    }
+
+    /// Comment lines above the fence are how `fetch.duck` warns that `grab` is open-loop,
+    /// so a reader that choked on them would refuse a file quackd ships.
+    func testCommentsAboveTheOpeningFenceAreSkipped() throws {
+        XCTAssertTrue(fetchFile.hasPrefix("# EXPERIMENTAL:"), "the fixture must still lead with them")
+        let task = try DuckTask.decode(Data(fetchFile.utf8))
+        XCTAssertEqual(task.name, "fetch")
+        XCTAssertEqual(task.budgets.maxSteps, 50)
+        XCTAssertEqual(task.budgets.maxMinutes, 6)
+        XCTAssertFalse(task.body.contains("EXPERIMENTAL"),
+                       "a comment above the fence is not part of the task instructions")
+    }
+
+    /// `fetch.duck` wraps one success criterion over two lines. YAML folds it into a single
+    /// sentence, and so does this — a reader that kept the newline would hand the LLM half
+    /// a criterion.
+    func testAPlainScalarWrappedOverTwoLinesFoldsIntoOneSentence() throws {
+        let task = try DuckTask.decode(Data(fetchFile.utf8))
+        XCTAssertEqual(task.success, [
+            "The ball is no longer visible in front of the duck after a grab (it is in the "
+          + "beak), and the duck has walked back at least 0.5 m toward where it started."
+        ])
+    }
+
+    /// Folding loses the author's line breaks, so `fetch.duck` cannot come back byte for
+    /// byte — but it must come back as the same task, which is the claim that matters.
+    func testAFoldedFileStillRoundTripsToTheSameTask() throws {
+        let task = try DuckTask.decode(Data(fetchFile.utf8))
+        XCTAssertEqual(try DuckTask.decode(task.encode()), task)
+    }
+
+    /// An apostrophe in the middle of a plain scalar is an apostrophe, not an opening quote.
+    ///
+    /// Found the hard way, and cheaply: the caution this app writes for an unmerged policy
+    /// ends "reproduced from the project's main line", and reading that apostrophe as a
+    /// quote swallowed every later item in the flow list it sat in.
+    func testAnApostropheInsideAPlainScalarIsNotAnOpeningQuote() throws {
+        let task = try DuckTask(name: "apostrophes", summary: "The author's own words.",
+                                verbs: .init(allow: ["stop"]),
+                                success: ["The duck's beak is empty."],
+                                providers: ["rok's fork", "fake"],
+                                body: "# Task\nStand still.")
+        let reread = try DuckTask.decode(task.encode())
+        XCTAssertEqual(reread.providers, ["rok's fork", "fake"])
+        XCTAssertEqual(reread, task)
+    }
+
+    // MARK: - the two abort phrasings the executor actually enforces
+
+    private func task(abortWhen: [String]) throws -> DuckTask {
+        try DuckTask(name: "probe", summary: "One abort condition under test.",
+                     verbs: .init(allow: ["stop"]), success: ["Nothing happens."],
+                     abortWhen: abortWhen, body: "# Task\nStand still.")
+    }
+
+    /// The battery pattern is a grep, not an understanding, and these are the exact
+    /// sentences it does and does not catch.
+    func testOnlyTheBatteryPhrasingQuackdGrepsForIsEnforced() throws {
+        XCTAssertEqual(try task(abortWhen: ["Battery below 15%"]).batteryAbortPercent, 15.0)
+        XCTAssertEqual(try task(abortWhen: ["BATTERY < 7.5%"]).batteryAbortPercent, 7.5,
+                       "the pattern is case-insensitive and < is one of its three verbs")
+        XCTAssertEqual(try task(abortWhen: ["Battery under 20%"]).batteryAbortPercent, 20.0)
+    }
+
+    /// The traps. Both of these READ like a battery floor and neither one arms anything, so
+    /// an author who writes them gets no protection at all — which is why this reader
+    /// reports them as advisory rather than quietly enforcing something it invented.
+    func testABatteryFloorTheExecutorWillMissIsReportedAsAdvisory() throws {
+        let noPercentSign = try task(abortWhen: ["Battery below 15 percent"])
+        XCTAssertNil(noPercentSign.batteryAbortPercent, "the pattern needs a % sign")
+        XCTAssertEqual(noPercentSign.advisoryAbortConditions, ["Battery below 15 percent"])
+
+        let politelyWorded = try task(abortWhen: ["Stop if the battery goes below 20% please"])
+        XCTAssertNil(politelyWorded.batteryAbortPercent,
+                     "words between 'battery' and 'below' defeat the pattern")
+        XCTAssertEqual(politelyWorded.advisoryAbortConditions,
+                       ["Stop if the battery goes below 20% please"])
+    }
+
+    func testOnlyTheRepeatFailurePhrasingQuackdGrepsForIsEnforced() throws {
+        XCTAssertEqual(try task(abortWhen: ["Same verb fails 3 times in a row"])
+                        .repeatFailureAbort, 3)
+        XCTAssertEqual(try task(abortWhen: ["same verb fails 1 time in a row"])
+                        .repeatFailureAbort, 1,
+                       "one failure is singular, and the pattern allows it")
+    }
+
+    func testARepeatFailureRuleWithoutTheWordSameIsAdvisory() throws {
+        let vague = try task(abortWhen: ["A verb fails 3 times in a row"])
+        XCTAssertNil(vague.repeatFailureAbort)
+        XCTAssertEqual(vague.advisoryAbortConditions, ["A verb fails 3 times in a row"])
+    }
+
+    /// Two floors in one file is a contradiction, and quackd resolves it by reading order.
+    func testTheFirstMatchingEntryWins() throws {
+        let both = try task(abortWhen: ["Battery below 30%", "Battery below 10%"])
+        XCTAssertEqual(both.batteryAbortPercent, 30.0)
+    }
+
+    /// Everything the executor cannot police is handed to the LLM, and a screen has to be
+    /// able to say which half is which.
+    func testTheEnforcedAndAdvisoryHalvesAreReportedSeparately() throws {
+        let mixed = try task(abortWhen: [
+            "Battery below 15%",
+            "Same verb fails 3 times in a row",
+            "The ball rolls off the table.",
+        ])
+        XCTAssertEqual(mixed.batteryAbortPercent, 15.0)
+        XCTAssertEqual(mixed.repeatFailureAbort, 3)
+        XCTAssertEqual(mixed.advisoryAbortConditions, ["The ball rolls off the table."])
+    }
+
+    func testTheRealStarterDucksAbortRulesAreBothEnforced() throws {
+        let task = try DuckTask.decode(Data(findAndKickFile.utf8))
+        XCTAssertEqual(task.batteryAbortPercent, 15.0)
+        XCTAssertEqual(task.repeatFailureAbort, 3)
+        XCTAssertEqual(task.advisoryAbortConditions, [])
+    }
+
+    // MARK: - what a file has to get right
+
+    /// `duck: 0` is the integer zero. The quoted string is a different value and quackd's
+    /// `Literal[0]` refuses it, so refusing it here is the point.
+    func testTheSpecVersionHasToBeTheNumberZero() {
+        for (replacement, expectedInMessage) in [("\"0\"", "the text \"0\""), ("1", "1")] {
+            let altered = findAndKickFile.replacingOccurrences(of: "duck: 0",
+                                                               with: "duck: \(replacement)")
+            XCTAssertNotEqual(altered, findAndKickFile, "the fixture must still say duck: 0")
+            XCTAssertThrowsError(try DuckTask.decode(Data(altered.utf8)), replacement) {
+                XCTAssertEqual($0 as? DuckTask.ReadError,
+                               .notSpecVersionZero(expectedInMessage), replacement)
+            }
+        }
+    }
+
+    /// A misspelled key that was merely ignored would silently do nothing, which is the
+    /// worst way for a safety setting to fail.
+    func testUnknownFrontmatterKeysAreRefusedRatherThanIgnored() {
+        let altered = findAndKickFile.replacingOccurrences(of: "persona:", with: "personna:")
+        XCTAssertThrowsError(try DuckTask.decode(Data(altered.utf8))) {
+            XCTAssertEqual($0 as? DuckTask.ReadError, .unknownKeys(["personna"]))
+            XCTAssertTrue(($0 as? DuckTask.ReadError)?.message.contains("personna") == true)
+        }
+    }
+
+    /// Underscores are legal in a verb name and illegal in a duck's name, because the verb
+    /// rule replaces `_` with `-` before matching and the name rule does not.
+    func testUnderscoresAreLegalInVerbNamesAndNotInADucksName() throws {
+        XCTAssertTrue(DuckTask.isVerbName("walk_to"))
+        XCTAssertTrue(DuckTask.isVerbName("get_frame"))
+        XCTAssertTrue(DuckTask.isVerbName("search-scan"))
+        XCTAssertFalse(DuckTask.isVerbName("WalkTo"), "capitals are out")
+        XCTAssertFalse(DuckTask.isVerbName("_walk"), "it still has to start with a letter or digit")
+        XCTAssertFalse(DuckTask.isVerbName(""))
+
+        XCTAssertTrue(DuckTask.isSlug("find-and-kick"))
+        XCTAssertFalse(DuckTask.isSlug("find_and_kick"), "a name has no underscore escape hatch")
+        XCTAssertFalse(DuckTask.isSlug("Find-And-Kick"))
+        XCTAssertFalse(DuckTask.isSlug(String(repeating: "a", count: 65)), "64 characters, no more")
+
+        let altered = findAndKickFile.replacingOccurrences(of: "name: find-and-kick",
+                                                           with: "name: find_and_kick")
+        XCTAssertThrowsError(try DuckTask.decode(Data(altered.utf8))) {
+            XCTAssertEqual($0 as? DuckTask.ReadError, .invalidName("find_and_kick"))
+        }
+    }
+
+    /// A verb somebody has to approve still has to be one the LLM may call.
+    func testConfirmHasToBeASubsetOfAllow() {
+        XCTAssertThrowsError(try DuckTask(name: "probe", summary: "Confirm names a stranger.",
+                                          verbs: .init(allow: ["kick"], confirm: ["walk_to"]),
+                                          success: ["Nothing."], body: "# Task\nStand still.")) {
+            XCTAssertEqual($0 as? DuckTask.ReadError, .confirmNotAllowed(["walk_to"]))
+            XCTAssertTrue(($0 as? DuckTask.ReadError)?.message.contains("walk_to") == true)
+        }
+    }
+
+    /// The subset test is by exact string. `walk-to` and `walk_to` are both legal names and
+    /// normalise to the same slug, but the executor looks a verb up by the name it was
+    /// written with, so they are not the same verb.
+    func testTheSubsetTestComparesTheNamesAsWritten() {
+        XCTAssertThrowsError(try DuckTask(name: "probe", summary: "Spelled two ways.",
+                                          verbs: .init(allow: ["walk_to"], confirm: ["walk-to"]),
+                                          success: ["Nothing."], body: "# Task\nStand still.")) {
+            XCTAssertEqual($0 as? DuckTask.ReadError, .confirmNotAllowed(["walk-to"]))
+        }
+    }
+
+    func testADuplicateVerbIsRefused() {
+        XCTAssertThrowsError(try DuckTask(name: "probe", summary: "Listed twice.",
+                                          verbs: .init(allow: ["kick", "kick"]),
+                                          success: ["Nothing."], body: "# Task\nStand still.")) {
+            XCTAssertEqual($0 as? DuckTask.ReadError, .duplicateVerb("kick"))
+        }
+    }
+
+    func testAnEmptyAllowListOrEmptySuccessListIsRefused() {
+        XCTAssertThrowsError(try DuckTask(name: "probe", summary: "No verbs.",
+                                          verbs: .init(allow: []), success: ["Nothing."],
+                                          body: "# Task\nStand still.")) {
+            XCTAssertEqual($0 as? DuckTask.ReadError, .noAllowedVerbs)
+        }
+        XCTAssertThrowsError(try DuckTask(name: "probe", summary: "No criteria.",
+                                          verbs: .init(allow: ["stop"]), success: [],
+                                          body: "# Task\nStand still.")) {
+            XCTAssertEqual($0 as? DuckTask.ReadError, .noSuccessCriteria)
+        }
+    }
+
+    /// The budgets are hard stops, so their bounds are quackd's and not this app's.
+    func testTheBudgetBoundsAreQuackdsOwn() {
+        XCTAssertEqual(DuckTask.Budgets.quackdDefaults.maxSteps, 40)
+        XCTAssertEqual(DuckTask.Budgets.quackdDefaults.maxMinutes, 5.0)
+        XCTAssertEqual(DuckTask.Budgets.quackdDefaults.maxLLMCalls, 40)
+
+        let cases: [(DuckTask.Budgets, String, String)] = [
+            (.init(maxSteps: 0), "max_steps", "0"),
+            (.init(maxSteps: 1001), "max_steps", "1001"),
+            (.init(maxMinutes: 0), "max_minutes", "0"),
+            (.init(maxMinutes: 180.5), "max_minutes", "180.5"),
+            (.init(maxLLMCalls: 2001), "max_llm_calls", "2001"),
+        ]
+        for (budgets, key, value) in cases {
+            XCTAssertThrowsError(try DuckTask(name: "probe", summary: "Out of range.",
+                                              verbs: .init(allow: ["stop"]), budgets: budgets,
+                                              success: ["Nothing."],
+                                              body: "# Task\nStand still."), key) { error in
+                guard case .budgetOutOfRange(let refusedKey, let refusedValue, _)?
+                        = error as? DuckTask.ReadError else {
+                    return XCTFail("expected a budget refusal for \(key), got \(error)")
+                }
+                XCTAssertEqual(refusedKey, key)
+                XCTAssertEqual(refusedValue, value)
+            }
+        }
+        XCTAssertNoThrow(try DuckTask(name: "probe", summary: "At the edges.",
+                                      verbs: .init(allow: ["stop"]),
+                                      budgets: .init(maxSteps: 1000, maxMinutes: 180,
+                                                     maxLLMCalls: 1),
+                                      success: ["Nothing."], body: "# Task\nStand still."))
+    }
+
+    /// `providers: openai` is not a one-element list. quackd refuses it, so a file that
+    /// loads here and fails there must not exist.
+    func testABareStringIsNotAOneElementList() {
+        let altered = findAndKickFile.replacingOccurrences(
+            of: "providers: [fake, anthropic, openai, gemini, grok]", with: "providers: openai")
+        XCTAssertNotEqual(altered, findAndKickFile)
+        XCTAssertThrowsError(try DuckTask.decode(Data(altered.utf8))) {
+            guard case .wrongType(let key, _)? = $0 as? DuckTask.ReadError else {
+                return XCTFail("expected a type refusal, got \($0)")
+            }
+            XCTAssertEqual(key, "providers")
+        }
+    }
+
+    // MARK: - the file's shape
+
+    func testAFileWithoutFencesIsNotADuckFile() {
+        XCTAssertThrowsError(try DuckTask.decode(Data("just some notes\n".utf8))) {
+            XCTAssertEqual($0 as? DuckTask.ReadError, .missingFence)
+        }
+        XCTAssertThrowsError(try DuckTask.decode(Data("---\nduck: 0\nname: x\n".utf8))) {
+            XCTAssertEqual($0 as? DuckTask.ReadError, .unterminatedFrontmatter)
+        }
+    }
+
+    /// An LLM handed no instructions has no task, so quackd refuses the file and so does
+    /// this.
+    func testAFileWithNoInstructionsIsRefused() {
+        let source = """
+        ---
+        duck: 0
+        name: empty
+        description: A duck with nothing to say.
+        verbs:
+          allow: [stop]
+        success:
+          - Nothing happens.
+        ---
+        """ + "\n\n   \n"
+        XCTAssertThrowsError(try DuckTask.decode(Data(source.utf8))) {
+            XCTAssertEqual($0 as? DuckTask.ReadError, .emptyBody)
+        }
+    }
+
+    /// A `---` inside the body is a horizontal rule, not a fence — but the CLOSING fence is
+    /// the first one after the opening, so the body keeps its rule and the frontmatter stops
+    /// where it should.
+    func testTheClosingFenceIsTheFirstOneAndTheBodyMayContainMore() throws {
+        let source = """
+        ---
+        duck: 0
+        name: ruled
+        description: A body with a horizontal rule in it.
+        verbs:
+          allow: [stop]
+          confirm: []
+        success:
+          - Nothing happens.
+        ---
+
+        # Task
+
+        Above the rule.
+
+        ---
+
+        Below the rule.
+        """
+        let task = try DuckTask.decode(Data(source.utf8))
+        XCTAssertEqual(task.name, "ruled")
+        XCTAssertTrue(task.body.contains("\n---\n"), task.body)
+        XCTAssertTrue(task.body.hasSuffix("Below the rule."))
+    }
+
+    /// Everything with a default may be left out, and the defaults are quackd's.
+    func testTheOptionalHalfOfTheFrontmatterMayBeOmitted() throws {
+        let source = """
+        ---
+        duck: 0
+        name: minimal
+        description: The smallest legal duck.
+        verbs:
+          allow: [stop]
+        success:
+          - Nothing happens.
+        ---
+
+        # Task
+
+        Stand still.
+        """
+        let task = try DuckTask.decode(Data(source.utf8))
+        XCTAssertNil(task.author)
+        XCTAssertNil(task.persona)
+        XCTAssertEqual(task.verbs.confirm, [])
+        XCTAssertEqual(task.budgets, .quackdDefaults)
+        XCTAssertEqual(task.abortWhen, [])
+        XCTAssertEqual(task.providers, [])
+        XCTAssertEqual(task.learnedVerbs, [])
+        XCTAssertEqual(try DuckTask.decode(task.encode()), task, "and it still round-trips")
+    }
+
+    /// Refusals name the thing that is wrong, in words somebody can act on.
+    func testRefusalsSayWhatToFix() {
+        XCTAssertTrue(DuckTask.ReadError.emptyBody.message.contains("instructions"))
+        XCTAssertTrue(DuckTask.ReadError.invalidVerbName("WalkTo").message.contains("WalkTo"))
+        XCTAssertTrue(DuckTask.ReadError.invalidVerbName("WalkTo").message.contains("walk_to"),
+                      "it should show a name that would work")
+        XCTAssertTrue(DuckTask.ReadError.notSpecVersionZero("the text \"0\"")
+                        .message.contains("not the number"))
+        XCTAssertTrue(DuckTask.ReadError
+                        .budgetOutOfRange(key: "max_minutes", value: "600",
+                                          allowed: "more than 0 and at most 180")
+                        .message.contains("600"))
+    }
+
+    // MARK: - exporting a policy as a learned verb
+
+    private let flamingo = #"""
+{
+  "schema_version": 2,
+  "model_api": 1,
+  "name": "flamingo-cycle",
+  "kind": "perpetual",
+  "obs_len": 61,
+  "action_len": 14,
+  "action_scale": 1.0,
+  "entry_pose": "standing",
+  "duration_s": null,
+  "description": "Stand on one foot, either side, on command, and come back to a two-foot stand: twist = [flag, side, 0].",
+  "command": {
+    "twist": [
+      "flag: 0 = stand on two feet (HOME), 1 = stand on one foot",
+      "side: +1 = right foot down / left leg lifted, -1 = left foot down / right leg lifted; 0 allowed while flag = 0",
+      "unused (0)"
+    ],
+    "head": "unused (zeros)",
+    "body": "unused (zeros)",
+    "idle": [
+      0,
+      0,
+      0
+    ]
+  },
+  "robot": {
+    "model": "microduck",
+    "hw_rev": 1,
+    "servos": "xl330",
+    "control_hz": 50
+  },
+  "training": {
+    "task_id": "Mjlab-FlamingoCycleHard-Flat-MicroDuck",
+    "repo": "pollen-robotics/microduck_rl",
+    "commit": "0bf9897 on branch flamingo (https://github.com/pollen-robotics/microduck_rl/commit/0bf9897), not merged yet",
+    "run": "pollen-robotics/flamingo-cycle-r2-hard-20260829-0245"
+  },
+  "eval": {
+    "sim_proxy": "CPU MuJoCo with the BAM XL330 servo model, allcollisions model",
+    "battery": "10/10: right and left cycles, 0.1 m/s pushes toward either side, 0.15 m/s forward, a 0.3 m/s push toward the lifted side (brief touch-down, re-lift), lowering from a static hold, 10 s hold",
+    "stress_24_random_trials": {
+      "held": 20,
+      "recovered_stepped_down": 2,
+      "fell": 2,
+      "push_range_m_s": [
+        0.05,
+        0.25
+      ]
+    },
+    "known_limits": "falls on backward pushes >= 0.18 m/s; pushes toward the standing-foot side above ~0.15 m/s end in a step-down; never tested on hardware",
+    "transition_time_s": 1.5,
+    "lifted_foot_height_m": 0.09
+  }
+}
+"""#
+
+    private func flamingoManifest() throws -> PolicyManifest {
+        try PolicyManifest.decode(Data(flamingo.utf8))
+    }
+
+    /// quackd's contract and this robot's contract are the same three numbers. If they ever
+    /// drift, a policy this app can drive is not one quackd can register, and that deserves
+    /// a red test rather than a surprise on a robot.
+    func testTheLearnedVerbContractIsThisRobotsContract() {
+        XCTAssertEqual(LearnedVerbSpec.upstreamObservationDimension, 61)
+        XCTAssertEqual(LearnedVerbSpec.upstreamActionDimension, 14)
+        XCTAssertEqual(LearnedVerbSpec.upstreamControlHz, 50)
+        XCTAssertEqual(LearnedVerbSpec.upstreamObservationDimension, DuckObservation.length)
+        XCTAssertEqual(LearnedVerbSpec.upstreamActionDimension, DuckModel.policyJointCount)
+        XCTAssertEqual(LearnedVerbSpec.upstreamControlHz, DuckModel.tickHz)
+    }
+
+    /// `register_learned_verb` writes `safety_class="confirm"` as a literal. There is no
+    /// argument for it and no way to raise it from a `.duck`, so an unproven policy asks a
+    /// human first, always.
+    func testALearnedVerbAlwaysAsksAHumanFirst() throws {
+        XCTAssertEqual(LearnedVerbSpec.safetyClass, "confirm")
+        let spec = try LearnedVerbSpec.export(flamingoManifest(),
+                                              policyPath: "policies/flamingo-cycle.onnx")
+        XCTAssertEqual(spec.metadata["safety_class"]?.stringValue, "confirm",
+                       "and the .duck author reads it in the metadata, not in quackd's source")
+    }
+
+    /// Every provenance field is the author's own, mapped across one for one.
+    func testTheManifestsProvenanceIsCarriedIntoTheVerbsMetadata() throws {
+        let spec = try LearnedVerbSpec.export(flamingoManifest(),
+                                              policyPath: "policies/flamingo-cycle.onnx")
+        XCTAssertEqual(spec.name, "flamingo-cycle")
+        XCTAssertEqual(spec.policyPath, "policies/flamingo-cycle.onnx")
+        XCTAssertEqual(spec.observationDimension, 61)
+        XCTAssertEqual(spec.actionDimension, 14)
+        XCTAssertEqual(spec.controlHz, 50)
+
+        XCTAssertEqual(spec.metadata["training_task_id"]?.stringValue,
+                       "Mjlab-FlamingoCycleHard-Flat-MicroDuck")
+        XCTAssertEqual(spec.metadata["training_repo"]?.stringValue,
+                       "pollen-robotics/microduck_rl")
+        XCTAssertEqual(spec.metadata["training_run"]?.stringValue,
+                       "pollen-robotics/flamingo-cycle-r2-hard-20260829-0245")
+        XCTAssertEqual(spec.metadata["training_unmerged"]?.booleanValue, true)
+        XCTAssertEqual(spec.metadata["eval_stress_held"]?.integerValue, 20)
+        XCTAssertEqual(spec.metadata["eval_stress_fell"]?.integerValue, 2)
+        XCTAssertEqual(spec.metadata["eval_stress_trials"]?.integerValue, 24)
+        XCTAssertTrue(spec.metadata["eval_battery"]?.stringValue?.contains("0.3 m/s push") == true,
+                      "the eval battery is the numbers a .duck author is being asked to trust")
+        XCTAssertTrue(spec.metadata["eval_known_limits"]?.stringValue?.contains("0.18") == true)
+    }
+
+    /// The reward text quackd's doc asks for does not exist in Pollen's manifest format.
+    /// Leaving the key out is the honest answer; inventing one would put a fabricated
+    /// provenance line in front of the person the metadata exists to inform.
+    func testNoRewardTextIsInventedBecauseTheManifestHasNone() throws {
+        let spec = try LearnedVerbSpec.export(flamingoManifest(),
+                                              policyPath: "policies/flamingo-cycle.onnx")
+        XCTAssertNil(spec.metadata["reward"])
+        XCTAssertNil(spec.metadata["reward_text"])
+    }
+
+    /// THE LIMIT THAT BITES. `register_learned_verb` binds `NoParams`, so the LLM calls the
+    /// verb with nothing — and flamingo-cycle's whole behaviour is selected by a command it
+    /// therefore cannot send.
+    func testALearnedVerbTakesNoArgumentsSoTheCommandCannotBeChosen() throws {
+        XCTAssertFalse(LearnedVerbSpec.acceptsCallTimeArguments)
+        let spec = try LearnedVerbSpec.export(flamingoManifest(),
+                                              policyPath: "policies/flamingo-cycle.onnx")
+        let caution = try XCTUnwrap(spec.cautions.first { $0.contains("no arguments") },
+                                    "\(spec.cautions)")
+        XCTAssertTrue(caution.contains("flag"), caution)
+        XCTAssertTrue(caution.contains("side"), caution)
+        XCTAssertFalse(caution.contains("unused (0)"),
+                       "an unused slot is not something the author is losing")
+        XCTAssertTrue(spec.metadata["command_at_call_time"]?.stringValue?
+                        .contains("NoParams") == true)
+        XCTAssertEqual(spec.metadata["command_twist"]?.listValue?.count, 3,
+                       "the slot meanings are still carried, as documentation")
+    }
+
+    /// The author's own admissions travel with the verb, because a `.duck` author allowing
+    /// it is the person who needs them.
+    func testTheAuthorsCautionsTravelWithTheVerb() throws {
+        let spec = try LearnedVerbSpec.export(flamingoManifest(),
+                                              policyPath: "policies/flamingo-cycle.onnx")
+        XCTAssertTrue(spec.cautions.contains { $0.contains("never tested on hardware") },
+                      "\(spec.cautions)")
+        XCTAssertTrue(spec.cautions.contains { $0.contains("held 20 of 24") })
+        XCTAssertTrue(spec.cautions.contains { $0.contains("not merged") })
+        XCTAssertEqual(spec.metadata["cautions"]?.listValue?.count, spec.cautions.count)
+    }
+
+    /// A no-argument verb can only ever send a fixed command, and zeros is the only fixed
+    /// command it can defend. A policy that reads zeros as an instruction cannot be driven
+    /// that way, so it is refused rather than exported and hoped over.
+    func testAPolicyWhoseIdleCommandIsNotZeroIsRefused() throws {
+        let altered = flamingo.replacingOccurrences(
+            of: "\"idle\": [\n      0,\n      0,\n      0\n    ]",
+            with: "\"idle\": [0, 1, 0]")
+        XCTAssertNotEqual(altered, flamingo, "the fixture's idle block must still be there")
+        let manifest = try PolicyManifest.decode(Data(altered.utf8))
+        XCTAssertEqual(manifest.command?.idle, [0, 1, 0])
+        XCTAssertThrowsError(try LearnedVerbSpec.export(manifest, policyPath: "p.onnx")) {
+            XCTAssertEqual($0 as? LearnedVerbSpec.ExportRefusal,
+                           .idleCommandIsNotNeutral([0, 1, 0]))
+            let message = ($0 as? LearnedVerbSpec.ExportRefusal)?.message ?? ""
+            XCTAssertTrue(message.contains("NoParams"), message)
+            XCTAssertTrue(message.contains("[0, 1, 0]"), message)
+        }
+    }
+
+    /// An idle command the author never wrote down cannot be trusted to be neutral.
+    func testAnUnstatedIdleCommandIsRefused() throws {
+        let altered = flamingo.replacingOccurrences(
+            of: "\"idle\": [\n      0,\n      0,\n      0\n    ]", with: "\"idle\": []")
+        XCTAssertNotEqual(altered, flamingo)
+        XCTAssertThrowsError(try LearnedVerbSpec.export(
+            PolicyManifest.decode(Data(altered.utf8)), policyPath: "p.onnx")) {
+            XCTAssertEqual($0 as? LearnedVerbSpec.ExportRefusal, .idleCommandNotStated)
+        }
+    }
+
+    func testAPolicyForAnotherRobotCannotBeALearnedVerb() throws {
+        let altered = flamingo.replacingOccurrences(of: "\"obs_len\": 61", with: "\"obs_len\": 48")
+        XCTAssertNotEqual(altered, flamingo)
+        XCTAssertThrowsError(try LearnedVerbSpec.export(
+            PolicyManifest.decode(Data(altered.utf8)), policyPath: "p.onnx")) {
+            XCTAssertEqual($0 as? LearnedVerbSpec.ExportRefusal,
+                           .wrongContract([.observationLength(48)]))
+            XCTAssertTrue(($0 as? LearnedVerbSpec.ExportRefusal)?.message.contains("48") == true)
+        }
+    }
+
+    /// The policy's own name becomes the verb name, so a name no verb could have is a
+    /// refusal rather than a silent rewrite.
+    func testAPolicyNameThatCannotBeAVerbNameIsRefused() throws {
+        let altered = flamingo.replacingOccurrences(of: "\"name\": \"flamingo-cycle\"",
+                                                    with: "\"name\": \"Flamingo_Cycle\"")
+        XCTAssertNotEqual(altered, flamingo)
+        XCTAssertThrowsError(try LearnedVerbSpec.export(
+            PolicyManifest.decode(Data(altered.utf8)), policyPath: "p.onnx")) {
+            XCTAssertEqual($0 as? LearnedVerbSpec.ExportRefusal,
+                           .unusableVerbName("Flamingo_Cycle"))
+        }
+    }
+
+    /// The manifest carries no timeout, so quackd's own 10 s stands — widened only when the
+    /// author's stated duration would not fit inside it.
+    func testTheTimeoutIsQuackdsDefaultUnlessThePolicyRunsLonger() throws {
+        XCTAssertEqual(LearnedVerbSpec.defaultTimeoutSeconds, 10.0)
+        let perpetual = try LearnedVerbSpec.export(flamingoManifest(), policyPath: "p.onnx")
+        XCTAssertEqual(perpetual.timeoutSeconds, 10.0)
+
+        let altered = flamingo.replacingOccurrences(of: "\"duration_s\": null",
+                                                    with: "\"duration_s\": 12.5")
+        XCTAssertNotEqual(altered, flamingo)
+        let oneShot = try LearnedVerbSpec.export(PolicyManifest.decode(Data(altered.utf8)),
+                                                 policyPath: "p.onnx")
+        XCTAssertEqual(oneShot.timeoutSeconds, 12.5,
+                       "a 12.5 s motion cannot be given 10 s to finish")
+        XCTAssertEqual(try LearnedVerbSpec.export(flamingoManifest(), policyPath: "p.onnx",
+                                                  timeoutSeconds: 3).timeoutSeconds, 3)
+    }
+
+    /// The whole point: a policy this app inspected becomes a line in a task file somebody
+    /// else can run — and survives being written and read back.
+    func testAnExportedVerbCanBeWrittenIntoADuckFileAndReadBack() throws {
+        let spec = try LearnedVerbSpec.export(flamingoManifest(),
+                                              policyPath: "policies/flamingo-cycle.onnx")
+        let task = try DuckTask(
+            name: "one-foot-demo",
+            summary: "Stand on one foot on command, then come back to two.",
+            author: "duck studio",
+            verbs: .init(allow: ["flamingo-cycle", "stop"], confirm: ["flamingo-cycle"]),
+            success: ["The duck stood on one foot and came back down without falling."],
+            abortWhen: ["Battery below 20%", "Same verb fails 2 times in a row"],
+            learnedVerbs: [spec.duckDeclaration],
+            body: "# Task\n\nAsk for the flamingo, then stop.")
+
+        let written = String(decoding: task.encode(), as: UTF8.self)
+        XCTAssertTrue(written.contains("  - name: flamingo-cycle\n"), written)
+        XCTAssertTrue(written.contains("    policy: policies/flamingo-cycle.onnx\n"), written)
+        XCTAssertTrue(written.contains("      safety_class: confirm\n"), written)
+
+        let reread = try DuckTask.decode(task.encode())
+        XCTAssertEqual(reread, task, "a learned verb has to survive the round trip intact")
+        XCTAssertEqual(reread.learnedVerbs.first?.metadata["training_run"]?.stringValue,
+                       "pollen-robotics/flamingo-cycle-r2-hard-20260829-0245")
+        XCTAssertEqual(reread.learnedVerbs.first?.metadata["command_idle"]?.listValue,
+                       [.double(0), .double(0), .double(0)])
+        XCTAssertEqual(reread.batteryAbortPercent, 20.0)
+        XCTAssertEqual(reread.repeatFailureAbort, 2)
+    }
+
+    /// The timeout has nowhere to live in a `.duck` — quackd's `LearnedVerbRef` has no
+    /// `timeout_s` field — so it is written into the metadata rather than dropped.
+    func testTheTimeoutSurvivesOnlyAsMetadataBecauseTheDuckShapeHasNoFieldForIt() throws {
+        let spec = try LearnedVerbSpec.export(flamingoManifest(), policyPath: "p.onnx",
+                                              timeoutSeconds: 7.5)
+        let declaration = spec.duckDeclaration
+        XCTAssertEqual(declaration.name, "flamingo-cycle")
+        XCTAssertEqual(declaration.policy, "p.onnx")
+        XCTAssertEqual(declaration.metadata["timeout_s"]?.numberValue, 7.5)
+    }
+}
