@@ -98,6 +98,18 @@ targets:
         # unlike ONNX. Declaring it is what lets a .duckintent arriving in a
         # chat or in Files offer Duck Studio to open it.
         UTExportedTypeDeclarations:
+          # The authored-motion format this app WRITES. Declaring it exported
+          # is what lets AirDrop and the share sheet hand the type over by
+          # identity — OpenCastor imports it as a goal celebration, and until
+          # this declaration existed the handoff leaned on the filename
+          # extension alone.
+          - UTTypeIdentifier: com.duckstudio.move
+            UTTypeDescription: Microduck authored motion
+            UTTypeConformsTo:
+              - public.json
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - duckmove
           - UTTypeIdentifier: com.duckstudio.intent
             UTTypeDescription: Microduck intent
             UTTypeConformsTo:
@@ -125,7 +137,7 @@ targets:
         DEVELOPMENT_TEAM: WYGG3JXWMG
         CODE_SIGN_STYLE: Automatic
         MARKETING_VERSION: "1.0"
-        CURRENT_PROJECT_VERSION: "21"
+        CURRENT_PROJECT_VERSION: "22"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         SWIFT_VERSION: "5.9"
         TARGETED_DEVICE_FAMILY: "1,2"

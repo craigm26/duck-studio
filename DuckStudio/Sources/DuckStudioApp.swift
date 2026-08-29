@@ -36,8 +36,8 @@ struct DuckStudioApp: App {
                 // made every clip play in a void.
                 NavigationStack { SceneListView(store: scenes) }
                     .tabItem { Label("Scenes", systemImage: "square.3.layers.3d") }
-                NavigationStack { AutomationChatView() }
-                    .tabItem { Label("Rules", systemImage: "bubble.left.and.text.bubble.right") }
+                NavigationStack { AutomationChatView(drafts: drafts, scenes: scenes) }
+                    .tabItem { Label("Draft", systemImage: "wand.and.stars") }
             }
             // A policy handed over from Files, Mail, AirDrop or another app.
             // Declared in Info.plist as an IMPORTED type — ONNX is not this
