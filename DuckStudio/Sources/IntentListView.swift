@@ -424,8 +424,12 @@ struct IntentPlayerView: View {
                         Text("A keyframe track riding on that policy as offsets, not the policy's own output. It was searched against a prop, and searching found what worked in that one situation — not a motion that generalises.")
                             .font(.caption).foregroundStyle(.secondary)
                     }
-                    if let credit = clip.credit {
-                        LabeledContent("Contributed", value: credit)
+                    if let note = ClipNote.provenance(for: clip) {
+                        Text(note).font(.caption).foregroundStyle(.secondary)
+                    }
+                    if ClipNote.needsPlantCaveat(clip) {
+                        Text(ClipNote.plantCaveat)
+                            .font(.caption).foregroundStyle(.secondary)
                     }
                 }
 

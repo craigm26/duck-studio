@@ -299,3 +299,61 @@ extension RunMetricsTests {
         }
     }
 }
+
+extension RunMetricsTests {
+
+    /// The reading that stops a tail label speaking for a whole clip. Headspin
+    /// ends inverted AND spends most of its run that way; a motion could do one
+    /// without the other, which is exactly why both are shown.
+    func testItReportsWhatTheMotionSpentItsTimeDoing() throws {
+        let metrics = RunMetrics(clip: try clip("headspin"))
+        let mostly = try XCTUnwrap(metrics.attitude.first { $0.label == "Mostly" })
+        XCTAssertTrue(mostly.value.contains("inverted"), mostly.value)
+        // 3.5 s of a 4.0 s clip.
+        XCTAssertTrue(mostly.value.contains("3."), mostly.value)
+        XCTAssertNotNil(mostly.detail, "the other postures are worth showing too")
+    }
+
+    /// A clip that stands still the whole way spends all of it standing.
+    func testHoldingStillIsReportedAsStandingThroughout() throws {
+        let metrics = RunMetrics(clip: try clip("hold"))
+        let mostly = try XCTUnwrap(metrics.attitude.first { $0.label == "Mostly" })
+        XCTAssertTrue(mostly.value.hasPrefix("standing"), mostly.value)
+        XCTAssertNil(mostly.detail, "there is only one posture to report")
+    }
+
+    /// A roll passes through being upside down and comes back, so it has more
+    /// than one posture and the breakdown says so.
+    func testARollReportsMoreThanOnePosture() throws {
+        let metrics = RunMetrics(clip: try clip("roulade"))
+        let mostly = try XCTUnwrap(metrics.attitude.first { $0.label == "Mostly" })
+        XCTAssertNotNil(mostly.detail)
+        XCTAssertTrue(mostly.detail!.contains("·"), mostly.detail!)
+    }
+}
+
+final class ClipNoteTests: XCTestCase {
+
+    func testAPollenClipGetsNoContributedNote() throws {
+        let clip = try XCTUnwrap(try DuckIntentClip.bundled()["roulade"])
+        XCTAssertNil(clip.credit)
+        XCTAssertNil(ClipNote.provenance(for: clip))
+        XCTAssertFalse(ClipNote.needsPlantCaveat(clip))
+    }
+
+    func testAContributedClipSaysWhatTheReplayIsAndIsNot() throws {
+        let clip = try XCTUnwrap(try DuckIntentClip.bundled()["headspin"])
+        let note = try XCTUnwrap(ClipNote.provenance(for: clip))
+        XCTAssertTrue(note.contains("did not train it"))
+        XCTAssertTrue(note.contains("not a reproduction"))
+        XCTAssertTrue(note.contains("file's own declaration"))
+        XCTAssertTrue(ClipNote.needsPlantCaveat(clip))
+    }
+
+    /// The caveat has to name a checkable fact rather than gesture at physics.
+    func testThePlantCaveatNamesSomethingCheckable() {
+        XCTAssertTrue(ClipNote.plantCaveat.contains("Seven of the fifteen"))
+        XCTAssertTrue(ClipNote.plantCaveat.contains("no collision geometry"))
+        XCTAssertFalse(ClipNote.plantCaveat.lowercased().contains("may differ"))
+    }
+}

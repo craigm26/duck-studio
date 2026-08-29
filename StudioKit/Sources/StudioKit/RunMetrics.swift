@@ -315,9 +315,37 @@ public struct RunMetrics: Equatable, Sendable {
             while d < -.pi { d += 2 * .pi }
             peakYawRate = max(peakYawRate, abs(d) / dt)
         }
+        // HOW LONG IT SPENT WHERE, not only where it finished. `endsIn` reads
+        // the last 0.3 s of the run, which is the right thing for "where did
+        // this leave the robot" and the wrong thing for "what did it do":
+        // headspin holds a headstand for 3.6 of its 4.0 seconds and was
+        // labelled from the quarter-second in which it came down. A label taken
+        // from the tail is not a summary of the clip.
+        var spent: [String: Int] = [:]
+        for root in roots {
+            let (_, x, y, _) = root.quaternion
+            let up = -(1 - 2 * (x * x + y * y))
+            let posture: String
+            if up > 0.5 { posture = "inverted" }
+            else if up > -0.5 { posture = "on its side" }
+            else if root.z >= 0.100 { posture = "standing" }
+            else if root.z >= 0.075 { posture = "crouched" }
+            else if root.z >= 0.052 { posture = "seated" }
+            else { posture = "down" }
+            spent[posture, default: 0] += 1
+        }
+        let longest = spent.max { $0.value < $1.value }
+
         attitude = [
             Reading("Starts / ends", "\(clip.startsFrom.rawValue) → \(clip.endsIn.rawValue)",
-                    "Measured from trunk height and gravity over a ten-tick window, not from the clip's name."),
+                    "Measured from trunk height and gravity over the last fifteen ticks — where the "
+                  + "motion left the robot, which is not the same as what it spent its time doing."),
+            Reading("Mostly", longest.map { "\($0.key) for \(String(format: "%.1f s", Double($0.value) * dt))" } ?? "—",
+                    spent.count > 1
+                        ? spent.sorted { $0.value > $1.value }
+                            .map { "\($0.key) \(String(format: "%.1f s", Double($0.value) * dt))" }
+                            .joined(separator: " · ")
+                        : nil),
             Reading("Peak tilt", Self.degrees(peakTilt),
                     "Angle between the trunk's up and the world's."),
             Reading("Mean tilt", Self.degrees(tiltSum / Double(max(roots.count, 1)))),
