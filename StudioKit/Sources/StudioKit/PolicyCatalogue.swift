@@ -88,6 +88,13 @@ public enum PolicyCatalogue {
         /// which ones followed it.
         public let declaresPolicyTag: Bool
 
+        public init(id: String, author: String, updated: String?,
+                    downloads: Int, likes: Int, declaresPolicyTag: Bool) {
+            self.id = id; self.author = author; self.updated = updated
+            self.downloads = downloads; self.likes = likes
+            self.declaresPolicyTag = declaresPolicyTag
+        }
+
         public var webURL: String { "https://huggingface.co/\(id)" }
         public var name: String {
             let bare = id.split(separator: "/").last.map(String.init) ?? id
