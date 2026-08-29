@@ -68,7 +68,7 @@ struct IntentListView: View {
                 Button {
                     let fresh = IntentDraft.blank()
                     drafts.save(fresh)
-                    editing = DraftID(id: fresh.id)
+                    editing = DraftID(id: fresh.id, isNew: true)
                 } label: { Label("Write a new motion", systemImage: "plus") }
             } header: {
                 Text("Written here")
@@ -136,7 +136,19 @@ struct IntentListView: View {
                 // stored rather than on whatever was in hand when the row was
                 // tapped.
                 if let current = drafts.drafts.first(where: { $0.id == wrapper.id }) {
-                    IntentAuthorView(draft: current, scenes: store) { drafts.save($0) }
+                    IntentAuthorView(
+                        draft: current, scenes: store, isNew: wrapper.isNew,
+                        onSave: { drafts.save($0) },
+                        // ORDER MATTERS. This lookup has no `else`, so if the
+                        // draft leaves the store while `editing` is still set,
+                        // the sheet presents an empty NavigationStack — no
+                        // title, no Cancel, no Done. That is a real permanent
+                        // trap, manufactured while fixing one. Clear the
+                        // binding first; the store only changes afterwards.
+                        onDiscard: { doomed in
+                            editing = nil
+                            drafts.delete(doomed)
+                        })
                         // Leaving the editor is the moment the file is
                         // definitely current, whether they tapped Done or
                         // swiped the sheet away.
@@ -336,7 +348,7 @@ struct IntentPlayerView: View {
                             // motion that works.
                             let draft = IntentDraft.remix(clip)
                             drafts.save(draft)
-                            remixed = DraftID(id: draft.id)
+                            remixed = DraftID(id: draft.id, isNew: true)
                         } label: {
                             Label("Remix into a new motion", systemImage: "wand.and.stars")
                         }
@@ -363,7 +375,13 @@ struct IntentPlayerView: View {
                 // of scenes from the rest of the app.
                 if let store, let drafts,
                    let current = drafts.drafts.first(where: { $0.id == wrapper.id }) {
-                    IntentAuthorView(draft: current, scenes: store) { drafts.save($0) }
+                    IntentAuthorView(
+                        draft: current, scenes: store, isNew: wrapper.isNew,
+                        onSave: { drafts.save($0) },
+                        onDiscard: { doomed in
+                            remixed = nil
+                            drafts.delete(doomed)
+                        })
                         .onDisappear { drafts.flush() }
                 }
             }
@@ -638,6 +656,12 @@ struct TransportBar: View {
 /// A draft's identity, so a sheet can be presented on something stable.
 struct DraftID: Identifiable, Hashable {
     let id: UUID
+    /// Whether the editor CREATED this motion, rather than opening one that
+    /// already existed. A draft has to be in the store before the sheet can
+    /// look it up, so a brand-new one is committed before its editor appears —
+    /// and Cancel then has to be able to un-create it, or the person who did
+    /// not want it is left with a row called "New motion" and no idea why.
+    var isNew = false
 }
 
 /// A file and the message that goes with it, made identifiable so it can drive

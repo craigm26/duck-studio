@@ -14,7 +14,15 @@ import StudioKit
 struct IntentAuthorView: View {
     @State var draft: IntentDraft
     @ObservedObject var scenes: SceneStore
+    /// True when this editor created the motion. A draft must be in the store
+    /// before the sheet can look it up, so a new one exists before its editor
+    /// appears — and Cancel has to be able to un-create it.
+    let isNew: Bool
     let onSave: (IntentDraft) -> Void
+    /// Take it out of the store. Must clear the presentation binding BEFORE
+    /// touching the store, or the sheet's lookup stops resolving while it is
+    /// still on screen and presents an empty, toolbar-less NavigationStack.
+    let onDiscard: (IntentDraft) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var playhead: TimeInterval = 0
@@ -32,6 +40,7 @@ struct IntentAuthorView: View {
     @State private var outgoing: Outgoing?
     @State private var failure: String?
     @State private var confirmingDiscard = false
+    @State private var confirmingDelete = false
 
     enum Panel: String, CaseIterable, Identifiable {
         case joints = "Pose", timeline = "Keyframes", checks = "Checks"
@@ -115,6 +124,12 @@ struct IntentAuthorView: View {
                             Button(s.name) { draft.sceneID = s.id }
                         }
                     }
+                    Divider()
+                    // The only other way to remove a motion is swiping its row
+                    // in the list, which nothing signposts.
+                    Button("Delete this motion", role: .destructive) {
+                        confirmingDelete = true
+                    }
                 } label: { Image(systemName: "ellipsis.circle") }
             }
         }
@@ -123,9 +138,20 @@ struct IntentAuthorView: View {
             Button("Throw it away", role: .destructive) { reallyDiscard() }
             Button("Keep editing", role: .cancel) {}
         } message: {
-            Text(original == nil || (original?.keys.count ?? 0) < 3
-                 ? "It has not been saved anywhere else."
+            // THE OLD COPY WAS FALSE AT EXACTLY THE MOMENT IT MATTERED. It
+            // chose on `keys.count < 3`, and a blank motion has two, so every
+            // brand-new one was told "It has not been saved anywhere else" —
+            // while sitting in the list, saved.
+            Text(isNew
+                 ? "This motion will be deleted. It is not saved anywhere else."
                  : "Everything since you opened it will go back to how it was.")
+        }
+        .confirmationDialog("Delete this motion?", isPresented: $confirmingDelete,
+                            titleVisibility: .visible) {
+            Button("Delete", role: .destructive) { dismiss(); onDiscard(draft) }
+            Button("Keep it", role: .cancel) {}
+        } message: {
+            Text("It goes from the list and from this iPhone. This cannot be undone.")
         }
         .onAppear { if original == nil { original = draft } }
         .sheet(item: $outgoing) { out in
@@ -319,11 +345,29 @@ struct IntentAuthorView: View {
     /// something to lose — a confirmation on an untouched draft is a dialog
     /// that teaches people to tap through dialogs.
     private func discard() {
-        guard hasUnsavedChanges else { return dismiss() }
+        // An untouched NEW motion still has something to lose — itself. It was
+        // committed to the store before this sheet opened, so dismissing
+        // silently leaves a row called "New motion" that the person never
+        // wanted and cannot explain.
+        guard hasUnsavedChanges else {
+            dismiss()
+            if isNew { onDiscard(draft) }
+            return
+        }
         confirmingDiscard = true
     }
 
     private func reallyDiscard() {
+        if isNew {
+            // NOTHING TO GO BACK TO: this motion did not exist before the sheet
+            // opened. And do NOT restore `original` first — assigning `draft`
+            // fires the .onChange that saves, which would re-create the row
+            // being deleted. That is what the first version did, so the red
+            // "Throw it away" button put the motion straight back.
+            dismiss()
+            onDiscard(draft)
+            return
+        }
         if let original {
             draft = original
             onSave(original)

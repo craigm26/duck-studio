@@ -181,3 +181,40 @@ extension IntentExportTests {
         }
     }
 }
+
+extension IntentExportTests {
+
+    /// The crash a hostile or careless export could cause: a negative rate
+    /// makes a negative frame index, and the player trapped on the playhead
+    /// timer's first tick.
+    func testARateThatIsNotARateIsRefusedByName() {
+        for bad in ["-50", "0", "-0.5"] {
+            let json = """
+            {"format":"duck-intent/2","name":"hostile","hz":\(bad),
+             "frames":[[0,0,0,0,0,0,0,0,0,0,0,0,0,0]],
+             "policy":"x.onnx","startsFrom":"standing","endsIn":"standing"}
+            """
+            XCTAssertThrowsError(try IntentExport.decode(Data(json.utf8)),
+                                 "hz \(bad) must be refused") { error in
+                guard case IntentExport.ImportError.badRate = error else {
+                    return XCTFail("wrong error for hz \(bad): \(error)")
+                }
+                XCTAssertTrue((error as! IntentExport.ImportError).message
+                                .contains("has to be a positive number"))
+            }
+        }
+    }
+
+    /// And a file with no rate at all still opens at the default — older
+    /// exporters omit it, and refusing them to tidy the reader would break
+    /// every motion already shared.
+    func testAMissingRateStillDefaults() throws {
+        let json = """
+        {"format":"duck-intent/2","name":"old",
+         "frames":[[0,0,0,0,0,0,0,0,0,0,0,0,0,0]],
+         "policy":"x.onnx","startsFrom":"standing","endsIn":"standing"}
+        """
+        let export = try IntentExport.decode(Data(json.utf8))
+        XCTAssertEqual(export.hz, DuckModel.tickHz)
+    }
+}

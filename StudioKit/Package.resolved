@@ -5,8 +5,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/craigm26/duckkit.git",
       "state" : {
-        "revision" : "6464f943e0f48a1da4eaf8f219d0d7cb3b733d9e",
-        "version" : "1.17.2"
+        "revision" : "e5b8a19b2378034d9da0220686245be40d5eb9b8",
+        "version" : "1.18.0"
       }
     },
     {

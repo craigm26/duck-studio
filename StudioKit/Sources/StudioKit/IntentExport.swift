@@ -153,6 +153,9 @@ public struct IntentExport: Equatable, Sendable {
         case unsupportedFormat(String)
         case noFrames
         case wrongJointCount(frame: Int, got: Int)
+        /// A rate that cannot be one. Checked here rather than trusted,
+        /// because a negative rate makes a negative frame index.
+        case badRate(got: Double)
 
         public var message: String {
             switch self {
@@ -165,6 +168,9 @@ public struct IntentExport: Equatable, Sendable {
             case .wrongJointCount(let frame, let got):
                 return "Frame \(frame) has \(got) joints; a motion carries "
                      + "\(DuckModel.policyJointCount), the policy's joints with the mouth left out."
+            case .badRate(let got):
+                return "This motion says it was recorded at \(got) frames a second. A rate has to "
+                     + "be a positive number, so there is no way to play it."
             }
         }
     }
@@ -185,9 +191,15 @@ public struct IntentExport: Equatable, Sendable {
         for (index, frame) in frames.enumerated() where frame.count != DuckModel.policyJointCount {
             throw ImportError.wrongJointCount(frame: index, got: frame.count)
         }
+        // THE MISSING KEY STILL DEFAULTS — older exporters rely on it, and a
+        // test pins that tolerance. What is refused is a rate that is PRESENT
+        // and impossible: at "hz": -50 the player indexed frames[-1] and
+        // trapped on the playhead timer's first tick.
+        let hz = object["hz"] as? Double ?? DuckModel.tickHz
+        guard hz.isFinite, hz > 0 else { throw ImportError.badRate(got: hz) }
         return IntentExport(
             name: object["name"] as? String ?? "shared intent",
-            hz: object["hz"] as? Double ?? DuckModel.tickHz,
+            hz: hz,
             frames: frames,
             netYaw: object["netYaw"] as? Double ?? 0,
             loops: object["loops"] as? Bool ?? false,
