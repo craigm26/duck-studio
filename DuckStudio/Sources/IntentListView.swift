@@ -257,8 +257,16 @@ struct IntentPlayerView: View {
         return showProps ? clip.environment : .bareFloor
     }
 
+    /// Computed once. The first version recomputed this — including a JSON
+    /// decode of the success corpus — on every body evaluation, which with the
+    /// playhead advancing at 50 Hz meant fifty decodes a second while the
+    /// Numbers tab was open.
+    @State private var cachedMetrics: RunMetrics?
+    @State private var cachedSeries: RunSeries?
+
     private var metrics: RunMetrics {
-        RunMetrics(clip: clip, success: try? DuckIntentSuccess.bundled())
+        if let cachedMetrics { return cachedMetrics }
+        return RunMetrics(clip: clip, success: try? DuckIntentSuccess.bundled())
     }
 
     /// Package the motion, draft what to say about it, and offer somewhere to
@@ -386,6 +394,12 @@ struct IntentPlayerView: View {
                 }
             }
         }
+        .onAppear {
+            if cachedMetrics == nil {
+                cachedMetrics = RunMetrics(clip: clip, success: try? DuckIntentSuccess.bundled())
+                cachedSeries = RunSeries(clip: clip)
+            }
+        }
         .onReceive(Timer.publish(every: 1.0 / DuckModel.tickHz, on: .main, in: .common).autoconnect()) { _ in
             guard isRunning else { return }
             playhead += 1.0 / DuckModel.tickHz
@@ -463,9 +477,24 @@ struct IntentPlayerView: View {
         Section("How it held itself") { ForEach(m.attitude) { ReadingRow(reading: $0) } }
         Section("What the joints did") { ForEach(m.joints) { ReadingRow(reading: $0) } }
         Section {
+            // LIVE, AT THE PLAYHEAD. The aggregate rows below say what each
+            // joint did over the whole run; these say what it is doing NOW,
+            // which is the question a scrubber asks — a headspin that falls
+            // backwards is diagnosed by seeing which servos are pushing, and
+            // which way, at the moment it goes.
+            ForEach(RunSeries.joints(of: clip, at: playhead)) { moment in
+                JointMomentRow(moment: moment)
+            }
+        } header: {
+            Text(String(format: "Right now — %.2f s", playhead))
+        } footer: {
+            Text("Scrub the transport and these follow. The sign is the direction: positive is toward the joint's positive travel, and the achieved motion is shown, not the command — a clamped servo is doing something different from what it was told.")
+        }
+
+        Section {
             ForEach(m.perJoint) { JointRow(reading: $0) }
         } header: {
-            Text("Joint by joint")
+            Text("Over the whole run")
         } footer: {
             Text("Travel is how far the joint moved in total; deviation is how far from the home pose it got. They answer different questions — a gait travels a long way without ever going far — and the bar is the deviation against the room that joint actually has.")
         }
@@ -511,7 +540,10 @@ struct IntentPlayerView: View {
     /// past 90° and step_up is not, and in a table of peaks the two are
     /// indistinguishable.
     @ViewBuilder private var curves: some View {
-        let series = RunSeries(clip: clip)
+        // Cached for the same reason as the metrics: the playhead rule moves
+        // fifty times a second, and rebuilding twelve hundred points per frame
+        // to draw a line that has not changed is how a chart tab stutters.
+        let series = cachedSeries ?? RunSeries(clip: clip)
         Section {
             Text("Sampled once per tick at \(Int(clip.hz)) Hz, unsmoothed. The interesting features here are the sharp ones — the instant a foot lands, the tick a joint hits its stop — and a filter would remove exactly those. The orange line is the playhead.")
                 .font(.caption).foregroundStyle(.secondary)
@@ -565,6 +597,32 @@ private struct ReadingRow: View {
             if let detail = reading.detail {
                 Text(detail).font(.caption).foregroundStyle(.secondary)
             }
+        }
+    }
+}
+
+/// One joint at the playhead: where it is, and which way it is moving.
+private struct JointMomentRow: View {
+    let moment: RunSeries.JointMoment
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(moment.name).font(.caption)
+            Spacer()
+            if moment.isMoving {
+                Image(systemName: moment.velocity > 0
+                      ? "arrow.up.right.circle.fill" : "arrow.down.left.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(moment.velocity > 0 ? Color.accentColor : Color.orange)
+                Text(String(format: "%+.1f rad/s", moment.velocity))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(moment.velocity > 0 ? Color.accentColor : Color.orange)
+            } else {
+                Text("holding").font(.caption2).foregroundStyle(.tertiary)
+            }
+            Text(String(format: "%+.2f rad", moment.angle))
+                .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                .frame(width: 74, alignment: .trailing)
         }
     }
 }

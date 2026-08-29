@@ -80,3 +80,61 @@ final class RunSeriesTests: XCTestCase {
         XCTAssertFalse(readings.contains { $0.value == "—" })
     }
 }
+
+// MARK: - which servos are moving, and which way
+
+extension RunSeriesTests {
+
+    func testEveryPolicyJointReportsAtEveryMoment() throws {
+        let c = try clip("kick_left")
+        for time in [0.0, 0.4, c.duration] {
+            let joints = RunSeries.joints(of: c, at: time)
+            XCTAssertEqual(joints.count, DuckModel.policyJointCount)
+            XCTAssertFalse(joints.contains { $0.name == "mouth" })
+        }
+    }
+
+    /// The sign IS the answer. Sitting down flexes the knees one way; the
+    /// velocity during the descent must carry that sign, not just a magnitude.
+    func testSittingKneesMoveWithASignDuringTheDescent() throws {
+        let c = try clip("sit")
+        // Mid-descent: the trunk is between standing and seated.
+        let mid = c.roots.firstIndex { $0.z < 0.100 && $0.z > 0.070 }
+        let time = Double(mid ?? c.frames.count / 3) / c.hz
+        let joints = RunSeries.joints(of: c, at: time)
+        let left = try XCTUnwrap(joints.first { $0.name == "left_knee" })
+        let right = try XCTUnwrap(joints.first { $0.name == "right_knee" })
+        XCTAssertTrue(left.isMoving || right.isMoving, "the knees drive the descent")
+        // The knees are antisymmetric at home and flex in opposite signed
+        // directions — the same physical bend.
+        if left.isMoving && right.isMoving {
+            XCTAssertLessThan(left.velocity * right.velocity, 0,
+                              "antisymmetric joints flex with opposite signs")
+        }
+    }
+
+    /// Holding still means holding still: no joint should read as moving.
+    func testHoldingStillReadsAsStill() throws {
+        let joints = RunSeries.joints(of: try clip("hold"), at: 1.0)
+        XCTAssertTrue(joints.allSatisfy { !$0.isMoving },
+                      "moving joints in hold: \(joints.filter(\.isMoving).map(\.name))")
+    }
+
+    /// The velocity agrees with the positions it was differenced from.
+    func testVelocityMatchesTheFiniteDifference() throws {
+        let c = try clip("roulade")
+        let tick = 40
+        let joints = RunSeries.joints(of: c, at: Double(tick) / c.hz)
+        let expected = (c.frames[tick + 1][0] - c.frames[tick - 1][0]) * c.hz / 2
+        XCTAssertEqual(joints[0].velocity, expected, accuracy: 1e-9)
+    }
+
+    /// The ends do not index off the clip.
+    func testTheEndsUseOneSidedDifferences() throws {
+        let c = try clip("kick_left")
+        XCTAssertNoThrow(_ = RunSeries.joints(of: c, at: -1))
+        XCTAssertNoThrow(_ = RunSeries.joints(of: c, at: c.duration + 5))
+        let atEnd = RunSeries.joints(of: c, at: c.duration + 5)
+        XCTAssertEqual(atEnd.count, DuckModel.policyJointCount)
+    }
+}

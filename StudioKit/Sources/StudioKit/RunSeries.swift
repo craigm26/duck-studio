@@ -129,6 +129,59 @@ public struct RunSeries: Equatable, Sendable {
         self.tracks = tracks
     }
 
+    /// One joint at one moment: where it is and which way it is moving.
+    ///
+    /// THE AGGREGATE ROWS CANNOT ANSWER THE QUESTION A SCRUBBER ASKS. "17.8 rad
+    /// of travel over the run" is true for the whole clip and useless at
+    /// t = 2.6 s, when what you want to know is which servos are driving and
+    /// which way — a headspin that falls backwards is diagnosed by seeing the
+    /// hip pitches both pushing the same direction at the moment it goes, and
+    /// no summary can show that.
+    public struct JointMoment: Equatable, Sendable, Identifiable {
+        public let name: String
+        /// Where the joint is, radians.
+        public let angle: Double
+        /// How fast it is moving, radians per second, SIGNED — the sign is the
+        /// point, it is the "which direction" in "which servos are moving in
+        /// which direction". Finite-differenced from the achieved positions.
+        public let velocity: Double
+        public var id: String { name }
+
+        /// Whether the joint is meaningfully moving at this instant. The bound
+        /// is a twentieth of a radian a second — a servo drifting slower than
+        /// that reads as holding.
+        public var isMoving: Bool { abs(velocity) > 0.05 }
+    }
+
+    /// Every policy joint at a moment in a clip, in policy-slot order.
+    ///
+    /// Velocity is the centred difference of the ACHIEVED positions around the
+    /// nearest tick (one-sided at the ends). Achieved, not commanded: the
+    /// question on a scrubber is what the robot is doing, and a clamped or
+    /// lagging servo is doing something different from what it was told.
+    public static func joints(of clip: DuckIntentClip, at time: TimeInterval) -> [JointMoment] {
+        let count = clip.frames.count
+        guard count > 0 else { return [] }
+        let dt = 1.0 / clip.hz
+        let tick = min(max(Int((time * clip.hz).rounded()), 0), count - 1)
+        let before = max(tick - 1, 0)
+        let after = min(tick + 1, count - 1)
+        let span = Double(after - before) * dt
+
+        return (0..<DuckModel.policyJointCount).map { slot in
+            let joint = DuckModel.jointOfPolicySlot(slot)
+            let here = clip.frames[tick]
+            let a = clip.frames[before], b = clip.frames[after]
+            let velocity = span > 0 && slot < a.count && slot < b.count
+                ? (b[slot] - a[slot]) / span
+                : 0
+            return JointMoment(
+                name: DuckModel.jointNames[joint],
+                angle: slot < here.count ? here[slot] : 0,
+                velocity: velocity)
+        }
+    }
+
     /// The value of every track at a moment, for a readout beside the playhead.
     public func readings(at time: TimeInterval) -> [RunMetrics.Reading] {
         tracks.map { track in
