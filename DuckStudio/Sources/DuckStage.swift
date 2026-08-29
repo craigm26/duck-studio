@@ -81,6 +81,8 @@ extension DuckStance {
 /// look at a pose from every side, and a camera feed behind it would be scenery.
 struct DuckStage: UIViewRepresentable {
     let pose: StagePose
+    /// Which feet: a roller clip is drawn on Pollen's roller blades.
+    var variant: DuckKinematics.Variant = .legs
     /// The props to draw. Bare floor is still a place; `nil` is not.
     let environment: DuckIntentClip.Environment
     /// The whole run, so the path can be drawn and the robot seen against where
@@ -160,6 +162,12 @@ struct DuckStage: UIViewRepresentable {
         // model's world frame with the trunk already 120 mm up, and a recorded
         // root IS the trunk — setting position straight from it added the
         // offset twice and drew the robot floating by its own trunk height.
+        if let duck = c.duck, duck.variant != variant, let world = c.world {
+            duck.removeFromParent()
+            let fresh = DuckGhostEntity(variant: variant)
+            world.addChild(fresh)
+            c.duck = fresh
+        }
         c.duck?.place(root: pose.root, jointAngles: pose.jointAngles)
         // A contact patch under the FEET, on the floor — not under the trunk.
         // The trunk is the thing that leans, so a shadow tracking it slides out

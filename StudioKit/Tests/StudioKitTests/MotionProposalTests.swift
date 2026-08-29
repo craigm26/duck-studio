@@ -117,4 +117,81 @@ final class MotionProposalTests: XCTestCase {
         XCTAssertEqual(contents.name, "wave hello")
         XCTAssertTrue(contents.provenance?.contains("on-device model") == true)
     }
+
+    // MARK: - what a small model actually emits
+
+    /// The refusal that shipped: the model called the beak "mouthOpen" and
+    /// was told the nearest joint was "left hip".
+    func testTheBeakIsAJointByAnyOfItsNames() throws {
+        for word in ["beak", "mouth", "mouthOpen", "jaw", "Mouth Open"] {
+            let draft = try MotionProposal(name: "quack", keys: [
+                .init(atSeconds: 0.4, moves: [.init(joint: word, degrees: 30)]),
+                .init(atSeconds: 0.9, moves: []),
+            ]).resolve()
+            XCTAssertEqual(draft.pose(at: 0.4)[DuckModel.mouthIndex], DuckModel.mouthOpen,
+                           accuracy: 1e-9, word)
+        }
+    }
+
+    /// Wire names, hyphens, case, newlines and the travel annotation the
+    /// grounding itself teaches all resolve.
+    func testWireNamesAndSloppyFormattingResolve() throws {
+        for word in ["left_hip", "left-hip", "LEFT HIP", "head nod\n", "neck (-110° to 40°)",
+                     "head yaw", "head_pitch", "right hip roll"] {
+            XCTAssertNoThrow(try MotionProposal(name: "x", keys: [
+                .init(atSeconds: 0.4, moves: [.init(joint: word, degrees: 5)]),
+            ]).resolve(), word)
+        }
+    }
+
+    /// A blank joint is a no-op, not a refusal with a nonsense hint.
+    func testABlankJointIsSkipped() throws {
+        let draft = try MotionProposal(name: "x", keys: [
+            .init(atSeconds: 0.4, moves: [.init(joint: "", degrees: 0),
+                                          .init(joint: "neck", degrees: 10)]),
+        ]).resolve()
+        XCTAssertTrue(draft.isPlayable)
+    }
+
+    /// "both knees 20°" bends both knees the same way — mirrored signs, because
+    /// the right leg's home is the left's negated.
+    func testGroupWordsMirrorAcrossTheBody() throws {
+        let draft = try MotionProposal(name: "crouch", keys: [
+            .init(atSeconds: 0.5, moves: [.init(joint: "both knees", degrees: 20)]),
+        ]).resolve()
+        let pose = draft.pose(at: 0.5)
+        let l = DuckModel.jointIndex(of: "left_knee")!, r = DuckModel.jointIndex(of: "right_knee")!
+        XCTAssertEqual(pose[l] - DuckModel.homePose[l], 20 * .pi / 180, accuracy: 1e-9)
+        XCTAssertEqual(pose[r] - DuckModel.homePose[r], -20 * .pi / 180, accuracy: 1e-9)
+    }
+
+    /// The hint is thresholded: a near miss gets its neighbour, nonsense gets
+    /// the list, and "head" alone gets a head word.
+    func testHintsAreNearOrAbsent() {
+        XCTAssertEqual(MotionProposal.closest(to: "left kne"), "left knee")
+        XCTAssertEqual(MotionProposal.closest(to: "knee"), "left knee")
+        XCTAssertNil(MotionProposal.closest(to: "propeller"))
+        XCTAssertTrue(MotionProposal.closest(to: "head")?.hasPrefix("head") == true)
+        XCTAssertThrowsError(try MotionProposal(name: "x", keys: [
+            .init(atSeconds: 0.4, moves: [.init(joint: "propeller", degrees: 5)]),
+        ]).resolve()) { error in
+            let message = (error as! MotionProposal.Unresolvable).message
+            XCTAssertTrue(message.contains("The joints are:"), message)
+            XCTAssertFalse(message.contains("nearest"), message)
+        }
+    }
+
+    /// A draft that never opens the beak leaves it at home: no phantom tail,
+    /// no mouth caution.
+    func testAShutBeakStaysAtHomeAndAddsNoTail() throws {
+        let draft = try MotionProposal(name: "nod", keys: [
+            .init(atSeconds: 0.5, moves: [.init(joint: "head nod", degrees: 15)]),
+            .init(atSeconds: 1.0, moves: []),
+        ]).resolve()
+        XCTAssertEqual(draft.pose(at: 0.5)[DuckModel.mouthIndex],
+                       DuckModel.homePose[DuckModel.mouthIndex], accuracy: 1e-12)
+        XCTAssertEqual(draft.keys.count, 3, "start, nod, back — no extra return-home tail")
+        XCTAssertFalse(draft.problems.contains { $0.severity == .caution },
+                       "\(draft.problems)")
+    }
 }

@@ -294,7 +294,7 @@ struct IntentPlayerView: View {
     var body: some View {
         VStack(spacing: 0) {
             ZStack(alignment: .bottomLeading) {
-                DuckStage(pose: .at(pose),
+                DuckStage(pose: .at(pose), variant: clip.variant,
                           environment: world,
                           trail: clip.roots,
                           progress: playhead / max(clip.duration, 1e-9),

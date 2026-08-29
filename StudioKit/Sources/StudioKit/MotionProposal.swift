@@ -60,6 +60,7 @@ public struct MotionProposal: Equatable, Sendable {
         ("head nod", "head_pitch"),
         ("head turn", "head_yaw"),
         ("head tilt", "head_roll"),
+        ("beak", "mouth"),
         ("left hip swing", "left_hip_yaw"),
         ("left hip lean", "left_hip_roll"),
         ("left hip", "left_hip_pitch"),
@@ -72,6 +73,67 @@ public struct MotionProposal: Equatable, Sendable {
         ("right ankle", "right_ankle"),
     ]
 
+    /// Words the model was never offered but will produce anyway — its priors
+    /// know yaw/pitch/roll, the wire names leak through, and "mouth" is what
+    /// anyone calls a beak. Accepted silently; the vocabulary above is what it
+    /// is TOLD, this is what it is FORGIVEN.
+    static let synonyms: [String: String] = [
+        "mouth": "mouth", "jaw": "mouth", "mouthopen": "mouth", "mouth open": "mouth",
+        "neck pitch": "neck_pitch",
+        "head pitch": "head_pitch", "head yaw": "head_yaw", "head roll": "head_roll",
+        "head": "head_pitch",
+        "left hip pitch": "left_hip_pitch", "left hip yaw": "left_hip_yaw",
+        "left hip roll": "left_hip_roll",
+        "right hip pitch": "right_hip_pitch", "right hip yaw": "right_hip_yaw",
+        "right hip roll": "right_hip_roll",
+    ]
+
+    /// Group words: one word, a mirrored pair. The right leg's home pose is
+    /// the left's with every sign flipped, so "both knees 20°" bends both the
+    /// same way by sending +20° left and −20° right — a model that writes one
+    /// number for a pair almost always means the symmetric motion.
+    static let groups: [String: [(joint: String, mirror: Double)]] = [
+        "knees": [("left_knee", 1), ("right_knee", -1)],
+        "both knees": [("left_knee", 1), ("right_knee", -1)],
+        "hips": [("left_hip_pitch", 1), ("right_hip_pitch", -1)],
+        "both hips": [("left_hip_pitch", 1), ("right_hip_pitch", -1)],
+        "ankles": [("left_ankle", 1), ("right_ankle", -1)],
+        "both ankles": [("left_ankle", 1), ("right_ankle", -1)],
+        "legs": [("left_hip_pitch", 1), ("right_hip_pitch", -1),
+                 ("left_knee", 1), ("right_knee", -1)],
+        "both legs": [("left_hip_pitch", 1), ("right_hip_pitch", -1),
+                      ("left_knee", 1), ("right_knee", -1)],
+    ]
+
+    /// What a model's joint string becomes before matching: case, wire
+    /// underscores and hyphens, stray newlines, and the travel annotation the
+    /// grounding itself taught it ("neck (-110° to 40°)") all go.
+    static func normalised(_ raw: String) -> String {
+        var word = raw.lowercased()
+        if let paren = word.firstIndex(of: "(") { word = String(word[..<paren]) }
+        word = word.replacingOccurrences(of: "_", with: " ")
+                   .replacingOccurrences(of: "-", with: " ")
+        word = word.trimmingCharacters(in: .whitespacesAndNewlines)
+        while word.contains("  ") { word = word.replacingOccurrences(of: "  ", with: " ") }
+        return word
+    }
+
+    /// Every (joint, degrees) a single move stands for — usually one, a
+    /// mirrored pair for a group word — or nil for a word nobody knows.
+    static func expand(_ move: Move) -> [(joint: String, degrees: Double)]? {
+        let word = normalised(move.joint)
+        if let entry = jointVocabulary.first(where: { $0.word == word })
+            ?? jointVocabulary.first(where: { $0.joint == word }) {
+            return [(entry.joint, move.degrees)]
+        }
+        if let joint = synonyms[word] { return [(joint, move.degrees)] }
+        if let pair = groups[word] { return pair.map { ($0.joint, move.degrees * $0.mirror) } }
+        if DuckModel.jointIndex(of: move.joint.lowercased()) != nil {
+            return [(move.joint.lowercased(), move.degrees)]
+        }
+        return nil
+    }
+
     public enum Unresolvable: Error, Equatable {
         case noKeyframes
         case unknownJoint(String, closest: String?)
@@ -81,7 +143,9 @@ public struct MotionProposal: Equatable, Sendable {
             case .noKeyframes:
                 return "The draft has no keyframes — one pose is a pose, not a motion."
             case .unknownJoint(let word, let closest):
-                let hint = closest.map { " The nearest name is \"\($0)\"." } ?? ""
+                let hint = closest.map { " The nearest name is \"\($0)\"." }
+                    ?? " The joints are: " + MotionProposal.jointVocabulary.map(\.word)
+                        .joined(separator: ", ") + "."
                 return "\"\(word)\" is not a joint this robot has.\(hint)"
             }
         }
@@ -110,20 +174,29 @@ public struct MotionProposal: Equatable, Sendable {
         for key in keys.sorted(by: { $0.atSeconds < $1.atSeconds }) {
             var pose = DuckModel.homePose
             for move in key.moves {
-                let word = move.joint.lowercased()
-                    .trimmingCharacters(in: .whitespaces)
-                guard let entry = Self.jointVocabulary.first(where: { $0.word == word })
-                        ?? Self.jointVocabulary.first(where: { $0.joint == word }) else {
+                // A blank joint is a small model's way of writing "nothing
+                // moves here" — a no-op, not a refusal.
+                if Self.normalised(move.joint).isEmpty { continue }
+                guard let targets = Self.expand(move) else {
                     throw Unresolvable.unknownJoint(
-                        move.joint, closest: Self.closest(to: word))
+                        move.joint, closest: Self.closest(to: Self.normalised(move.joint)))
                 }
-                let index = DuckModel.jointIndex(of: entry.joint)!
-                let range = DuckModel.jointRanges[index]
-                let radians = DuckModel.homePose[index] + move.degrees * .pi / 180
-                pose[index] = min(max(radians, range.lower), range.upper)
+                for target in targets {
+                    let index = DuckModel.jointIndex(of: target.joint)!
+                    let range = DuckModel.jointRanges[index]
+                    let radians = DuckModel.homePose[index] + target.degrees * .pi / 180
+                    pose[index] = min(max(radians, range.lower), range.upper)
+                }
             }
-            pose[DuckModel.mouthIndex] = DuckModel.mouthTarget(
-                open: key.mouthOpen)
+            // THE BEAK STAYS AT HOME UNLESS ASKED. The first version wrote
+            // mouthTarget(0) = −5° into every key, but the home pose holds
+            // the mouth at 0, so every draft — even one that never opened
+            // the beak — grew a return-home tail and tripped the "drives the
+            // mouth" caution. Only an actual opening touches it.
+            if key.mouthOpen > 0 {
+                pose[DuckModel.mouthIndex] = max(pose[DuckModel.mouthIndex],
+                                                 DuckModel.mouthTarget(open: key.mouthOpen))
+            }
             draftKeys.append(.init(time: max(key.atSeconds, 0), pose: pose))
         }
 
@@ -142,16 +215,40 @@ public struct MotionProposal: Equatable, Sendable {
                       + "see what the sentence became.")
     }
 
-    /// The nearest vocabulary word, for the refusal message.
+    /// The nearest vocabulary word, for the refusal message — or nothing,
+    /// because a hint that is wrong is worse than none. "mouthopen" was once
+    /// told its nearest joint was "left hip" (edit distance 7).
     static func closest(to word: String) -> String? {
-        // Cheap containment first — "head" alone should suggest a head word.
-        if let contained = jointVocabulary.first(where: {
-            $0.word.contains(word) || word.contains($0.word)
-        }) { return contained.word }
-        // Otherwise the shortest edit distance, small-n so O(n·m²) is fine.
-        return jointVocabulary.map(\.word).min {
+        guard !word.isEmpty else { return nil }
+        let tokens = word.split(separator: " ").map(String.init)
+        // Token match — whole, or a prefix of three letters or more, so
+        // "kne" still finds a knee — shortest candidate first: "knee" →
+        // "left knee", not whichever entry happens to come first in the table.
+        func near(_ a: String, _ b: String) -> Bool {
+            a == b || (min(a.count, b.count) >= 3 && (a.hasPrefix(b) || b.hasPrefix(a)))
+        }
+        // Ranked by how many of the word's tokens a candidate matches, then
+        // shortest: "left kne" → "left knee" (two tokens), not "left hip".
+        var scored: [(word: String, matches: Int)] = []
+        for candidate in jointVocabulary.map(\.word) {
+            let parts = candidate.split(separator: " ").map(String.init)
+            var matches = 0
+            for token in tokens where parts.contains(where: { near($0, token) }) {
+                matches += 1
+            }
+            if matches > 0 { scored.append((candidate, matches)) }
+        }
+        scored.sort { a, b in
+            if a.matches != b.matches { return a.matches > b.matches }
+            return a.word.count < b.word.count
+        }
+        if let hit = scored.first { return hit.word }
+        let allowed = max(2, word.count / 3)
+        let best = jointVocabulary.map(\.word).min {
             editDistance($0, word) < editDistance($1, word)
         }
+        if let best, editDistance(best, word) <= allowed { return best }
+        return nil
     }
 
     static func editDistance(_ a: String, _ b: String) -> Int {
@@ -182,11 +279,17 @@ public struct MotionProposal: Equatable, Sendable {
             return "\(entry.word) (\(lo)° to \(hi)°)"
         }.joined(separator: ", ")
         return """
-        You draft short motions for a 25 cm duck robot as keyframes. Joints you \
-        may move, with their travel in degrees from the standing pose: \(joints). \
-        mouthOpen is 0 closed to 1 open. Use 2 to 6 keyframes over 1 to 4 seconds, \
-        angles well inside the travel, and finish with everything back at 0 so the \
-        robot returns to standing. Degrees are offsets from standing, not absolutes.
+        You draft short motions for a 25 cm duck robot as keyframes.
+
+        Joints you may move, each with its travel in degrees from the standing pose:
+        \(joints).
+        Use exactly these joint names. "beak" is the mouth: 0 is closed, 30 is wide \
+        open. A keyframe's separate mouthOpen field (0 closed to 1 open) may be used \
+        instead of a beak move; leave it 0 when the beak stays shut.
+
+        Use 2 to 6 keyframes over 1 to 4 seconds, angles well inside the travel, and \
+        finish with everything back at 0 so the robot returns to standing. Degrees \
+        are offsets from standing, not absolutes.
         """
     }
 }
