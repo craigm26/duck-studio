@@ -201,3 +201,26 @@ final class JointGroupTests: XCTestCase {
         XCTAssertEqual(mouth.travelLabel.upper, "30°")
     }
 }
+
+extension IntentDraftTests {
+
+    /// The interop the whole pipeline rests on: what the authoring screen
+    /// exports, DuckKit's shared reader opens — which is what OpenCastor uses
+    /// to play a motion as a goal celebration.
+    func testWhatTheEditorExportsTheSharedReaderOpens() throws {
+        var open = DuckModel.homePose
+        open[DuckModel.mouthIndex] = DuckModel.mouthOpen
+        let draft = IntentDraft(name: "celebration", keys: [
+            .init(time: 0, pose: DuckModel.homePose),
+            .init(time: 0.5, pose: open),
+            .init(time: 1.0, pose: DuckModel.homePose),
+        ])
+        let contents = try DuckMoveFile.decode(try draft.exported())
+        XCTAssertEqual(contents.name, "celebration")
+        XCTAssertEqual(contents.move.duration, 1.0, accuracy: 1e-9)
+        XCTAssertTrue(contents.note?.contains("no physics ran") == true,
+                      "the caveat travels with the file")
+        XCTAssertEqual(contents.move.pose(at: 0.5)[DuckModel.mouthIndex],
+                       DuckModel.mouthOpen, accuracy: 1e-9)
+    }
+}

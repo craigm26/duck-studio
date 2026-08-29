@@ -238,20 +238,14 @@ public struct IntentDraft: Codable, Equatable, Identifiable, Sendable {
     /// wrote it and a person can open the beak. Narrowing it to 14 on export
     /// would silently drop the one thing authoring adds.
     public func exported() throws -> Data {
-        let move = try move()
-        let object: [String: Any] = [
-            "format": "duck-move/1",
-            "name": name,
-            "joints": DuckModel.jointNames,
-            "times": move.keyframes.map(\.time),
-            "poses": move.keyframes.map(\.pose),
-            "provenance": provenance,
-            // Travels with the file, because the file is the thing that gets
-            // shared and the caveat is the thing most likely to be lost.
-            "note": Self.disclaimer,
-        ]
-        return try JSONSerialization.data(withJSONObject: object,
-                                          options: [.prettyPrinted, .sortedKeys])
+        // THROUGH THE FORMAT'S SINGLE DOOR. DuckKit's DuckMoveFile is the one
+        // writer and reader of .duckmove — OpenCastor plays these files as
+        // goal celebrations, and two parsers for one format is how a file
+        // works in one app and silently misloads in the other. The caveat
+        // travels as the note, because the file is the thing that gets shared
+        // and the caveat is the thing most likely to be lost.
+        try DuckMoveFile.encode(name: name, move: try move(),
+                                provenance: provenance, note: Self.disclaimer)
     }
 
     public enum ImportError: Error, Equatable {
