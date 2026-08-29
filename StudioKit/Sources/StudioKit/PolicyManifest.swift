@@ -131,7 +131,7 @@ public struct PolicyManifest: Equatable, Sendable {
 
     // MARK: - can this app drive it
 
-    public enum Incompatibility: Equatable, Sendable {
+    public enum Incompatibility: Hashable, Sendable {
         case observationLength(Int)
         case actionLength(Int)
         case controlRate(Double)
