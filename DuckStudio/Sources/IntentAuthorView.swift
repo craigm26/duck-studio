@@ -41,6 +41,7 @@ struct IntentAuthorView: View {
     @State private var failure: String?
     @State private var confirmingDiscard = false
     @State private var confirmingDelete = false
+    @State private var publishing = false
 
     enum Panel: String, CaseIterable, Identifiable {
         case joints = "Pose", timeline = "Keyframes", checks = "Checks"
@@ -118,6 +119,9 @@ struct IntentAuthorView: View {
                     Button { share() } label: {
                         Label("Export the motion", systemImage: "square.and.arrow.up")
                     }
+                    Button { publishing = true } label: {
+                        Label("Publish to Hugging Face", systemImage: "arrow.up.circle")
+                    }
                     Menu("Author against") {
                         Button("Bare floor") { draft.sceneID = nil }
                         ForEach(scenes.scenes) { s in
@@ -158,6 +162,9 @@ struct IntentAuthorView: View {
             NavigationStack {
                 ShareDestinationsView(title: draft.name, file: out.url, message: out.message)
             }
+        }
+        .sheet(isPresented: $publishing) {
+            PublishMotionView(draft: draft)
         }
         .alert("Could not export", isPresented: Binding(
             get: { failure != nil }, set: { if !$0 { failure = nil } })) {
