@@ -263,22 +263,35 @@ public struct IntentDraft: Codable, Equatable, Identifiable, Sendable {
         }
     }
 
+    /// Read a shared motion.
+    ///
+    /// THIS USED TO BE A SECOND PARSER, and it cost exactly what a second
+    /// parser costs. `DuckMoveFile` calls itself "the format's single door";
+    /// this function quietly opened another one beside it, with its own
+    /// hardcoded `format == "duck-move/1"` — so the day DuckKit learned to
+    /// write `duck-move/2`, every import here refused a file the kit had just
+    /// produced. It now delegates, which also means a motion authored against
+    /// a non-home base resolves correctly instead of being read as if it were
+    /// absolute: `pose(at:)` applies the file's own base and reading mode.
     public static func decode(_ data: Data) throws -> IntentDraft {
-        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw ImportError.notAMove
+        let contents: DuckMoveFile.Contents
+        do {
+            contents = try DuckMoveFile.decode(data)
+        } catch let error as DuckMoveFile.ReadError {
+            switch error {
+            case .notAMove: throw ImportError.notAMove
+            case .unsupportedFormat(let f): throw ImportError.unsupportedFormat(f)
+            case .malformed(let what): throw ImportError.malformed(what)
+            case .jointOrderMismatch: throw ImportError.malformed(
+                "The motion lists its joints in another order, so its poses are "
+              + "for a differently wired robot.")
+            case .invalid(let refusal): throw ImportError.malformed(refusal.message)
+            }
         }
-        guard let format = object["format"] as? String else { throw ImportError.notAMove }
-        guard format == "duck-move/1" else { throw ImportError.unsupportedFormat(format) }
-        guard let times = object["times"] as? [Double],
-              let poses = object["poses"] as? [[Double]] else {
-            throw ImportError.malformed("The motion has no keyframes in it.")
-        }
-        guard times.count == poses.count, !times.isEmpty else {
-            throw ImportError.malformed("The motion has \(times.count) times and \(poses.count) poses.")
-        }
+        let move = contents.move
         return IntentDraft(
-            name: object["name"] as? String ?? "shared motion",
-            keys: zip(times, poses).map { Key(time: $0, pose: $1) },
-            provenance: object["provenance"] as? String ?? "Imported")
+            name: contents.name,
+            keys: move.keyframes.map { Key(time: $0.time, pose: move.pose(at: $0.time)) },
+            provenance: contents.provenance ?? "Imported")
     }
 }
