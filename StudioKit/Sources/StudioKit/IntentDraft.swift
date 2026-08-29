@@ -122,16 +122,19 @@ public struct IntentDraft: Codable, Equatable, Identifiable, Sendable {
     /// anything, radians per second.
     ///
     /// NOT A DATASHEET FIGURE, AND THE SCREEN SAYS SO. It is the fastest thing
-    /// the recorded corpus actually does — 16.92 rad/s, in `step_up` — rounded
-    /// up to 17. A draft asking for more than any trained policy ever asks for
-    /// is asking for something no recording in this app demonstrates, which is
-    /// worth a warning and is NOT a proof of impossibility.
+    /// the recorded corpus actually does, rounded up — currently 12.6 rad/s,
+    /// after the plant moved to training's own solver, floor friction and
+    /// torque ceiling (the tighter ±0.6405 Nm limit is most of why the old
+    /// 16.92 rad/s peak came down). A draft asking for more than any trained
+    /// policy ever asks for is asking for something no recording in this app
+    /// demonstrates — worth a warning, and NOT a proof of impossibility.
     ///
     /// `IntentDraftTests` recomputes the peak from the bundled clips and fails
-    /// if this constant has drifted below it. A first cut of this said 12,
-    /// which was a guess wearing a comment about measurement — it would have
-    /// warned about `roulade` and `back_roll`, two of Pollen's own motions.
-    public static let observedPeakJointRate = 17.0
+    /// in BOTH directions: below the corpus peak the editor warns about
+    /// shipped motions; more than 20% above it the warning stops firing on
+    /// anything a servo could plausibly refuse. A first cut said 12 as a
+    /// guess; a later corpus made 17 stale the other way.
+    public static let observedPeakJointRate = 13.0
 
     public var problems: [Problem] {
         var out: [Problem] = []

@@ -350,10 +350,15 @@ final class ClipNoteTests: XCTestCase {
         XCTAssertTrue(ClipNote.needsPlantCaveat(clip))
     }
 
-    /// The caveat has to name a checkable fact rather than gesture at physics.
-    func testThePlantCaveatNamesSomethingCheckable() {
-        XCTAssertTrue(ClipNote.plantCaveat.contains("Seven of the fifteen"))
-        XCTAssertTrue(ClipNote.plantCaveat.contains("no collision geometry"))
+    /// The caveat has to name measured facts — and the first version named a
+    /// checkable fact that was FALSE ("no collision geometry on the head"; the
+    /// head carries three collision meshes). This pins the corrected claims.
+    func testThePlantCaveatNamesMeasuredFacts() {
+        XCTAssertTrue(ClipNote.plantCaveat.contains("placed into the headstand"))
+        XCTAssertTrue(ClipNote.plantCaveat.contains("never mounts"))
+        XCTAssertTrue(ClipNote.plantCaveat.contains("full-collision"))
+        XCTAssertTrue(ClipNote.plantCaveat.contains("position servo"))
+        XCTAssertFalse(ClipNote.plantCaveat.contains("no collision geometry on the head"))
         XCTAssertFalse(ClipNote.plantCaveat.lowercased().contains("may differ"))
     }
 }

@@ -11,15 +11,16 @@ import DuckKit
 /// that can be checked is that the weights are what they are.
 ///
 /// The `headspin.onnx` case is why this exists as a sentence rather than as a
-/// silence. Its owner's render shows the robot balanced vertically on its head.
-/// This project's replay puts it belly-up on its torso shell with a leg raised
-/// — inverted, held, and not the same posture. Two plant differences are
-/// visible from here and neither is fixable: the model this app ships has NO
-/// collision geometry on the head, so a balance on the head is not available in
-/// it at all, and the actuator in the scene is a position servo where Pollen
-/// train against a friction model with lag. Saying "recorded the same way" and
-/// stopping there would let a viewer read our replay as a verdict on their
-/// policy.
+/// silence — and why the sentence has been rewritten once already. Its owner's
+/// render shows the robot balanced vertically on its head. The first version of
+/// this caveat blamed the model: "no collision geometry on the head". That was
+/// FALSE — the scene compiles Pollen's own `robot_allcollisions.xml`
+/// byte-identical, and the head carries three collision meshes (top shell, jaw,
+/// bottom shell). Measured instead: PLACED into the headstand, this network
+/// holds it for the whole clip, on jaw contact, every seed tried; started
+/// standing, it never mounts under any command tried. The balance was trained;
+/// the entry, on this plant, was not — and the contributor's own training
+/// environment is private, so which initial states it saw cannot be checked.
 public enum ClipNote {
 
     /// The line to put under a contributed motion, or nil for one recorded from
@@ -36,14 +37,19 @@ public enum ClipNote {
     /// The line about what a replay cannot settle, for a contributed motion
     /// whose owner has shown something different.
     ///
-    /// Named facts only. "Our physics may differ" is unfalsifiable and tells a
-    /// reader nothing; "there is no collision geometry on the head" is a
-    /// statement about this model that somebody can go and check.
+    /// Named, MEASURED facts only — the first version of this string named a
+    /// checkable fact that was false ("no collision geometry on the head"; the
+    /// head has three collision meshes), which is worse than vagueness because
+    /// a checkable falsehood survives until somebody actually checks.
     public static let plantCaveat =
-        "Where a replay and an owner's own render disagree, the model is the first place to "
-      + "look rather than the policy. Seven of the fifteen drawn bodies in this model carry no "
-      + "collision geometry at all — including every part of the head and neck — so a balance "
-      + "on the head is not something this scene can represent, however well the network does it."
+        "Where this replay and the owner's render disagree, the difference is in how the "
+      + "motion STARTS, not in whether the balance is possible: placed into the headstand, "
+      + "this network holds it — every seed tried, balanced on the jaw — and started standing "
+      + "it never mounts under any command tried. The balance was trained; the entry, in this "
+      + "simulator, was not, and the owner's training environment is not public, so which "
+      + "starting states it saw cannot be checked. The physics here is Pollen's own "
+      + "full-collision robot model; the one knowingly simplified part is the actuator, a "
+      + "position servo standing in for the friction-and-lag motor model they train against."
 
     /// Whether that caveat is worth showing: a contributed motion that ends in
     /// a posture the model may not be able to represent.
