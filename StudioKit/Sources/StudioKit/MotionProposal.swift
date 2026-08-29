@@ -118,7 +118,12 @@ public struct MotionProposal: Equatable, Sendable {
     /// grounding itself taught it ("neck (-110° to 40°)") all go.
     static func normalised(_ raw: String) -> String {
         var word = raw.lowercased()
-        if let paren = word.firstIndex(of: "(") { word = String(word[..<paren]) }
+        // Only a TRAILING annotation is stripped — "neck (-110° to 40°)" —
+        // never a leading one, so "(left) knee" is refused rather than
+        // vanishing as a blank no-op.
+        if let paren = word.firstIndex(of: "("), paren > word.startIndex {
+            word = String(word[..<paren])
+        }
         word = word.replacingOccurrences(of: "_", with: " ")
                    .replacingOccurrences(of: "-", with: " ")
         word = word.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -173,13 +178,18 @@ public struct MotionProposal: Equatable, Sendable {
         guard !keys.isEmpty else { throw Unresolvable.noKeyframes }
 
         var draftKeys: [IntentDraft.Key] = []
+        // SORT FIRST. The prepend decision once read the UNSORTED first key
+        // while the loop iterated sorted keys, so [(0.8, …), (0.0, …)] got a
+        // home key at 0 AND the model's own 0 — a duplicate time, a broken
+        // draft.
+        let ordered = keys.sorted(by: { $0.atSeconds < $1.atSeconds })
         // Every motion starts from home: the robot is standing before the
         // sentence happens to it. A model rarely thinks to say so.
-        if keys.first.map({ $0.atSeconds > 0.05 }) ?? false {
+        if ordered.first.map({ $0.atSeconds > 0.05 }) ?? false {
             draftKeys.append(.init(time: 0, pose: DuckModel.homePose))
         }
 
-        for key in keys.sorted(by: { $0.atSeconds < $1.atSeconds }) {
+        for key in ordered {
             var pose = DuckModel.homePose
             for move in key.moves {
                 // A blank joint is a small model's way of writing "nothing
@@ -201,18 +211,43 @@ public struct MotionProposal: Equatable, Sendable {
             // the mouth at 0, so every draft — even one that never opened
             // the beak — grew a return-home tail and tripped the "drives the
             // mouth" caution. Only an actual opening touches it.
+            // mouthOpen is on the SAME scale as a beak move — an offset from
+            // the resting beak, 0 … 30° — so the two cannot disagree by
+            // convention. (mouthTarget(open:) starts at −5°, and max() with it
+            // silently dropped every mouthOpen below 0.14.)
             if key.mouthOpen > 0 {
-                pose[DuckModel.mouthIndex] = max(pose[DuckModel.mouthIndex],
-                                                 DuckModel.mouthTarget(open: key.mouthOpen))
+                let open = DuckModel.homePose[DuckModel.mouthIndex]
+                    + min(key.mouthOpen, 1) * 30 * .pi / 180
+                pose[DuckModel.mouthIndex] = max(pose[DuckModel.mouthIndex], open)
             }
-            draftKeys.append(.init(time: max(key.atSeconds, 0), pose: pose))
+            // Equal times are nudged apart rather than left to break the draft.
+            var time = max(key.atSeconds, 0)
+            if let last = draftKeys.last, time <= last.time { time = last.time + 0.02 }
+            draftKeys.append(.init(time: time, pose: pose))
         }
 
         // And it ends at home unless the words said otherwise — a motion that
-        // finishes mid-gesture leaves the robot wearing it forever.
-        if let last = draftKeys.last,
-           last.pose != DuckModel.homePose {
+        // finishes mid-gesture leaves the robot wearing it forever. A beak
+        // anywhere between pressed-shut (−5°) and resting (0°) counts as home.
+        func isHome(_ pose: [Double]) -> Bool {
+            for (index, value) in pose.enumerated() {
+                if index == DuckModel.mouthIndex {
+                    if value < DuckModel.mouthClosed - 1e-9 || value > DuckModel.homePose[index] + 1e-9 {
+                        return false
+                    }
+                } else if abs(value - DuckModel.homePose[index]) > 1e-9 {
+                    return false
+                }
+            }
+            return true
+        }
+        if let last = draftKeys.last, !isHome(last.pose) {
             draftKeys.append(.init(time: last.time + 0.6, pose: DuckModel.homePose))
+        }
+        // One pose is a pose, not a motion: "stand still" becomes a
+        // half-second of standing, which is at least playable.
+        if draftKeys.count == 1, let only = draftKeys.first {
+            draftKeys.append(.init(time: only.time + 0.5, pose: DuckModel.homePose))
         }
 
         return IntentDraft(
@@ -282,6 +317,7 @@ public struct MotionProposal: Equatable, Sendable {
         let joints = jointVocabulary.map { entry in
             let index = DuckModel.jointIndex(of: entry.joint)!
             let range = DuckModel.jointRanges[index]
+            if entry.joint == "mouth" { return "beak (0° resting to 30° wide open)" }
             let lo = Int(((range.lower - DuckModel.homePose[index]) * 180 / .pi).rounded())
             let hi = Int(((range.upper - DuckModel.homePose[index]) * 180 / .pi).rounded())
             return "\(entry.word) (\(lo)° to \(hi)°)"
@@ -291,8 +327,10 @@ public struct MotionProposal: Equatable, Sendable {
 
         Joints you may move, each with its travel in degrees from the standing pose:
         \(joints).
-        Use exactly these joint names. "beak" is the mouth: 0 is closed, 30 is wide \
-        open. Pair words move both sides together, mirrored: \
+        Use exactly these joint names. "beak" is the mouth: 0 is its resting, \
+        closed position and 30 is wide open; never go below 0. Signs: positive \
+        neck and head nod bow the beak toward the floor, positive head turn looks \
+        to the duck's own left, positive head tilt leans its head to the right. Pair words move both sides together, mirrored: \
         \(groups.keys.sorted().joined(separator: ", ")). A keyframe's separate mouthOpen field (0 closed to 1 open) may be used \
         instead of a beak move; leave it 0 when the beak stays shut.
 

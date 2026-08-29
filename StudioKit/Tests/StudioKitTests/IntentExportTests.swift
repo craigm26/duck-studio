@@ -217,4 +217,15 @@ extension IntentExportTests {
         let export = try IntentExport.decode(Data(json.utf8))
         XCTAssertEqual(export.hz, DuckModel.tickHz)
     }
+
+    /// The variant survives a share: a roller clip comes back on rollers.
+    func testTheVariantRoundTrips() throws {
+        let clips = try DuckIntentClip.bundled()
+        let crouch = try XCTUnwrap(clips["roller_crouch"])
+        XCTAssertEqual(crouch.variant, .rollers)
+        let data = try IntentExport(clip: crouch, policyFingerprint: nil).encoded()
+        let back = try IntentExport.decode(data)
+        XCTAssertEqual(back.variant, .rollers)
+        XCTAssertEqual(back.clip.variant, .rollers)
+    }
 }

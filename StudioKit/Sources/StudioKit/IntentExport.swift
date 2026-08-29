@@ -57,6 +57,9 @@ public struct IntentExport: Equatable, Sendable {
     /// Carried because it is what makes the reward panel work on the receiving
     /// phone as well as the sending one.
     public let telemetry: DuckIntentClip.Telemetry
+    /// Which feet the recording wore. Missing from files written before
+    /// rollers existed, so it decodes as legs.
+    public let variant: DuckKinematics.Variant
 
     public init(clip: DuckIntentClip, policyFingerprint: String?, note: String? = nil) {
         name = clip.name
@@ -74,6 +77,7 @@ public struct IntentExport: Equatable, Sendable {
                                   $0.quaternion.1, $0.quaternion.2, $0.quaternion.3] }
         environment = clip.environment
         telemetry = clip.telemetry
+        variant = clip.variant
     }
 
     /// The motion, ready to play.
@@ -101,7 +105,7 @@ public struct IntentExport: Equatable, Sendable {
             endsIn: DuckIntentClip.Posture(rawValue: endsIn) ?? .standing,
             policy: policyName, authored: authored,
             environment: environment ?? .bareFloor,
-            credit: note, telemetry: telemetry)
+            credit: note, telemetry: telemetry, variant: variant)
     }
 
     /// Whether the sender's file actually said where the robot went.
@@ -139,6 +143,7 @@ public struct IntentExport: Equatable, Sendable {
                 },
             ]
         }
+        object["variant"] = variant.rawValue
         if !telemetry.isEmpty {
             object["actions"] = telemetry.actions
             object["commands"] = telemetry.commands
@@ -224,14 +229,17 @@ public struct IntentExport: Equatable, Sendable {
                 let twists = object["twists"] as? [[Double]] ?? []
                 guard actions.count == frames.count else { return .none }
                 return .init(actions: actions, commands: commands, twists: twists)
-            }())
+            }(),
+            variant: DuckKinematics.Variant(rawValue: object["variant"] as? String ?? "legs") ?? .legs)
     }
 
     init(name: String, hz: Double, frames: [[Double]], netYaw: Double, loops: Bool,
          startsFrom: String, endsIn: String, policyName: String,
          policyFingerprint: String?, authored: Bool, note: String?,
          roots: [[Double]] = [], environment: DuckIntentClip.Environment? = nil,
-         telemetry: DuckIntentClip.Telemetry = .none) {
+         telemetry: DuckIntentClip.Telemetry = .none,
+         variant: DuckKinematics.Variant = .legs) {
+        self.variant = variant
         self.name = name; self.hz = hz; self.frames = frames; self.netYaw = netYaw
         self.loops = loops; self.startsFrom = startsFrom; self.endsIn = endsIn
         self.policyName = policyName; self.policyFingerprint = policyFingerprint

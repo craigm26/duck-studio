@@ -205,4 +205,50 @@ final class MotionProposalTests: XCTestCase {
             XCTAssertTrue(MotionProposal.grounding().contains(word), "\(word) not in the grounding")
         }
     }
+
+    func testOutOfOrderKeysResolveToAPlayableDraft() throws {
+        let draft = try MotionProposal(name: "x", keys: [
+            .init(atSeconds: 0.8, moves: [.init(joint: "neck", degrees: 20)]),
+            .init(atSeconds: 0.0, moves: []),
+        ]).resolve()
+        XCTAssertTrue(draft.isPlayable, "\(draft.problems)")
+        let times = draft.keys.map(\.time)
+        XCTAssertEqual(times, times.sorted())
+        XCTAssertEqual(Set(times).count, times.count, "no duplicate times")
+    }
+
+    func testASmallMouthOpenStillOpensTheBeak() throws {
+        let draft = try MotionProposal(name: "x", keys: [
+            .init(atSeconds: 0.4, moves: [], mouthOpen: 0.1),
+            .init(atSeconds: 0.9, moves: []),
+        ]).resolve()
+        XCTAssertEqual(draft.pose(at: 0.4)[DuckModel.mouthIndex], 3 * .pi / 180, accuracy: 1e-9)
+    }
+
+    func testASinglePoseBecomesAPlayableMoment() throws {
+        let draft = try MotionProposal(name: "still", keys: [.init(atSeconds: 0, moves: [])]).resolve()
+        XCTAssertTrue(draft.isPlayable, "\(draft.problems)")
+        XCTAssertGreaterThanOrEqual(draft.keys.count, 2)
+    }
+
+    func testAPressedShutBeakCountsAsHome() throws {
+        let draft = try MotionProposal(name: "quack", keys: [
+            .init(atSeconds: 0.5, moves: [.init(joint: "beak", degrees: 30)]),
+            .init(atSeconds: 1.0, moves: [.init(joint: "beak", degrees: -5)]),
+        ]).resolve()
+        XCTAssertEqual(draft.keys.count, 3, "start, open, shut — no tail: \(draft.keys.map(\.time))")
+    }
+
+    func testTheGroundingStatesTheBeakAndSignConventions() {
+        let g = MotionProposal.grounding()
+        XCTAssertTrue(g.contains("beak (0° resting to 30° wide open)"))
+        XCTAssertTrue(g.contains("duck's own left"))
+        XCTAssertFalse(g.contains("beak (-5°"))
+    }
+
+    func testALeadingParenthesisIsRefusedNotDropped() {
+        XCTAssertThrowsError(try MotionProposal(name: "x", keys: [
+            .init(atSeconds: 0.4, moves: [.init(joint: "(left) knee", degrees: 5)]),
+        ]).resolve())
+    }
 }

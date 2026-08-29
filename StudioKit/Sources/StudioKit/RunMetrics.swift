@@ -179,7 +179,21 @@ public struct RunMetrics: Equatable, Sendable {
                     ("head_impact_penalty", "reads contact impulses"),
                 ]
             case .rollerCrouch:
-                shared += [("wheel terms", "read the roller contacts")]
+                // microduck_roller_crouch_env_cfg.py's own terms. The pose
+                // terms score against a phase-interpolated crouch target
+                // (weight 6.0 / 2.0, std 0.4); the phase is in the command
+                // block, and the target pose is the config's — evaluable
+                // from a format-3 clip, not done here yet.
+                shared += [
+                    ("crouch_glide_pose", "scores the legs against the phase-interpolated crouch pose (6.0, std 0.4)"),
+                    ("crouch_glide_pose_l1", "the same, L1 (2.0)"),
+                    ("forward_speed", "against vel_ref 0.2 m/s (1.0)"),
+                    ("crouch_forward_lean", "target pitch 0.08 rad, std 0.1 (1.0)"),
+                    ("feet_flat", "reads the blade contacts (−2.0)"),
+                    ("self_collisions", "reads the self_collision sensor (−1.0)"),
+                    ("neck_action_rate_l2", "−0.5"),
+                    ("joint_torques_l2", "reads actuator torques (−0.001)"),
+                ]
             }
             return shared
         }
@@ -350,7 +364,9 @@ public struct RunMetrics: Equatable, Sendable {
             else if up > -0.5 { posture = "on its side" }
             else if root.z >= 0.100 { posture = "standing" }
             else if root.z >= 0.075 { posture = "crouched" }
-            else if root.z >= 0.052 { posture = "seated" }
+            // A robot on wheels cannot sit; its crouch trick holds ~68 mm,
+            // inside the walker's seated band.
+            else if root.z >= 0.052 { posture = clip.variant == .rollers ? "crouched" : "seated" }
             else { posture = "down" }
             spent[posture, default: 0] += 1
         }

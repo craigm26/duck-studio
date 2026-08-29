@@ -328,11 +328,20 @@ struct AutomationChatView: View {
             // The choke-point: names, units, travel — all judged in tested
             // code, exactly as a typed draft would be.
             let draft = try proposal.resolve()
+            // THE SAME JUDGE A HAND-MADE DRAFT FACES. A broken draft is a
+            // refusal, not a preview; an impossible or cautioned one previews
+            // with its problems named, so the chat matches the editor.
+            if let broken = draft.problems.first(where: { $0.severity == .broken }) {
+                entries.append(Entry(asked: asked, refusal: broken.text))
+                return
+            }
             drafts.save(draft)
+            let notes = draft.problems.map(\.text).joined(separator: " ")
             entries.append(Entry(asked: asked,
                                  motionDraftID: draft.id,
                                  motionSummary: "\(draft.name) — \(draft.keys.count) keyframes, "
-                                     + String(format: "%.1f s", draft.duration)))
+                                     + String(format: "%.1f s", draft.duration)
+                                     + (notes.isEmpty ? "" : " · " + notes)))
             // THE PREVIEW, IMMEDIATELY. The editor opens on what the words
             // became — playing, scrubable, every slider where the sentence
             // put it. Keep it, change it, or throw it away.
