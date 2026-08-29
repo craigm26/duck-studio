@@ -45,10 +45,10 @@ struct AutomationChatView: View {
     struct Entry: Identifiable {
         let id = UUID()
         let asked: String
-        var rule: Automation?
-        var motionDraftID: UUID?
-        var motionSummary: String?
-        var refusal: String?
+        var rule: Automation? = nil
+        var motionDraftID: UUID? = nil
+        var motionSummary: String? = nil
+        var refusal: String? = nil
     }
 
     private var knownIntents: Set<String> { Set(clips.keys) }
