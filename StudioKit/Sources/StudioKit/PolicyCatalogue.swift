@@ -44,10 +44,15 @@ public enum PolicyCatalogue {
         }
     }
 
-    /// The trained networks that ship with the robot. This is the ONLY place
-    /// Pollen publish them: there is no `microduck` model repository on Hugging
-    /// Face, and inventing one so the app had a second source to scan would be
-    /// a URL that always 404s dressed up as thoroughness.
+    /// The trained networks that ship with the robot.
+    ///
+    /// THIS COMMENT USED TO SAY THERE WAS NOTHING ON HUGGING FACE, and on the
+    /// day it was written that was true. It stopped being true on 2026-08-29,
+    /// when Pollen's own Rémi Fabre published `RemiFabre/microduck-flamingo-cycle`
+    /// there under the `microduck-policy` tag with a `manifest.json` in the
+    /// documented sharing format. Community policies are a second source now —
+    /// see `communityPolicies` below — and this one remains what the ROBOT
+    /// ships with, which is a different claim and still true.
     public static let officialPolicies = Source(
         id: "pollen-policies",
         name: "Pollen Robotics · microduck",
@@ -67,6 +72,62 @@ public enum PolicyCatalogue {
         branch: "main", directory: "src/mjlab_microduck/tasks")
 
     public static let sources: [Source] = [officialPolicies, trainingConfigs]
+
+    // MARK: - what the community publishes
+
+    /// One Microduck policy somebody has shared on Hugging Face.
+    public struct CommunityEntry: Equatable, Sendable, Identifiable {
+        /// `owner/name`, which is both the address and the identity.
+        public let id: String
+        public let author: String
+        public let updated: String?
+        public let downloads: Int
+        public let likes: Int
+        /// Tagged the way Pollen's sharing doc asks. Untagged repositories
+        /// still list — the tag is a courtesy, not a gate — but this says
+        /// which ones followed it.
+        public let declaresPolicyTag: Bool
+
+        public var webURL: String { "https://huggingface.co/\(id)" }
+        public var name: String {
+            let bare = id.split(separator: "/").last.map(String.init) ?? id
+            return bare.hasPrefix("microduck-") ? String(bare.dropFirst("microduck-".count)) : bare
+        }
+    }
+
+    /// Everything on Hugging Face tagged `microduck`.
+    ///
+    /// THE BROAD TAG, NOT THE NARROW ONE. `microduck-policy` is what Pollen's
+    /// sharing format asks authors to use, and on 2026-08-29 exactly one
+    /// repository used it while three carried plain `microduck`. Listing the
+    /// narrow tag would have hidden two thirds of what exists. What separates
+    /// a policy this app can drive from a folder of files is not a tag but a
+    /// readable `manifest.json`, and that is checked per entry.
+    public static func communityListing(limit: Int = 50) -> PolicySource.Request {
+        let string = "https://huggingface.co/api/models?filter=microduck&limit=\(limit)"
+        let url = URL(string: string)!
+        return PolicySource.Request(url: url, displayURL: string,
+                                    host: "huggingface.co",
+                                    suggestedName: "microduck policies")
+    }
+
+    public static func parseCommunity(_ data: Data) throws -> [CommunityEntry] {
+        guard let rows = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            throw ScanError.notJSON
+        }
+        return rows.compactMap { row in
+            guard let id = row["id"] as? String else { return nil }
+            let tags = row["tags"] as? [String] ?? []
+            return CommunityEntry(
+                id: id,
+                author: row["author"] as? String
+                    ?? String(id.split(separator: "/").first ?? ""),
+                updated: (row["lastModified"] as? String).map { String($0.prefix(10)) },
+                downloads: row["downloads"] as? Int ?? 0,
+                likes: row["likes"] as? Int ?? 0,
+                declaresPolicyTag: tags.contains("microduck-policy"))
+        }.sorted { ($0.updated ?? "") > ($1.updated ?? "") }
+    }
 
     /// WHY THERE IS NO INTENT SOURCE. Pollen publish policies and training
     /// configs; they do not publish recorded motions, because a motion is

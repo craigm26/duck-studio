@@ -80,6 +80,18 @@ struct CatalogueView: View {
             }
 
             Section {
+                NavigationLink {
+                    CommunityPoliciesView(model: model)
+                } label: {
+                    Label("Community policies", systemImage: "person.2")
+                }
+                Text("Pollen are not the only people training this robot any more. Other authors publish policies on Hugging Face, each with a manifest saying what its command block means.")
+                    .font(.caption).foregroundStyle(.secondary)
+            } header: {
+                Text("And everyone else")
+            }
+
+            Section {
                 Text(PolicyCatalogue.intentsNote)
                     .font(.caption).foregroundStyle(.secondary)
             } header: {

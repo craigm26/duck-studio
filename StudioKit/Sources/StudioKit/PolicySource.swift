@@ -80,6 +80,28 @@ public enum PolicySource {
                        host: "huggingface.co", suggestedName: lastComponent(of: name))
     }
 
+    /// The same resolve endpoint, for a repository's `manifest.json`.
+    ///
+    /// A SEPARATE DOOR ON PURPOSE. `huggingFace(repository:file:)` refuses
+    /// anything that is not a `.onnx`, and that guard is worth keeping: it is
+    /// what stops a policy fetch quietly downloading a web page. A manifest is
+    /// the one other file this app asks for, so it gets its own function
+    /// rather than a loosened check.
+    public static func huggingFaceManifest(repository: String,
+                                           revision: String = "main") throws -> Request {
+        let parts = repository.split(separator: "/", omittingEmptySubsequences: true)
+        guard parts.count == 2, parts.allSatisfy({ !$0.isEmpty }) else {
+            throw Refusal.malformedRepository(repository)
+        }
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = "huggingface.co"
+        components.path = "/\(parts[0])/\(parts[1])/resolve/\(revision)/manifest.json"
+        guard let url = components.url else { throw Refusal.notAURL(repository) }
+        return Request(url: url, displayURL: url.absoluteString,
+                       host: "huggingface.co", suggestedName: "manifest.json")
+    }
+
     /// Accept an address someone pasted, after checking it.
     public static func direct(_ text: String) throws -> Request {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
