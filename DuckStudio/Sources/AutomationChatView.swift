@@ -88,7 +88,8 @@ struct AutomationChatView: View {
                             // THE RULE'S OTHER HALF: what it would actually
                             // do. A when/then whose "then" you can watch is a
                             // rule; one you cannot is a sentence.
-                            if let clip = clips[rule.intent] {
+                            if case .play(let intentName) = rule.then,
+                               let clip = clips[intentName] {
                                 NavigationLink {
                                     IntentPlayerView(clip: clip, store: scenes,
                                                      drafts: drafts)
