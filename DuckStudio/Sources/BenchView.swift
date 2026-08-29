@@ -222,7 +222,14 @@ struct BenchView: View {
     private func recompute() {
         guard let policy else { return }
         actions = policy.infer(observation)
-        stages = DuckGait.stages(action: actions, previousTargets: nil)
+        // AT THE SCALE ROBOTD WOULD RUN THIS NETWORK. The scales are per
+        // network, not global: roulade, ground-pick and the sit/rise cycle run
+        // at 1.0 and only walking and the kicks are de-rated to 0.9 — so a
+        // bench that applied the walking scale to a roulade policy showed
+        // targets 10% short of what the robot would actually be sent.
+        let kind = DuckPolicyKind.allCases.first { $0.fileName == entry.displayName
+                                                || "BEST_" + $0.fileName == entry.displayName }
+        stages = DuckGait.stages(action: actions, previousTargets: nil, kind: kind ?? .walk)
         strip = ZScoreStrip(observation: observation, policy: policy)
         sensitivity = Sensitivity(policy: policy, observation: observation)
     }
