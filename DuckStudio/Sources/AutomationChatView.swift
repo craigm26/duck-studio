@@ -224,7 +224,11 @@ struct AutomationChatView: View {
     @available(iOS 26.0, *)
     @Generable
     struct DraftedMove {
-        @Guide(description: "Exactly one of the listed joint names. Do not invent one.")
+        // ENFORCED AT DECODE, not just described: the guided decoder can only
+        // emit a word from this list, so the model cannot invent a joint the
+        // resolver has to refuse. The list is the resolver's own.
+        @Guide(description: "One of the listed joint or pair words.",
+               .anyOf(MotionProposal.offeredWords))
         var joint: String
         @Guide(description: "Degrees away from the standing pose, inside the listed travel.")
         var degrees: Double

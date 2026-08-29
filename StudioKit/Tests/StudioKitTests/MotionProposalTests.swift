@@ -194,4 +194,15 @@ final class MotionProposalTests: XCTestCase {
         XCTAssertFalse(draft.problems.contains { $0.severity == .caution },
                        "\(draft.problems)")
     }
+
+    /// The offered list is what a constrained decoder may emit: every joint
+    /// word and every pair word, each of which resolves.
+    func testEveryOfferedWordResolves() throws {
+        for word in MotionProposal.offeredWords {
+            XCTAssertNoThrow(try MotionProposal(name: "x", keys: [
+                .init(atSeconds: 0.4, moves: [.init(joint: word, degrees: 5)]),
+            ]).resolve(), word)
+            XCTAssertTrue(MotionProposal.grounding().contains(word), "\(word) not in the grounding")
+        }
+    }
 }

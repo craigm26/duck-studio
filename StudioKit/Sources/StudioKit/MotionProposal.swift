@@ -105,6 +105,14 @@ public struct MotionProposal: Equatable, Sendable {
                       ("left_knee", 1), ("right_knee", -1)],
     ]
 
+    /// Every word the model is ALLOWED to put in a move — the joint words and
+    /// the mirrored-pair group words — for a decoder that enforces the list
+    /// at generation time. Synonyms are deliberately absent: they are what a
+    /// model is forgiven, not what it is offered.
+    public static var offeredWords: [String] {
+        jointVocabulary.map(\.word) + groups.keys.sorted()
+    }
+
     /// What a model's joint string becomes before matching: case, wire
     /// underscores and hyphens, stray newlines, and the travel annotation the
     /// grounding itself taught it ("neck (-110° to 40°)") all go.
@@ -284,7 +292,8 @@ public struct MotionProposal: Equatable, Sendable {
         Joints you may move, each with its travel in degrees from the standing pose:
         \(joints).
         Use exactly these joint names. "beak" is the mouth: 0 is closed, 30 is wide \
-        open. A keyframe's separate mouthOpen field (0 closed to 1 open) may be used \
+        open. Pair words move both sides together, mirrored: \
+        \(groups.keys.sorted().joined(separator: ", ")). A keyframe's separate mouthOpen field (0 closed to 1 open) may be used \
         instead of a beak move; leave it 0 when the beak stays shut.
 
         Use 2 to 6 keyframes over 1 to 4 seconds, angles well inside the travel, and \
