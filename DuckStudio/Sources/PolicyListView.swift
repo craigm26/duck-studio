@@ -62,6 +62,9 @@ struct PolicyListView: View {
                     .foregroundStyle(.secondary)
             }
             ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink { RemoteRunView(scenes: scenes, drafts: drafts) } label: {
+                    Label("Run on your network", systemImage: "wifi")
+                }
                 NavigationLink { CatalogueView(model: model) } label: {
                     Image(systemName: "antenna.radiowaves.left.and.right")
                 }
