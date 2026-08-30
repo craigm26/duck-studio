@@ -44,6 +44,20 @@ struct DuckStudioApp: App {
                     AutomationChatView(drafts: drafts, scenes: scenes, models: models)
                 }
                     .tabItem { Label("Draft", systemImage: "wand.and.stars") }
+                // THE FIFTH AND LAST TAB, AND THAT IS A HARD CEILING. iPhone
+                // shows five before it folds the rest into "More", where a tab
+                // is somewhere people do not go. Anything that arrives after
+                // this has to live inside one of the five.
+                //
+                // It holds what used to be three separate apps. Duck Soccer,
+                // Duckboard and Duck Diary each had a repository, a bundle
+                // identifier and pre-registered gates, and two of them have no
+                // code in them at all — a new Microduck owner should not need
+                // four apps to use one robot.
+                NavigationStack {
+                    LabView(scenes: scenes, drafts: drafts, models: models)
+                }
+                    .tabItem { Label("Lab", systemImage: "flask") }
             }
             // A policy handed over from Files, Mail, AirDrop or another app.
             // Declared in Info.plist as an IMPORTED type — ONNX is not this
