@@ -252,7 +252,7 @@ struct AutomationChatView: View {
             NavigationStack {
                 if let current = drafts.drafts.first(where: { $0.id == wrapper.id }) {
                     IntentAuthorView(
-                        draft: current, scenes: scenes, isNew: false,
+                        draft: current, scenes: scenes, models: models, isNew: false,
                         onSave: { drafts.save($0) },
                         onDiscard: { doomed in
                             previewing = nil

@@ -20,6 +20,12 @@ import StudioKit
 /// names the policy it was recorded from — is shown as a link rather than as an
 /// accident of layout.
 struct IntentListView: View {
+    /// Which model answers a plain-language tweak inside the editor. Threaded
+    /// through rather than made here, so the Draft tab and the editor share one
+    /// choice — two stores would mean picking Claude in one place and getting
+    /// Apple's model in the other.
+    @ObservedObject var models: EndpointStore
+
     @ObservedObject var store: SceneStore
     @ObservedObject var model: LibraryModel
     @ObservedObject var drafts: DraftStore
@@ -166,7 +172,8 @@ struct IntentListView: View {
                 // tapped.
                 if let current = drafts.drafts.first(where: { $0.id == wrapper.id }) {
                     IntentAuthorView(
-                        draft: current, scenes: store, isNew: wrapper.isNew,
+                        draft: current, scenes: store, models: models,
+                        isNew: wrapper.isNew,
                         onSave: { drafts.save($0) },
                         // ORDER MATTERS. This lookup has no `else`, so if the
                         // draft leaves the store while `editing` is still set,
@@ -189,7 +196,7 @@ struct IntentListView: View {
 
     private func row(_ clip: DuckIntentClip) -> some View {
         NavigationLink {
-            IntentPlayerView(clip: clip, store: store, drafts: drafts)
+            IntentPlayerView(clip: clip, store: store, drafts: drafts, models: models)
         } label: {
             VStack(alignment: .leading, spacing: 3) {
                 HStack {
@@ -258,6 +265,11 @@ struct IntentPlayerView: View {
     /// where it was recorded. Optional because the bench opens this view too.
     var store: SceneStore?
     var drafts: DraftStore?
+    /// Passed through to the editor a remix opens, so a tweak asked for there
+    /// reaches the same model as everywhere else. LAST AND OPTIONAL on purpose:
+    /// four screens present this player and none of them should have to change
+    /// to gain a feature they do not use.
+    var models: EndpointStore? = nil
 
     @State private var remixed: DraftID?
     @State private var playhead: TimeInterval = 0
@@ -413,7 +425,8 @@ struct IntentPlayerView: View {
                 if let store, let drafts,
                    let current = drafts.drafts.first(where: { $0.id == wrapper.id }) {
                     IntentAuthorView(
-                        draft: current, scenes: store, isNew: wrapper.isNew,
+                        draft: current, scenes: store, models: models,
+                        isNew: wrapper.isNew,
                         onSave: { drafts.save($0) },
                         onDiscard: { doomed in
                             remixed = nil

@@ -12,10 +12,32 @@ public enum ChatDraft {
 
     /// What kind of thing the sentence is asking for.
     public enum Kind: String, Sendable, CaseIterable {
-        case motion, rule, retrieval, training
+        case motion, rule, retrieval, training, tweak
     }
 
     // MARK: - what to tell the model
+
+    /// Instructions for editing a motion that already exists. Needs the
+    /// motion, which the other kinds do not, so it has its own door.
+    public static func tweakInstructions(for draft: IntentDraft) -> String {
+        """
+        You EDIT an existing motion for a 25 cm robot duck. You do not rewrite         it. Return only the changes asked for; everything you do not mention is         left exactly as it is.
+
+        \(MotionTweak.describe(draft))
+
+        \(MotionProposal.grounding())
+
+        Each edit names a moment in seconds. To change a joint, give "at",         "joint" and "degrees". To add a keyframe give "at" and "action":"add";         to remove one, "action":"remove"; to move one, "at" and "to". To rename         the motion, "name".
+
+        Answer with JSON and nothing else. No explanation, no markdown fence.
+        Exactly this shape:
+        {"summary":"what you changed","edits":[\
+        {"at":0.5,"joint":"neck","degrees":30},\
+        {"at":1.2,"action":"add"},\
+        {"at":0.5,"to":0.8},\
+        {"name":"A deeper bow"}]}
+        """
+    }
 
     public static func instructions(for kind: Kind, knownIntents: Set<String> = []) -> String {
         switch kind {
@@ -37,6 +59,10 @@ public enum ChatDraft {
             {"name":"Short name","predicate":"one of the listed words","value":0.0,\
             "intent":"one of the listed intents"}
             """
+        case .tweak:
+            // Editing needs the motion in front of it, which this door cannot
+            // see. `tweakInstructions(for:)` is the one to call.
+            return "Use tweakInstructions(for:) — editing a motion needs the motion."
         case .training:
             let rewards = TrainingRequest.vocabulary
                 .sorted { $0.key < $1.key }
@@ -174,6 +200,30 @@ public enum ChatDraft {
             successCriterion: (try? string(top, "successCriterion"))
                 ?? "not stated, which is itself worth fixing",
             openQuestions: (top["openQuestions"] as? [String]) ?? [])
+    }
+
+    /// Read the model's edits. Anything it returns that is not one of the
+    /// shapes above is DROPPED rather than guessed at — a half-understood edit
+    /// applied to somebody's motion is worse than one that did not happen.
+    public static func tweak(fromJSON json: String) throws -> MotionTweak {
+        let top = try object(json)
+        let raw = top["edits"] as? [[String: Any]] ?? []
+        let edits: [MotionTweak.Edit] = raw.compactMap { entry in
+            if let name = entry["name"] as? String { return .rename(name) }
+            guard let at = number(entry["at"]) else { return nil }
+            if let action = (entry["action"] as? String)?.lowercased() {
+                if action.hasPrefix("add") { return .addKey(at: at) }
+                if action.hasPrefix("remove") || action.hasPrefix("delete") {
+                    return .removeKey(at: at)
+                }
+            }
+            if let to = number(entry["to"]) { return .moveKey(at: at, to: to) }
+            if let joint = entry["joint"] as? String, let degrees = number(entry["degrees"]) {
+                return .joint(at: at, word: joint, degrees: degrees)
+            }
+            return nil
+        }
+        return MotionTweak(summary: (try? string(top, "summary")) ?? "", edits: edits)
     }
 
     // MARK: - small helpers

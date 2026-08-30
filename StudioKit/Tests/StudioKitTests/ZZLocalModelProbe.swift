@@ -56,6 +56,9 @@ final class ZZLocalModelProbe: XCTestCase {
         case .rule:
             let proposal = try ChatDraft.rule(fromJSON: json)
             print("PROBE rule \(proposal.name): \(proposal.predicate) \(proposal.value) -> \(proposal.intent)")
+        case .tweak:
+            let tweak = try ChatDraft.tweak(fromJSON: json)
+            print("PROBE tweak \(tweak.summary) — \(tweak.edits.count) edits")
         case .training:
             let request = try ChatDraft.training(fromJSON: json, prop: DuckScene.broom())
             print("PROBE request \(request.name) base=\(request.base.rawValue) "

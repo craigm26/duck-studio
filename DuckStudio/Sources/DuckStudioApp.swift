@@ -29,7 +29,7 @@ struct DuckStudioApp: App {
             TabView {
                 NavigationStack { PolicyListView(model: model, scenes: scenes, drafts: drafts) }
                     .tabItem { Label("Policies", systemImage: "cpu") }
-                NavigationStack { IntentListView(store: scenes, model: model, drafts: drafts) }
+                NavigationStack { IntentListView(models: models, store: scenes, model: model, drafts: drafts) }
                     .tabItem { Label("Intents", systemImage: "figure.walk.motion") }
                 // A THIRD KIND OF THING, and it earned its own tab the moment
                 // the stage started drawing one. A policy is a network, an

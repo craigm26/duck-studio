@@ -14,6 +14,11 @@ import StudioKit
 struct IntentAuthorView: View {
     @State var draft: IntentDraft
     @ObservedObject var scenes: SceneStore
+    /// Which model answers "make the bow deeper". Optional so a screen that
+    /// has no store still opens the editor — the Ask panel then says what is
+    /// missing rather than being absent, because a tab that vanishes is a
+    /// feature nobody finds twice.
+    var models: EndpointStore?
     /// True when this editor created the motion. A draft must be in the store
     /// before the sheet can look it up, so a new one exists before its editor
     /// appears — and Cancel has to be able to un-create it.
@@ -44,11 +49,20 @@ struct IntentAuthorView: View {
     @State private var publishing = false
 
     enum Panel: String, CaseIterable, Identifiable {
-        case joints = "Pose", timeline = "Keyframes", checks = "Checks"
+        case joints = "Pose", timeline = "Keyframes", ask = "Ask", checks = "Checks"
         var id: String { rawValue }
     }
 
     private var ordered: [IntentDraft.Key] { draft.keys.sorted { $0.time < $1.time } }
+
+    @State private var asked = ""
+    @State private var thinking = false
+    @State private var tweakNotes: [String] = []
+    @State private var tweakFailure: String?
+    /// The motion as it was before the last tweak, so a sentence that made it
+    /// worse can be taken back. ONE STEP IS ENOUGH: the alternative is an undo
+    /// stack nobody asked for, and Cancel already puts back the whole session.
+    @State private var beforeTweak: IntentDraft?
 
     /// The keyframe being edited, falling back to the first. A selection can go
     /// stale — the keyframe it named was deleted — and the right answer then is
@@ -96,6 +110,7 @@ struct IntentAuthorView: View {
                 switch panel {
                 case .joints:   joints
                 case .timeline: timeline
+                case .ask:      ask
                 case .checks:   checks
                 }
             }
@@ -205,10 +220,24 @@ struct IntentAuthorView: View {
                 }
             }
             .pickerStyle(.segmented)
+            // The picker shows what exists; this makes one. Without it the only
+            // way to add a keyframe was the Keyframes tab, which somebody
+            // working on a pose has no reason to open.
+            Button {
+                let time = nudged(playhead)
+                let key = IntentDraft.Key(time: time, pose: draft.pose(at: playhead))
+                draft.keys.append(key)
+                selectedKey = key.id
+                playhead = time
+            } label: {
+                Label(String(format: "Add a keyframe here (%.2f s)", playhead),
+                      systemImage: "plus")
+                    .font(.footnote)
+            }
         } header: {
             Text("Keyframe")
         } footer: {
-            Text("Pick a moment, then move the joints. The robot above shows the keyframe you are editing.")
+            Text("Pick a moment, then move the joints. The robot above shows the keyframe you are editing. A new one holds whatever the motion was already doing at that instant — every pose stays pinned, though the curve between them re-eases, because each span is smoothed on its own.")
         }
 
         if let key = editingKey {
@@ -243,18 +272,129 @@ struct IntentAuthorView: View {
             })
     }
 
+    // MARK: - asking for a change
+
+    /// Describe a change and watch it happen.
+    ///
+    /// IT EDITS; IT DOES NOT REDRAFT. The model is shown the motion that exists
+    /// — every keyframe, every joint that has moved — and asked for a list of
+    /// changes. Everything it does not mention is left alone, which is the only
+    /// behaviour that makes a second sentence safe to send. Asking for a whole
+    /// new motion would throw away every slider already nudged.
+    @ViewBuilder private var ask: some View {
+        Section {
+            TextField("Make the bow deeper. Hold it longer. Look left at the end.",
+                      text: $asked, axis: .vertical)
+                .lineLimit(1...4)
+            Button {
+                Task { await applyTweak() }
+            } label: {
+                HStack {
+                    Label("Change it", systemImage: "wand.and.stars")
+                    if thinking { Spacer(); ProgressView() }
+                }
+            }
+            .disabled(thinking || asked.trimmingCharacters(in: .whitespaces).isEmpty
+                      || models?.selected.kind != .openAICompatible)
+        } header: {
+            Text("Describe a change")
+        } footer: {
+            if let models, models.selected.kind == .openAICompatible {
+                Text("\(models.selected.name) is asked for a list of changes to THIS motion, not for a new one. Anything it does not mention is left exactly as it is. \(models.selected.privacyNote)")
+            } else {
+                Text("Needs a model that can return a list of edits. Choose one under Draft → Models: a small local one is plenty, because every angle it asks for is checked and clamped here afterwards.")
+            }
+        }
+
+        if let failure = tweakFailure {
+            Section {
+                Label(failure, systemImage: "exclamationmark.triangle")
+                    .font(.footnote).foregroundStyle(.orange)
+            }
+        }
+
+        if !tweakNotes.isEmpty {
+            Section {
+                ForEach(tweakNotes, id: \.self) {
+                    Label($0, systemImage: "checkmark").font(.footnote)
+                }
+                if beforeTweak != nil {
+                    Button(role: .destructive) {
+                        if let before = beforeTweak {
+                            draft = before
+                            beforeTweak = nil
+                            tweakNotes = []
+                        }
+                    } label: {
+                        Label("Put it back", systemImage: "arrow.uturn.backward")
+                    }
+                }
+            } header: {
+                Text("What changed")
+            } footer: {
+                Text("The robot above is already showing it. Scrub the timeline to watch it through.")
+            }
+        }
+    }
+
+    private func applyTweak() async {
+        guard let models else { return }
+        let sentence = asked.trimmingCharacters(in: .whitespaces)
+        thinking = true; tweakFailure = nil
+        defer { thinking = false }
+        let endpoint = models.armed(models.selected)
+        do {
+            let answer = try await DraftEngine.ask(
+                endpoint, kind: .tweak, prompt: sentence, knownIntents: [],
+                instructions: ChatDraft.tweakInstructions(for: draft))
+            let tweak = try ChatDraft.tweak(fromJSON: answer.json)
+            let (edited, notes) = try tweak.applied(to: draft)
+            beforeTweak = draft
+            draft = edited
+            tweakNotes = notes.isEmpty ? [tweak.summary] : notes
+            asked = ""
+            // Show the first thing that changed, so the preview is looking at
+            // the edit rather than wherever the playhead happened to be.
+            // The editor autosaves on every change of `draft`, so there is
+            // nothing to call here — the onChange above has already run.
+            if let first = edited.keys.map(\.time).sorted().first { playhead = first }
+            isRunning = false
+        } catch let failure as MotionTweak.Failure {
+            tweakFailure = failure.message
+        } catch let wire as ChatWire.WireError {
+            tweakFailure = wire.message
+        } catch let draftError as ChatDraft.DraftError {
+            tweakFailure = draftError.message
+        } catch {
+            tweakFailure = error.localizedDescription
+        }
+    }
+
     // MARK: - the timeline
 
     @ViewBuilder private var timeline: some View {
         Section {
             ForEach(ordered) { key in
-                HStack {
-                    Text(String(format: "%.2f s", key.time)).font(.subheadline.monospacedDigit())
-                    Spacer()
-                    Button("Show") {
-                        playhead = key.time; isRunning = false
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text(String(format: "%.2f s", key.time))
+                            .font(.subheadline.monospacedDigit())
+                        Spacer()
+                        Button("Show") {
+                            playhead = key.time; isRunning = false
+                        }
+                        .buttonStyle(.bordered).controlSize(.small)
                     }
-                    .buttonStyle(.bordered).controlSize(.small)
+                    // RETIMING WAS THE MISSING ONE. A keyframe could be added,
+                    // shown and deleted, and the only way to change WHEN it
+                    // happened was to delete it and build it again — so every
+                    // "hold it a bit longer" meant redoing the pose.
+                    Stepper(value: Binding(
+                        get: { key.time },
+                        set: { retime(key, to: $0) }),
+                            in: 0...30, step: 0.05) {
+                        Text("Move it").font(.caption).foregroundStyle(.secondary)
+                    }
                 }
             }
             .onDelete { offsets in
@@ -271,9 +411,12 @@ struct IntentAuthorView: View {
             Button {
                 // The pose currently on screen, at the moment currently on
                 // screen. Capturing the interpolated pose rather than a copy of
-                // a neighbour means adding a keyframe mid-motion changes
-                // nothing until you move something — which is the only
-                // behaviour that lets you refine a curve.
+                // a neighbour keeps every pose that was pinned pinned — but it
+                // is NOT a no-op, and this comment used to claim it was. Each
+                // span is smoothstepped separately, so splitting one in two
+                // makes the duck ease through the middle where it used to sail
+                // past: about two degrees at the half-second on a simple bow.
+                // The least surprising choice available, not a free one.
                 let time = nudged(playhead)
                 let key = IntentDraft.Key(time: time, pose: draft.pose(at: playhead))
                 draft.keys.append(key)
@@ -291,6 +434,18 @@ struct IntentAuthorView: View {
                 Label("Add half a second on the end", systemImage: "arrow.right.to.line")
             }
         }
+    }
+
+    /// Move a keyframe to another moment, refusing a collision rather than
+    /// creating one.
+    private func retime(_ key: IntentDraft.Key, to time: TimeInterval) {
+        guard let index = draft.keys.firstIndex(where: { $0.id == key.id }) else { return }
+        let wanted = max(time, 0)
+        guard !draft.keys.contains(where: { $0.id != key.id && abs($0.time - wanted) < 0.005 })
+        else { return }
+        draft.keys[index].time = wanted
+        playhead = wanted
+        isRunning = false
     }
 
     /// A time not already taken. Two keyframes at the same instant is a broken

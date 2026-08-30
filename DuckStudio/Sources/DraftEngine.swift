@@ -46,9 +46,13 @@ enum DraftEngine {
 
     /// Ask whichever endpoint is chosen, and give back raw JSON for
     /// `ChatDraft` to read.
+    /// `instructions` overrides the ones the kind would build. Editing a motion
+    /// needs the motion in the prompt, and the kind alone cannot see it.
     static func ask(_ endpoint: ModelEndpoint, kind: ChatDraft.Kind,
-                    prompt: String, knownIntents: Set<String>) async throws -> Answer {
-        let instructions = ChatDraft.instructions(for: kind, knownIntents: knownIntents)
+                    prompt: String, knownIntents: Set<String>,
+                    instructions override: String? = nil) async throws -> Answer {
+        let instructions = override
+            ?? ChatDraft.instructions(for: kind, knownIntents: knownIntents)
         switch endpoint.kind {
         case .appleOnDevice:
             return try await askApple(instructions: instructions, prompt: prompt)
