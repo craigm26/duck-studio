@@ -267,7 +267,7 @@ after a test run.
 | Extension | What | Read back? |
 |---|---|---|
 | `.duckintent` | A recorded or shared motion. Exported type, `com.duckstudio.intent`. | Yes — the app opens these. |
-| `.duckmove` | A motion you authored here. Exported type, `com.duckstudio.move`. | Not yet: `LibraryModel.open` decodes it but has no live `DraftStore` to file it into, so the document type row is deliberately absent until it does. An enabled, inert door is worse than no door. |
+| `.duckmove` | A motion you authored here. Exported type, `com.duckstudio.move`, with a document type row. | Yes — `LibraryModel.open` decodes it and files it in your drafts. The row went in with the branch that files the draft, which is the order that matters: a door has to lead somewhere before iOS is told it exists. |
 | `.duck` | A task brief for quackd (`rokbenko/quackd`, spec `duck: 0`). Imported type — this app implements the spec, it does not own it. | No, on purpose. There is no task store and no task screen, so a decode whose success showed up in no list would be a false "Added" banner. |
 | `.onnx` | The policy file itself, handed on with a message that leads with the digest. | Yes — this is the import path. |
 
