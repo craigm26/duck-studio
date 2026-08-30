@@ -12,7 +12,7 @@ public enum ChatDraft {
 
     /// What kind of thing the sentence is asking for.
     public enum Kind: String, Sendable, CaseIterable {
-        case motion, rule, retrieval
+        case motion, rule, retrieval, training
     }
 
     // MARK: - what to tell the model
@@ -36,6 +36,35 @@ public enum ChatDraft {
             Exactly this shape:
             {"name":"Short name","predicate":"one of the listed words","value":0.0,\
             "intent":"one of the listed intents"}
+            """
+        case .training:
+            let rewards = TrainingRequest.vocabulary
+                .sorted { $0.key < $1.key }
+                .map { "\($0.key) — \($0.value)" }
+                .joined(separator: "\n")
+            let bases = TrainingRequest.Base.allCases
+                .map { "\($0.rawValue) — \($0.summary); command \($0.command)" }
+                .joined(separator: "\n")
+            return """
+            You turn one sentence into a request to TRAIN a new policy for a             25 cm robot duck. You are not training anything and neither is the             app — this is a specification somebody with a GPU will run.
+
+            Fork one of these existing tasks, whichever is closest:
+            \(bases)
+
+            Choose reward functions ONLY from this list. Do not invent one; a             config naming a function that does not exist will not import:
+            \(rewards)
+
+            Give three to seven rewards. Include at least one that keeps the             duck upright, because a task rewarded only for its job learns to do             it while falling over. Episodes run 2 to 8 seconds. Weights are             usually 0.1 to 6.
+
+            Put anything you are unsure about in openQuestions rather than             guessing at it.
+
+            Answer with JSON and nothing else. No explanation, no markdown fence.
+            Exactly this shape:
+            {"name":"Short name","summary":"one sentence",\
+            "base":"one of the filenames above","episodeSeconds":4.0,\
+            "successCriterion":"how you would know it worked",\
+            "rewards":[{"function":"one from the list","weight":2.0,"reason":"why"}],\
+            "openQuestions":["what you are unsure of"]}
             """
         case .retrieval:
             return """
@@ -112,6 +141,39 @@ public enum ChatDraft {
                 Retrieval.Stick(grams: grams,
                                 thicknessMillimetres: mm,
                                 metresAway: number(top["metresAway"]) ?? 1.0))
+    }
+
+    /// A training request, as the model wrote it.
+    ///
+    /// THE MODEL PICKS FROM A LIST; THE CODE CHECKS THE LIST WAS OBEYED. A
+    /// reward it invented is refused by `TrainingRequest.refusals`, and so is a
+    /// request that asks for something the torque or the geometry forbids — a
+    /// language model is a poor judge of whether a neck can hold two kilos.
+    public static func training(fromJSON json: String,
+                                prop: DuckScene.Prop? = nil) throws -> TrainingRequest {
+        let top = try object(json)
+        let baseName = (try? string(top, "base")) ?? TrainingRequest.Base.groundPick.rawValue
+        let base = TrainingRequest.Base(rawValue: baseName)
+            ?? TrainingRequest.Base.allCases.first { baseName.contains($0.rawValue) }
+            ?? .groundPick
+        let rewards = (top["rewards"] as? [[String: Any]] ?? []).compactMap {
+            reward -> TrainingRequest.Reward? in
+            guard let function = reward["function"] as? String else { return nil }
+            return TrainingRequest.Reward(
+                function: function.trimmingCharacters(in: .whitespaces),
+                weight: number(reward["weight"]) ?? 1,
+                reason: reward["reason"] as? String ?? "no reason given")
+        }
+        return TrainingRequest(
+            name: try string(top, "name"),
+            summary: (try? string(top, "summary")) ?? "",
+            base: base,
+            episodeSeconds: number(top["episodeSeconds"]) ?? 4,
+            rewards: rewards,
+            prop: prop,
+            successCriterion: (try? string(top, "successCriterion"))
+                ?? "not stated, which is itself worth fixing",
+            openQuestions: (top["openQuestions"] as? [String]) ?? [])
     }
 
     // MARK: - small helpers

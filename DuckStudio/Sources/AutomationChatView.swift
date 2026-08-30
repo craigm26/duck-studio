@@ -55,7 +55,7 @@ struct AutomationChatView: View {
     private var motionDraftingStopped: Bool { mode == .motion && gate.isStopped }
 
     enum Mode: String, CaseIterable, Identifiable {
-        case motion = "Motion", rule = "Rule", fetch = "Fetch"
+        case motion = "Motion", rule = "Rule", fetch = "Fetch", train = "Train"
         var id: String { rawValue }
 
         var draftKind: ChatDraft.Kind {
@@ -63,6 +63,7 @@ struct AutomationChatView: View {
             case .motion: return .motion
             case .rule: return .rule
             case .fetch: return .retrieval
+            case .train: return .training
             }
         }
     }
@@ -77,6 +78,8 @@ struct AutomationChatView: View {
         /// A fetch, checked against measurements rather than asked about.
         var plan: Retrieval.Plan? = nil
         var planObject: String? = nil
+        /// A request to train a new policy — written here, run elsewhere.
+        var request: TrainingRequest? = nil
         /// What the model cost in wall-clock, when it was not Apple's. A local
         /// model on a small board is slow, and saying so beats a spinner.
         var timing: String? = nil
@@ -172,6 +175,32 @@ struct AutomationChatView: View {
                             }
                         }
 
+                        if let request = entry.request {
+                            Label(request.isTrainable
+                                  ? "Worth training — \(request.rewards.count) rewards"
+                                  : "Not worth training",
+                                  systemImage: request.isTrainable
+                                  ? "checkmark.seal" : "xmark.octagon")
+                                .font(.footnote)
+                                .foregroundStyle(request.isTrainable ? Color.green : Color.orange)
+                            Text("Forks \(request.base.rawValue)").font(.caption2)
+                                .foregroundStyle(.secondary)
+                            ForEach(request.rewards) { reward in
+                                Text("\(reward.function) × \(String(format: "%g", reward.weight)) — \(reward.reason)")
+                                    .font(.caption2).foregroundStyle(.secondary)
+                            }
+                            ForEach(request.refusals, id: \.message) { refusal in
+                                Text(refusal.message).font(.caption2)
+                                    .foregroundStyle(refusal.isFatal ? Color.orange : Color.secondary)
+                            }
+                            NavigationLink {
+                                TrainingRequestView(request: request)
+                            } label: {
+                                Label("Open the request", systemImage: "doc.text")
+                                    .font(.footnote)
+                            }
+                        }
+
                         if let timing = entry.timing {
                             Text(timing).font(.caption2).foregroundStyle(.secondary)
                         }
@@ -249,6 +278,8 @@ struct AutomationChatView: View {
             return "Describe a motion and the robot performs your words in 3D, immediately — then open the keyframes and see the sliders the sentence moved. Drafts land in your Intents tab."
         case .rule:
             return "A rule you draft here is one you can read, check and share. It does not fire: reaching a robot needs hardware that does not exist yet, so nothing here is live."
+        case .train:
+            return trainBlurb
         case .fetch:
             let mine = sceneProps
             let names = mine.isEmpty ? "" :
@@ -258,6 +289,15 @@ struct AutomationChatView: View {
                  + "jaw closes 20 mm above the floor, the lift was trained against 10–40 g, and "
                  + "the pull runs out around 5 N.\(names)"
         }
+    }
+
+    private var trainBlurb: String {
+        "Describe a NEW SKILL and this writes the request to train one: which "
+        + "existing task to fork, what to reward, how long an episode runs. "
+        + "Nothing here trains anything — a phone has no Python, no mjlab and no "
+        + "GPU. What it can do is check the request against things already known, "
+        + "so \"lift two kilos\" is refused in a second rather than after a day "
+        + "of training that was never going to converge."
     }
 
     private var availability: Availability {
@@ -369,6 +409,11 @@ struct AutomationChatView: View {
             case .rule:     await draftRule(asked)
             case .motion:   await draftMotion(asked)
             case .fetch:    draftFetchLocally(asked)
+            case .train:
+                entries.append(Entry(asked: asked, refusal:
+                    "Writing a training request needs a model that can pick reward "
+                    + "functions from a list. Point the app at one in Models — a small "
+                    + "local one is plenty, because the choice is checked here afterwards."))
             }
             return
         }
@@ -425,6 +470,12 @@ struct AutomationChatView: View {
                                          + (notes.isEmpty ? "" : ". \(notes)"),
                                      timing: timing))
                 previewing = DraftID(id: draft.id)
+            case .train:
+                // The prop the sentence names, so the request is about a real
+                // object rather than an idea of one.
+                let named = sceneProps.first { asked.lowercased().contains($0.name.lowercased()) }
+                let request = try ChatDraft.training(fromJSON: answer.json, prop: named)
+                entries.append(Entry(asked: asked, request: request, timing: timing))
             case .fetch:
                 // THE MODEL SIZES THE OBJECT; IT DOES NOT JUDGE THE ROBOT.
                 // Whether a duck can lift the thing is decided here, against

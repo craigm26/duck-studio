@@ -52,6 +52,13 @@ final class ZZLocalModelProbe: XCTestCase {
         case .rule:
             let proposal = try ChatDraft.rule(fromJSON: json)
             print("PROBE rule \(proposal.name): \(proposal.predicate) \(proposal.value) -> \(proposal.intent)")
+        case .training:
+            let request = try ChatDraft.training(fromJSON: json, prop: DuckScene.broom())
+            print("PROBE request \(request.name) base=\(request.base.rawValue) "
+                  + "rewards=\(request.rewards.map(\.function))")
+            print("PROBE trainable=\(request.isTrainable) "
+                  + "refusals=\(request.refusals.map(\.message))")
+            print("PROBE file \(request.fileName)")
         case .retrieval:
             let (object, stick) = try ChatDraft.stick(fromJSON: json)
             let plan = Retrieval.plan(for: stick)
