@@ -85,6 +85,11 @@ struct DuckStage: UIViewRepresentable {
     var variant: DuckKinematics.Variant = .legs
     /// The props to draw. Bare floor is still a place; `nil` is not.
     let environment: DuckIntentClip.Environment
+    /// Things in the scene the duck could take hold of. Separate from
+    /// `environment` because that type belongs to DuckKit and describes what a
+    /// CLIP was recorded against — a prop is a Studio idea, and a recording
+    /// made before props existed must keep decoding.
+    var props: [DuckScene.Prop] = []
     /// The whole run, so the path can be drawn and the robot seen against where
     /// it has already been. Empty for a bench, which has no time axis.
     var trail: [DuckIntentClip.Root] = []
@@ -174,7 +179,7 @@ struct DuckStage: UIViewRepresentable {
         // from under a robot that is bending down, which reads as the robot
         // drifting rather than as the trunk moving.
         c.shadow?.position = SIMD3(pose.groundPosition.x, 0.0015, pose.groundPosition.z)
-        c.rebuildProps(environment)
+        c.rebuildProps(environment, graspables: props)
         c.rebuildPath(trail)
         c.includeTrail(trail)
         c.reveal(progress: progress, ticks: trail.count)
@@ -193,6 +198,7 @@ struct DuckStage: UIViewRepresentable {
         var duck: DuckGhostEntity?
         var camera: PerspectiveCamera?
         var world: AnchorEntity?
+        var shownGraspables: [DuckScene.Prop] = []
         var props: Entity?
         var path: Entity?
         var shadow: Entity?
@@ -272,10 +278,54 @@ struct DuckStage: UIViewRepresentable {
         /// rotated the props into the clip's frame when it de-origined the run,
         /// and that field is the record of how far it turned them. Applying it
         /// again would turn the room a second time.
-        func rebuildProps(_ environment: DuckIntentClip.Environment) {
-            guard let props, shownEnvironment != environment else { return }
+        /// Graspable things, drawn where they stand. A rod lies along +x
+        /// unless it is standing, in which case it leans out of the floor —
+        /// which is the shape that makes "the handle crosses the mouth's arc"
+        /// visible rather than a number in a footer.
+        func addGraspables(_ graspables: [DuckScene.Prop], to world: Entity) {
+            for prop in graspables {
+                let colour: UIColor = prop.shape == .ball ? .systemOrange
+                    : (prop.graspHeightMillimetres == nil ? UIColor(white: 0.55, alpha: 1)
+                                                          : .systemBrown)
+                let thickness = Float(prop.thicknessMillimetres / 1000)
+                let mesh: MeshResource
+                switch prop.shape {
+                case .ball:
+                    mesh = .generateSphere(radius: Float(prop.length / 2))
+                case .block:
+                    mesh = .generateBox(size: SIMD3<Float>(repeating: Float(prop.length)))
+                case .rod:
+                    mesh = .generateBox(size: SIMD3<Float>(Float(prop.length),
+                                                           thickness, thickness))
+                }
+                let entity = ModelEntity(mesh: mesh,
+                                         materials: [UnlitMaterial(color: colour)])
+                let x = Float(prop.x), z = Float(-prop.y)
+                if prop.shape == .rod, let height = prop.graspHeightMillimetres {
+                    // Leaning: one end on the floor, the grip at the height
+                    // the person set. The angle follows from the two.
+                    let grip = Float(height / 1000)
+                    let lean = asin(min(max(grip / Float(prop.length) * 2, -1), 1))
+                    entity.orientation = simd_quatf(angle: -lean, axis: SIMD3<Float>(0, 0, 1))
+                    entity.position = SIMD3<Float>(x, Float(prop.length) / 2 * sin(lean), z)
+                } else {
+                    entity.position = SIMD3<Float>(x, max(thickness / 2, 0.005), z)
+                }
+                world.addChild(entity)
+            }
+        }
+
+        func rebuildProps(_ environment: DuckIntentClip.Environment,
+                          graspables: [DuckScene.Prop] = []) {
+            // The graspables are part of the comparison: a broom that moved,
+            // or grew heavier, has to redraw, and an environment that did not
+            // change would otherwise hold the old one on screen.
+            guard let props, shownEnvironment != environment || shownGraspables != graspables
+            else { return }
             shownEnvironment = environment
+            shownGraspables = graspables
             props.children.removeAll()
+            addGraspables(graspables, to: props)
 
             var block = PhysicallyBasedMaterial()
             block.baseColor = .init(tint: UIColor(red: 0.62, green: 0.56, blue: 0.48, alpha: 1))

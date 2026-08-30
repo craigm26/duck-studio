@@ -57,21 +57,109 @@ public struct DuckScene: Codable, Hashable, Identifiable, Sendable {
         }
     }
 
+    /// Something the duck could take hold of.
+    ///
+    /// A SCENE WAS A PLACE; NOW IT CAN HOLD THINGS. Steps and walls are what a
+    /// motion is judged AGAINST — you fall off them. A prop is what a motion is
+    /// FOR: the broom it drags, the stick it fetches. The difference matters
+    /// because a prop has a mass and a grip, and those decide whether the job
+    /// is possible at all, in a way the geometry of a wall never does.
+    ///
+    /// EVERY NUMBER HERE IS ABOUT YOUR OBJECT, NOT ABOUT THE ROBOT. The robot's
+    /// numbers — what it can lift, how hard it can pull, how high the mouth
+    /// reaches — are measured and live in `Retrieval`. These are descriptions
+    /// of a thing in your room, so they are editable and the screen says they
+    /// are estimates.
+    public struct Prop: Codable, Hashable, Identifiable, Sendable {
+        public enum Shape: String, Codable, Hashable, Sendable {
+            /// Long and thin: a broom handle, a stick, a pencil.
+            case rod
+            /// Roughly round: a ball.
+            case ball
+            /// A box.
+            case block
+        }
+
+        public var id: UUID
+        public var name: String
+        public var shape: Shape
+        /// Where it is, metres, in the scene's frame.
+        public var x: Double
+        public var y: Double
+        /// How heavy, grams.
+        public var grams: Double
+        /// Across the part the duck would bite, millimetres.
+        public var thicknessMillimetres: Double
+        /// End to end, metres. A ball's is its diameter.
+        public var length: Double
+        /// How high off the floor the graspable part sits, millimetres. Nil
+        /// means it is lying down, and the mouth has to reach the floor.
+        public var graspHeightMillimetres: Double?
+        /// How well it slides on your floor. An estimate, and the reason a
+        /// broom is draggable on boards and not on a rug.
+        public var floorFriction: Double
+
+        public init(id: UUID = UUID(), name: String, shape: Shape = .rod,
+                    x: Double, y: Double, grams: Double,
+                    thicknessMillimetres: Double, length: Double,
+                    graspHeightMillimetres: Double? = nil,
+                    floorFriction: Double = 0.4) {
+            self.id = id; self.name = name; self.shape = shape
+            self.x = x; self.y = y; self.grams = grams
+            self.thicknessMillimetres = thicknessMillimetres
+            self.length = length
+            self.graspHeightMillimetres = graspHeightMillimetres
+            self.floorFriction = floorFriction
+        }
+
+        /// How far the duck has to walk to reach it from the origin.
+        public var metresAway: Double { (x * x + y * y).squareRoot() }
+
+        /// Standing it up, or laying it down, without inventing a new prop.
+        public func standing(_ height: Double?) -> Prop {
+            var copy = self
+            copy.graspHeightMillimetres = height
+            return copy
+        }
+    }
+
     public var id: UUID
     public var name: String
     public var ground: Bool
     public var steps: [Step]
     public var walls: [Wall]
+    /// Things in the scene the duck could pick up, drag, or trip over.
+    /// Optional in the file so every scene saved before props existed still
+    /// decodes.
+    public var props: [Prop] = []
     /// Where this scene came from, in one line, for display. A scene lifted off
     /// a recording says so, because "the staircase step_up was recorded on" and
     /// "a staircase somebody drew" are different claims about the same boxes.
     public var provenance: String
 
+    /// DECODED BY HAND, FOR ONE REASON: a synthesized `init(from:)` ignores a
+    /// property's default value and demands the key. `props` arrived after
+    /// people had already saved scenes, so the synthesized version threw
+    /// `keyNotFound("props")` on every one of them — every scene in the app,
+    /// unreadable, because a field was added. A test caught it; a user would
+    /// have caught it by losing their work.
+    public init(from decoder: Decoder) throws {
+        let box = try decoder.container(keyedBy: CodingKeys.self)
+        id = try box.decode(UUID.self, forKey: .id)
+        name = try box.decode(String.self, forKey: .name)
+        ground = try box.decodeIfPresent(Bool.self, forKey: .ground) ?? true
+        steps = try box.decodeIfPresent([Step].self, forKey: .steps) ?? []
+        walls = try box.decodeIfPresent([Wall].self, forKey: .walls) ?? []
+        props = try box.decodeIfPresent([Prop].self, forKey: .props) ?? []
+        provenance = try box.decodeIfPresent(String.self, forKey: .provenance) ?? "Built here"
+    }
+
     public init(id: UUID = UUID(), name: String, ground: Bool = true,
-                steps: [Step] = [], walls: [Wall] = [],
+                steps: [Step] = [], walls: [Wall] = [], props: [Prop] = [],
                 provenance: String = "Built here") {
         self.id = id; self.name = name; self.ground = ground
-        self.steps = steps; self.walls = walls; self.provenance = provenance
+        self.steps = steps; self.walls = walls; self.props = props
+        self.provenance = provenance
     }
 
     // MARK: - conversion
@@ -157,8 +245,70 @@ public struct DuckScene: Codable, Hashable, Identifiable, Sendable {
                   provenance: "Generated: two walls \(Int((width * 1000).rounded())) mm apart")
     }
 
+    // MARK: - things worth having in a scene
+
+    /// Everyday objects, at their real sizes.
+    ///
+    /// A BROOM IS ENORMOUS NEXT TO THIS ROBOT and the catalogue does not
+    /// pretend otherwise: 1.2 m of handle against a duck 0.25 m tall. That is
+    /// the point — the numbers decide what happens, and a toy-sized broom
+    /// invented to make the demo work would be the app answering its own
+    /// question. Masses and thicknesses are typical household ones, editable
+    /// like everything else about your object.
+    public static func broom(x: Double = 0.9, y: Double = 0.0,
+                             standing: Bool = true) -> Prop {
+        Prop(name: "Broom", shape: .rod, x: x, y: y,
+             grams: 600, thicknessMillimetres: 25, length: 1.2,
+             // Leaning on a wall, the handle crosses the mouth's arc about
+             // 150 mm up; laid down it is on the floor like anything else.
+             graspHeightMillimetres: standing ? 150 : nil,
+             floorFriction: 0.4)
+    }
+
+    public static func dowel(x: Double = 0.6, y: Double = 0.2) -> Prop {
+        Prop(name: "Dowel", shape: .rod, x: x, y: y,
+             grams: 25, thicknessMillimetres: 20, length: 0.3,
+             floorFriction: 0.4)
+    }
+
+    public static func pencil(x: Double = 0.5, y: Double = -0.25) -> Prop {
+        Prop(name: "Pencil", shape: .rod, x: x, y: y,
+             grams: 6, thicknessMillimetres: 7, length: 0.18,
+             floorFriction: 0.35)
+    }
+
+    /// Pollen's own ball, as the physics scene has it: 50 mm radius, 30 g.
+    public static func ball(x: Double = 0.55, y: Double = 0.10) -> Prop {
+        Prop(name: "Ball", shape: .ball, x: x, y: y,
+             grams: 30, thicknessMillimetres: 100, length: 0.1,
+             floorFriction: 0.4)
+    }
+
+    /// The blocks already in the physics scene, at their declared masses.
+    public static func block(x: Double = 0.30, y: Double = 0.40) -> Prop {
+        Prop(name: "Block", shape: .block, x: x, y: y,
+             grams: 30, thicknessMillimetres: 40, length: 0.04,
+             floorFriction: 0.9)
+    }
+
+    public static let graspables: [(name: String, make: () -> Prop)] = [
+        ("Broom, standing", { DuckScene.broom() }),
+        ("Broom, laid down", { DuckScene.broom(standing: false) }),
+        ("Dowel", { DuckScene.dowel() }),
+        ("Pencil", { DuckScene.pencil() }),
+        ("Ball", { DuckScene.ball() }),
+        ("Block", { DuckScene.block() }),
+    ]
+
+    /// A floor with a broom on it — the scene the fetch and drag work is for.
+    public static func broomCupboard() -> DuckScene {
+        DuckScene(name: "Broom in the corner",
+                  props: [broom(), dowel(), pencil()],
+                  provenance: "A floor with things on it to pick up")
+    }
+
     public static let starters: [DuckScene] = [
-        bareFloor(), staircase(), wall(), corridor(),
+        bareFloor(), broomCupboard(), staircase(), wall(), corridor(),
     ]
 
     // MARK: - what is wrong with it
@@ -243,5 +393,39 @@ public struct DuckScene: Codable, Hashable, Identifiable, Sendable {
         if !walls.isEmpty { parts.append("\(walls.count) wall\(walls.count == 1 ? "" : "s")") }
         if parts.isEmpty { parts.append(ground ? "Bare floor" : "No floor") }
         return parts.joined(separator: " · ")
+    }
+}
+
+extension DuckScene.Prop {
+
+    /// This prop as something `Retrieval` can plan against.
+    ///
+    /// THE POINT OF PUTTING OBJECTS IN A SCENE. Before this, asking the app
+    /// whether the duck could fetch something meant describing the thing in a
+    /// sentence and letting it guess — a pencil "about 6 g". A prop in a scene
+    /// has been given its numbers once, by you, and every plan made against it
+    /// uses those instead of an estimate.
+    public var stick: Retrieval.Stick {
+        Retrieval.Stick(grams: grams,
+                        thicknessMillimetres: thicknessMillimetres,
+                        metresAway: metresAway,
+                        graspHeightMillimetres: graspHeightMillimetres,
+                        floorFriction: floorFriction)
+    }
+
+    /// What would happen if the duck were asked to fetch it.
+    public var plan: Retrieval.Plan { Retrieval.plan(for: stick) }
+}
+
+extension DuckScene {
+
+    /// The prop a sentence is about, matched by name.
+    ///
+    /// Matching on the name is deliberate: somebody who wrote "Broom" on a
+    /// prop and then typed "drag the broom" means THAT broom, with the mass
+    /// and the grip height they gave it, not the catalogue's guess.
+    public func prop(named text: String) -> Prop? {
+        let lowered = text.lowercased()
+        return props.first { lowered.contains($0.name.lowercased()) }
     }
 }

@@ -46,6 +46,13 @@ struct RemoteRunView: View {
                     LabeledContent("Cores", value: "\(health.cores)")
                     LabeledContent("Rate", value: "\(Int(health.tickHz)) Hz")
                     Text(health.plant).font(.caption).foregroundStyle(.secondary)
+                    if !health.graspables.isEmpty {
+                        Text("Things in that world: "
+                             + health.graspables.map {
+                                 String(format: "%@ (%.0f g)", $0.name, $0.grams)
+                               }.joined(separator: ", "))
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
                     if !health.trains, let why = health.trainsWhy {
                         Label(why, systemImage: "info.circle")
                             .font(.caption2).foregroundStyle(.secondary)

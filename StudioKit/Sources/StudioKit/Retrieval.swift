@@ -693,3 +693,47 @@ extension Retrieval {
             + "numbers do not answer it."
     }
 }
+
+// MARK: - reading a sentence against the things actually in a scene
+
+extension Retrieval {
+
+    /// The plan for a sentence, preferring a prop somebody has already
+    /// described over anything guessed.
+    ///
+    /// A NAMED PROP BEATS THE CATALOGUE, ALWAYS. If you built a broom in a
+    /// scene and gave it 800 g because yours is a heavy one, "drag the broom"
+    /// has to mean 800 g — not the catalogue's 600. The estimates exist for
+    /// the case where nobody has described anything yet, and they should lose
+    /// the moment somebody has.
+    public static func plan(for sentence: String,
+                            props: [DuckScene.Prop]) -> (reading: Reading, plan: Plan) {
+        var reading = read(sentence)
+        let lowered = sentence.lowercased()
+        guard let prop = props.first(where: { lowered.contains($0.name.lowercased()) }) else {
+            return (reading, plan(for: reading.stick))
+        }
+        // Laying it down or standing it up is something the sentence can say
+        // about a prop without editing the prop.
+        var stick = prop.stick
+        if ["laid down", "lying", "on the floor", "flat"].contains(where: { lowered.contains($0) }) {
+            stick = Stick(grams: stick.grams,
+                          thicknessMillimetres: stick.thicknessMillimetres,
+                          metresAway: stick.metresAway,
+                          graspHeightMillimetres: nil,
+                          floorFriction: stick.floorFriction)
+        }
+        reading = Reading(
+            stick: stick,
+            wantsDrag: reading.wantsDrag,
+            object: prop.name,
+            understood: [String(format: "the %@ in your scene — %.0f g, %.0f mm across, %.2f m away",
+                                prop.name.lowercased(), stick.grams,
+                                stick.thicknessMillimetres, stick.metresAway)]
+                + (stick.graspHeightMillimetres.map {
+                    [String(format: "gripped %.0f mm up", $0)] } ?? ["lying on the floor"]),
+            // Nothing was guessed: every number came from the prop.
+            assumed: [])
+        return (reading, plan(for: stick))
+    }
+}

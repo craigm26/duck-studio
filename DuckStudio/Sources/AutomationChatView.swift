@@ -250,7 +250,13 @@ struct AutomationChatView: View {
         case .rule:
             return "A rule you draft here is one you can read, check and share. It does not fire: reaching a robot needs hardware that does not exist yet, so nothing here is live."
         case .fetch:
-            return "Say what you want fetched. The model only sizes the object; whether the duck can pick it up is decided here, against measurements — the jaw closes 20 mm above the floor and the lift was trained against 10–40 g."
+            let mine = sceneProps
+            let names = mine.isEmpty ? "" :
+                " Things in your scenes: " + mine.map(\.name).joined(separator: ", ") + "."
+            return "Say what you want fetched or dragged. The model only sizes the object; "
+                 + "whether the duck can manage it is decided here, against measurements — the "
+                 + "jaw closes 20 mm above the floor, the lift was trained against 10–40 g, and "
+                 + "the pull runs out around 5 N.\(names)"
         }
     }
 
@@ -424,10 +430,21 @@ struct AutomationChatView: View {
                 // Whether a duck can lift the thing is decided here, against
                 // measurements, offline. Letting a language model answer
                 // "can it?" would hand it the one part that is actually known.
-                let (object, stick) = try ChatDraft.stick(fromJSON: answer.json)
-                entries.append(Entry(asked: asked,
-                                     plan: Retrieval.plan(for: stick),
-                                     planObject: object, timing: timing))
+                // A PROP YOU BUILT BEATS ANYTHING THE MODEL ESTIMATED. If the
+                // sentence names something in one of your scenes, that object's
+                // own numbers win — the model's job was to read the sentence,
+                // not to guess at a broom you have already described.
+                if let mine = Retrieval.plan(for: asked, props: sceneProps).reading.object,
+                   sceneProps.contains(where: { $0.name.lowercased() == mine.lowercased() }) {
+                    let (reading, plan) = Retrieval.plan(for: asked, props: sceneProps)
+                    entries.append(Entry(asked: asked, plan: plan,
+                                         planObject: reading.object, timing: timing))
+                } else {
+                    let (object, stick) = try ChatDraft.stick(fromJSON: answer.json)
+                    entries.append(Entry(asked: asked,
+                                         plan: Retrieval.plan(for: stick),
+                                         planObject: object, timing: timing))
+                }
             }
         } catch let wire as ChatWire.WireError {
             entries.append(Entry(asked: asked, refusal: wire.message))
@@ -453,13 +470,16 @@ struct AutomationChatView: View {
     /// Apple Intelligence and no server configured this is still the whole
     /// feature. A model only makes the sentence freer.
     private func draftFetchLocally(_ asked: String) {
-        let reading = Retrieval.read(asked)
+        let (reading, plan) = Retrieval.plan(for: asked, props: sceneProps)
         entries.append(Entry(asked: asked,
-                             plan: Retrieval.plan(for: reading.stick),
+                             plan: plan,
                              planObject: reading.object,
                              timing: reading.assumed.isEmpty ? nil
                                  : "Guessed: " + reading.assumed.joined(separator: "; ")))
     }
+
+    /// Everything in every scene the duck could take hold of.
+    private var sceneProps: [DuckScene.Prop] { scenes.scenes.flatMap(\.props) }
 
     #if canImport(FoundationModels)
     @available(iOS 26.0, *)

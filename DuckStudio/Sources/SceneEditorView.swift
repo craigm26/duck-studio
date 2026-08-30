@@ -95,7 +95,7 @@ struct SceneEditorView: View {
     var body: some View {
         VStack(spacing: 0) {
             ZStack(alignment: .bottomLeading) {
-                DuckStage(pose: preview, environment: scene.environment, orbit: $orbit)
+                DuckStage(pose: preview, environment: scene.environment, props: scene.props, orbit: $orbit)
                 StageLegend(pose: preview, environment: scene.environment, orbit: $orbit)
             }
             .frame(maxHeight: 300)
@@ -148,6 +148,24 @@ struct SceneEditorView: View {
                     } label: { Label("Add a wall", systemImage: "plus") }
                 } header: {
                     Text("Walls")
+                }
+
+                Section {
+                    ForEach($scene.props) { $prop in
+                        PropEditor(prop: $prop)
+                    }
+                    .onDelete { scene.props.remove(atOffsets: $0) }
+                    Menu {
+                        ForEach(DuckScene.graspables, id: \.name) { entry in
+                            Button(entry.name) { scene.props.append(entry.make()) }
+                        }
+                    } label: {
+                        Label("Add something to pick up", systemImage: "plus")
+                    }
+                } header: {
+                    Text("Things in it")
+                } footer: {
+                    Text("Steps and walls are what a motion is judged AGAINST — you fall off them. A prop is what a motion is FOR. Every number here describes YOUR object, not the robot: what it weighs and how thick it is decide whether the job is possible, and the robot's own limits are measured and live elsewhere.")
                 }
 
                 Section {
@@ -260,6 +278,81 @@ private struct WallEditor: View {
                     .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
             }
             Slider(value: $wall.height, in: 0.05...1.0)
+        }
+    }
+}
+
+/// One prop, and what the duck would make of it.
+///
+/// THE VERDICT IS THE POINT. Anyone can type 600 grams; what they cannot do is
+/// know that 600 g is past the lift but inside the pull, or that a 7 mm pencil
+/// passes under a jaw that shuts 20 mm above the floor. The row says so as the
+/// numbers change, which is how somebody learns the robot without reading a
+/// datasheet.
+private struct PropEditor: View {
+    @Binding var prop: DuckScene.Prop
+
+    var body: some View {
+        DisclosureGroup {
+            HStack {
+                Text("Weight")
+                Spacer()
+                Text(String(format: "%.0f g", prop.grams)).foregroundStyle(.secondary)
+            }
+            Slider(value: $prop.grams, in: 1...2000, step: 1)
+            HStack {
+                Text("Thickness where it bites")
+                Spacer()
+                Text(String(format: "%.0f mm", prop.thicknessMillimetres))
+                    .foregroundStyle(.secondary)
+            }
+            Slider(value: $prop.thicknessMillimetres, in: 2...120, step: 1)
+            Toggle("Standing up", isOn: Binding(
+                get: { prop.graspHeightMillimetres != nil },
+                set: { prop.graspHeightMillimetres = $0 ? 150 : nil }))
+            if let height = prop.graspHeightMillimetres {
+                HStack {
+                    Text("Gripped")
+                    Spacer()
+                    Text(String(format: "%.0f mm up", height)).foregroundStyle(.secondary)
+                }
+                Slider(value: Binding(get: { height },
+                                      set: { prop.graspHeightMillimetres = $0 }),
+                       in: Retrieval.Reach.lowestDuringPick * 1000
+                           ... Retrieval.Reach.highestDuringPick * 1000, step: 5)
+                Text(Retrieval.Reach.graspTime(forHeight: height / 1000)
+                        .map { String(format: "The mouth passes that height %.2f s into a ground pick — that is when the jaw shuts.", $0) }
+                     ?? "Outside the arc the mouth sweeps.")
+                    .font(.caption2).foregroundStyle(.secondary)
+            }
+            HStack {
+                Text("How well it slides")
+                Spacer()
+                Text(String(format: "%.2f", prop.floorFriction)).foregroundStyle(.secondary)
+            }
+            Slider(value: $prop.floorFriction, in: 0.1...1.2, step: 0.05)
+            verdict
+        } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(prop.name)
+                Text(String(format: "%.0f g · %.0f mm · %.2f m away",
+                            prop.grams, prop.thicknessMillimetres, prop.metresAway))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var verdict: some View {
+        let plan = prop.plan
+        return VStack(alignment: .leading, spacing: 4) {
+            Label(plan.isPossible ? "It could do this" : "It could not do this",
+                  systemImage: plan.isPossible ? "checkmark.seal" : "xmark.octagon")
+                .font(.footnote)
+                .foregroundStyle(plan.isPossible ? Color.green : Color.orange)
+            ForEach(plan.refusals, id: \.message) { refusal in
+                Text(refusal.message).font(.caption2)
+                    .foregroundStyle(refusal.isFatal ? Color.orange : Color.secondary)
+            }
         }
     }
 }

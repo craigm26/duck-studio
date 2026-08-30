@@ -189,6 +189,22 @@ public enum DuckBench {
         public let policies: [String]
         public let trains: Bool
         public let trainsWhy: String?
+        /// What is in that world the duck could take hold of, with the mass
+        /// the MODEL gives it — not the mass somebody typed into a scene.
+        ///
+        /// THIS IS HOW A PROP STOPS BEING A CLAIM. A broom in a Studio scene is
+        /// a description; a broom in the bench's world is a body with a mass
+        /// and a freejoint that physics will move or refuse to. When both
+        /// exist, the numbers can be compared — and if they disagree, the
+        /// bench's is the one that decides what happens.
+        public var graspables: [Graspable] = []
+
+        public struct Graspable: Equatable, Sendable, Identifiable {
+            public let name: String
+            public let kilograms: Double
+            public var id: String { name }
+            public var grams: Double { kilograms * 1000 }
+        }
     }
 
     public struct Success: Equatable, Sendable {
@@ -229,7 +245,12 @@ public enum DuckBench {
                       cores: root["cores"] as? Int ?? 0,
                       policies: root["policies"] as? [String] ?? [],
                       trains: root["trains"] as? Bool ?? false,
-                      trainsWhy: root["trainsWhy"] as? String)
+                      trainsWhy: root["trainsWhy"] as? String,
+                      graspables: (root["graspables"] as? [[String: Any]] ?? []).compactMap {
+                          guard let name = $0["name"] as? String,
+                                let mass = $0["mass"] as? Double else { return nil }
+                          return Health.Graspable(name: name, kilograms: mass)
+                      })
     }
 
     /// A recording, as the clip type every screen here already draws.
