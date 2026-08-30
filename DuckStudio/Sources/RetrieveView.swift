@@ -19,8 +19,15 @@ import StudioKit
 /// who watched a demo work.
 struct RetrieveView: View {
     @State private var sentence = "fetch the stick 1 m away"
-    @State private var sharing = false
-    @State private var file: URL?
+    /// PRESENTED ON THE FILE ITSELF, NOT ON A FLAG BESIDE IT. The pair this
+    /// replaced — a `Bool` and a `URL?` — let `.sheet` reach a state where it
+    /// was open and the file was not there, which renders as a blank card with
+    /// nothing on it and no way out. `ExportedFile` makes that state
+    /// unrepresentable.
+    @State private var outgoing: ExportedFile?
+    /// Why the file could not be written. This screen refused things for a
+    /// living and then had nothing to say when it was the one that failed.
+    @State private var failure: String?
 
     private var reading: Retrieval.Reading { Retrieval.read(sentence) }
     private var plan: Retrieval.Plan { Retrieval.plan(for: reading.stick) }
@@ -130,11 +137,17 @@ struct RetrieveView: View {
         }
         .navigationTitle("Fetch something")
         .navigationBarTitleDisplayMode(.inline)
-        // The house pattern: a flag and a file, rather than a retroactive
-        // Identifiable on URL that every other module would then inherit.
-        .sheet(isPresented: $sharing) {
-            if let file { ShareSheet(items: [file]) }
+        // The house pattern, which the three export screens that always worked
+        // were already using: present on the value, and put the sheet down
+        // again when UIKit says the share is over.
+        .sheet(item: $outgoing) { out in
+            ShareSheet(items: [out.url]) { outgoing = nil }
         }
+        .alert("That did not save",
+               isPresented: .constant(failure != nil),
+               presenting: failure) { _ in
+            Button("OK") { failure = nil }
+        } message: { Text($0) }
     }
 
     private func measurement(_ name: String, _ value: String) -> some View {
@@ -145,10 +158,22 @@ struct RetrieveView: View {
         }
     }
 
+    /// EVERY EXIT SAYS SOMETHING. The first version had two that did not: a
+    /// `try?` that dropped a `DuckTask.ReadError` carrying a written-out
+    /// message, and a `nil` from the writer that left the button looking
+    /// pressed and inert. Both are the failure this app exists to explain.
     private func save() {
         let title = reading.object.map { "Fetch the \($0)" } ?? "Fetch it"
-        guard let task = try? plan.duckTask(named: title) else { return }
-        file = ExportFile.write(task.encode(), named: "\(task.name).duck")
-        sharing = file != nil
+        do {
+            let task = try plan.duckTask(named: title)
+            outgoing = ExportedFile(url: try ExportFile.write(task.encode(),
+                                                              named: "\(task.name).duck"))
+        } catch let error as DuckTask.ReadError {
+            failure = error.message
+        } catch let error as ExportFile.Failure {
+            failure = error.message
+        } catch {
+            failure = "\(error)"
+        }
     }
 }

@@ -145,12 +145,15 @@ struct PolicyDetailView: View {
             failure = "The policy file could not be re-read."
             return
         }
-        guard let url = ExportFile.write(data, named: entry.displayName) else {
-            failure = "The file could not be written."
-            return
+        do {
+            let url = try ExportFile.write(data, named: entry.displayName)
+            outgoing = Outgoing(url: url,
+                                message: CommunityShare.message(forPolicy: entry, standing: standing))
+        } catch let error as ExportFile.Failure {
+            failure = error.message
+        } catch {
+            failure = "\(error)"
         }
-        outgoing = Outgoing(url: url,
-                            message: CommunityShare.message(forPolicy: entry, standing: standing))
     }
 
     private var content: some View {

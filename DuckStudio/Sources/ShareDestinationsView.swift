@@ -71,8 +71,11 @@ struct ShareDestinationsView: View {
         .toolbar {
             ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
         }
+        // `file` is a `let` handed in by the caller, so it cannot become nil
+        // under the sheet. What it still needs is the completion handler: a
+        // share that ends leaves this sheet up and empty without it.
         .sheet(isPresented: $sharing) {
-            if let file { ShareSheet(items: [file, message]) }
+            if let file { ShareSheet(items: [file, message]) { sharing = false } }
         }
     }
 }

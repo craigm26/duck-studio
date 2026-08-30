@@ -540,12 +540,11 @@ struct IntentAuthorView: View {
     private func share() {
         do {
             let data = try draft.exported()
-            guard let url = ExportFile.write(data, named: draft.suggestedFilename) else {
-                failure = "The file could not be written."
-                return
-            }
+            let url = try ExportFile.write(data, named: draft.suggestedFilename)
             outgoing = Outgoing(url: url, message: CommunityShare.message(forDraft: draft))
         } catch let error as DuckMove.Invalid {
+            failure = error.message
+        } catch let error as ExportFile.Failure {
             failure = error.message
         } catch {
             failure = "\(error)"

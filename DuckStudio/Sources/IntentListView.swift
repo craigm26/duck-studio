@@ -318,15 +318,14 @@ struct IntentPlayerView: View {
         let export = IntentExport(clip: clip, policyFingerprint: nil)
         do {
             let data = try export.encoded()
-            guard let url = ExportFile.write(data, named: export.suggestedFilename) else {
-                shareFailure = "The file could not be written."
-                return
-            }
+            let url = try ExportFile.write(data, named: export.suggestedFilename)
             outgoing = Outgoing(
                 url: url,
                 message: CommunityShare.message(
                     forIntent: export,
                     outcome: (try? DuckIntentSuccess.bundled())?[clip.name]))
+        } catch let error as ExportFile.Failure {
+            shareFailure = error.message
         } catch {
             shareFailure = "\(error)"
         }

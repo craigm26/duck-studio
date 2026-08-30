@@ -12,8 +12,10 @@ import StudioKit
 /// training that was never going to converge.
 struct TrainingRequestView: View {
     let request: TrainingRequest
-    @State private var sharing = false
-    @State private var file: URL?
+    /// The file itself drives the sheet — see `ExportedFile`. A flag beside an
+    /// optional is what leaves a share sheet open and empty.
+    @State private var outgoing: ExportedFile?
+    @State private var failure: String?
     @State private var showingConfig = false
 
     var body: some View {
@@ -132,13 +134,23 @@ struct TrainingRequestView: View {
                 .navigationBarTitleDisplayMode(.inline)
             }
         }
-        .sheet(isPresented: $sharing) {
-            if let file { ShareSheet(items: [file]) }
+        .sheet(item: $outgoing) { out in
+            ShareSheet(items: [out.url]) { outgoing = nil }
         }
+        .alert("That did not save",
+               isPresented: .constant(failure != nil),
+               presenting: failure) { _ in
+            Button("OK") { failure = nil }
+        } message: { Text($0) }
     }
 
     private func hand(over text: String, named name: String) {
-        file = ExportFile.write(Data(text.utf8), named: name)
-        sharing = file != nil
+        do {
+            outgoing = ExportedFile(url: try ExportFile.write(Data(text.utf8), named: name))
+        } catch let error as ExportFile.Failure {
+            failure = error.message
+        } catch {
+            failure = "\(error)"
+        }
     }
 }
