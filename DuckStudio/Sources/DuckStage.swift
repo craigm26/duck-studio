@@ -512,6 +512,23 @@ struct DuckStage: UIViewRepresentable {
 struct StageLegend: View {
     let pose: StagePose
     let environment: DuckIntentClip.Environment
+    /// The things standing in the scene. Separate from `environment` for the
+    /// same reason `DuckStage` keeps them separate, and defaulted for the same
+    /// reason: a recorded clip has no Studio props. Leaving them out of the
+    /// caption is what made a floor holding a broom, a dowel and a pencil read
+    /// "bare floor".
+    var props: [DuckScene.Prop] = []
+    /// TRUE WHEN THE ROOT WAS PUT THERE RATHER THAN RECORDED. An authored draft
+    /// carries joints and no root, so its preview stands the robot at the
+    /// standing height and moves only the joints — deliberately, and the draft
+    /// says so. Two of this legend's readings presume a recorded root and are
+    /// false without one: x/y/z are then constants beside a camera-follow
+    /// button with nothing to follow, and the clearance line's "nothing should
+    /// be floating" is an accusation against the RENDERER, fired at a number
+    /// the pinning guarantees. Measured on the real meshes: a slider-legal
+    /// squat reads +39 mm and turns that line orange while the Checks tab says
+    /// nothing is wrong.
+    var rootIsPinned = false
     @Binding var orbit: OrbitState
 
     /// Loaded once for the process. Choosing the sample points sorts through
@@ -519,8 +536,11 @@ struct StageLegend: View {
     private static let clearance = try? DuckGroundClearance.bundled()
 
     private var place: String {
-        String(format: "x %+.0f · y %+.0f · z %.0f mm",
-               pose.root.x * 1000, pose.root.y * 1000, pose.root.z * 1000)
+        guard !rootIsPinned else {
+            return StageCaption.pinnedTrunk(heightMetres: pose.root.z)
+        }
+        return String(format: "x %+.0f · y %+.0f · z %.0f mm",
+                      pose.root.x * 1000, pose.root.y * 1000, pose.root.z * 1000)
     }
 
     /// WHERE THE FEET ARE, which is the number a viewer actually wants and the
@@ -529,39 +549,45 @@ struct StageLegend: View {
     private var ground: (text: String, wrong: Bool)? {
         guard let probe = Self.clearance else { return nil }
         let metres = probe.clearance(jointAngles: pose.jointAngles, root: pose.root)
+        // THE NUMBER IS TRUE EITHER WAY; ONLY THE VERDICT DEPENDS ON THE ROOT.
+        // Keeping the reading on a pinned stage is deliberate — it is the guard
+        // that would have caught the build where every clip floated at 116 mm —
+        // but nothing there is wrong, so nothing there is orange.
+        guard !rootIsPinned else {
+            return (StageCaption.pinnedGround(clearanceMetres: metres), false)
+        }
         return (DuckGroundClearance.summary(clearanceMetres: metres),
                 DuckGroundClearance.isWrong(clearanceMetres: metres))
     }
 
     private var context: String {
-        var parts = ["100 mm grid"]
-        if !environment.steps.isEmpty {
-            let tallest = environment.steps.map(\.top).max() ?? 0
-            parts.append("\(environment.steps.count) step\(environment.steps.count == 1 ? "" : "s") to \(Int((tallest * 1000).rounded())) mm")
-        }
-        if !environment.walls.isEmpty {
-            parts.append("\(environment.walls.count) wall\(environment.walls.count == 1 ? "" : "s")")
-        }
-        if environment.steps.isEmpty && environment.walls.isEmpty {
-            parts.append("bare floor")
-        }
-        return parts.joined(separator: " · ")
+        StageCaption.context(stepCount: environment.steps.count,
+                             tallestStepMetres: environment.steps.map(\.top).max() ?? 0,
+                             wallCount: environment.walls.count,
+                             propCount: props.count)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 8) {
                 Text(place).font(.caption2.monospacedDigit().weight(.medium))
-                Button {
-                    orbit.follows.toggle()
-                } label: {
-                    Label(orbit.follows ? "Following" : "Fixed",
-                          systemImage: orbit.follows ? "location.fill" : "mappin.and.ellipse")
-                        .font(.caption2)
+                // NO TOGGLE WHERE THERE IS NOTHING TO FOLLOW. `DuckStage`
+                // follows `pose.position`, which is the root; against a pinned
+                // one the camera would ride a point that never moves, so the
+                // control is not disabled and inert here — it is absent, and
+                // the line beside it says why the root cannot move.
+                if !rootIsPinned {
+                    Button {
+                        orbit.follows.toggle()
+                    } label: {
+                        Label(orbit.follows ? "Following" : "Fixed",
+                              systemImage: orbit.follows ? "location.fill" : "mappin.and.ellipse")
+                            .font(.caption2)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
+                    .tint(.white)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.mini)
-                .tint(.white)
             }
             Text(context).font(.caption2).foregroundStyle(.white.opacity(0.65))
             if let ground {

@@ -12,6 +12,11 @@ import StudioKit
 struct RemoteRunView: View {
     @ObservedObject var scenes: SceneStore
     @ObservedObject var drafts: DraftStore
+    /// For the player that shows what the bench just recorded: remixing that
+    /// clip opens the editor, and the editor's Ask panel needs the app's one
+    /// model store or it arrives disabled with advice that cannot be followed
+    /// from here.
+    @ObservedObject var models: EndpointStore
 
     @AppStorage("duckbench.address") private var addressText = ""
     @State private var token = ""
@@ -118,7 +123,8 @@ struct RemoteRunView: View {
             if let clip {
                 Section {
                     NavigationLink {
-                        IntentPlayerView(clip: clip, store: scenes, drafts: drafts)
+                        IntentPlayerView(clip: clip, store: scenes, drafts: drafts,
+                                         models: models)
                     } label: {
                         Label("Watch what it did — \(clip.frames.count) ticks",
                               systemImage: "play.circle")

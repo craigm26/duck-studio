@@ -77,9 +77,48 @@ public enum DuckValue: Equatable, Sendable {
 /// here. A quoted key in a FLOW mapping is fine, because that branch does unquote, and the
 /// writer leans on exactly that: the only author-chosen names in the format are
 /// `learned_verbs[].metadata`'s, and one of those that a block line cannot carry — it starts
-/// with a space or a `#`, or holds a comma — sends its whole mapping into flow form, quoted,
-/// instead of being mangled or turned away. A name with no form at all, which in practice
-/// means one holding a colon, is refused by `validate()`; see `DuckYAML.nameFits`.
+/// with a space or a `#`, or holds a colon or a comma — sends its whole mapping into flow
+/// form, quoted, instead of being mangled or turned away.
+///
+/// ## What `validate()` still refuses, measured rather than described
+///
+/// A name with no form at all is refused; `DuckYAML.nameFits` decides which those are by
+/// writing the name and reading it back rather than by reasoning about the parser, and
+/// `testTheTrueSetOfMetadataNamesThisWriterRefuses` pins the answer as a table. Two traits
+/// have names, a third is a residue the fallback sentence covers, and NONE OF THE THREE CAN
+/// COME OUT OF A FILE:
+///
+/// - a name holding a CARRIAGE RETURN, anywhere in the metadata. `decode` normalises `\r`
+///   before the parser runs and `unquote` does not decode a `\r` escape, so no `.duck` this
+///   reader accepts can hand one back — the refusal only ever meets a name built in code.
+/// - a name whose `{ } [ ]` brackets DO NOT CLOSE EACH OTHER, and only where it sits inside
+///   a `[ ]` or another `{ }`. `a}b` is written and read back one level up; nested, the
+///   enclosing `{` is already open by the time `splitTopLevel` reaches the name, so the
+///   name's own brackets have to balance. A hand-written file carrying one — `outer:
+///   [{"a}b": 1}]` — is not refused by this check either: `splitTopLevel` cannot read it at
+///   all and says so on the line, before there is a name to refuse.
+/// - and a RESIDUE with no name of its own, again only when nested: a name whose brackets
+///   balance by COUNT but whose running depth returns to zero at a comma, so
+///   `splitTopLevel` cuts the entry in half at that comma. `},{` and `}a,{` are the shape.
+///   These get the fallback sentence — "this writer has no form that reads it back
+///   unchanged" — which is the honest answer for a family too small and too strange to name
+///   a character for. They are unreachable from a file for the same reason the bracket
+///   family is: `splitTopLevel` refuses the line before a name exists to refuse.
+///
+/// THE THIRD ONE IS WHY THIS PARAGRAPH SAYS "residue" AND NOT "exactly". A previous version
+/// of this comment said there were exactly two, and a sweep of every name up to three
+/// characters over the punctuation this parser cares about found nineteen in a third bucket.
+/// The code was right and the sentence was not, which is the same defect — a categorical
+/// claim execution contradicts — that this whole passage was rewritten to remove.
+///
+/// The claim that used to stand here was that the refused set "in practice means one
+/// holding a colon". It is written down as a warning because it was false in both
+/// directions: a corpus of 506 hand-written frontmatters, each checked against PyYAML
+/// 6.0.2, was refused in 22 places, and `he said "hi", ok` — one of them — holds no colon.
+/// A comment asserting a categorical safety claim that execution contradicts is the bug,
+/// not the wording. THE CLAIM ABOVE IS NARROW ON PURPOSE. It is about this refusal and
+/// nothing else: this reader is still narrower than PyYAML in the two ways the subset notes
+/// above describe, and neither of them is fixed by a sentence here.
 public struct DuckTask: Equatable, Sendable {
 
     // MARK: - the frontmatter
@@ -270,9 +309,15 @@ public struct DuckTask: Equatable, Sendable {
             case .budgetOutOfRange(let key, let value, let allowed):
                 return "budgets.\(key) is \(value); it has to be \(allowed)."
             case .metadataNameIsNotWritable(let verb, let name):
+                // "WHERE IT SITS", NOT "INTO A .duck FILE", because the one trait that
+                // still reaches this on a name an author could plausibly type — brackets
+                // that do not close — depends on where in the metadata the name is. `a}b`
+                // is written and read back perfectly one level up; it is only inside a
+                // `[ ]` or a `{ }` that nothing can carry it. Saying the name is
+                // unwritable outright would send an author renaming a key that is fine.
                 return "The learned verb \"\(verb)\" has a metadata setting named "
-                     + "\"\(name)\", and there is no way to write that name into a .duck "
-                     + "file and read it back: \(DuckYAML.whyNameIsNotWritable(name)). "
+                     + "\"\(name)\", and there is no way to write that name where it sits "
+                     + "and read it back: \(DuckYAML.whyNameIsNotWritable(name)). "
                      + "Written out, \"\(name)\" would come back as a different name "
                      + "holding a different value, and nothing would complain. Rename it."
             }
@@ -604,16 +649,21 @@ public struct DuckTask: Equatable, Sendable {
         //
         // THIS RUNS ON DECODE TOO, so it may only refuse a name NO FILE CAN PRODUCE — a
         // `.duck` quackd runs and this reader turns away is the one failure this reader
-        // exists to prevent, and an earlier version of this check committed it: it refused
-        // ` x`, `#x`, `-x`, `a, b` and a leading tab, every one of which arrives from a
-        // hand-written quoted flow key (`outer: {" x": 1}`) that PyYAML and quackd both
-        // read. The answer was to WIDEN THE WRITER rather than the refusal — those names are
-        // now written in flow form, quoted, and come back unchanged. What is left is the set
-        // that has no form at all, and `nameFits` decides it by writing the name and reading
-        // it back rather than by reasoning about the parser.
+        // exists to prevent, and two rounds of this check committed it. The first refused
+        // ` x`, `#x`, `-x`, `a, b` and a leading tab; the answer was to WIDEN THE WRITER,
+        // which now puts them in flow form, quoted. The second still refused 22 places in a
+        // 506-file corpus of hand-written PyYAML-legal frontmatter, in two families that had
+        // nothing to do with the names themselves: a
+        // quoted flow key holding `\"` or `''` was cut in half by `splitTopLevel`, and any
+        // quoted flow key holding a colon was cut before `unquote` ran, so the refusal fired
+        // on names like `"{a` that the READER had invented. Both were fixed where they were
+        // — in `splitTopLevel` and `flowKeyColon` — rather than by narrowing the refusal,
+        // because a refusal is not the right place to apologise for a misread.
         //
-        // `testTheMetadataRefusalNeverTurnsAwayAFileThisReaderCanRead` is what holds this
-        // down: it feeds every awkward name through all three shapes a real file can use.
+        // WHAT IS LEFT CANNOT COME OUT OF A FILE AT ALL; the class comment lists the two
+        // traits and why. `testTheMetadataRefusalNeverTurnsAwayAFileThisReaderCanRead` holds
+        // it down by feeding every awkward name through all nine shapes a real file can put
+        // one in, and `testTheTrueSetOfMetadataNamesThisWriterRefuses` pins the residue.
         for verb in learnedVerbs {
             if let name = DuckYAML.unwritableMetadataName(in: .mapping(verb.metadata)) {
                 throw ReadError.metadataNameIsNotWritable(verb: verb.name, name: name)
@@ -879,7 +929,7 @@ enum DuckYAML {
             if inner.isEmpty { return .mapping([:]) }
             var out: [String: DuckValue] = [:]
             for piece in try splitTopLevel(inner, line: line) {
-                guard let colon = piece.firstIndex(of: ":") else {
+                guard let colon = flowKeyColon(in: piece) else {
                     throw DuckTask.ReadError.malformedYAML(
                         line: line, reason: "\"\(piece)\" is not a key: value pair")
                 }
@@ -986,6 +1036,43 @@ enum DuckYAML {
         return nil
     }
 
+    /// Where a flow mapping's `key: value` divides — the first colon OUTSIDE the key's own
+    /// quotes, and outside its own text.
+    ///
+    /// SCANNING FOR THE FIRST COLON ANYWHERE WAS A SILENT MISREAD, and a wide one. PyYAML,
+    /// and so quackd, reads `{"a: b": 1}` as the name `a: b`; cutting at the colon inside
+    /// the quotes handed back the name `"a` holding the value `b": 1` — a name and a value
+    /// nobody wrote, with nothing thrown. It cost refusals too: the invented name `"{a`
+    /// carries an unbalanced brace, so `outer: [{"{a: b}": 1}]` was turned away for a defect
+    /// in the reader's own answer rather than anything in the file.
+    ///
+    /// Only a key OPENING with a quote is treated as quoted, and only its matching closing
+    /// quote ends it — the same rule `withoutTrailingComment` uses, and for the same reason:
+    /// an apostrophe in the middle of a plain key is an apostrophe. When the quote never
+    /// closes there is nothing to be gained by guessing, so the first colon is used and the
+    /// piece fails downstream the way it always did.
+    ///
+    /// AN UNQUOTED KEY DIVIDES AT THE FIRST COLON FOLLOWED BY A SPACE, or at one ending the
+    /// piece — `splitKey`'s rule, and PyYAML's. A bare `a:b` is one plain scalar to PyYAML,
+    /// so `{a:b: 1}` is the name `a:b`; cutting at the first colon regardless made it the
+    /// name `a` holding `b: 1`, and then refused `a:b` as unwritable, because the writer
+    /// cannot reproduce a name the reader will not hand back. The fallback to the first
+    /// colon stands for a piece with no qualifying colon at all, so that a shape this reader
+    /// used to make something of is not newly turned away.
+    private static func flowKeyColon(in piece: String) -> String.Index? {
+        if let opener = piece.first, opener == "\"" || opener == "'",
+           let close = closingQuote(of: piece) {
+            return piece[piece.index(after: close)...].firstIndex(of: ":")
+        }
+        var index = piece.startIndex
+        while let colon = piece[index...].firstIndex(of: ":") {
+            let after = piece.index(after: colon)
+            if after == piece.endIndex || piece[after] == " " { return colon }
+            index = after
+        }
+        return piece.firstIndex(of: ":")
+    }
+
     private static func unquote(_ text: String) -> String? {
         if text.count >= 2, text.hasPrefix("\""), text.hasSuffix("\"") {
             var out = ""
@@ -1014,15 +1101,43 @@ enum DuckYAML {
 
     /// Split a flow collection's body on the commas that are not inside a nested collection
     /// or a quoted string.
+    ///
+    /// THE TWO ESCAPES ARE HONOURED HERE BECAUSE THE COMMA THEY HIDE IS REAL. This ran on
+    /// raw characters once and ended a quoted run at the first bare quote it saw, so the
+    /// `\"` in `{"he said \"hi\", ok": 1}` closed the key and the comma after it split the
+    /// entry in half — a file PyYAML and quackd read without complaint, refused here as
+    /// `is not a key: value pair`, and refused a second time as a metadata name the writer
+    /// could not place. The rule is `closingQuote`'s, character for character: `\"` inside a
+    /// double-quoted scalar and `''` inside a single-quoted one are content, not an end.
     private static func splitTopLevel(_ text: String, line: Int) throws -> [String] {
         var out: [String] = []
         var current = ""
         var depth = 0
         var quote: Character?
-        for character in text {
+        var index = text.startIndex
+        while index < text.endIndex {
+            let character = text[index]
             if let open = quote {
                 current.append(character)
-                if character == open { quote = nil }
+                if open == "\"", character == "\\" {
+                    let next = text.index(after: index)
+                    // A trailing backslash closes nothing. Leaving `quote` set is what makes
+                    // the guard below report the unbalanced quote this really is.
+                    guard next < text.endIndex else { break }
+                    current.append(text[next])
+                    index = text.index(after: next)
+                    continue
+                }
+                if character == open {
+                    let next = text.index(after: index)
+                    if open == "'", next < text.endIndex, text[next] == "'" {
+                        current.append("'")
+                        index = text.index(after: next)
+                        continue
+                    }
+                    quote = nil
+                }
+                index = text.index(after: index)
                 continue
             }
             switch character {
@@ -1040,6 +1155,7 @@ enum DuckYAML {
                 current = ""
             default: current.append(character)
             }
+            index = text.index(after: index)
         }
         guard quote == nil, depth == 0 else {
             throw DuckTask.ReadError.malformedYAML(line: line,
@@ -1228,23 +1344,42 @@ enum DuckYAML {
         }
     }
 
-    /// The trait that makes `name` impossible to write down, as the sentence an author
-    /// reads. Computed from the name itself so the refusal names the offending character
-    /// rather than a rule — "invalid name" sends somebody hunting through their own file.
+    /// The trait that makes `name` impossible to write down where it sits, as the sentence
+    /// an author reads. Computed from the name itself so the refusal names the offending
+    /// character rather than a rule — "invalid name" sends somebody hunting through their
+    /// own file.
+    ///
+    /// TWO NAMED BRANCHES AND A FALLBACK, WHICH IS THREE ANSWERS, NOT TWO — see the class
+    /// comment's list of what `nameFits` still turns away. The fallback is not a gap: a name
+    /// whose brackets balance by count but whose depth returns to zero at a comma (`},{`) is
+    /// genuinely unwritable and genuinely has no single offending character to point at, and
+    /// saying so beats naming the wrong one. The colon, quote and comma branches that stood
+    /// here were all written for a reader that no longer misreads any of them, and a
+    /// refusal that keeps explaining itself with a character that is not the problem is
+    /// worse than one that says it does not know: `a: }` was told its colon was the trouble
+    /// when the trouble was the brace.
     static func whyNameIsNotWritable(_ name: String) -> String {
-        if name.contains("\n") || name.contains("\r") { return "it contains a line break" }
-        if name.contains(":") { return "it contains a colon" }
-        if name.contains("{") || name.contains("}") {
-            return "its { and } braces do not close each other"
+        if name.contains("\r") { return "it contains a carriage return" }
+        if !bracketsClose(name) {
+            return "its brackets do not close each other, and a name nested inside a [ ] "
+                 + "or a { } has to close its own"
         }
-        if name.contains("[") || name.contains("]") {
-            return "its [ and ] brackets do not close each other"
-        }
-        if name.contains("\"") || name.contains("'") {
-            return "it contains a quote this writer cannot escape where the name has to go"
-        }
-        if name.contains(",") { return "it contains a comma" }
         return "this writer has no form that reads it back unchanged"
+    }
+
+    /// Whether the name's own `{`, `[`, `}` and `]` cancel out.
+    ///
+    /// COUNTED, NOT LOOKED FOR, because counting is what `splitTopLevel` does: it tracks one
+    /// depth for both bracket pairs and never inspects which kind closed which, so `a}b{c`
+    /// survives a nested flow key and `a, }` does not. A predicate that asked "does this
+    /// name contain a brace" would refuse the first and explain the second wrongly.
+    private static func bracketsClose(_ name: String) -> Bool {
+        var depth = 0
+        for character in name {
+            if character == "{" || character == "[" { depth += 1 }
+            if character == "}" || character == "]" { depth -= 1 }
+        }
+        return depth == 0
     }
 
     private static func isScalar(_ value: DuckValue) -> Bool {

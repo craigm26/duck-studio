@@ -346,6 +346,63 @@ public struct IntentDraft: Codable, Equatable, Identifiable, Sendable {
         return move.pose(at: time)
     }
 
+    // MARK: - editing it
+
+    /// The first moment at which this motion holds something the one it was
+    /// edited from did not — where a preview should be looking after a change.
+    ///
+    /// COMPARED, NOT READ OFF THE EDITS, and that distinction is the whole
+    /// function. A model states a moment ("the bow at 1.5") and `MotionTweak`
+    /// then resolves it to the keyframe it meant, clamps it into range, or
+    /// refuses it outright: the stated number is not where anything landed, and
+    /// a playhead driven from it lands between keyframes on a pose that matches
+    /// no row in the timeline. What DID land is visible in the result, so the
+    /// result is what is asked.
+    ///
+    /// NIL WHEN THERE IS NOTHING NEW TO LOOK AT — a rename, or a keyframe
+    /// removed. Both are real changes and the timeline shows them, but neither
+    /// puts a new pose anywhere for a playhead to point at, and moving it
+    /// regardless is how a screen ends up claiming to show an edit it is not
+    /// showing. The caller leaves the playhead where it is and says so.
+    ///
+    /// The old rule was `keys.map(\.time).min()`, which is the motion's FIRST
+    /// keyframe and unrelated to the edit — and by construction that keyframe is
+    /// the standing pose, so "make the bow deeper" reliably jumped the preview
+    /// to the one moment where the deeper bow is invisible.
+    public func firstNewMoment(comparedTo before: IntentDraft) -> TimeInterval? {
+        keys.filter { key in
+            !before.keys.contains {
+                abs($0.time - key.time) <= Self.sameInstant && $0.pose == key.pose
+            }
+        }
+        .map(\.time).min()
+    }
+
+    /// Why a keyframe cannot be moved to a moment, or nil when it can.
+    ///
+    /// THE REFUSAL WAS ALWAYS RIGHT; THE SILENCE WAS NOT. Two keyframes at one
+    /// instant is a broken motion, so a move onto a neighbour has to be turned
+    /// away. The editor's stepper walks in 0.05 s and the window is
+    /// `MotionTweak.sameInstant`, so a keyframe stepped toward its neighbour
+    /// lands on it exactly — and the editor refused by returning, with nothing
+    /// set and nothing drawn, which reads as a control that has stopped working.
+    /// A brand-new motion is the worst case: `blank()` opens with keyframes
+    /// 0.5 s apart, a clean multiple of the step, so the stall is reachable from
+    /// the first tap.
+    ///
+    /// It names the moment that is taken, because "somewhere ahead of you" is
+    /// not something anybody can act on: the way past a neighbour is to move
+    /// that one first, or to step this one the other way.
+    public static func retimeRefusal(_ keys: [Key], moving id: UUID,
+                                     to time: TimeInterval) -> String? {
+        let wanted = Swift.max(time, 0)
+        guard let taken = keys.first(where: {
+            $0.id != id && abs($0.time - wanted) < MotionTweak.sameInstant
+        }) else { return nil }
+        return String(format: "There is already a keyframe at %.2f s. Move that one out of the "
+                            + "way first, or step this one the other way.", taken.time)
+    }
+
     // MARK: - handing it over
 
     public static let fileExtension = "duckmove"

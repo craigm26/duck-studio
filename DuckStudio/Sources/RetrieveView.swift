@@ -29,6 +29,11 @@ struct RetrieveView: View {
     /// living and then had nothing to say when it was the one that failed.
     @State private var failure: String?
 
+    /// The header over the unread verdict, named because the Save footer points
+    /// the reader at it BY NAME. Two literals would be one rename away from a
+    /// footer citing a heading that is not on the screen.
+    private static let unreadHeader = "It did not find a thing to fetch"
+
     private var reading: Retrieval.Reading { Retrieval.read(sentence) }
     private var plan: Retrieval.Plan { Retrieval.plan(for: reading.stick) }
 
@@ -56,16 +61,45 @@ struct RetrieveView: View {
                     }
                 } header: {
                     Text("Guessed")
-                } footer: {
-                    Text("Estimates of YOUR object, not measurements of the robot. Say the number and the guess goes away.")
                 }
+                // THE FOOTER THAT USED TO SIT HERE IS NOW `reading.sentence`, ONE
+                // SECTION DOWN. It read "Estimates of YOUR object, not
+                // measurements of the robot" — almost word for word what
+                // StudioKit now composes, and a lie in the one state that matters
+                // most: when the sentence named nothing, these are not estimates
+                // of YOUR object, they are an object this app made up. Two copies
+                // of a claim drift; this one had already drifted into being false.
+                // It moves rather than doubles because the same paragraph printed
+                // twice on one screen is its own kind of noise.
             }
 
             Section {
-                if plan.refusals.isEmpty {
-                    Label("Inside every envelope.", systemImage: "checkmark.seal")
-                        .font(.footnote).foregroundStyle(.green)
+                switch reading.confidence {
+                case .notUnderstood:
+                    // WHERE THE GREEN SEAL USED TO GO UNCONDITIONALLY, AND THE
+                    // LINE IN THE BUG REPORT. "Inside every envelope." is a claim
+                    // about an object, and in this state there is no object — the
+                    // thickness the grasp was checked against is
+                    // `assumedThicknessMillimetres`, which is exactly
+                    // `closedTipHeight * 1000` against a strict `<`, so nothing
+                    // was ever tested and a seal would be a measurement of the
+                    // app's own default. The words are StudioKit's, pinned by
+                    // test; this file only decides that they go here, above the
+                    // schedule they call "below".
+                    Label(reading.sentence, systemImage: "questionmark.circle")
+                        .font(.footnote).foregroundStyle(.orange)
+                case .understood, .understoodWithGuesses:
+                    if plan.refusals.isEmpty {
+                        Label("Inside every envelope.", systemImage: "checkmark.seal")
+                            .font(.footnote).foregroundStyle(.green)
+                    }
                 }
+                // THE REFUSALS STAY IN ALL THREE STATES. `.notUnderstood` and a
+                // real refusal co-occur — "fetch the 0.4 kg thing" names no thing
+                // AND is over the trained payload — and that refusal is about the
+                // person's own 400 g, so it is true and theirs. Dropping it to
+                // keep the state tidy would be a second lie pointing the other
+                // way.
                 ForEach(plan.refusals, id: \.message) { refusal in
                     Label(refusal.message,
                           systemImage: refusal.isFatal ? "xmark.octagon" : "exclamationmark.triangle")
@@ -73,7 +107,28 @@ struct RetrieveView: View {
                         .foregroundStyle(refusal.isFatal ? Color.orange : Color.secondary)
                 }
             } header: {
-                Text(plan.isPossible ? "It can do this" : "It cannot do this")
+                // NOT "It cannot do this" IN THE UNREAD STATE. That is a verdict
+                // on the robot's envelope, and `plan.isPossible` is genuinely
+                // true for the invented 20 g / 20 mm object — flipping it would
+                // trade one false statement for another. The honest header says
+                // what actually happened: the reading failed, not the duck.
+                if reading.confidence == .notUnderstood {
+                    Text(Self.unreadHeader)
+                } else {
+                    Text(plan.isPossible ? "It can do this" : "It cannot do this")
+                }
+            } footer: {
+                // THE VERDICT AND THE CAVEAT SHARE A SECTION IN THE TWO STATES
+                // THAT HAVE A VERDICT, so the seal cannot be read on its own.
+                // With guesses this is the line that stops a green checkmark
+                // above an estimated weight from reading as a measurement; when
+                // everything came out of the sentence it says so. In
+                // `.notUnderstood` there is no footer, because the same sentence
+                // is already the row above — it is rendered EXACTLY ONCE per
+                // state, and it is a paragraph, not a line.
+                if reading.confidence != .notUnderstood {
+                    Text(reading.sentence)
+                }
             }
 
             Section {
@@ -89,7 +144,20 @@ struct RetrieveView: View {
                     }
                 }
             } header: {
-                Text("The plan · \(String(format: "%.1f s", plan.seconds))")
+                // THE SCHEDULE IS SHOWN IN ALL THREE STATES, AND IN THE UNREAD
+                // ONE IT IS LABELLED. Hiding it would leave `reading.sentence`
+                // pointing at nothing — it says "the plan below is about an
+                // invented 20 g object" by name — and the timings are real
+                // kinematics either way. What is not real is who they are about,
+                // so the header says whose object it is rather than letting a
+                // 22.8 s schedule pass for an answer. "Guessed" is the word the
+                // section two rows up uses, and it is true in both halves of this
+                // state: the weight may be the person's, the thickness never is.
+                if reading.confidence == .notUnderstood {
+                    Text("The plan for the guessed object · \(String(format: "%.1f s", plan.seconds))")
+                } else {
+                    Text("The plan · \(String(format: "%.1f s", plan.seconds))")
+                }
             } footer: {
                 Text("Two of these steps are the same ground pick, split at the moment the mouth is lowest.")
             }
@@ -131,8 +199,23 @@ struct RetrieveView: View {
                 } label: {
                     Label("Save as a .duck task", systemImage: "square.and.arrow.up")
                 }
+                // DISABLED RATHER THAN ENABLED AND REFUSING, because a control
+                // that cannot work says so before it is pressed. The reason is in
+                // the footer below it; the full explanation is the paragraph
+                // further up, and repeating it here would be the third copy of a
+                // 400-character sentence on one screen.
+                .disabled(reading.confidence == .notUnderstood)
             } footer: {
-                Text("A task file carries the constraints in its own body, so it can be read and run somewhere this app is not — a task that travels without them is one somebody runs against a carrot.")
+                if reading.confidence == .notUnderstood {
+                    // NO PHYSICAL CLAIM IN HERE ON PURPOSE. Which numbers are
+                    // whose is StudioKit's sentence to make — it is on the
+                    // screen already, and it differs between a sentence that
+                    // gave a weight and one that gave nothing. This footer only
+                    // says why the button is off and where to read the rest.
+                    Text("Nothing to write down: no thing to fetch was read out of your sentence. See \"\(Self.unreadHeader)\" above.")
+                } else {
+                    Text("A task file carries the constraints in its own body, so it can be read and run somewhere this app is not — a task that travels without them is one somebody runs against a carrot.")
+                }
             }
         }
         .navigationTitle("Fetch something")
@@ -163,6 +246,31 @@ struct RetrieveView: View {
     /// message, and a `nil` from the writer that left the button looking
     /// pressed and inert. Both are the failure this app exists to explain.
     private func save() {
+        // REFUSE THE EXPORT RATHER THAN LABEL THE FILE, and the choice is
+        // forced by what the file is. A `.duck` is not a screenshot: the
+        // frontmatter a runner acts on carries this plan's verbs and budgets,
+        // and the body asserts "20 g, 20 mm thick, 1.00 m away" as facts about
+        // the object under "## This object". Those numbers came out of
+        // `assumedGrams`/`assumedThicknessMillimetres`, not out of anybody's
+        // sentence, so the file would state a measurement nobody took — and the
+        // footer directly above this button promises the file carries its
+        // constraints in its own body. A warning line in the body does not fix
+        // it either: quackd's executor reads the body, but the machine half
+        // would still say fetch, and the constraint text would still be about
+        // an invented object. There is nothing here to write a true file about.
+        //
+        // The button is `.disabled` in this state, so this is a second lock
+        // rather than the visible refusal — it is the one that holds if a caller
+        // ever reaches `save()` some other way. `failure` raises the alert, so
+        // it is not a silent exit; the words are the same StudioKit sentence the
+        // screen is already showing.
+        guard reading.confidence != .notUnderstood else {
+            failure = reading.sentence
+            return
+        }
+        // THE `?? "Fetch it"` FALLBACK IS LIVE, NOT DEAD, and the guard above
+        // does not cover it: "fetch the thing 25 mm thick 2 m away" gives a
+        // thickness outright, so it is understood, and still names no object.
         let title = reading.object.map { "Fetch the \($0)" } ?? "Fetch it"
         do {
             let task = try plan.duckTask(named: title)

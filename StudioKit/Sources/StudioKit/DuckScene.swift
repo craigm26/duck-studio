@@ -384,14 +384,18 @@ public struct DuckScene: Codable, Hashable, Identifiable, Sendable {
     }
 
     /// The one line to show beside the scene's name.
+    ///
+    /// PROPS ARE PART OF THE ANSWER, and leaving them out made this line lie
+    /// about the one starter scene that has nothing else in it: "Broom in the
+    /// corner" holds a broom, a dowel and a pencil, no steps and no walls, and
+    /// this said "Bare floor" directly under its name. `StageCaption.contents`
+    /// is shared with the caption over the stage so the two cannot drift.
     public var summary: String {
-        var parts: [String] = []
-        if !steps.isEmpty {
-            let tallest = steps.map(\.top).max() ?? 0
-            parts.append("\(steps.count) step\(steps.count == 1 ? "" : "s") to \(Int((tallest * 1000).rounded())) mm")
-        }
-        if !walls.isEmpty { parts.append("\(walls.count) wall\(walls.count == 1 ? "" : "s")") }
-        if parts.isEmpty { parts.append(ground ? "Bare floor" : "No floor") }
+        let parts = StageCaption.contents(stepCount: steps.count,
+                                          tallestStepMetres: steps.map(\.top).max() ?? 0,
+                                          wallCount: walls.count,
+                                          propCount: props.count)
+        if parts.isEmpty { return ground ? "Bare floor" : "No floor" }
         return parts.joined(separator: " · ")
     }
 }

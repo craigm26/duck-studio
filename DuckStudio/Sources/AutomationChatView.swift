@@ -86,6 +86,14 @@ struct AutomationChatView: View {
         /// A fetch, checked against measurements rather than asked about.
         var plan: Retrieval.Plan? = nil
         var planObject: String? = nil
+        /// What the reader actually got out of the sentence. CARRIED, NOT
+        /// RECOMPUTED: the card must say the same thing about a sentence that
+        /// `RetrieveView` does, and re-reading it here is how the two screens
+        /// would drift. Nil on an entry that is not a fetch.
+        var planConfidence: Retrieval.Reading.Confidence? = nil
+        /// The reader's own sentence about how it read this, pinned in
+        /// StudioKit so a test asserts it letter by letter.
+        var planReading: String? = nil
         /// A request to train a new policy — written here, run elsewhere.
         var request: TrainingRequest? = nil
         /// What the model cost in wall-clock, when it was not Apple's. A local
@@ -137,7 +145,7 @@ struct AutomationChatView: View {
                                let clip = clips[intentName] {
                                 NavigationLink {
                                     IntentPlayerView(clip: clip, store: scenes,
-                                                     drafts: drafts)
+                                                     drafts: drafts, models: models)
                                 } label: {
                                     Label("Watch what it would play",
                                           systemImage: "play.circle")
@@ -160,12 +168,26 @@ struct AutomationChatView: View {
                         }
 
                         if let plan = entry.plan {
-                            Label(plan.isPossible
-                                  ? "It can do this — \(String(format: "%.0f s", plan.seconds))"
-                                  : "It cannot do this",
-                                  systemImage: plan.isPossible ? "checkmark.seal" : "xmark.octagon")
-                                .font(.footnote)
-                                .foregroundStyle(plan.isPossible ? Color.green : Color.orange)
+                            // A GREEN SEAL FOR A SENTENCE NOBODY READ IS THE
+                            // BUG THIS APP EXISTS TO NOT HAVE. `plan.isPossible`
+                            // is perfectly true of the invented 20 g object the
+                            // reader falls back to, so asking it alone answers
+                            // "it can do this" to "fetch me a beer". The seal
+                            // now requires that something was actually read out
+                            // of the sentence, and `RetrieveView` makes the
+                            // same check against the same enum.
+                            if entry.planConfidence == .notUnderstood {
+                                Label(entry.planReading ?? "",
+                                      systemImage: "questionmark.circle")
+                                    .font(.footnote).foregroundStyle(.orange)
+                            } else {
+                                Label(plan.isPossible
+                                      ? "It can do this — \(String(format: "%.0f s", plan.seconds))"
+                                      : "It cannot do this",
+                                      systemImage: plan.isPossible ? "checkmark.seal" : "xmark.octagon")
+                                    .font(.footnote)
+                                    .foregroundStyle(plan.isPossible ? Color.green : Color.orange)
+                            }
                             Text(String(format: "%@%.0f g, %.0f mm thick, %.1f m away",
                                         entry.planObject.map { "\($0): " } ?? "",
                                         plan.stick.grams, plan.stick.thicknessMillimetres,
@@ -209,6 +231,16 @@ struct AutomationChatView: View {
                                       systemImage: "square.and.arrow.up")
                                     .font(.footnote)
                             }
+                            // REFUSED FOR THE SAME REASON `RetrieveView` refuses
+                            // it: the body of a task file states its object's
+                            // weight and thickness as facts, and for a sentence
+                            // nothing was read out of, those numbers are this
+                            // app's invention. The footer under that button
+                            // promises the file carries its constraints in its
+                            // own body; a file whose constraints describe an
+                            // object nobody mentioned is the file that promise
+                            // exists to rule out.
+                            .disabled(entry.planConfidence == .notUnderstood)
                         }
 
                         if let request = entry.request {
@@ -537,12 +569,24 @@ struct AutomationChatView: View {
                    sceneProps.contains(where: { $0.name.lowercased() == mine.lowercased() }) {
                     let (reading, plan) = Retrieval.plan(for: asked, props: sceneProps)
                     entries.append(Entry(asked: asked, plan: plan,
-                                         planObject: reading.object, timing: timing))
+                                         planObject: reading.object,
+                                         planConfidence: reading.confidence,
+                                         planReading: reading.sentence, timing: timing))
                 } else {
+                    // A MODEL READ THIS ONE, SO THE LOCAL READER'S CONFIDENCE
+                    // WOULD BE THE WRONG ANSWER. `ChatDraft.stick` got a named
+                    // object and real dimensions out of the sentence by a route
+                    // this app's own parser does not have, so asking
+                    // `Retrieval.read` what IT would have made of the sentence
+                    // and reporting that would refuse a plan that was in fact
+                    // understood. `.understood` here is a claim about the
+                    // model's reading, and `timing` above already says a model
+                    // was involved.
                     let (object, stick) = try ChatDraft.stick(fromJSON: answer.json)
                     entries.append(Entry(asked: asked,
                                          plan: Retrieval.plan(for: stick),
-                                         planObject: object, timing: timing))
+                                         planObject: object,
+                                         planConfidence: .understood, timing: timing))
                 }
             }
         } catch let wire as ChatWire.WireError {
@@ -573,6 +617,8 @@ struct AutomationChatView: View {
         entries.append(Entry(asked: asked,
                              plan: plan,
                              planObject: reading.object,
+                             planConfidence: reading.confidence,
+                             planReading: reading.sentence,
                              timing: reading.assumed.isEmpty ? nil
                                  : "Guessed: " + reading.assumed.joined(separator: "; ")))
     }

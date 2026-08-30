@@ -19,6 +19,9 @@ struct PipelineView: View {
     let draftID: UUID
     @ObservedObject var drafts: DraftStore
     @ObservedObject var scenes: SceneStore
+    /// Handed on to the bench screen, which hands it on to the player, which
+    /// hands it to the editor. Nothing on this screen asks a model anything.
+    @ObservedObject var models: EndpointStore
 
     @AppStorage("duckbench.address") private var addressText = ""
     @State private var busy = false
@@ -103,7 +106,7 @@ struct PipelineView: View {
     private func physicsControls(_ draft: IntentDraft) -> some View {
         if addressText.isEmpty {
             NavigationLink {
-                RemoteRunView(scenes: scenes, drafts: drafts)
+                RemoteRunView(scenes: scenes, drafts: drafts, models: models)
             } label: {
                 Label("Point it at a bench", systemImage: "network").font(.footnote)
             }

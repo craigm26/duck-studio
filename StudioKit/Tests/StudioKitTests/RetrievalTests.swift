@@ -478,6 +478,56 @@ extension RetrievalTests {
         XCTAssertEqual(reading.sentence, "Every number in this plan came out of your sentence.")
     }
 
+    /// A CATALOGUE ESTIMATE IS THIS APP'S INVENTION TOO. `weightWasInvented`
+    /// was computed as `grams == nil`, which is a different question — `grams`
+    /// has already taken the catalogue's number by that line — so "fetch the
+    /// pencil" answered `false` while the Guessed list on the same screen read
+    /// "a pencil weighs about 6 g". Nothing on screen was wrong, because the
+    /// one branch that reads this flag cannot reach a catalogue word; a public
+    /// property that is false in a state nobody happens to look at is a wrong
+    /// sentence waiting for its second reader, so it is pinned in the state
+    /// that exposed it rather than only in the state that uses it.
+    ///
+    /// THE INVARIANT, BOTH WAYS: the flag is true exactly when the Guessed list
+    /// carries a line about the weight. That is one fact with two consequences
+    /// — the screen and the refusal cannot argue with each other — and it is
+    /// swept rather than sampled, because three hand-picked rows are how the
+    /// disagreement survived the last two passes.
+    func testTheInventedWeightFlagIsTrueForACatalogueEstimate() {
+        func mentionsTheWeight(_ assumed: [String]) -> Bool {
+            assumed.contains { $0.contains("weighs about") || $0.hasPrefix("weight unknown") }
+        }
+        for word in Retrieval.everydayObjects.map(\.word) {
+            let reading = Retrieval.read("fetch the \(word)")
+            XCTAssertTrue(reading.weightWasInvented,
+                          "nobody typed a weight for \"fetch the \(word)\" — the "
+                        + "\(reading.stick.grams) g in the plan is the catalogue's")
+            XCTAssertTrue(mentionsTheWeight(reading.assumed),
+                          "\(word): \(reading.assumed)")
+        }
+        // Every shape that DOES supply a weight, including the one the plan
+        // quotes back in different units from the ones it was typed in.
+        for text in ["fetch the 30 g thing", "fetch the 400 g pencil", "fetch the 0.4 kg broom",
+                     "drag the 1 kg umbrella over here", "fetch the 45 gram twig"] {
+            let reading = Retrieval.read(text)
+            XCTAssertFalse(reading.weightWasInvented, text)
+            XCTAssertFalse(mentionsTheWeight(reading.assumed), "\(text): \(reading.assumed)")
+        }
+        // And the sweep, over every sentence shape `read` has a branch for.
+        for head in ["fetch the", "get me a", "drag the", "pick up the", "bring the"] {
+            for noun in Retrieval.everydayObjects.map(\.word) + ["thing", "20 g thing"] {
+                for tail in ["", " across the room", " 2 m away", " laid down", " standing",
+                             " 25 mm thick", " over here"] {
+                    let reading = Retrieval.read("\(head) \(noun)\(tail)")
+                    XCTAssertEqual(reading.weightWasInvented,
+                                   mentionsTheWeight(reading.assumed),
+                                   "\"\(head) \(noun)\(tail)\" — flag "
+                                 + "\(reading.weightWasInvented), assumed \(reading.assumed)")
+                }
+            }
+        }
+    }
+
     /// The invented numbers the sentence quotes back are the ones `read`
     /// actually uses. A drift here is a screen describing an assumption nobody
     /// made.

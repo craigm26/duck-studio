@@ -14,11 +14,18 @@ import StudioKit
 struct IntentAuthorView: View {
     @State var draft: IntentDraft
     @ObservedObject var scenes: SceneStore
-    /// Which model answers "make the bow deeper". Optional so a screen that
-    /// has no store still opens the editor — the Ask panel then says what is
-    /// missing rather than being absent, because a tab that vanishes is a
-    /// feature nobody finds twice.
-    var models: EndpointStore?
+    /// Which model answers "make the bow deeper".
+    ///
+    /// NOT OPTIONAL, AND THE COMPILER IS THE POINT. It used to be, with the
+    /// player that opens this editor defaulting it to nil "so a screen that has
+    /// no store still opens the editor". Three of the four screens that present
+    /// that player then quietly took the default, and the Ask panel arrived
+    /// dead on all three — telling the user to "choose one under Draft →
+    /// Models", which is advice that cannot work from a view tree holding no
+    /// model picker. A feature that can be lost by omitting an argument will
+    /// be. Every caller now hands over the one store the app owns, and a new
+    /// screen cannot compile without doing the same.
+    @ObservedObject var models: EndpointStore
     /// True when this editor created the motion. A draft must be in the store
     /// before the sheet can look it up, so a new one exists before its editor
     /// appears — and Cancel has to be able to un-create it.
@@ -44,6 +51,10 @@ struct IntentAuthorView: View {
     @State private var panel: Panel = .joints
     @State private var outgoing: Outgoing?
     @State private var failure: String?
+    /// Why the last attempt to move a keyframe was turned away. The Keyframes
+    /// panel had no refusal surface at all, and the only banner in the file
+    /// lives inside the Ask panel — so a stepper that stopped stopped silently.
+    @State private var blockedRetime: String?
     @State private var confirmingDiscard = false
     @State private var confirmingDelete = false
     @State private var publishing = false
@@ -64,6 +75,10 @@ struct IntentAuthorView: View {
     /// joint this robot has" under a green tick, which is what it used to do.
     @State private var tweakRefusals: [String] = []
     @State private var tweakFailure: String?
+    /// Where the last tweak actually put something new, or nil when it put
+    /// nothing anywhere — a rename, or a keyframe removed. It decides both
+    /// where the playhead goes and what the panel is allowed to claim.
+    @State private var tweakMoment: TimeInterval?
     /// The motion as it was before the last tweak, so a sentence that made it
     /// worse can be taken back. ONE STEP IS ENOUGH: the alternative is an undo
     /// stack nobody asked for, and Cancel already puts back the whole session.
@@ -92,14 +107,44 @@ struct IntentAuthorView: View {
     var body: some View {
         VStack(spacing: 0) {
             ZStack(alignment: .bottomLeading) {
+                // PROPS ARE HALF OF WHAT A SCENE IS. Passing only
+                // `environment` dropped every one of them, because
+                // `DuckScene.environment` is DuckKit's RECORDED-world type and
+                // has no room for a Studio prop — so "Author against → Broom in
+                // the corner", the one starter scene that exists for the fetch
+                // and drag work, was a complete visual no-op. The scene editor
+                // one tap away drew all three objects, which is how somebody
+                // learns the app is inconsistent rather than that the feature
+                // is missing.
                 DuckStage(pose: StagePose(jointAngles: shown, root: StagePose.home.root),
                           environment: scene?.environment ?? .bareFloor,
+                          props: scene?.props ?? [],
                           orbit: $orbit)
+                // `rootIsPinned` because it is: the root here is a constant, by
+                // the design `IntentDraft`'s header states in capitals. The
+                // legend was built for recorded clips and reads that pin as if
+                // physics had produced it.
                 StageLegend(pose: StagePose(jointAngles: shown, root: StagePose.home.root),
                             environment: scene?.environment ?? .bareFloor,
+                            props: scene?.props ?? [],
+                            rootIsPinned: true,
                             orbit: $orbit)
             }
             .frame(maxHeight: 300)
+
+            // ABOVE THE TAB PICKER, BECAUSE THE THING IT IS ABOUT IS ABOVE THE
+            // TAB PICKER. A warning about the floor that only appears on one
+            // tab vanishes while the misleading floor stays on screen.
+            if draft.sceneID != nil, scene == nil {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Label(StageCaption.sceneDeleted, systemImage: "exclamationmark.triangle")
+                        .font(.caption).foregroundStyle(.orange)
+                    Spacer(minLength: 8)
+                    Button("Bare floor") { draft.sceneID = nil }
+                        .buttonStyle(.bordered).controlSize(.small)
+                }
+                .padding(.horizontal).padding(.top, 6)
+            }
 
             TransportBar(duration: max(draft.duration, 0.01),
                          playhead: $playhead, isRunning: $isRunning)
@@ -142,10 +187,18 @@ struct IntentAuthorView: View {
                     Button { publishing = true } label: {
                         Label("Publish to Hugging Face", systemImage: "arrow.up.circle")
                     }
-                    Menu("Author against") {
-                        Button("Bare floor") { draft.sceneID = nil }
+                    // A PICKER, NOT BUTTONS, SO THE CURRENT CHOICE IS VISIBLE.
+                    // Plain buttons carried no selection state anywhere on the
+                    // screen, which is what made a draft pointing at a DELETED
+                    // scene impossible to discover: the preview fell back to
+                    // bare floor and the menu looked exactly as it does for a
+                    // draft that never had one. A dangling id matches no tag,
+                    // so nothing is ticked — and the row under the stage says
+                    // why.
+                    Picker("Author against", selection: $draft.sceneID) {
+                        Text("Bare floor").tag(UUID?.none)
                         ForEach(scenes.scenes) { s in
-                            Button(s.name) { draft.sceneID = s.id }
+                            Text(s.name).tag(UUID?.some(s.id))
                         }
                     }
                     Divider()
@@ -195,7 +248,19 @@ struct IntentAuthorView: View {
             playhead += 1.0 / DuckModel.tickHz
             if playhead >= draft.duration { playhead = 0 }
         }
-        .onChange(of: draft) { _, new in onSave(new) }
+        // THE COLLISION WARNING DIES WITH THE MOTION THAT CAUSED IT, and this
+        // is the only place that rule needs to live. `blockedRetime` names two
+        // specific keyframes that were too close to swap; delete either one,
+        // add a third between them, or let a tweak rewrite the timeline, and
+        // the warning is about a conflict that no longer exists. Hanging the
+        // clear here rather than on each of the six edits that could invalidate
+        // it is what makes it total — and a REFUSED retime is exactly the case
+        // that must not clear it, which this gets right for free: a refusal
+        // leaves `draft` untouched, so this never fires.
+        .onChange(of: draft) { _, new in
+            blockedRetime = nil
+            onSave(new)
+        }
     }
 
     // MARK: - posing
@@ -203,6 +268,14 @@ struct IntentAuthorView: View {
     @ViewBuilder private var joints: some View {
         Section {
             TextField("Name", text: $draft.name)
+            // WHICH PLACE THIS IS BEING JUDGED IN, in words. The stage draws
+            // it and the legend counts what is standing in it, but neither
+            // names it, and the name is the only thing that ties what is on
+            // screen to the menu item somebody tapped.
+            LabeledContent("Posed against") {
+                Text(scene?.name ?? (draft.sceneID == nil ? "Bare floor" : "A deleted scene"))
+            }
+            .font(.footnote)
             Text(IntentDraft.disclaimer).font(.caption).foregroundStyle(.secondary)
         }
 
@@ -300,14 +373,21 @@ struct IntentAuthorView: View {
                 }
             }
             .disabled(thinking || asked.trimmingCharacters(in: .whitespaces).isEmpty
-                      || models?.selected.kind != .openAICompatible)
+                      || models.selected.kind != .openAICompatible)
         } header: {
             Text("Describe a change")
         } footer: {
-            if let models, models.selected.kind == .openAICompatible {
+            // THE REFUSAL HAS TO NAME A STEP THAT WORKS. The old one said
+            // "Choose one under Draft → Models" to everybody, including the
+            // person on the out-of-the-box choice — who then went to Models,
+            // selected the Apple row that cannot be deleted, and came back to
+            // exactly the same dead button and the same sentence. What is
+            // needed is a DIFFERENT KIND of model, not a different selection,
+            // and the sentence now says which kind and why.
+            if models.selected.kind == .openAICompatible {
                 Text("\(models.selected.name) is asked for a list of changes to THIS motion, not for a new one. Anything it does not mention is left exactly as it is. \(models.selected.privacyNote)")
             } else {
-                Text("Needs a model that can return a list of edits. Choose one under Draft → Models: a small local one is plenty, because every angle it asks for is checked and clamped here afterwards.")
+                Text("\(models.selected.name) hands back a whole motion as a typed value, which is the shape it guarantees and the reason drafting works on it. There is no typed shape here for a list of edits, so this app does not ask it for one. ADD a server under Draft → Models rather than picking a different model there: any OpenAI-compatible address will do, and a small local one is plenty, because every angle it asks for is checked and clamped here afterwards.")
             }
         }
 
@@ -329,7 +409,16 @@ struct IntentAuthorView: View {
             } header: {
                 Text("Not applied")
             } footer: {
-                Text("Everything else in the same sentence was applied. Say these again in other words, or change them by hand in Pose.")
+                // "EVERYTHING ELSE WAS APPLIED" IS FALSE WHEN NOTHING WAS.
+                // `MotionTweak.outcome` throws only when a refusal carries a
+                // `Failure` behind it; a list whose sole instruction is refused
+                // by SENTENCE — an empty rename is the shipped example — comes
+                // back with no notes and no throw, and this footer used to
+                // announce a success that had not happened beside the refusal
+                // saying it had not.
+                Text(tweakNotes.isEmpty
+                     ? "Nothing else was asked for, so the motion is exactly as it was. Say it again in other words, or change it by hand in Pose."
+                     : "Everything else in the same sentence was applied. Say these again in other words, or change them by hand in Pose.")
             }
         }
 
@@ -345,6 +434,7 @@ struct IntentAuthorView: View {
                             beforeTweak = nil
                             tweakNotes = []
                             tweakRefusals = []
+                            tweakMoment = nil
                         }
                     } label: {
                         Label("Put it back", systemImage: "arrow.uturn.backward")
@@ -353,13 +443,22 @@ struct IntentAuthorView: View {
             } header: {
                 Text("What changed")
             } footer: {
-                Text("The robot above is already showing it. Scrub the timeline to watch it through.")
+                // THE CLAIM NOW MATCHES WHAT THE PLAYHEAD DID. It used to say
+                // the robot was already showing the change while the playhead
+                // had been sent to the motion's FIRST keyframe — which is the
+                // standing pose on every draft that starts blank or comes from
+                // a proposal, i.e. the one moment where a deeper bow is
+                // invisible. When there is nowhere new to point (a rename, a
+                // keyframe removed) the playhead stays put and this says so
+                // rather than claiming a pose that did not move.
+                Text(tweakMoment == nil
+                     ? "Nothing new was added at a moment to jump to, so the robot above is where you left it. The keyframe list and the name are where to look."
+                     : "The robot above is standing at the moment the change landed. Scrub the timeline to watch it through.")
             }
         }
     }
 
     private func applyTweak() async {
-        guard let models else { return }
         let sentence = asked.trimmingCharacters(in: .whitespaces)
         thinking = true; tweakFailure = nil; tweakRefusals = []
         defer { thinking = false }
@@ -370,7 +469,21 @@ struct IntentAuthorView: View {
                 instructions: ChatDraft.tweakInstructions(for: draft))
             let tweak = try ChatDraft.tweak(fromJSON: answer.json)
             let outcome = try tweak.outcome(applyingTo: draft)
-            beforeTweak = draft
+            let was = draft
+            // NOTHING TO PUT BACK WHEN NOTHING MOVED. `outcome` returns without
+            // throwing when every instruction was refused by sentence, and
+            // offering "Put it back" against an identical motion is a control
+            // that cannot do anything.
+            //
+            // COMPARED THROUGH SORTED KEYS, BECAUSE THE KIT SORTS AND
+            // `IntentDraft` IS EQUATABLE ON ARRAY ORDER. A draft whose keys
+            // happen to be stored out of time order comes back from a
+            // no-op tweak reordered but unchanged, and a plain `==` reads that
+            // as an edit — which offers an undo for something that did not
+            // happen, on exactly the all-refused path this guard exists for.
+            let unchanged = outcome.draft.keys.sorted { $0.time < $1.time }
+                         == was.keys.sorted { $0.time < $1.time }
+            beforeTweak = unchanged ? nil : was
             draft = outcome.draft
             // THE MODEL'S SUMMARY IS NOT A SUBSTITUTE FOR A NOTE. This used to
             // read `notes.isEmpty ? [tweak.summary] : notes`, which meant that
@@ -381,12 +494,21 @@ struct IntentAuthorView: View {
             // beside it say why.
             tweakNotes = outcome.notes
             tweakRefusals = outcome.refusals
-            asked = ""
-            // Show the first thing that changed, so the preview is looking at
-            // the edit rather than wherever the playhead happened to be.
+            // THE SENTENCE STAYS IN THE BOX WHEN NOTHING LANDED. Clearing it
+            // was fine while every path here changed something; it is not fine
+            // on the path where every instruction came back refused, because
+            // the obvious next move is to reword what you typed and it has
+            // gone.
+            if !outcome.notes.isEmpty { asked = "" }
+            // Show the moment the edit landed on, which is a question only the
+            // resulting motion can answer — a stated time is snapped to the
+            // nearest keyframe, clamped, or refused on the way in. This used to
+            // take the motion's FIRST keyframe, which is the standing pose by
+            // construction and is where nothing an edit did is visible.
             // The editor autosaves on every change of `draft`, so there is
             // nothing to call here — the onChange above has already run.
-            if let first = outcome.draft.keys.map(\.time).sorted().first { playhead = first }
+            tweakMoment = outcome.draft.firstNewMoment(comparedTo: was)
+            if let moment = tweakMoment { playhead = moment }
             isRunning = false
         } catch let failure as MotionTweak.Failure {
             tweakFailure = failure.message
@@ -402,6 +524,12 @@ struct IntentAuthorView: View {
     // MARK: - the timeline
 
     @ViewBuilder private var timeline: some View {
+        if let blockedRetime {
+            Section {
+                Label(blockedRetime, systemImage: "exclamationmark.triangle")
+                    .font(.footnote).foregroundStyle(.orange)
+            }
+        }
         Section {
             ForEach(ordered) { key in
                 VStack(alignment: .leading, spacing: 6) {
@@ -429,6 +557,10 @@ struct IntentAuthorView: View {
             .onDelete { offsets in
                 let doomed = offsets.map { ordered[$0].id }
                 draft.keys.removeAll { doomed.contains($0.id) }
+                // The moment that was in the way may have just been the one
+                // deleted, and a refusal naming a keyframe that no longer
+                // exists is worse than no refusal at all.
+                blockedRetime = nil
             }
         } header: {
             Text("Keyframes")
@@ -469,11 +601,21 @@ struct IntentAuthorView: View {
     /// creating one.
     private func retime(_ key: IntentDraft.Key, to time: TimeInterval) {
         guard let index = draft.keys.firstIndex(where: { $0.id == key.id }) else { return }
-        let wanted = max(time, 0)
-        guard !draft.keys.contains(where: { $0.id != key.id && abs($0.time - wanted) < 0.005 })
-        else { return }
-        draft.keys[index].time = wanted
-        playhead = wanted
+        // THE REFUSAL IS SAID OUT LOUD NOW. Both the collision window and the
+        // sentence live in StudioKit, because the window is the same one
+        // `MotionTweak` moves keyframes by and a second copy of it here is how
+        // the two start disagreeing. Refusing is right — two keyframes at one
+        // instant is a broken motion — but this used to refuse by returning,
+        // and since the stepper walks in 0.05 s straight onto a neighbour, a
+        // brand-new motion's two keyframes half a second apart stall on the
+        // tenth tap with nothing on screen changing at all.
+        if let refusal = IntentDraft.retimeRefusal(draft.keys, moving: key.id, to: time) {
+            blockedRetime = refusal
+            return
+        }
+        blockedRetime = nil
+        draft.keys[index].time = max(time, 0)
+        playhead = draft.keys[index].time
         isRunning = false
     }
 

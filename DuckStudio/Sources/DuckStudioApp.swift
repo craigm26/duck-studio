@@ -27,7 +27,8 @@ struct DuckStudioApp: App {
     var body: some Scene {
         WindowGroup {
             TabView {
-                NavigationStack { PolicyListView(model: model, scenes: scenes, drafts: drafts) }
+                NavigationStack { PolicyListView(model: model, scenes: scenes, drafts: drafts,
+                                               models: models) }
                     .tabItem { Label("Policies", systemImage: "cpu") }
                 NavigationStack { IntentListView(models: models, store: scenes, model: model, drafts: drafts) }
                     .tabItem { Label("Intents", systemImage: "figure.walk.motion") }

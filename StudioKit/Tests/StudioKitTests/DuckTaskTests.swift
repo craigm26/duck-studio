@@ -970,20 +970,89 @@ You are piloting a small biped duck robot. Fetch the ball.
 
     // MARK: - a metadata name this writer cannot write down
 
-    /// `learned_verbs[].metadata` is the format's one untyped corner, and the one place a
-    /// caller names something themselves. A name carrying a colon used to be written
-    /// unquoted — `a: b: 1` — and read back as the name `a` holding `b: 1`: a name and a
-    /// value nobody wrote, with nothing thrown. Quoting it on the way out fixes nothing,
-    /// because the block reader splits a key before it unquotes one, and neither does the
-    /// flow form, where `scalar` splits at the first colon before `unquote` ever runs. A
-    /// colon is the one thing no shape in this subset can carry, so it is refused.
-    func testAMetadataNameThisFormatCannotWriteDownIsRefused() {
-        let unwritable = ["a: b", "a:b", "trailing:", "{a: b}", "a\rb"]
-        for name in unwritable {
-            XCTAssertThrowsError(try metadataTask([name: .integer(1)]),
-                                 "\"\(name)\" is not a name this writer can put in a file") {
-                XCTAssertEqual($0 as? DuckTask.ReadError,
-                               .metadataNameIsNotWritable(verb: "flamingo_cycle", name: name))
+    /// THE TRUE SET, AS A TABLE, because the last two sentences written here were wrong.
+    /// This test replaces one that listed `a: b`, `a:b`, `trailing:` and `{a: b}` as
+    /// unwritable and a class comment that said the refused set "in practice means one
+    /// holding a colon". Every one of those is written and read back now: the colons were
+    /// never the writer's problem, they were `flowKeyColon` cutting a quoted key before
+    /// `unquote` ran.
+    ///
+    /// EVERY ROW IS MEASURED IN ALL THREE PLACES A NAME CAN SIT, because the answer differs
+    /// between them and a table that only asked about one would go on being tidy and false.
+    /// `a}b` at the top of a metadata mapping is fine; the same name inside a `[ ]` is not,
+    /// and saying "`a}b` is unwritable" would send an author renaming a key that works.
+    ///
+    /// THE RESIDUE IS TWO NAMED TRAITS AND ONE UNNAMED FAMILY. A carriage return, which
+    /// nothing in the reader can hand back out of a file; brackets that do not close each
+    /// other, which only bites where the name is nested; and — also only nested — a name
+    /// whose brackets balance by COUNT but whose running depth returns to zero at a comma,
+    /// so `splitTopLevel` cuts the entry there. `},{` is the shape, and it gets the fallback
+    /// sentence rather than a named character, because there is no single character to name.
+    /// `testTheMetadataRefusalNeverTurnsAwayAFileThisReaderCanRead` is the other half of the
+    /// claim: none of the three can arrive from a `.duck`.
+    func testTheTrueSetOfMetadataNamesThisWriterRefuses() {
+        /// name -> refused at the top of metadata / nested in a mapping / nested in a list.
+        let table: [(String, Bool, Bool, Bool)] = [
+            // A carriage return has no place to go at all. It is the only name in this
+            // table refused at the top level.
+            ("a\rb", true, true, true),
+            // Brackets that do not close each other survive everywhere a quote can open for
+            // them, and only fail one level down, inside a `[ ]` or a `{ }`.
+            ("a}b", false, false, true),
+            ("a{b", false, false, true),
+            ("a[b", false, false, true),
+            ("a]b", false, false, true),
+            ("a, }", false, false, true),
+            ("a: }", false, false, true),
+            // BALANCED BY COUNT AND STILL UNWRITABLE, which is the third family and the
+            // reason the comment above says "residue" rather than "exactly two". The running
+            // depth returns to zero at the comma, so `splitTopLevel` cuts the entry in half
+            // there. No single character is at fault, so these get the fallback sentence.
+            ("},{", false, false, true),
+            ("}a,{", false, false, true),
+            ("a},{", false, false, true),
+            // Counted, not looked for: these hold brackets that DO close each other, in the
+            // one running count `splitTopLevel` keeps, so they go everywhere.
+            ("a}b{c", false, false, false),
+            ("a{b}c", false, false, false),
+            ("a[b]c", false, false, false),
+            ("}{", false, false, false),
+            // The names the old table called unwritable. All of them are written now.
+            ("a: b", false, false, false),
+            ("a:b", false, false, false),
+            ("trailing:", false, false, false),
+            ("{a: b}", false, false, false),
+            ("[a: b]", false, false, false),
+            ("x, y: z", false, false, false),
+            ("he said \"hi\", ok", false, false, false),
+            ("he said 'hi', ok", false, false, false),
+        ]
+        for (name, atTop, whenNested, whenInAList) in table {
+            let shapes: [(String, [String: DuckValue], Bool)] = [
+                ("at the top of metadata", [name: .integer(1)], atTop),
+                ("nested in a mapping", ["outer": .mapping([name: .integer(1)])], whenNested),
+                ("nested in a list",
+                 ["outer": .list([.mapping([name: .integer(1)])])], whenInAList),
+            ]
+            for (where_, metadata, shouldRefuse) in shapes {
+                let task = Result { try metadataTask(metadata) }
+                if shouldRefuse {
+                    XCTAssertThrowsError(try task.get(),
+                                         "\"\(name)\" \(where_) should have been refused") {
+                        XCTAssertEqual($0 as? DuckTask.ReadError,
+                                       .metadataNameIsNotWritable(verb: "flamingo_cycle",
+                                                                  name: name))
+                    }
+                } else {
+                    // Not refused is not enough — the point of not refusing it is that the
+                    // file comes back holding the same name.
+                    guard let built = try? task.get() else {
+                        XCTFail("\"\(name)\" \(where_) was refused"); continue
+                    }
+                    XCTAssertEqual(try? DuckTask.decode(built.encode()), built,
+                                   "\"\(name)\" \(where_) did not survive the round trip:\n"
+                                 + String(decoding: built.encode(), as: UTF8.self))
+                }
             }
         }
     }
@@ -1003,22 +1072,31 @@ You are piloting a small biped duck robot. Fetch the ball.
     /// that lists every rule and leaves them to work out which one they broke is the bug,
     /// not a wording preference. An earlier version listed rules — and left the tab it
     /// refused off the list entirely.
+    ///
+    /// A REASON THAT IS NOT THE REASON IS THE SAME BUG WEARING A CHARACTER. The version
+    /// before this one answered `a: }` with "it contains a colon" — a colon this writer
+    /// places without trouble — leaving an author to delete the wrong character and watch
+    /// the refusal come back. Both surviving branches are asserted against the name that
+    /// tests them, and the sentence says WHERE the name cannot go rather than claiming it
+    /// can go nowhere, because `a}b` one level up is written and read back perfectly.
     func testTheMetadataRefusalNamesTheCharacterThatCausedIt() {
         func why(_ name: String) -> String {
             DuckTask.ReadError.metadataNameIsNotWritable(verb: "v", name: name).message
         }
-        XCTAssertEqual(why("a: b"),
-                       "The learned verb \"v\" has a metadata setting named \"a: b\", and "
-                     + "there is no way to write that name into a .duck file and read it "
-                     + "back: it contains a colon. Written out, \"a: b\" would come back as "
-                     + "a different name holding a different value, and nothing would "
-                     + "complain. Rename it.")
-        XCTAssertTrue(why("a\rb").contains("it contains a line break"), why("a\rb"))
-        XCTAssertTrue(why("a}b").contains("its { and } braces do not close each other"),
-                      why("a}b"))
-        XCTAssertTrue(why("a[b").contains("its [ and ] brackets do not close each other"),
-                      why("a[b"))
-        XCTAssertTrue(why("a\",b").contains("it contains a quote"), why("a\",b"))
+        XCTAssertEqual(why("a}b"),
+                       "The learned verb \"v\" has a metadata setting named \"a}b\", and "
+                     + "there is no way to write that name where it sits and read it back: "
+                     + "its brackets do not close each other, and a name nested inside a "
+                     + "[ ] or a { } has to close its own. Written out, \"a}b\" would come "
+                     + "back as a different name holding a different value, and nothing "
+                     + "would complain. Rename it.")
+        XCTAssertTrue(why("a\rb").contains("it contains a carriage return"), why("a\rb"))
+        for name in ["a{b", "a[b", "a]b", "a, }", "a: }"] {
+            XCTAssertTrue(why(name).contains("its brackets do not close each other"),
+                          why(name))
+        }
+        // The colon in `a: }` is not the trouble and the sentence must not say it is.
+        XCTAssertFalse(why("a: }").contains("colon"), why("a: }"))
     }
 
     /// THE REFUSAL MUST NOT COST ANYBODY A FILE QUACKD RUNS. Every name below is one this
@@ -1029,12 +1107,16 @@ You are piloting a small biped duck robot. Fetch the ball.
     /// MOST OF THIS LIST USED TO BE REFUSED. ` x`, `#x`, `-x`, a leading tab and `a, b` were
     /// all turned away on the grounds that no file could produce them, which was false: a
     /// quoted flow key hands every one of them back. They are written now instead, in flow
-    /// form, and that is what this list is for.
+    /// form, and that is what this list is for. The colon-bearing tail joined them when
+    /// `flowKeyColon` stopped cutting a quoted key in half.
     func testAMetadataNameThisFormatCanWriteDownIsKept() throws {
         let writable = ["timeout_s", "a b", "a#b", "a #b", "a, b", "12", "true", "[a]",
                         "{a}", "a's name", "a\"b", "ünïcode", "a\tb", "", " leading space",
                         "trailing space ", "-leading dash", "#leading hash", "\ttabbed",
-                        "tabbed\t", "a\nb", "\"quoted", "'quoted", "a}b", "a b, c"]
+                        "tabbed\t", "a\nb", "\"quoted", "'quoted", "a}b", "a b, c",
+                        "a: b", "a:b", "trailing:", "{a: b}", "[a: b]", "x, y: z",
+                        "a: b, c", "he said \"hi\", ok", "he said 'hi', ok", "a\"b,y",
+                        "a'b,y", "a''b", "back\\slash", "a\"b\"c", "}{", "a}b{c"]
         for name in writable {
             let task = try metadataTask([name: .integer(1)])
             let reread = try DuckTask.decode(task.encode())
@@ -1076,13 +1158,10 @@ You are piloting a small biped duck robot. Fetch the ball.
     /// reader, so it is checked on the same terms — but the terms are not the same
     /// everywhere, and that is the point. Inside a `[ ]`, `splitTopLevel` has already seen
     /// the enclosing `{` by the time it reaches a key's quote, so a quote cannot open there
-    /// and a name's own brackets have to balance on their own. A comma is fine — the quotes
-    /// do hold for that — which is why it is written rather than refused.
+    /// and a name's own brackets have to balance on their own. A comma is fine, a colon is
+    /// fine, and a `\"` inside the name is fine — the quotes hold for all three — which is
+    /// why they are written rather than refused.
     func testANestedMetadataNameIsCheckedToo() throws {
-        XCTAssertThrowsError(try metadataTask(["outer": .mapping(["a: b": .integer(1)])])) {
-            XCTAssertEqual($0 as? DuckTask.ReadError,
-                           .metadataNameIsNotWritable(verb: "flamingo_cycle", name: "a: b"))
-        }
         XCTAssertThrowsError(try metadataTask(["outer": .list([.mapping(["a}b": .integer(1)])])])) {
             XCTAssertEqual($0 as? DuckTask.ReadError,
                            .metadataNameIsNotWritable(verb: "flamingo_cycle", name: "a}b"))
@@ -1090,8 +1169,14 @@ You are piloting a small biped duck robot. Fetch the ball.
         // The same name one level up, where a quote CAN open, is written and read back.
         let nested = try metadataTask(["outer": .mapping(["a}b": .integer(1)])])
         XCTAssertEqual(try DuckTask.decode(nested.encode()), nested)
-        let inAList = try metadataTask(["outer": .list([.mapping(["a, b": .integer(1)])])])
-        XCTAssertEqual(try DuckTask.decode(inAList.encode()), inAList)
+        // A colon, a comma, and an escaped quote all survive the deepest placement there
+        // is. Each of these was refused before the reader was fixed under it.
+        for name in ["a, b", "a: b", "he said \"hi\", ok", "he said 'hi', ok", "{a: b}"] {
+            let inAList = try metadataTask(["outer": .list([.mapping([name: .integer(1)])])])
+            XCTAssertEqual(try DuckTask.decode(inAList.encode()), inAList,
+                           "\"\(name)\" nested in a list did not survive:\n"
+                         + String(decoding: inAList.encode(), as: UTF8.self))
+        }
     }
 
     /// THE PROPERTY THE WHOLE REFUSAL RESTS ON. Refusing a name is only safe while no real
@@ -1107,23 +1192,51 @@ You are piloting a small biped duck robot. Fetch the ball.
     /// name in BLOCK FORM ONLY, where `splitKey` genuinely cannot hand back a bad name, so
     /// it passed by construction and could not see that the refusal it was named after was
     /// turning away `outer: {" x": 1}` — a file PyYAML, and so quackd, reads without
-    /// complaint. Adding the two flow rows is what made it able to fail.
+    /// complaint. Adding the flow rows is what made it able to fail.
+    ///
+    /// THE SINGLE-QUOTED ROWS ARE HERE BECAUSE THE DOUBLE-QUOTED ONES ALONE WERE NOT ENOUGH
+    /// EITHER. With only `"…"` shapes on the table, `he said "hi", ok` written as `'he said
+    /// "hi", ok'` was refused and this test could not see it — `splitTopLevel` ended the
+    /// quoted run at the bare `"` and the comma after it cut the entry in half. Nine
+    /// placements now: a block line, a block line quoted both ways, a flow key quoted both
+    /// ways, the same one level down inside a `[ ]`, and both of those with the whole
+    /// mapping written at the `metadata:` root. Each name and shape below was checked
+    /// against PyYAML 6.0.2 before it was written down; 22 of these rows were refused
+    /// before the reader was fixed under them, and the whole table passes now.
+    ///
+    /// WHAT THIS DOES NOT PROVE, said plainly: it proves no file THIS READER CAN READ is
+    /// turned away by the metadata refusal, not that this reader reads every file PyYAML
+    /// does. A quoted key on a BLOCK line is still read with its quotes on — the limitation
+    /// the class comment names — and `outer: [{"a}b": 1}]` is still refused on the line, by
+    /// `splitTopLevel`, before there is a name to refuse. Both are misreads or parse
+    /// refusals with their own names; neither is this refusal, and neither is fixed by
+    /// pretending otherwise here.
     func testTheMetadataRefusalNeverTurnsAwayAFileThisReaderCanRead() throws {
         for name in ["a: b", "a:b", "trailing:", "", " leading space", "trailing space ",
                      "-leading dash", "#leading hash", "\ttabbed", "tabbed\t", "a\tb",
                      "a b", "a#b", "a #b", "a, b", "12", "true", "[a]", "{a}", "a's name",
                      "a\"b", "ünïcode", "a}b", "a{b", "a[b", "a]b", "\"quoted", "'quoted",
-                     "a\\nb", "a b, c"] {
-            for line in ["      \(name): 1",
-                         "      outer: {\"\(name)\": 1}",
-                         "      outer: [{\"\(name)\": 1}]"] {
+                     "a\\nb", "a b, c", "{a: b}", "[a: b]", "x, y: z", "a: b, c",
+                     "he said \"hi\", ok", "he said 'hi', ok", "a\"b,y", "say \"hi\",y",
+                     "\",y", "x\",y", "q\"q,q", "a'b,y", "a''b", "back\\slash", "a\"b\"c",
+                     "a}b{c"] {
+            let double = Self.doubleQuoted(name), single = Self.singleQuoted(name)
+            for block in ["    metadata:\n      \(name): 1",
+                          "    metadata:\n      \(double): 1",
+                          "    metadata:\n      \(single): 1",
+                          "    metadata:\n      outer: {\(double): 1}",
+                          "    metadata:\n      outer: {\(single): 1}",
+                          "    metadata:\n      outer: [{\(double): 1}]",
+                          "    metadata:\n      outer: [{\(single): 1}]",
+                          "    metadata: {outer: [{\(double): 1}]}",
+                          "    metadata: {outer: [{\(single): 1}]}"] {
                 do {
-                    let task = try DuckTask.decode(Data(Self.fileCarrying(line).utf8))
+                    let task = try DuckTask.decode(Data(Self.fileCarrying(block).utf8))
                     XCTAssertEqual(try DuckTask.decode(task.encode()), task,
-                                   "\"\(name)\" came out of \(line) and would not go back in")
+                                   "\"\(name)\" came out of \(block) and would not go back in")
                 } catch let error as DuckTask.ReadError {
                     if case .metadataNameIsNotWritable = error {
-                        XCTFail("the reader read \"\(name)\" out of \(line) and then "
+                        XCTFail("the reader read \"\(name)\" out of \(block) and then "
                               + "refused it: \(error.message)")
                     }
                 }
@@ -1131,35 +1244,78 @@ You are piloting a small biped duck robot. Fetch the ball.
         }
     }
 
-    /// THE ONE FILE THIS REFUSAL STILL TURNS AWAY, written down rather than left to be
-    /// discovered. It is not a name an author chose: `scalar`'s flow branch splits a key at
-    /// the first colon BEFORE `unquote` runs, so a quoted flow key holding a colon is
-    /// already misread — PyYAML reads `{"{a: b}": 1}` as the name `{a: b}`, this reader
-    /// reads it as `"{a`. That invented name carries an unbalanced brace, which is the one
-    /// thing a key inside a `[ ]` cannot carry, so the refusal fires on a name nobody wrote.
+    /// WHAT THE READER STILL GETS WRONG, pinned so that the honest claim above stays honest.
+    /// These are misreads, not refusals, and they are the reason the class comment says this
+    /// subset is narrower than PyYAML rather than saying it is not.
     ///
-    /// BOTH HALVES ARE THE SAME ROOT CAUSE and the fix is one change in the reader: split a
-    /// flow key at the first colon OUTSIDE a quoted run. That closes the misread, and the
-    /// refusal goes with it. It is left alone here because it is a change to the shared
-    /// `splitTopLevel`/`scalar` path with its own regression surface, and because refusing a
-    /// file this reader would have misread is the less bad of the two wrongs available.
-    func testAQuotedFlowKeyHoldingAColonIsMisreadAndThenRefused() throws {
-        let line = "      outer: [{\"{a: b}\": 1}]"
-        XCTAssertThrowsError(try DuckTask.decode(Data(Self.fileCarrying(line).utf8))) {
-            XCTAssertEqual($0 as? DuckTask.ReadError,
-                           .metadataNameIsNotWritable(verb: "flamingo_cycle", name: "\"{a"),
-                           "the name is the reader's invention, not the author's")
-        }
-        // One level up the same misread happens and the invented name IS writable, so the
-        // file is accepted holding a name PyYAML would have read differently. That is the
-        // misread on its own, with no refusal in front of it.
-        let shallow = "      outer: {\"a: b\": 1}"
-        let task = try DuckTask.decode(Data(Self.fileCarrying(shallow).utf8))
-        XCTAssertEqual(task.learnedVerbs.first?.metadata,
-                       ["outer": .mapping(["\"a": .string("b\": 1")])])
+    /// A QUOTED KEY ON A BLOCK LINE KEEPS ITS QUOTES. `splitKey` divides `key: value` before
+    /// anything unquotes, so `"a b": 1` on a line of its own is the name `"a b"` here and
+    /// the name `a b` to PyYAML. It is left alone deliberately: `nameFits(_:at: .block)`
+    /// writes a block name RAW, so teaching the reader to unquote would make the writer have
+    /// to quote, which changes the bytes of every metadata mapping in every file this app
+    /// has ever written. The flow forms carry every awkward name already, so the cost buys
+    /// nothing. It is a misread of a hand-written file and it is written down as one.
+    func testAQuotedKeyOnABlockLineKeepsItsQuotes() throws {
+        let task = try DuckTask.decode(
+            Data(Self.fileCarrying("    metadata:\n      \"a b\": 1").utf8))
+        XCTAssertEqual(task.learnedVerbs.first?.metadata, ["\"a b\"": .integer(1)],
+                       "PyYAML reads this file as the name `a b`")
+        // The same name in a FLOW key — the shape the writer actually uses — is read the way
+        // PyYAML reads it. That is why the misread above costs nothing on a written file.
+        let flow = try DuckTask.decode(
+            Data(Self.fileCarrying("    metadata:\n      outer: {\"a b\": 1}").utf8))
+        XCTAssertEqual(flow.learnedVerbs.first?.metadata,
+                       ["outer": .mapping(["a b": .integer(1)])])
     }
 
-    private static func fileCarrying(_ metadataLine: String) -> String {
+    /// A name whose brackets do not close each other, nested inside a `[ ]`, is a file this
+    /// reader cannot read AT ALL — `splitTopLevel` counts the enclosing `{` and the name's
+    /// stray `}` together and reports the line. PyYAML reads it.
+    ///
+    /// IT IS PINNED HERE BECAUSE IT IS THE OTHER HALF OF THE REFUSAL'S ALIBI. The claim
+    /// `validate()` rests on is that its refusal can never meet a name that came out of a
+    /// file; this is the one trait where a file could in principle carry such a name, and
+    /// the reason it cannot is that the file is turned away one layer earlier, by the
+    /// parser, with a line number and a reason. A different wrong, honestly reported.
+    func testANestedNameWithUnbalancedBracketsIsRefusedByTheParserNotByTheName() {
+        let block = "    metadata:\n      outer: [{\"a}b\": 1}]"
+        XCTAssertThrowsError(try DuckTask.decode(Data(Self.fileCarrying(block).utf8))) {
+            guard case .malformedYAML(_, let reason) = ($0 as? DuckTask.ReadError) else {
+                return XCTFail("expected a parse refusal, got \($0)")
+            }
+            XCTAssertEqual(reason, "unbalanced quotes or brackets")
+        }
+    }
+
+    /// A YAML double-quoted scalar carrying exactly `name`, and a single-quoted one.
+    ///
+    /// HAND-ROLLED RATHER THAN BORROWED FROM `DuckYAML.quoteIfNeeded`, on purpose: a table
+    /// that quoted its names with the writer's own escaping could only ever agree with the
+    /// writer, and the point of the table is to hold a HAND-WRITTEN file against it. These
+    /// two follow the YAML spec — `\\`, `\"`, `\n`, `\t` in a double-quoted scalar, `''` in
+    /// a single-quoted one — and every row they produce was run through PyYAML 6.0.2.
+    private static func doubleQuoted(_ name: String) -> String {
+        var out = "\""
+        for character in name {
+            switch character {
+            case "\\": out += "\\\\"
+            case "\"": out += "\\\""
+            case "\n": out += "\\n"
+            case "\t": out += "\\t"
+            default: out.append(character)
+            }
+        }
+        return out + "\""
+    }
+
+    private static func singleQuoted(_ name: String) -> String {
+        "'" + name.replacingOccurrences(of: "'", with: "''") + "'"
+    }
+
+    /// The whole `metadata:` block, indented as it sits under a learned verb — not just the
+    /// name's line, because the mapping written at the `metadata:` root is one of the shapes
+    /// a hand-written file uses and it has no line of its own.
+    private static func fileCarrying(_ metadataBlock: String) -> String {
         """
         ---
         duck: 0
@@ -1173,8 +1329,7 @@ You are piloting a small biped duck robot. Fetch the ball.
           - name: flamingo_cycle
             policy: p.onnx
             description: ""
-            metadata:
-        \(metadataLine)
+        \(metadataBlock)
         ---
 
         # Task

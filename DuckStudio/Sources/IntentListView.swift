@@ -140,7 +140,8 @@ struct IntentListView: View {
                 Section {
                     ForEach(drafts.drafts) { draft in
                         NavigationLink {
-                            PipelineView(draftID: draft.id, drafts: drafts, scenes: store)
+                            PipelineView(draftID: draft.id, drafts: drafts, scenes: store,
+                                         models: models)
                         } label: {
                             let pipeline = Pipeline.of(draft, bench: draft.bench)
                             VStack(alignment: .leading, spacing: 3) {
@@ -354,10 +355,18 @@ struct IntentPlayerView: View {
     var store: SceneStore?
     var drafts: DraftStore?
     /// Passed through to the editor a remix opens, so a tweak asked for there
-    /// reaches the same model as everywhere else. LAST AND OPTIONAL on purpose:
-    /// four screens present this player and none of them should have to change
-    /// to gain a feature they do not use.
-    var models: EndpointStore? = nil
+    /// reaches the same model as everywhere else.
+    ///
+    /// IT WAS OPTIONAL AND DEFAULTED, "so none of the four screens that present
+    /// this player has to change to gain a feature they do not use" — and three
+    /// of the four then took the default. A remix opened from a policy's
+    /// recordings, from a rule's "Watch what it would play", or from a remote
+    /// run got an editor whose Ask panel was dead, telling the user to choose a
+    /// model on a screen with no model picker in its view tree. A default that
+    /// silently removes a feature is a default that will be taken; all four
+    /// screens pass the one store the app owns, and a fifth cannot compile
+    /// without doing the same.
+    @ObservedObject var models: EndpointStore
 
     @State private var remixed: DraftID?
     @State private var playhead: TimeInterval = 0
@@ -422,13 +431,20 @@ struct IntentPlayerView: View {
     var body: some View {
         VStack(spacing: 0) {
             ZStack(alignment: .bottomLeading) {
+                // A SCENE'S PROPS COME ALONGSIDE ITS ENVIRONMENT, never inside
+                // it: `DuckIntentClip.Environment` is the recorded world and a
+                // Studio prop is not part of one. Empty when the clip is
+                // playing where it was recorded, which is the honest answer —
+                // a recording carries no Studio props.
                 DuckStage(pose: .at(pose), variant: clip.variant,
                           environment: world,
+                          props: elsewhere?.props ?? [],
                           trail: clip.roots,
                           progress: playhead / max(clip.duration, 1e-9),
                           orbit: $orbit)
                 StageLegend(pose: .at(pose),
-                            environment: world, orbit: $orbit)
+                            environment: world, props: elsewhere?.props ?? [],
+                            orbit: $orbit)
             }
             .frame(maxHeight: 340)
 

@@ -396,6 +396,18 @@ extension Retrieval {
         /// produce a counter-example and
         /// `testAnUnderstoodThicknessIsUnreachableWhileNotUnderstood` proves it
         /// over every shape of sentence that reaches this state.
+        ///
+        /// IT MEANS WHAT IT SAYS EVERYWHERE, NOT ONLY WHERE IT IS READ. It was
+        /// computed as `grams == nil` once, which is a different question —
+        /// `grams` has already picked up the catalogue's estimate by then — so
+        /// `read("fetch the pencil")` answered `false` while the 6 g in the plan
+        /// was this app's number and the Guessed list said "a pencil weighs
+        /// about 6 g" on the same screen. The two agreed in the one branch that
+        /// reads this flag, so nothing was visibly wrong; a public property
+        /// whose name and doc disagree with its value is how a wrong sentence
+        /// reaches somebody later, and it is fixed at the value rather than
+        /// narrowed at the doc. `testTheInventedWeightFlagIsTrueForACatalogueEstimate`
+        /// holds it.
         public let weightWasInvented: Bool
         /// Facts taken from the sentence, in the sentence's own terms.
         public let understood: [String]
@@ -509,9 +521,17 @@ extension Retrieval {
         let object = everydayObjects.first { text.contains($0.word) }
         if let object { understood.append("a \(object.word)") }
 
+        // ASKED OF THE SENTENCE, NOT OF `grams`, and that distinction is the
+        // whole flag. `grams` has already inherited the catalogue's estimate by
+        // the time this block ends, so `grams == nil` answers "did anything at
+        // all supply a weight" — a question whose answer is `false` for "fetch
+        // the pencil" while the 6 g in the plan is this app's number and the
+        // Guessed list says so in as many words.
+        var weightWasInvented = true
         var grams = object?.grams
         if let (value, unit) = number(in: text, units: ["kg", "g", "gram", "grams"]) {
             grams = unit == "kg" ? value * 1000 : value
+            weightWasInvented = false
             understood.append(String(format: "%.0f g", grams!))
         } else if let object {
             assumed.append(String(format: "a %@ weighs about %.0f g", object.word, object.grams))
@@ -541,12 +561,13 @@ extension Retrieval {
             assumed.append("\"across the room\" taken as 4 m")
         }
 
-        // ONE TEST, TWO CONSEQUENCES. The "weight unknown" line the UI lists
-        // and the `weightWasInvented` flag the refusal reads are the same fact,
-        // so they are asked once — a screen that listed the weight as guessed
-        // while the refusal called it the person's would be arguing with itself.
-        let weightWasInvented = (grams == nil)
-        if weightWasInvented {
+        // ONE QUESTION, TWO CONSEQUENCES, and the question is asked ABOVE, of
+        // the sentence. Whenever `weightWasInvented` is true the Guessed list
+        // carries a weight line — "a pencil weighs about 6 g" when a catalogue
+        // word supplied the number, this one when nothing did — so a screen
+        // listing the weight as guessed while the refusal called it the
+        // person's own cannot happen in either direction.
+        if grams == nil {
             assumed.append(String(format: "weight unknown — taken as %.0f g", assumedGrams))
         }
         if thickness == nil {

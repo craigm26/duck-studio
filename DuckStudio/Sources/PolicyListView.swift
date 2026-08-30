@@ -16,6 +16,13 @@ struct PolicyListView: View {
     @ObservedObject var model: LibraryModel
     @ObservedObject var scenes: SceneStore
     @ObservedObject var drafts: DraftStore
+    /// Not used on this screen — carried through to the clip player and the
+    /// bench, because a motion remixed from a policy's own recordings opens the
+    /// same editor as one remixed from the Intents tab, and the Ask panel there
+    /// was dead for want of this one argument. No screen in this app puts a
+    /// store in the environment; every one is passed by hand, so a feature that
+    /// needs one three screens down has to be threaded through the two between.
+    @ObservedObject var models: EndpointStore
 
     private var released: [PolicyLibrary.Entry] {
         model.library.entries.filter { isReleased(model.standing(for: $0)) }
@@ -62,7 +69,7 @@ struct PolicyListView: View {
                     .foregroundStyle(.secondary)
             }
             ToolbarItem(placement: .topBarTrailing) {
-                NavigationLink { RemoteRunView(scenes: scenes, drafts: drafts) } label: {
+                NavigationLink { RemoteRunView(scenes: scenes, drafts: drafts, models: models) } label: {
                     Label("Run on your network", systemImage: "wifi")
                 }
                 NavigationLink { CatalogueView(model: model) } label: {
@@ -79,7 +86,8 @@ struct PolicyListView: View {
 
     private func row(_ entry: PolicyLibrary.Entry) -> some View {
         NavigationLink {
-            PolicyDetailView(entry: entry, standing: model.standing(for: entry), scenes: scenes, drafts: drafts)
+            PolicyDetailView(entry: entry, standing: model.standing(for: entry),
+                             scenes: scenes, drafts: drafts, models: models)
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: entry.isRunnable ? "checkmark.seal" : "exclamationmark.triangle")
@@ -107,6 +115,11 @@ struct PolicyDetailView: View {
     let standing: DuckOfficialPolicies.Standing
     @ObservedObject var scenes: SceneStore
     @ObservedObject var drafts: DraftStore
+    /// For the player below: a recording listed here opens the same viewer, and
+    /// a remix from it opens the same editor, as the Intents tab. Without this
+    /// the Ask panel in that editor was disabled with a message pointing at a
+    /// screen this view tree does not contain.
+    @ObservedObject var models: EndpointStore
     @State private var clips: [String: DuckIntentClip] = [:]
     @State private var outgoing: Outgoing?
     @State private var failure: String?
@@ -201,7 +214,8 @@ struct PolicyDetailView: View {
                 if !recordings.isEmpty {
                     Section {
                         ForEach(recordings, id: \.name) { clip in
-                            NavigationLink { IntentPlayerView(clip: clip, store: scenes, drafts: drafts) } label: {
+                            NavigationLink { IntentPlayerView(clip: clip, store: scenes, drafts: drafts,
+                                                              models: models) } label: {
                                 HStack {
                                     Text(clip.name).font(.subheadline)
                                     Spacer()

@@ -96,7 +96,11 @@ struct SceneEditorView: View {
         VStack(spacing: 0) {
             ZStack(alignment: .bottomLeading) {
                 DuckStage(pose: preview, environment: scene.environment, props: scene.props, orbit: $orbit)
-                StageLegend(pose: preview, environment: scene.environment, orbit: $orbit)
+                // The stage draws the props; the caption has to count them, or
+                // a floor with a broom, a dowel and a pencil on it is captioned
+                // "bare floor" with all three visible above the words.
+                StageLegend(pose: preview, environment: scene.environment,
+                            props: scene.props, orbit: $orbit)
             }
             .frame(maxHeight: 300)
 
