@@ -242,6 +242,13 @@ private struct ActionRow: View {
     let target: Double
     let limited: Bool
 
+    /// The words this screen already uses for a clamped joint — the header over
+    /// the list of them, three sections up. THE ICON AND THE ORANGE ARE THE
+    /// ONLY PLACE THIS ROW SAYS "clamped", and neither is a word, so the same
+    /// heading is what it says out loud rather than a second wording of the
+    /// same fact.
+    private static let atTheStops = "At the travel stops"
+
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack {
@@ -249,6 +256,7 @@ private struct ActionRow: View {
                 if limited {
                     Image(systemName: "arrow.up.and.down.and.arrow.left.and.right")
                         .font(.caption2).foregroundStyle(.orange)
+                        .accessibilityLabel(Text(Self.atTheStops))
                 }
                 Spacer()
                 Text(String(format: "%+.3f rad", target))
@@ -267,6 +275,12 @@ private struct ActionRow: View {
             }
             .frame(height: 6)
         }
+        // ONE ELEMENT PER JOINT. Nothing in this row can be acted on, so the
+        // three pieces of it — the joint, whether it is clamped, the target it
+        // was given — are one thing to hear rather than three to swipe past.
+        // The bar says nothing out loud: it draws the same number the text
+        // already carries.
+        .accessibilityElement(children: .combine)
     }
 
     /// The raw action, not the target. 1.5 rad is a generous full scale — the
@@ -284,29 +298,77 @@ private struct SlotRow: View {
     let reading: ZScoreStrip.Reading
     let onChange: (Float) -> Void
 
+    /// The printed number, the printed unit, the printed z-score and the
+    /// printed "unused" — each written ONCE and read twice, by the row you look
+    /// at and the row you hear.
+    ///
+    /// A SECOND FORMAT FOR THE SAME QUANTITY IS A SECOND SOURCE OF TRUTH. A
+    /// slider that showed "+0.132" and said "0.13 radians" would be two
+    /// different answers about the same input, and the spoken one is the answer
+    /// nobody can check by looking at the screen.
+    private var printedValue: String { String(format: "%+.3f", reading.value) }
+    private var printedUnit: String { slot.unit.rawValue }
+    private var printedSigma: String { String(format: "%+.1fσ", reading.z) }
+    private var printedUnused: String? { slot.isNeverEmitted ? "unused" : nil }
+
+    /// Everything the row shows, in the order it shows it, for the slider to
+    /// speak as its value.
+    private var spokenValue: String {
+        let parts: [String?] = [printedUnused, printedValue,
+                                printedUnit.isEmpty ? nil : printedUnit, printedSigma]
+        return parts.compactMap { $0 }.joined(separator: ", ")
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
                 Text(slot.label).font(.caption).lineLimit(1)
                 Spacer()
-                if slot.isNeverEmitted {
+                if printedUnused != nil {
+                    // Text("literal"), NOT Text(someString). A String-typed
+                    // argument picks the verbatim initialiser and ships English
+                    // whatever the catalogue says; the literal keeps its
+                    // LocalizedStringKey path. `printedUnused` stays a String
+                    // because the SPOKEN value concatenates it.
                     Text("unused").font(.caption2).foregroundStyle(.tertiary)
                 }
-                Text(String(format: "%+.3f", reading.value))
+                Text(printedValue)
                     .font(.caption.monospacedDigit())
-                Text(slot.unit.rawValue).font(.caption2).foregroundStyle(.secondary)
+                Text(printedUnit).font(.caption2).foregroundStyle(.secondary)
             }
+            // HIDDEN, NOT DELETED — see the slider below, which says all of it.
+            .accessibilityHidden(true)
             HStack(spacing: 8) {
                 Slider(value: Binding(get: { Double(reading.value) },
                                       set: { onChange(Float($0)) }),
                        in: slot.lower...max(slot.upper, slot.lower + 1e-6))
+                    // THE SLIDER IS THE ROW, AS FAR AS VOICEOVER IS CONCERNED.
+                    // A Slider is its own accessibility element and carries the
+                    // .adjustable trait, so the name in the HStack above is a
+                    // SIBLING and never reaches it: unlabelled, all sixty-one
+                    // of these announce "52 percent, adjustable" and nothing
+                    // else — gyro X and left knee velocity indistinguishable,
+                    // on the screen where typing the wrong number into the
+                    // wrong input is the whole hazard.
+                    //
+                    // LABELLED, NOT COMBINED, AND THAT IS THE DECISION.
+                    // Folding the row into one element with
+                    // `accessibilityElement(children: .combine)` would read the
+                    // same three things — and fold the adjustable trait away
+                    // with them, leaving sixty-one inputs that can be heard and
+                    // not moved. Editing an input IS this screen. So the slider
+                    // keeps the element, the texts around it are hidden into
+                    // its value, and swipe-up still moves the number.
+                    .accessibilityLabel(Text(slot.label))
+                    .accessibilityValue(Text(spokenValue))
                 // The z-score sits beside the slider rather than in a separate
                 // strip: the number only means anything next to the value that
                 // produced it.
-                Text(String(format: "%+.1fσ", reading.z))
+                Text(printedSigma)
                     .font(.caption2.monospacedDigit())
                     .foregroundStyle(reading.isOutlier ? .orange : .secondary)
                     .frame(width: 52, alignment: .trailing)
+                    .accessibilityHidden(true)
             }
         }
     }
@@ -335,5 +397,8 @@ private struct SensitivityRow: View {
             }
             .frame(height: 5)
         }
+        // The input and the joint it moves most are one fact, and the bar is
+        // that fact drawn again — so this is one element, and the bar is silent.
+        .accessibilityElement(children: .combine)
     }
 }

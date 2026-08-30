@@ -208,6 +208,11 @@ struct IntentAuthorView: View {
                         confirmingDelete = true
                     }
                 } label: { Image(systemName: "ellipsis.circle") }
+                    // AN ICON WITH NO TEXT IS ANNOUNCED BY GUESSING AT THE
+                    // SYMBOL NAME. This one is the only way to export, publish,
+                    // change the scene or delete the motion, so "ellipsis
+                    // circle" is the difference between having those and not.
+                    .accessibilityLabel(Text("More"))
             }
         }
         .confirmationDialog("Throw away this motion?", isPresented: $confirmingDiscard,
@@ -534,7 +539,7 @@ struct IntentAuthorView: View {
             ForEach(ordered) { key in
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
-                        Text(String(format: "%.2f s", key.time))
+                        Text(moment(key.time))
                             .font(.subheadline.monospacedDigit())
                         Spacer()
                         Button("Show") {
@@ -552,6 +557,14 @@ struct IntentAuthorView: View {
                             in: 0...30, step: 0.05) {
                         Text("Move it").font(.caption).foregroundStyle(.secondary)
                     }
+                    // WHAT IT MOVED TO, WHICH ONLY THE ROW ABOVE SAID. A
+                    // stepper announcing "Move it" and nothing else gives no
+                    // feedback at all on the one control here that can be
+                    // REFUSED: a collision leaves the time exactly where it
+                    // was, and a person who hears no number cannot tell that
+                    // from a tap that did not register. Same expression as the
+                    // heading, so the two cannot round apart.
+                    .accessibilityValue(Text(moment(key.time)))
                 }
             }
             .onDelete { offsets in
@@ -617,6 +630,11 @@ struct IntentAuthorView: View {
         draft.keys[index].time = max(time, 0)
         playhead = draft.keys[index].time
         isRunning = false
+    }
+
+    /// A keyframe's moment as words, printed and spoken from one expression.
+    private func moment(_ time: TimeInterval) -> String {
+        String(format: "%.2f s", time)
     }
 
     /// A time not already taken. Two keyframes at the same instant is a broken
@@ -728,25 +746,49 @@ private struct JointSlider: View {
     let control: JointControl
     @Binding var value: Double
 
+    /// What the slider says when it is spoken instead of seen.
+    ///
+    /// THE TRAVEL STOPS ARE PART OF THE VALUE, NOT DECORATION. The ends of this
+    /// slider are the joint's real travel, so a thumb that will not go further
+    /// has hit the joint's limit rather than a bug — and the two numbers under
+    /// the track are the only thing on screen that says which. Drop them and
+    /// the spoken control is strictly worse than the printed one: fifteen of
+    /// these per keyframe, each stopping somewhere different, with no way to
+    /// tell a stop from a stall. Every part comes from `JointControl`, the same
+    /// expressions the three visible rows use, so the spoken and printed
+    /// angles cannot round apart.
+    private var spoken: String {
+        "\(control.degrees(value)), travel \(control.travelLabel.lower) to \(control.travelLabel.upper)"
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
+            // Hidden because the slider below now carries the name, the angle
+            // and both stops. A Slider is its own element with the adjustable
+            // trait and never reads a sibling HStack, so these rows would
+            // otherwise be spoken beside a control still announcing itself as a
+            // bare percentage.
             HStack {
                 Text(control.name).font(.caption)
                 Spacer()
                 Text(control.degrees(value))
                     .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
             }
+            .accessibilityHidden(true)
             // The ends ARE the travel stops, so the slider cannot ask for an
             // angle the joint does not have. A slider with generous ends and a
             // warning underneath is a slider that teaches people to ignore
             // warnings.
             Slider(value: $value, in: control.lower...control.upper)
+                .accessibilityLabel(Text(control.name))
+                .accessibilityValue(Text(spoken))
             HStack {
                 Text(control.travelLabel.lower)
                 Spacer()
                 Text(control.travelLabel.upper)
             }
             .font(.caption2).foregroundStyle(.tertiary)
+            .accessibilityHidden(true)
         }
     }
 }

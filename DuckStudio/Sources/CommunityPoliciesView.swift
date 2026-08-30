@@ -109,7 +109,14 @@ struct CommunityPoliciesView: View {
                     HStack {
                         Text(entry.id).font(.caption2.monospaced())
                         if entry.declaresPolicyTag {
-                            Image(systemName: "checkmark.seal").foregroundStyle(.secondary)
+                            // A SEAL WITH NOTHING BESIDE IT. The tag is the
+                            // only thing separating a repository that says it
+                            // holds a Microduck policy from one that merely
+                            // turned up in the search, and drawn as a bare
+                            // symbol it says that to sighted people only.
+                            Image(systemName: "checkmark.seal")
+                                .foregroundStyle(.secondary)
+                                .accessibilityLabel(Text("tagged microduck-policy"))
                         }
                     }
                 }

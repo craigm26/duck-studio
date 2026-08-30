@@ -84,6 +84,23 @@ public struct Pipeline: Equatable, Sendable {
         case waiting
         /// Cannot be done, for a reason that is not the person's fault.
         case blocked
+
+        /// The state in words, for a screen reader.
+        ///
+        /// IT LIVES HERE BECAUSE THE SCREEN SAYS IT IN COLOUR. `PipelineView`
+        /// draws a state as an SF Symbol tinted green, orange or grey, and
+        /// colour and shape are exactly what a screen reader does not get — so
+        /// the only place this stage's standing is stated for that person is a
+        /// string, and a string that makes a claim about a stage belongs where
+        /// a test can assert it rather than in a view.
+        public var spoken: String {
+            switch self {
+            case .done:      return "done"
+            case .attention: return "done, worth reading"
+            case .waiting:   return "not done yet"
+            case .blocked:   return "blocked"
+            }
+        }
     }
 
     public struct Stage: Equatable, Sendable, Identifiable {

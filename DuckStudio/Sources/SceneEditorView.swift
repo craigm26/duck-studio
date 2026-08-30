@@ -60,11 +60,21 @@ struct SceneListView: View {
             HStack {
                 Text(scene.name).font(.subheadline.weight(.medium))
                 Spacer()
-                if scene.problems.contains(where: { $0.severity == .broken }) {
+                // THE BADGE IS THE ONLY WARNING ON THIS ROW, and an unlabelled
+                // orange triangle is nothing at all to somebody who cannot see
+                // it — the summary underneath counts steps and props and never
+                // says a scene is broken. The label is the kit's own sentence
+                // for the first problem of that severity, which is the same
+                // sentence the editor prints once the row is opened. `first`
+                // rather than `contains` only so there is something to quote;
+                // the two predicates pick the same rows.
+                if let broken = scene.problems.first(where: { $0.severity == .broken }) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.caption2).foregroundStyle(.orange)
-                } else if scene.problems.contains(where: { $0.severity == .unreachable }) {
+                        .accessibilityLabel(Text(broken.text))
+                } else if let unreachable = scene.problems.first(where: { $0.severity == .unreachable }) {
                     Image(systemName: "figure.fall").font(.caption2).foregroundStyle(.orange)
+                        .accessibilityLabel(Text(unreachable.text))
                 }
             }
             Text(scene.summary).font(.caption).foregroundStyle(.secondary)
@@ -229,30 +239,54 @@ struct SceneID: Identifiable, Hashable {
 private struct StepEditor: View {
     @Binding var step: DuckScene.Step
 
+    // ONE EXPRESSION PER NUMBER, PRINTED AND SPOKEN FROM THE SAME PLACE. A
+    // spoken value that rounds differently from the printed one is a second
+    // source of truth for a distance the robot is measured against, and the
+    // person who cannot see the printed one has no way to catch the drift.
+    private var topMillimetres: String { "\(Int((step.top * 1000).rounded())) mm" }
+    private var distanceMillimetres: String { "\(Int((step.x * 1000).rounded())) mm" }
+    private var depthMillimetres: String { "\(Int((step.halfDepth * 2000).rounded())) mm" }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
+            // THE NAME AND THE NUMBER ARE HIDDEN HERE AND CARRIED BY THE SLIDER
+            // INSTEAD, on all three rows. A Slider is its own accessibility
+            // element with the adjustable trait, so a name sitting in a sibling
+            // HStack never reaches it: without this VoiceOver reads three
+            // identical "52 percent, adjustable" controls, and reading the row
+            // above as well would say every number twice while still leaving
+            // the control itself anonymous.
             HStack {
                 Text("Top").font(.caption)
                 Spacer()
-                Text("\(Int((step.top * 1000).rounded())) mm")
+                Text(topMillimetres)
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(step.top > DuckScene.measuredStepCeiling ? .orange : .secondary)
             }
+            .accessibilityHidden(true)
             Slider(value: $step.top, in: 0.002...0.30)
+                .accessibilityLabel(Text("Top"))
+                .accessibilityValue(Text(topMillimetres))
             HStack {
                 Text("Distance").font(.caption)
                 Spacer()
-                Text("\(Int((step.x * 1000).rounded())) mm").font(.caption.monospacedDigit())
+                Text(distanceMillimetres).font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
+            .accessibilityHidden(true)
             Slider(value: $step.x, in: 0.05...1.6)
+                .accessibilityLabel(Text("Distance"))
+                .accessibilityValue(Text(distanceMillimetres))
             HStack {
                 Text("Depth").font(.caption)
                 Spacer()
-                Text("\(Int((step.halfDepth * 2000).rounded())) mm")
+                Text(depthMillimetres)
                     .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
             }
+            .accessibilityHidden(true)
             Slider(value: $step.halfDepth, in: 0.04...0.4)
+                .accessibilityLabel(Text("Depth"))
+                .accessibilityValue(Text(depthMillimetres))
         }
         // A step is only solid down to the floor if its body reaches it, and a
         // slider that moved the top without the body would make every step
@@ -266,22 +300,34 @@ private struct StepEditor: View {
 private struct WallEditor: View {
     @Binding var wall: DuckScene.Wall
 
+    /// Printed and spoken from one expression, for the reason `StepEditor`
+    /// gives: a wall that passes through where the robot starts is a broken
+    /// scene, and the distance is the only thing that says so before it does.
+    private var sidewaysMillimetres: String { "\(Int((wall.y * 1000).rounded())) mm" }
+    private var heightMillimetres: String { "\(Int((wall.height * 1000).rounded())) mm" }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text("To the side").font(.caption)
                 Spacer()
-                Text("\(Int((wall.y * 1000).rounded())) mm")
+                Text(sidewaysMillimetres)
                     .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
             }
+            .accessibilityHidden(true)
             Slider(value: $wall.y, in: -1.5...1.5)
+                .accessibilityLabel(Text("To the side"))
+                .accessibilityValue(Text(sidewaysMillimetres))
             HStack {
                 Text("Height").font(.caption)
                 Spacer()
-                Text("\(Int((wall.height * 1000).rounded())) mm")
+                Text(heightMillimetres)
                     .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
             }
+            .accessibilityHidden(true)
             Slider(value: $wall.height, in: 0.05...1.0)
+                .accessibilityLabel(Text("Height"))
+                .accessibilityValue(Text(heightMillimetres))
         }
     }
 }
@@ -296,21 +342,38 @@ private struct WallEditor: View {
 private struct PropEditor: View {
     @Binding var prop: DuckScene.Prop
 
+    // Printed and spoken from one expression each. These four numbers decide
+    // the verdict at the bottom of the group — 600 g is past the lift and
+    // inside the pull — so a spoken value that disagreed with the printed one
+    // would be disagreeing with the refusal it caused.
+    private var weight: String { String(format: "%.0f g", prop.grams) }
+    private var thickness: String { String(format: "%.0f mm", prop.thicknessMillimetres) }
+    private var friction: String { String(format: "%.2f", prop.floorFriction) }
+    private func gripped(_ height: Double) -> String {
+        String(format: "%.0f mm up", height)
+    }
+
     var body: some View {
         DisclosureGroup {
             HStack {
                 Text("Weight")
                 Spacer()
-                Text(String(format: "%.0f g", prop.grams)).foregroundStyle(.secondary)
+                Text(weight).foregroundStyle(.secondary)
             }
+            .accessibilityHidden(true)
             Slider(value: $prop.grams, in: 1...2000, step: 1)
+                .accessibilityLabel(Text("Weight"))
+                .accessibilityValue(Text(weight))
             HStack {
                 Text("Thickness where it bites")
                 Spacer()
-                Text(String(format: "%.0f mm", prop.thicknessMillimetres))
+                Text(thickness)
                     .foregroundStyle(.secondary)
             }
+            .accessibilityHidden(true)
             Slider(value: $prop.thicknessMillimetres, in: 2...120, step: 1)
+                .accessibilityLabel(Text("Thickness where it bites"))
+                .accessibilityValue(Text(thickness))
             Toggle("Standing up", isOn: Binding(
                 get: { prop.graspHeightMillimetres != nil },
                 set: { prop.graspHeightMillimetres = $0 ? 150 : nil }))
@@ -318,12 +381,18 @@ private struct PropEditor: View {
                 HStack {
                     Text("Gripped")
                     Spacer()
-                    Text(String(format: "%.0f mm up", height)).foregroundStyle(.secondary)
+                    Text(gripped(height)).foregroundStyle(.secondary)
                 }
+                .accessibilityHidden(true)
                 Slider(value: Binding(get: { height },
                                       set: { prop.graspHeightMillimetres = $0 }),
                        in: Retrieval.Reach.lowestDuringPick * 1000
                            ... Retrieval.Reach.highestDuringPick * 1000, step: 5)
+                    .accessibilityLabel(Text("Gripped"))
+                    .accessibilityValue(Text(gripped(height)))
+                // The sentence under the slider is left audible: it is the
+                // kit's answer to what this height MEANS — when the jaw shuts
+                // — and it is not a repeat of anything the slider now says.
                 Text(Retrieval.Reach.graspTime(forHeight: height / 1000)
                         .map { String(format: "The mouth passes that height %.2f s into a ground pick — that is when the jaw shuts.", $0) }
                      ?? "Outside the arc the mouth sweeps.")
@@ -332,9 +401,12 @@ private struct PropEditor: View {
             HStack {
                 Text("How well it slides")
                 Spacer()
-                Text(String(format: "%.2f", prop.floorFriction)).foregroundStyle(.secondary)
+                Text(friction).foregroundStyle(.secondary)
             }
+            .accessibilityHidden(true)
             Slider(value: $prop.floorFriction, in: 0.1...1.2, step: 0.05)
+                .accessibilityLabel(Text("How well it slides"))
+                .accessibilityValue(Text(friction))
             verdict
         } label: {
             VStack(alignment: .leading, spacing: 2) {

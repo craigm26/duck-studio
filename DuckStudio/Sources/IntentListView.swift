@@ -147,6 +147,23 @@ struct IntentListView: View {
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(draft.name).font(.subheadline)
                                 ProgressView(value: pipeline.fractionDone)
+                                    // A BARE BAR ANNOUNCES A PERCENTAGE AND
+                                    // NOTHING ELSE — "sixty percent" of what is
+                                    // the whole question.
+                                    //
+                                    // THE LABEL NAMES WHAT THE BAR MEASURES,
+                                    // NOT WHAT COMES NEXT. Labelling it with
+                                    // `pipeline.next` made the two halves answer
+                                    // different questions: the value is how far
+                                    // this motion has come, and `next` is the
+                                    // first stage it has NOT reached, so a bar
+                                    // reading sixty percent announced itself as
+                                    // the name of the thing that has not
+                                    // happened. What is still to come belongs in
+                                    // the value, where it reads as a position.
+                                    .accessibilityLabel(Text("Sim to real"))
+                                    .accessibilityValue(Text(pipeline.next.map {
+                                        "next: \($0.name)" } ?? "every stage done"))
                                 Text(draft.bench.map { "Run in physics: \($0.summary)" }
                                      ?? "Never run in physics.")
                                     .font(.caption2).foregroundStyle(.secondary)
@@ -211,6 +228,11 @@ struct IntentListView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button { picking = true } label: { Image(systemName: "square.and.arrow.down") }
+                    // The door every shared motion and every policy file comes
+                    // in through, and an icon-only one. What it accepts is said
+                    // by the picker it opens and by `model.lastImport`
+                    // afterwards; the button only has to be findable.
+                    .accessibilityLabel(Text("Import a file"))
             }
         }
         .fileImporter(isPresented: $picking,
@@ -293,6 +315,11 @@ struct IntentListView: View {
                     if clip.environment.hasProps {
                         Image(systemName: "square.3.layers.3d")
                             .font(.caption2).foregroundStyle(.secondary)
+                            // The screen this row opens says WHICH props, and
+                            // offers to hide them; the row only says there were
+                            // some — in the same words that screen's toggle
+                            // uses, "recorded against".
+                            .accessibilityLabel(Text("Recorded against props"))
                     }
                     Spacer()
                     Text(String(format: "%.1fs", clip.duration))
@@ -302,12 +329,21 @@ struct IntentListView: View {
                 // useful line in the row: step_up reads "standing → toppled",
                 // which is the move failing, stated plainly.
                 HStack(spacing: 4) {
+                    // THE ARROW IS THE VERB, AND AN ARROW IS NOT A WORD.
+                    // "standing, toppled" read out in a row is two postures
+                    // with no idea which is which; the two words that fix it
+                    // are the ones the detail screen already labels these
+                    // exact fields with. The postures themselves stay the
+                    // kit's — this view names the field, never the finding.
                     Text(clip.startsFrom.rawValue)
+                        .accessibilityLabel(Text("Starts \(clip.startsFrom.rawValue)"))
                     Image(systemName: "arrow.right").font(.caption2)
+                        .accessibilityHidden(true)
                     Text(clip.endsIn.rawValue)
                         .foregroundStyle(worrying(clip.endsIn) ? .orange : .secondary)
+                        .accessibilityLabel(Text("Ends \(clip.endsIn.rawValue)"))
                     if let outcome = odds?[clip.name] {
-                        Text("·")
+                        Text("·").accessibilityHidden(true)
                         // The measured rate, not the posture. `climb` ends
                         // standing every time and gets up the flight none of
                         // them, and the posture alone cannot say that.
@@ -329,6 +365,14 @@ struct IntentListView: View {
                 if !draft.isPlayable {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.caption2).foregroundStyle(.orange)
+                        // WHY it will not play, in the checker's own words.
+                        // `isPlayable` is false exactly when a broken problem
+                        // exists, so this reads the first of them rather than
+                        // announcing a triangle — and rather than this view
+                        // writing a second, vaguer sentence about a motion it
+                        // did not check.
+                        .accessibilityLabel(Text(
+                            draft.problems.first { $0.severity == .broken }?.text ?? ""))
                 }
                 Text(String(format: "%.1fs", draft.duration))
                     .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
@@ -517,7 +561,12 @@ struct IntentPlayerView: View {
                             Label("Remix into a new motion", systemImage: "wand.and.stars")
                         }
                     }
-                } label: { Image(systemName: "ellipsis.circle") }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        // Share, play it somewhere else, remix it — three
+                        // things that exist only behind this one icon.
+                        .accessibilityLabel(Text("More"))
+                }
             }
         }
         .sheet(item: $outgoing) { out in
@@ -755,6 +804,10 @@ private struct ReadingRow: View {
                 Text(detail).font(.caption).foregroundStyle(.secondary)
             }
         }
+        // A name, a number and the sentence about them are one reading. Three
+        // separate stops to hear one measurement is how a person loses which
+        // number went with which name.
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -771,6 +824,12 @@ private struct JointMomentRow: View {
                       ? "arrow.up.right.circle.fill" : "arrow.down.left.circle.fill")
                     .font(.caption)
                     .foregroundStyle(moment.velocity > 0 ? Color.accentColor : Color.orange)
+                    // SILENT ON PURPOSE. The arrow is the sign of the number
+                    // printed immediately beside it, drawn again for a reader
+                    // scanning at a glance. Spoken, it would be the same fact
+                    // twice — and a paraphrase of it, since the direction has
+                    // no words here that the signed value does not carry.
+                    .accessibilityHidden(true)
                 Text(String(format: "%+.1f rad/s", moment.velocity))
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(moment.velocity > 0 ? Color.accentColor : Color.orange)
@@ -781,6 +840,9 @@ private struct JointMomentRow: View {
                 .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                 .frame(width: 74, alignment: .trailing)
         }
+        // One joint at one instant is one thing to hear: which joint, how fast,
+        // and where it is.
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -795,6 +857,8 @@ private struct JointRow: View {
                 if reading.atStopFraction > 0 {
                     Image(systemName: "arrow.up.and.down.and.arrow.left.and.right")
                         .font(.caption2).foregroundStyle(.orange)
+                        // The text next to it says this in words already.
+                        .accessibilityHidden(true)
                     Text("\(Int((reading.atStopFraction * 100).rounded()))% at its stop")
                         .font(.caption2).foregroundStyle(.orange)
                 }
@@ -815,6 +879,9 @@ private struct JointRow: View {
                         reading.peakDeviation, reading.peakDeviationAt))
                 .font(.caption2).foregroundStyle(.tertiary)
         }
+        // Four fragments about one joint, heard as one. The bar is the
+        // deviation drawn, and the deviation is already in the last line.
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -841,6 +908,9 @@ private struct RewardRow: View {
                 Text("Not scored: \(why).").font(.caption).foregroundStyle(.orange)
             }
         }
+        // The term, its arithmetic, what it is for and why it went unscored are
+        // one answer about one reward term.
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -850,23 +920,43 @@ struct TransportBar: View {
     @Binding var playhead: TimeInterval
     @Binding var isRunning: Bool
 
+    /// The clock, written once and read twice: by the readout on the right and
+    /// by the slider that speaks it. A transport that showed 1.25 s and said
+    /// "forty-one percent" would be answering a different question from the one
+    /// asked, and the number in seconds is the one the rest of the screen is
+    /// keyed to — "Right now — 1.25 s" over the live joint rows.
+    private var printedTime: String { String(format: "%.2fs", playhead) }
+
     var body: some View {
         HStack(spacing: 14) {
             Button { isRunning.toggle() } label: {
                 Image(systemName: isRunning ? "pause.fill" : "play.fill")
             }
+            // The name follows the symbol, because this one button is both
+            // controls and announcing "play" while it is playing sends people
+            // hunting for a pause that is under their finger.
+            .accessibilityLabel(Text(isRunning ? "Pause" : "Play"))
             Button { playhead = 0; isRunning = true } label: {
                 Image(systemName: "arrow.counterclockwise")
             }
+            .accessibilityLabel(Text("Restart"))
             Slider(value: $playhead, in: 0...max(duration, 0.01)) { editing in
                 // Scrubbing pauses, or the playhead fights the thumb and the
                 // duck twitches between where you dragged and where the timer
                 // has got to.
                 if editing { isRunning = false }
             }
-            Text(String(format: "%.2fs", playhead))
+            // LABELLED RATHER THAN COMBINED INTO THE BAR, for the same reason
+            // as the bench's inputs: a Slider is its own element and combining
+            // it away would take the .adjustable trait with it. Scrubbing by
+            // swipe is how this recording gets watched without a drag gesture.
+            .accessibilityLabel(Text("Scrub"))
+            .accessibilityValue(Text(printedTime))
+            Text(printedTime)
                 .font(.caption2.monospacedDigit())
                 .frame(width: 46, alignment: .trailing)
+                // Said by the slider, one element to the left.
+                .accessibilityHidden(true)
         }
         .buttonStyle(.borderless)
     }

@@ -74,6 +74,12 @@ struct PolicyListView: View {
                 }
                 NavigationLink { CatalogueView(model: model) } label: {
                     Image(systemName: "antenna.radiowaves.left.and.right")
+                        // The destination's own title. An icon-only link
+                        // announces the SF Symbol's name or nothing at all —
+                        // "antenna radiowaves left and right" is not where
+                        // anybody is trying to go, and the screen this opens is
+                        // called Pollen Robotics.
+                        .accessibilityLabel(Text("Pollen Robotics"))
                 }
             }
         }
@@ -92,6 +98,13 @@ struct PolicyListView: View {
             HStack(spacing: 12) {
                 Image(systemName: entry.isRunnable ? "checkmark.seal" : "exclamationmark.triangle")
                     .foregroundStyle(entry.isRunnable ? Color.accentColor : .orange)
+                    // WHETHER THIS FILE RUNS IS THE ONE THING THE ROW SAYS IN
+                    // A SEAL AND A COLOUR AND NOWHERE ELSE. The verdict is
+                    // StudioKit's sentence, written for exactly this — "One
+                    // short line, suitable for a row in a list" — so the icon
+                    // reads it out rather than this view inventing a second
+                    // wording of the same judgement.
+                    .accessibilityLabel(Text(entry.report.headline))
                 VStack(alignment: .leading, spacing: 2) {
                     Text(entry.displayName).font(.subheadline.weight(.medium))
                     HStack(spacing: 6) {
@@ -135,6 +148,9 @@ struct PolicyDetailView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { share() } label: { Image(systemName: "square.and.arrow.up") }
+                        // The button people go hunting for, and the one an
+                        // unlabelled square-and-arrow-up hides best.
+                        .accessibilityLabel(Text("Share this policy"))
                         .disabled(!entry.isRunnable && !entry.identity.isNetworkIdentity)
                 }
             }

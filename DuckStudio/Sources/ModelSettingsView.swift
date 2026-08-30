@@ -36,7 +36,12 @@ struct ModelSettingsView: View {
                             }
                             Spacer()
                             if store.selectedID == endpoint.id {
+                                // The tick is the ONLY thing on this screen
+                                // that says which model the Ask panel will
+                                // use, and an unlabelled glyph says it to
+                                // nobody who cannot see it.
                                 Image(systemName: "checkmark").foregroundStyle(.tint)
+                                    .accessibilityLabel(Text("Selected"))
                             }
                         }
                     }
@@ -132,6 +137,9 @@ struct EndpointEditor: View {
     @State private var report: String?
     @State private var failure: String?
 
+    /// Printed and spoken from one expression, so the two cannot round apart.
+    private var timeoutSeconds: String { "\(Int(endpoint.timeout)) s" }
+
     var body: some View {
         List {
             Section("Name") {
@@ -195,12 +203,22 @@ struct EndpointEditor: View {
 
             Section {
                 DisclosureGroup("Advanced") {
+                    // Hidden, and carried by the slider instead: a Slider is
+                    // its own element with the adjustable trait and never
+                    // reads the row above it, so this said the number to
+                    // somebody who then met an anonymous "50 percent". The
+                    // seconds matter — the default allows for a board that
+                    // takes 766 s to write one motion, and somebody who trims
+                    // it blind gets a timeout they will read as a broken app.
                     HStack {
                         Text("Timeout")
                         Spacer()
-                        Text("\(Int(endpoint.timeout)) s").foregroundStyle(.secondary)
+                        Text(timeoutSeconds).foregroundStyle(.secondary)
                     }
+                    .accessibilityHidden(true)
                     Slider(value: $endpoint.timeout, in: 30...1800, step: 30)
+                        .accessibilityLabel(Text("Timeout"))
+                        .accessibilityValue(Text(timeoutSeconds))
                     Toggle("Forwards to a model elsewhere", isOn: $endpoint.relay)
                     Text("On for a bridge — a machine on your network that answers by asking something else, like a Claude subscription. It changes nothing about the request and everything about where your words end up, which is why the note below has to know.")
                         .font(.caption).foregroundStyle(.secondary)

@@ -309,6 +309,14 @@ struct AutomationChatView: View {
                     Image(systemName: thinking ? "ellipsis" : "arrow.up.circle.fill")
                         .font(.title2)
                 }
+                // THE ONLY WAY OFF THIS SCREEN'S TEXT FIELD, and an
+                // icon-only one: unlabelled it announces the symbol name, and
+                // while the model is thinking the symbol CHANGES, so it would
+                // announce a different one. The name stays put and the
+                // system's own "dimmed" carries the wait — the button is
+                // disabled for every reason it cannot be pressed, and the
+                // reason itself is already the last card in the list.
+                .accessibilityLabel(Text("Send"))
                 // A STOP THAT DOES NOT STOP ANYTHING IS A MESSAGE. When the
                 // gate has given up, the field goes with it — the reason is
                 // already the last thing in the list.

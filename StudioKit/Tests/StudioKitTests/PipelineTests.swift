@@ -202,4 +202,20 @@ extension PipelineTests {
         made.keys = [.init(time: 1.2, pose: pose), .init(time: 0.3, pose: pose)]
         XCTAssertEqual(made.benchTrack.map(\.at), [0.3, 1.2])
     }
+
+    /// The four states a screen reader gets instead of a colour. Asserted
+    /// literally, because the whole point of them is that nobody can check them
+    /// by looking at the screen.
+    func testEveryPipelineStateSaysWhereItStandsInWords() {
+        XCTAssertEqual(Pipeline.State.done.spoken, "done")
+        XCTAssertEqual(Pipeline.State.attention.spoken, "done, worth reading")
+        XCTAssertEqual(Pipeline.State.waiting.spoken, "not done yet")
+        XCTAssertEqual(Pipeline.State.blocked.spoken, "blocked")
+        // None of them is "pending", which the Stage doc comment specifically
+        // rules out for the printed line and means here too.
+        for state: Pipeline.State in [.done, .attention, .waiting, .blocked] {
+            XCTAssertFalse(state.spoken.contains("pending"), state.spoken)
+            XCTAssertFalse(state.spoken.isEmpty)
+        }
+    }
 }

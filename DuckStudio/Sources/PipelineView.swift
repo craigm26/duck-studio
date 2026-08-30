@@ -52,6 +52,14 @@ struct PipelineView: View {
                         HStack(alignment: .top, spacing: 10) {
                             Image(systemName: symbol(for: stage.state))
                                 .foregroundStyle(colour(for: stage.state))
+                                // THE STATE IS SAID IN COLOUR AND IN NOTHING
+                                // ELSE. A tinted symbol beside a stage name is
+                                // the only thing on this row that says whether
+                                // the stage has happened, and colour is exactly
+                                // what a screen reader does not get. The words
+                                // come from StudioKit, where a test asserts
+                                // them.
+                                .accessibilityLabel(Text(stage.state.spoken))
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(stage.name).font(.subheadline.weight(.medium))
                                 Text(stage.detail).font(.caption).foregroundStyle(.secondary)

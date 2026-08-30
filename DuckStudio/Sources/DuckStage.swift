@@ -36,6 +36,18 @@ struct OrbitState: Equatable {
         distance = min(max(distance / scale, 0.20), 4.0)
     }
 
+    /// Back to the starting angle, keeping whether the camera follows.
+    ///
+    /// ONE DEFINITION OF "RESET", because there are now two ways to ask for it:
+    /// the double-tap and the VoiceOver action. Written twice they would drift,
+    /// and the half that drifts is `follows` — a reset that quietly stopped
+    /// following would move the camera for a reason the person cannot see.
+    mutating func resetView() {
+        let following = follows
+        self = .defaults
+        follows = following
+    }
+
     /// Camera position, relative to whatever it is looking at.
     func position(target: SIMD3<Float>) -> SIMD3<Float> {
         let horizontal = distance * cos(elevation)
@@ -79,7 +91,102 @@ extension DuckStance {
 
 /// A turntable view of the robot IN A PLACE — not AR. The bench is somewhere to
 /// look at a pose from every side, and a camera feed behind it would be scenery.
-struct DuckStage: UIViewRepresentable {
+///
+/// WHY THERE IS A SWIFTUI VIEW IN FRONT OF THE REPRESENTABLE. Everything below
+/// draws; this layer is what a person who cannot see the drawing gets instead,
+/// and it has to live on the SwiftUI side for two reasons. The spoken value
+/// changes whenever the pose or the scene changes, and SwiftUI re-evaluates
+/// `body` on exactly those changes — set on the `ARView` in `updateUIView` it
+/// would be a second copy of the same state, refreshed by hand, silently stale
+/// the first time somebody adds an early return to that method. And the actions
+/// have to write to `orbit`: `$orbit` is in scope here and fresh on every pass,
+/// where the coordinator's copy is captured once in `makeUIView` and never
+/// renewed. The representable keeps the same name-shape and defaults it always
+/// had, so nothing at a call site changes.
+struct DuckStage: View {
+    let pose: StagePose
+    var variant: DuckKinematics.Variant = .legs
+    let environment: DuckIntentClip.Environment
+    var props: [DuckScene.Prop] = []
+    var trail: [DuckIntentClip.Root] = []
+    var progress: Double = 0
+    @Binding var orbit: OrbitState
+
+    /// One notch of camera movement, in the points of drag the pan recogniser
+    /// hands `OrbitState.drag` — so an action IS the gesture, one notch of it,
+    /// and there is no second scale factor to keep in step. 24 points is about
+    /// fourteen degrees: small enough to aim with, big enough to feel, and a
+    /// whole turn in twenty-six swipes rather than a hundred.
+    private static let notch: Float = 24
+    /// And one notch of pinch, as the ratio `zoom(by:)` already takes.
+    private static let zoomNotch: Float = 1.25
+
+    /// What is in the place, in the legend's own words.
+    ///
+    /// THE SAME SENTENCE THE LEGEND PRINTS, from the same StudioKit function on
+    /// the same counts — a stage that announced "3D view" and stopped would say
+    /// nothing about whether there is a step in front of the robot. It is
+    /// deliberately NOT the trunk reading: the legend takes `rootIsPinned` and
+    /// this does not, and x/y/z spoken over an authored draft would be three
+    /// constants read as if physics had put the body there, which is the exact
+    /// falsehood `StageCaption.pinnedTrunk` exists to stop. The camera clause is
+    /// furniture, in the words the legend's own button uses.
+    private var spokenScene: String {
+        let contents = StageCaption.context(
+            stepCount: environment.steps.count,
+            tallestStepMetres: environment.steps.map(\.top).max() ?? 0,
+            wallCount: environment.walls.count,
+            propCount: props.count)
+        return contents + (orbit.follows ? " · camera following the robot"
+                                         : " · camera fixed")
+    }
+
+    var body: some View {
+        StageSurface(pose: pose, variant: variant, environment: environment,
+                     props: props, trail: trail, progress: progress, orbit: $orbit)
+            // ONE ELEMENT, NOT ONE PER JOINT. The scene holds a duck of fifteen
+            // drawn parts, a grid, a path and whatever props the place has; as
+            // elements that is a swipe through dozens of unnamed boxes, and
+            // nothing in it is separately operable. What a person needs from a
+            // picture is what the picture is of, which is one sentence.
+            .accessibilityElement()
+            .accessibilityLabel(Text("The robot on the stage, in 3D"))
+            .accessibilityValue(Text(spokenScene))
+            // THE LEGEND'S THREE GESTURES, AS ACTIONS. "Drag to orbit · pinch to
+            // zoom · double-tap to reset" is printed to people who can do none
+            // of the three; these are the same three moves for a person using
+            // VoiceOver, Switch Control or one hand. They are worth having even
+            // though nothing is spoken back afterwards: the person who cannot
+            // pinch is usually looking at the screen, and the screen is the
+            // answer. Naming: left and right are the drag they stand in for,
+            // higher and lower say where the camera ends up, because "tilt up"
+            // is ambiguous about whether the camera or the duck is what tilts.
+            .accessibilityAction(named: Text("Orbit left")) {
+                orbit.drag(dx: -Self.notch, dy: 0)
+            }
+            .accessibilityAction(named: Text("Orbit right")) {
+                orbit.drag(dx: Self.notch, dy: 0)
+            }
+            .accessibilityAction(named: Text("Look from higher")) {
+                orbit.drag(dx: 0, dy: Self.notch)
+            }
+            .accessibilityAction(named: Text("Look from lower")) {
+                orbit.drag(dx: 0, dy: -Self.notch)
+            }
+            .accessibilityAction(named: Text("Zoom in")) {
+                orbit.zoom(by: Self.zoomNotch)
+            }
+            .accessibilityAction(named: Text("Zoom out")) {
+                orbit.zoom(by: 1 / Self.zoomNotch)
+            }
+            .accessibilityAction(named: Text("Reset the view")) {
+                orbit.resetView()
+            }
+    }
+}
+
+/// The RealityKit half: the scene, the camera and the three recognisers.
+struct StageSurface: UIViewRepresentable {
     let pose: StagePose
     /// Which feet: a roller clip is drawn on Pollen's roller blades.
     var variant: DuckKinematics.Variant = .legs
@@ -496,10 +603,7 @@ struct DuckStage: UIViewRepresentable {
         }
 
         @objc func reset(_ g: UITapGestureRecognizer) {
-            let follows = orbit?.wrappedValue.follows ?? false
-            var fresh = OrbitState.defaults
-            fresh.follows = follows
-            orbit?.wrappedValue = fresh
+            orbit?.wrappedValue.resetView()
         }
     }
 }
@@ -535,6 +639,23 @@ struct StageLegend: View {
     /// every body, which does not belong on a frame.
     private static let clearance = try? DuckGroundClearance.bundled()
 
+    /// The gesture line as it is read aloud.
+    ///
+    /// IT DOES NOT REPEAT THE PRINTED LINE, AND THAT IS THE WHOLE REASON IT
+    /// EXISTS. The printed line ends "double-tap to reset" — which is true of
+    /// the stage and FALSE of the person hearing this, because with VoiceOver
+    /// running a double-tap is activation and will not reset anything. Reading
+    /// the screen aloud verbatim would hand somebody an instruction that
+    /// cannot work, which is a worse failure than saying nothing. So the spoken
+    /// form names the route that does work: the actions rotor on the stage.
+    ///
+    /// A `String`, so it is spoken exactly as written rather than looked up as
+    /// a key that is not there.
+    private static let spokenGestures =
+        "The stage above is a picture of the robot. Its actions rotor carries "
+      + "orbit, zoom and reset, which are what the drag, pinch and double-tap "
+      + "printed here do for a pointer."
+
     private var place: String {
         guard !rootIsPinned else {
             return StageCaption.pinnedTrunk(heightMetres: pose.root.z)
@@ -560,6 +681,14 @@ struct StageLegend: View {
                 DuckGroundClearance.isWrong(clearanceMetres: metres))
     }
 
+    /// The word on the camera button, and the word VoiceOver reads as its
+    /// value. ONE SOURCE FOR BOTH: written twice, the spoken half is the half
+    /// that drifts, and a button that says "Fixed" while announcing "Following"
+    /// is worse than one that announces nothing. `LocalizedStringKey` rather
+    /// than `String` because a `String` handed to `Label` is rendered verbatim
+    /// and would drop out of any future translation.
+    private var followWord: LocalizedStringKey { orbit.follows ? "Following" : "Fixed" }
+
     private var context: String {
         StageCaption.context(stepCount: environment.steps.count,
                              tallestStepMetres: environment.steps.map(\.top).max() ?? 0,
@@ -580,23 +709,46 @@ struct StageLegend: View {
                     Button {
                         orbit.follows.toggle()
                     } label: {
-                        Label(orbit.follows ? "Following" : "Fixed",
+                        Label(followWord,
                               systemImage: orbit.follows ? "location.fill" : "mappin.and.ellipse")
                             .font(.caption2)
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.mini)
                     .tint(.white)
+                    // "FOLLOWING" ON ITS OWN NAMES NOTHING. On screen the word
+                    // sits beside the trunk reading and under the stage, which
+                    // is the whole of its context; read out in a list of
+                    // controls it could be following anything. Name the thing,
+                    // and let the state be the value — which is also what makes
+                    // VoiceOver announce the change when it is toggled.
+                    .accessibilityLabel(Text("Camera"))
+                    .accessibilityValue(Text(followWord))
                 }
             }
             Text(context).font(.caption2).foregroundStyle(.white.opacity(0.65))
+            // NOTHING ADDED HERE, AND THAT IS THE DECISION. Orange is the only
+            // part of this line a screen reader cannot see, and it is not
+            // carrying anything on its own: `DuckGroundClearance.summary` puts
+            // the verdict in the words — "nothing should be floating" — and
+            // `isWrong` only colours what the sentence already said. A spoken
+            // "warning" bolted on top would be a second verdict, composed here,
+            // able to disagree with the kit's.
             if let ground {
                 Text(ground.text)
                     .font(.caption2)
                     .foregroundStyle(ground.wrong ? Color.orange : .white.opacity(0.65))
             }
+            // THREE GESTURES, TO A READER WHO MAY BE ABLE TO MAKE NONE OF THEM.
+            // The printed line is right for a finger and a dead end without
+            // one, and "double-tap" means something else entirely once
+            // VoiceOver is on. The words on screen do not change — a sighted
+            // person is being told the truth — but what is read aloud names the
+            // other route, because a stage with actions on it is only useful to
+            // somebody who knows to look for them.
             Text("Drag to orbit · pinch to zoom · double-tap to reset")
                 .font(.caption2).foregroundStyle(.white.opacity(0.45))
+                .accessibilityLabel(Text(Self.spokenGestures))
         }
         .padding(10)
         .foregroundStyle(.white)
