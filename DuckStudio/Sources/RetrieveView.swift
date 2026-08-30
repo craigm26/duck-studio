@@ -34,7 +34,7 @@ struct RetrieveView: View {
             } header: {
                 Text("Say it plainly")
             } footer: {
-                Text("Try \"fetch the pencil\", \"bring the carrot\", \"pick up the dowel 2 m away\". Weights and thicknesses can be given outright — \"a 30 g stick 25 mm thick\".")
+                Text("Try \"fetch the pencil\", \"drag the broom standing in the corner\", \"pick up the dowel 2 m away\". Weights, thicknesses and grip heights can be given outright — \"a 30 g stick 25 mm thick\", \"held 120 mm up\".")
             }
 
             if !reading.understood.isEmpty {
@@ -97,12 +97,25 @@ struct RetrieveView: View {
                                    Retrieval.graspWindow.lowerBound, Retrieval.graspWindow.upperBound))
                 measurement("Lowest at", String(format: "%.2f s", Retrieval.graspInstant))
                 measurement("Trained payload", "10–40 g")
+                measurement("Mouth sweeps", String(format: "%.0f–%.0f mm through the arc",
+                                                   Retrieval.Reach.lowestDuringPick * 1000,
+                                                   Retrieval.Reach.highestDuringPick * 1000))
+                if let height = reading.stick.graspHeightMillimetres,
+                   let at = Retrieval.Reach.graspTime(forHeight: height / 1000) {
+                    measurement(String(format: "Bite at %.0f mm", height),
+                                String(format: "%.2f s into the pick", at))
+                }
+                measurement("Pull before its feet slide",
+                            String(format: "%.1f N", Retrieval.Drag.pullBeforeSlipping(
+                                footFriction: Retrieval.Drag.footFriction.lowerBound)))
+                measurement("Pull before its neck stalls",
+                            String(format: "%.1f N", Retrieval.Drag.pullBeforeNeckStalls))
                 measurement("Pick runs for", String(format: "%.1f s of a %.0f s cycle",
                                                     Retrieval.pickDuration, Retrieval.phasePeriod))
             } header: {
                 Text("Where the numbers come from")
             } footer: {
-                Text("The payload and the 4 s cycle are upstream's — sample_mouth_payload and GP_PERIOD in microduck_ground_pick_env_cfg.py, and GROUND_PICK_END_PHASE in robotd's control.rs. The mouth heights and the grasp window are measured here, through this app's kinematics over the recorded policy. They DISAGREE with the config's nominal hold of 1.50–1.70 s: the plant bottoms out at 1.16 s and is already climbing by 1.50. Closing the jaw on the config's window closes it on the way up.")
+                Text("The two pull figures are CEILINGS, not demonstrations: the duck's 0.737 kg out of Pollen's MJCF, the ±0.6405 N⋅m training runs its joints at, the 0.084 m from the neck joint to the beak, and the 0.7–1.3 foot friction training randomises over. Nobody has measured this duck dragging anything, and a ceiling says what is impossible rather than what works.\n\nThe payload and the 4 s cycle are upstream's — sample_mouth_payload and GP_PERIOD in microduck_ground_pick_env_cfg.py, and GROUND_PICK_END_PHASE in robotd's control.rs. The mouth heights and the grasp window are measured here, through this app's kinematics over the recorded policy. They DISAGREE with the config's nominal hold of 1.50–1.70 s: the plant bottoms out at 1.16 s and is already climbing by 1.50. Closing the jaw on the config's window closes it on the way up.")
             }
 
             Section {

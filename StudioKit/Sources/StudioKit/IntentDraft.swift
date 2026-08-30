@@ -46,11 +46,19 @@ public struct IntentDraft: Codable, Equatable, Identifiable, Sendable {
     /// Where the draft started, for display: written from nothing, or lifted
     /// off a recording.
     public var provenance: String
+    /// The last real physics run of this motion, if there has been one.
+    ///
+    /// A DRAFT USED TO FORGET. You could write one, preview it on a phone with
+    /// no physics engine, run it on a real one across the room, and open it a
+    /// week later to find keyframes and a name — no record that anything had
+    /// ever been run, and no way to tell a checked motion from an untested one.
+    /// Optional, so every draft saved before this decodes with nil.
+    public var bench: Pipeline.BenchOutcome?
 
     public init(id: UUID = UUID(), name: String, keys: [Key] = [],
                 sceneID: UUID? = nil, provenance: String = "Written here") {
         self.id = id; self.name = name; self.keys = keys
-        self.sceneID = sceneID; self.provenance = provenance
+        self.sceneID = sceneID; self.provenance = provenance; self.bench = nil
     }
 
     /// The sentence that has to appear wherever a draft is played.

@@ -34,10 +34,18 @@ final class RetrievalTests: XCTestCase {
         XCTAssertTrue(plan.refusals.first!.message.contains("20 mm above the floor"))
     }
 
-    func testACarrotIsTooHeavy() {
+    /// TOO HEAVY TO LIFT IS NOT THE END OF IT. The floor can take the weight,
+    /// so the plan switches to dragging instead of stopping — and says plainly
+    /// that nobody has measured a duck towing anything.
+    func testACarrotIsTooHeavyToLiftAndSoItDragsIt() {
         let (_, plan) = Retrieval.plan(for: "bring me the carrot")
-        XCTAssertTrue(plan.refusals.contains(.tooHeavy(grams: 60)))
-        XCTAssertFalse(plan.isPossible)
+        XCTAssertTrue(plan.isPossible, "60 g is nothing to drag")
+        XCTAssertTrue(plan.steps.contains(.dragBack(metres: 1.0)))
+        XCTAssertFalse(plan.steps.contains(.lift), "it never stands the load up")
+        guard case .tooHeavyToLift? = plan.refusals.first else {
+            return XCTFail("expected the lift refusal, got \(plan.refusals)")
+        }
+        XCTAssertTrue(plan.refusals.first!.message.contains("Staying upright while dragging"))
     }
 
     /// A 20 mm dowel at 25 g is inside every envelope, so the plan stands.

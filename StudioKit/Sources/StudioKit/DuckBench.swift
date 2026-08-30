@@ -123,6 +123,50 @@ public enum DuckBench {
                     body: try JSONSerialization.data(withJSONObject: body))
     }
 
+    /// Run an AUTHORED motion — keyframes, not a policy — in real physics.
+    ///
+    /// THE ONE CALL THAT CLOSES THE LOOP. Everything else here runs a trained
+    /// network; this sends a track somebody wrote and gets back what actually
+    /// happened to it. Until this existed, an authored motion could be
+    /// previewed on a phone with no physics engine and published to the world
+    /// without any engine ever having seen it.
+    ///
+    /// It runs more than once on purpose. A single rollout that stays up proves
+    /// very little — the four authored stair motions in this app's corpus get
+    /// up their flight 0 times in 16.
+    public static func perform(_ address: Address, keys: [(at: Double, pose: [Double])],
+                               seconds: Double, rollouts: Int = 8,
+                               policy: String? = nil, blend: Double = 1) throws -> Call {
+        var body: [String: Any] = [
+            "track": keys.map { ["at": $0.at, "pose": $0.pose] },
+            "seconds": seconds, "rollouts": rollouts, "blend": blend,
+        ]
+        if let policy { body["policy"] = policy }
+        return Call(method: "POST", url: URL(string: "\(address.base)/perform")!,
+                    body: try JSONSerialization.data(withJSONObject: body))
+    }
+
+    /// A `/perform` answer, as something a draft can keep.
+    public static func readOutcome(_ data: Data, when: Date, plant: String) throws
+        -> Pipeline.BenchOutcome {
+        guard let top = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw ReadError.notJSON
+        }
+        if let error = top["error"] as? String { throw ReadError.bench(error) }
+        guard let rollouts = top["rollouts"] as? Int, let achieves = top["achieves"] as? Int else {
+            throw ReadError.empty
+        }
+        return Pipeline.BenchOutcome(
+            when: when,
+            bench: top["format"] as? String ?? "duck-bench",
+            plant: plant,
+            policy: top["policy"] as? String ?? "unknown",
+            achieves: achieves, rollouts: rollouts,
+            criterion: top["criterion"] as? String ?? "stayed upright",
+            medianHeight: top["medianHeight"] as? Double,
+            peakJointRate: top["peakJointRate"] as? Double)
+    }
+
     public static func urlRequest(for call: Call, token: String? = nil) -> URLRequest {
         var request = URLRequest(url: call.url)
         request.httpMethod = call.method

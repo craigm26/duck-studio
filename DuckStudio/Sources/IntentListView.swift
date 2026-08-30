@@ -81,6 +81,30 @@ struct IntentListView: View {
                 Text("Poses and times, interpolated. A phone has no physics engine, so this is what you asked the robot for — not what it would do. Every authored move already in this app was written the same way, and all four stair ones get up their flight 0 times in 16.\n\nFetch something is different: it writes no poses at all. Retrieval composes policies the robot already has — walk, ground pick, and the one servo no network drives — so a sentence there becomes a plan, not a keyframe track.")
             }
 
+            if !drafts.drafts.isEmpty {
+                Section {
+                    ForEach(drafts.drafts) { draft in
+                        NavigationLink {
+                            PipelineView(draftID: draft.id, drafts: drafts, scenes: store)
+                        } label: {
+                            let pipeline = Pipeline.of(draft, bench: draft.bench)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(draft.name).font(.subheadline)
+                                ProgressView(value: pipeline.fractionDone)
+                                Text(draft.bench.map { "Run in physics: \($0.summary)" }
+                                     ?? "Never run in physics.")
+                                    .font(.caption2).foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Sim to real")
+                } footer: {
+                    Text("What has actually happened to each motion. A preview on this phone is NOT a run — an iPhone has no physics engine, so what it draws is what you asked for. Point the app at a bench and this becomes a real result the draft keeps.")
+                }
+            }
+
             if !fromPollen.isEmpty {
                 Section {
                     ForEach(fromPollen, id: \.name) { row($0) }

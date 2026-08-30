@@ -97,32 +97,60 @@ public enum Retrieval {
         public let thicknessMillimetres: Double
         /// How far away it is, metres.
         public let metresAway: Double
+        /// How high off the floor the part it would bite is, millimetres. Nil
+        /// means lying on the floor. A broom leaning against a wall puts its
+        /// handle up in the air, and the ground-pick arc sweeps the mouth
+        /// through every height from 35 mm to 184 mm on the way down — so this
+        /// changes WHEN to close the jaw, not whether it can be reached.
+        public let graspHeightMillimetres: Double?
+        /// How well it slides. AN ESTIMATE OF YOUR FLOOR, not a measurement of
+        /// anything: 0.4 is a middling guess between a smooth board and a rug.
+        public let floorFriction: Double
 
-        public init(grams: Double, thicknessMillimetres: Double, metresAway: Double) {
+        public init(grams: Double, thicknessMillimetres: Double, metresAway: Double,
+                    graspHeightMillimetres: Double? = nil, floorFriction: Double = 0.4) {
             self.grams = grams
             self.thicknessMillimetres = thicknessMillimetres
             self.metresAway = metresAway
+            self.graspHeightMillimetres = graspHeightMillimetres
+            self.floorFriction = floorFriction
         }
+
+        /// Light enough for the lift the policy was trained against.
+        public var isLiftable: Bool { grams <= Retrieval.payloadRange.upperBound * 1000 }
     }
 
     /// Why a retrieval will not work. Each one names a measurement.
     public enum Refusal: Equatable, Sendable {
-        case tooHeavy(grams: Double)
+        /// Past the lift, but the floor can take the weight.
+        case tooHeavyToLift(grams: Double, drag: Drag.Verdict)
+        /// Past the lift AND past the pull.
+        case tooHeavyToDrag(grams: Double, drag: Drag.Verdict)
         case tooThin(millimetres: Double)
+        /// Held higher than the arc ever reaches, or lower than its bottom.
+        case outOfReach(millimetres: Double)
         case tooFar(metres: Double, minutes: Double)
 
         public var message: String {
             switch self {
-            case .tooHeavy(let grams):
-                return String(format: "%.0f g is more than it was trained to carry. "
-                    + "The ground-pick policy is trained with 10–40 g hanging at its "
-                    + "mouth through the lift; above that nobody has seen what it does.", grams)
+            case .tooHeavyToLift(let grams, let drag):
+                return String(format: "%.0f g is more than it can lift — the ground-pick policy "
+                    + "is trained with 10–40 g hanging at its mouth through the rise. But it "
+                    + "does not have to lift it. %@ %@", grams, drag.message, Drag.untestedNote)
+            case .tooHeavyToDrag(let grams, let drag):
+                return String(format: "%.0f g is past lifting AND past pulling. %@",
+                              grams, drag.message)
             case .tooThin(let mm):
                 return String(format: "At %.0f mm it passes under the bite. The jaw "
                     + "closes %.0f mm above the floor — the policy is rewarded for "
                     + "reaching down and penalised for touching, so it never gets "
                     + "lower. Prop it up, or fetch something thicker.",
                     mm, closedTipHeight * 1000)
+            case .outOfReach(let mm):
+                return String(format: "The mouth sweeps from %.0f mm down to %.0f mm through a "
+                    + "ground pick, and %.0f mm is outside that. Move it into the arc — or "
+                    + "lay it down, which is the same problem with a different answer.",
+                    Reach.highestDuringPick * 1000, Reach.lowestDuringPick * 1000, mm)
             case .tooFar(let metres, let minutes):
                 return String(format: "%.1f m each way at 0.106 m/s is %.0f minutes of "
                     + "walking. It will do it; it is worth knowing first.", metres, minutes)
@@ -132,9 +160,17 @@ public enum Retrieval {
         /// Whether this stops the plan or merely warns. Distance is a warning:
         /// slow is not the same as impossible, and refusing a duck for being
         /// slow would be refusing it for being a duck.
+        /// Whether this stops the plan or merely warns.
+        ///
+        /// DISTANCE IS A WARNING: slow is not impossible, and refusing a duck
+        /// for being slow would be refusing it for being a duck. SO IS BEING
+        /// TOO HEAVY TO LIFT, now that there is a second answer — the plan
+        /// switches to dragging and says what is unknown about it.
         public var isFatal: Bool {
-            if case .tooFar = self { return false }
-            return true
+            switch self {
+            case .tooFar, .tooHeavyToLift: return false
+            case .tooHeavyToDrag, .tooThin, .outOfReach: return true
+            }
         }
     }
 
@@ -154,6 +190,9 @@ public enum Retrieval {
         case settle
         /// Walk back, still carrying.
         case carryBack(metres: Double)
+        /// Walk back TOWING it. The floor holds the weight; the duck only
+        /// fights friction — and nothing has ever measured it doing so.
+        case dragBack(metres: Double)
         /// Open the servo again.
         case release
 
@@ -165,6 +204,7 @@ public enum Retrieval {
             case .lift:            return "Lift"
             case .settle:          return "Settle"
             case .carryBack(let m): return String(format: "Carry it %.2f m back", m)
+            case .dragBack(let m): return String(format: "Drag it %.2f m back", m)
             case .release:         return "Open the mouth"
             }
         }
@@ -173,7 +213,7 @@ public enum Retrieval {
         /// answer to "what is running right now".
         public var policy: String? {
             switch self {
-            case .approach, .carryBack: return "alpha_walking"
+            case .approach, .carryBack, .dragBack: return "alpha_walking"
             case .reachDown, .lift:     return "alpha_ground_pick"
             case .closeMouth, .release, .settle: return nil
             }
@@ -181,7 +221,7 @@ public enum Retrieval {
 
         public var seconds: Double {
             switch self {
-            case .approach(let m), .carryBack(let m): return m / walkSpeed
+            case .approach(let m), .carryBack(let m), .dragBack(let m): return m / walkSpeed
             case .reachDown:  return graspInstant
             case .closeMouth: return 0.25
             case .lift:       return pickDuration - graspInstant
@@ -211,21 +251,46 @@ public enum Retrieval {
     /// Build the plan, and say what is wrong with it.
     public static func plan(for stick: Stick) -> Plan {
         var refusals: [Refusal] = []
-        if stick.grams > payloadRange.upperBound * 1000 {
-            refusals.append(.tooHeavy(grams: stick.grams))
+
+        // TOO HEAVY TO LIFT IS NOT THE END OF IT. The floor can take the
+        // weight — dragging only has to beat friction — so a broom that could
+        // never be carried may still be towed, and saying "too heavy" and
+        // stopping would refuse a job the duck might well do.
+        let dragging = !stick.isLiftable
+        if dragging {
+            let verdict = Drag.verdict(kilograms: stick.grams / 1000,
+                                       floorFriction: stick.floorFriction)
+            refusals.append(verdict.isWithin
+                ? .tooHeavyToLift(grams: stick.grams, drag: verdict)
+                : .tooHeavyToDrag(grams: stick.grams, drag: verdict))
         }
-        if stick.thicknessMillimetres < closedTipHeight * 1000 {
+
+        // The bite is what the thickness has to clear, and only when the thing
+        // is on the floor: something held up at handle height is met by the
+        // side of the beak, not by an arc that bottoms out above it.
+        if stick.graspHeightMillimetres == nil,
+           stick.thicknessMillimetres < closedTipHeight * 1000 {
             refusals.append(.tooThin(millimetres: stick.thicknessMillimetres))
         }
+        if let height = stick.graspHeightMillimetres,
+           Reach.graspTime(forHeight: height / 1000) == nil {
+            refusals.append(.outOfReach(millimetres: height))
+        }
+
         let minutes = 2 * stick.metresAway / walkSpeed / 60
         if minutes >= 1 {
             refusals.append(.tooFar(metres: stick.metresAway, minutes: minutes))
         }
-        let steps: [Step] = [
-            .approach(metres: stick.metresAway),
-            .reachDown, .closeMouth, .lift, .settle,
-            .carryBack(metres: stick.metresAway), .release,
-        ]
+
+        var steps: [Step] = [.approach(metres: stick.metresAway), .reachDown, .closeMouth]
+        if dragging {
+            // No lift and no settle: it never stands the load up, it leans
+            // into it and walks.
+            steps.append(.dragBack(metres: stick.metresAway))
+        } else {
+            steps.append(contentsOf: [.lift, .settle, .carryBack(metres: stick.metresAway)])
+        }
+        steps.append(.release)
         return Plan(stick: stick, steps: steps, refusals: refusals)
     }
 }
@@ -252,11 +317,29 @@ extension Retrieval {
         ("cork", 2, 22),
         ("ball", 30, 40),
         ("carrot", 60, 30),
+        ("broom", 600, 25),
+        ("mop", 700, 25),
+        ("rake", 800, 28),
+        ("umbrella", 400, 30),
+    ]
+
+    /// Things that are usually standing up, and roughly where you would take
+    /// hold of them, millimetres off the floor.
+    ///
+    /// A LEANING BROOM IS NOT OUT OF REACH, it is a timing problem: the arc
+    /// sweeps the mouth from 184 mm down to 35 mm, so a handle anywhere in
+    /// that band is bitten by closing the jaw as the mouth passes it. 150 mm
+    /// is where a broom handle crosses that band when it leans on a wall —
+    /// an estimate of your broom, and editable like every other one.
+    public static let usuallyStanding: [String: Double] = [
+        "broom": 150, "mop": 150, "rake": 150, "umbrella": 120,
     ]
 
     /// What a sentence turned into, and how much of it was guessed.
     public struct Reading: Equatable, Sendable {
         public let stick: Stick
+        /// Whether the sentence asked for a drag rather than a fetch.
+        public var wantsDrag: Bool = false
         /// The word that matched, if the sentence named a thing.
         public let object: String?
         /// Facts taken from the sentence, in the sentence's own terms.
@@ -313,10 +396,41 @@ extension Retrieval {
         if thickness == nil { assumed.append("thickness unknown — taken as 20 mm") }
         if away == nil { assumed.append("distance unknown — taken as 1 m") }
 
+        // Standing, leaning — or laid down, which puts it back on the floor.
+        var height: Double? = nil
+        let laidDown = ["laid down", "lying", "lying down", "on the floor", "flat", "on its side"]
+            .contains { text.contains($0) }
+        let standing = ["standing", "leaning", "upright", "against the wall", "propped"]
+            .contains { text.contains($0) }
+        if let (value, unit) = number(in: text, units: ["mm", "cm"],
+                                      near: ["up", "high", "off the floor", "above"]) {
+            height = unit == "cm" ? value * 10 : value
+            understood.append(String(format: "held %.0f mm up", height!))
+        } else if !laidDown, let word = object?.word, let usual = usuallyStanding[word] {
+            if standing {
+                height = usual
+                understood.append("standing up")
+                assumed.append(String(format: "you would take a %@ at about %.0f mm up",
+                                      word, usual))
+            } else {
+                // A broom nobody described is a broom in the corner.
+                height = usual
+                assumed.append(String(format: "a %@ taken as standing, gripped %.0f mm up — "
+                                    + "say \"laid down\" if it is on the floor", word, usual))
+            }
+        } else if laidDown {
+            understood.append("laid down")
+        }
+
+        let wantsDrag = ["drag", "pull", "tow", "haul"].contains { text.contains($0) }
+        if wantsDrag { understood.append("dragging it, not carrying it") }
+
         return Reading(
             stick: Stick(grams: grams ?? 20,
                          thicknessMillimetres: thickness ?? 20,
-                         metresAway: away ?? 1.0),
+                         metresAway: away ?? 1.0,
+                         graspHeightMillimetres: height),
+            wantsDrag: wantsDrag,
             object: object?.word, understood: understood, assumed: assumed)
     }
 
@@ -426,5 +540,156 @@ extension Retrieval.Plan {
                         "the lift leaves the mouth empty"],
             learnedVerbs: [],
             body: body)
+    }
+}
+
+// MARK: - taking hold of something that is not on the floor, and pulling it
+
+extension Retrieval {
+
+    /// Grasping at a height, and dragging rather than lifting.
+    ///
+    /// A BROOM IS NOT A STICK, in two ways that matter. Leaning against a wall,
+    /// the part you would bite is up in the air rather than on the floor — and
+    /// the ground-pick arc sweeps the mouth through every height between 35 mm
+    /// and 184 mm on its way down, so the grasp is a matter of TIMING, not of
+    /// reaching somewhere new. And a broom is far too heavy to lift, which does
+    /// not settle the question, because dragging is not lifting: the floor
+    /// carries the weight and the duck only has to overcome friction.
+    ///
+    /// NOTHING HERE IS A MEASUREMENT OF DRAGGING. No such experiment exists.
+    /// What follows are CEILINGS derived from things that are known — the
+    /// robot's own mass out of the MJCF, the torque limit training runs at, the
+    /// friction range training randomises over — and a ceiling is a statement
+    /// about what is impossible, never a promise about what works.
+    public enum Reach {
+
+        /// The mouth's height at the top of the ground-pick arc, metres.
+        /// Measured through the recorded clip: 0.184 m at t = 0.
+        public static let highestDuringPick = 0.184
+
+        /// And at the bottom, mouth open: 0.035 m.
+        public static let lowestDuringPick = 0.035
+
+        /// When the mouth passes each height on the way DOWN, seconds into the
+        /// pick. Measured from the clip through DuckKit's kinematics.
+        ///
+        /// THE ARC PASSES EVERY HEIGHT TWICE, and the descending pass is the
+        /// one to use: on the way up the duck is already committed to standing,
+        /// and a bite taken then is a bite taken while pulling away.
+        static let descent: [(height: Double, at: Double)] = [
+            (0.150, 0.18), (0.120, 0.26), (0.100, 0.30),
+            (0.080, 0.36), (0.060, 0.44), (0.040, 0.76),
+        ]
+
+        /// When to shut the jaw to catch something at `height`, or nil if the
+        /// arc never reaches it.
+        public static func graspTime(forHeight height: Double) -> Double? {
+            guard height <= highestDuringPick, height >= lowestDuringPick else { return nil }
+            // Below the table's last entry, the bottom of the arc is the answer.
+            guard let first = descent.first(where: { height >= $0.height }) else {
+                return Retrieval.graspInstant
+            }
+            // Between two rows, walk the line between them.
+            guard let index = descent.firstIndex(where: { $0.height == first.height }),
+                  index > 0 else { return first.at }
+            let above = descent[index - 1]
+            let span = above.height - first.height
+            guard span > 1e-9 else { return first.at }
+            let fraction = (above.height - height) / span
+            return above.at + (first.at - above.at) * fraction
+        }
+    }
+
+    /// What the duck can pull before something gives.
+    public enum Drag {
+
+        /// The robot's mass, kilograms. Summed from every `<inertial>` in
+        /// Pollen's `pollen_robot.xml`.
+        public static let duckMass = 0.7372
+
+        /// Per-joint torque ceiling training runs at, newton-metres.
+        /// `forcerange="-0.6405 0.6405"` in the training scene — tighter than
+        /// the 0.96 the plain robot file declares, and the tighter one is what
+        /// every shipped policy was trained against.
+        public static let jointTorque = 0.6405
+
+        /// Distance from the neck-pitch joint to the mouth tip in the sagittal
+        /// plane at the home pose, metres. Measured through the kinematics.
+        /// This is the lever a horizontal pull at the beak works through.
+        public static let neckLever = 0.0836
+
+        /// The friction range training randomises the feet over.
+        /// `cfg.events["foot_friction"].params["ranges"] = (0.7, 1.3)`.
+        public static let footFriction = 0.7...1.3
+
+        static let gravity = 9.81
+
+        /// How hard it can pull before its feet slide, newtons.
+        public static func pullBeforeSlipping(footFriction: Double) -> Double {
+            footFriction * duckMass * gravity
+        }
+
+        /// How hard it can pull before the neck stalls, newtons. One joint
+        /// holding the load through one lever — a floor for the real answer,
+        /// since nothing here models the head and neck sharing it.
+        public static var pullBeforeNeckStalls: Double { jointTorque / neckLever }
+
+        /// The binding ceiling at a given foot friction, and what binds.
+        public static func ceiling(footFriction: Double) -> (newtons: Double, limit: String) {
+            let feet = pullBeforeSlipping(footFriction: footFriction)
+            let neck = pullBeforeNeckStalls
+            return feet < neck
+                ? (feet, "its feet slide before it pulls harder")
+                : (neck, "its neck stalls before it pulls harder")
+        }
+
+        /// What it takes to drag something, newtons: friction times weight.
+        public static func forceToDrag(kilograms: Double, floorFriction: Double) -> Double {
+            floorFriction * kilograms * gravity
+        }
+
+        public enum Verdict: Equatable, Sendable {
+            case within(needed: Double, ceiling: Double, limit: String)
+            case beyond(needed: Double, ceiling: Double, limit: String)
+
+            public var isWithin: Bool { if case .within = self { return true }; return false }
+
+            public var message: String {
+                switch self {
+                case .within(let needed, let ceiling, _):
+                    return String(format: "Dragging it needs about %.1f N and the duck has "
+                        + "roughly %.1f N before something gives. That is a ceiling, not a "
+                        + "demonstration — nobody has measured this duck dragging anything.",
+                        needed, ceiling)
+                case .beyond(let needed, let ceiling, let limit):
+                    return String(format: "Dragging it needs about %.1f N. The duck runs out at "
+                        + "roughly %.1f N — %@.", needed, ceiling, limit)
+                }
+            }
+        }
+
+        /// Can it drag this? At the WORST friction training covers, because a
+        /// ceiling quoted at the best case is a ceiling that flatters.
+        public static func verdict(kilograms: Double, floorFriction: Double,
+                                   footFriction: Double = Drag.footFriction.lowerBound) -> Verdict {
+            let needed = forceToDrag(kilograms: kilograms, floorFriction: floorFriction)
+            let (ceiling, limit) = Drag.ceiling(footFriction: footFriction)
+            return needed <= ceiling
+                ? .within(needed: needed, ceiling: ceiling, limit: limit)
+                : .beyond(needed: needed, ceiling: ceiling, limit: limit)
+        }
+
+        /// THE THING NO CEILING COVERS. Being pulled backwards while walking is
+        /// not in any training distribution: the payload event hangs a weight
+        /// at the mouth during a ground-pick rise, and the walking policy was
+        /// trained with pushes, not with a load it is towing. Whether the duck
+        /// stays upright while dragging is genuinely unknown, and no arithmetic
+        /// here will settle it.
+        public static let untestedNote =
+            "Nothing has trained or measured a duck towing anything. The payload it knows "
+            + "about is 10–40 g hanging at its mouth while it stands up, not a load it is "
+            + "pulling along. Staying upright while dragging is the open question, and these "
+            + "numbers do not answer it."
     }
 }
