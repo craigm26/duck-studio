@@ -71,6 +71,12 @@ public enum DuckValue: Equatable, Sendable {
 /// continuation line containing `: ` would be misread as a new key; that is the one place
 /// this subset is narrower than PyYAML in a way a real file could stumble over, and it is
 /// written down here rather than discovered later.
+///
+/// A QUOTED KEY IS THE OTHER PLACE, and it is narrower on the writing side too. This reader
+/// splits `key: value` before it unquotes anything, so `"a: b": 1` — legal PyYAML — is read
+/// as the key `"a` here. Nothing in the format writes one: every schema key is fixed, and
+/// the only author-chosen names are `learned_verbs[].metadata`'s, which `validate()` refuses
+/// outright when they would need quoting rather than writing a file that reads back wrong.
 public struct DuckTask: Equatable, Sendable {
 
     // MARK: - the frontmatter
@@ -205,6 +211,7 @@ public struct DuckTask: Equatable, Sendable {
         case confirmNotAllowed([String])
         case noSuccessCriteria
         case budgetOutOfRange(key: String, value: String, allowed: String)
+        case metadataNameIsNotWritable(verb: String, name: String)
 
         public var message: String {
             switch self {
@@ -259,6 +266,13 @@ public struct DuckTask: Equatable, Sendable {
                      + "itself against and will never stop."
             case .budgetOutOfRange(let key, let value, let allowed):
                 return "budgets.\(key) is \(value); it has to be \(allowed)."
+            case .metadataNameIsNotWritable(let verb, let name):
+                return "The learned verb \"\(verb)\" has a metadata setting named "
+                     + "\"\(name)\". A metadata name is written into the file plainly, so it "
+                     + "cannot be blank, start or end with a space, start with - or #, or "
+                     + "contain a colon or a line break. Written out, \"\(name)\" would be "
+                     + "read back as a different name holding a different value, and "
+                     + "nothing would complain. Rename it."
             }
         }
     }
@@ -568,6 +582,25 @@ public struct DuckTask: Equatable, Sendable {
         guard !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw ReadError.emptyBody
         }
+        // `learned_verbs[].metadata` IS THE ONE UNTYPED CORNER OF THE FORMAT (`dict[str,
+        // Any]`), and so the one place a caller can hand this writer a NAME it cannot write
+        // down. `blockMapping` writes a metadata name plainly and the reader's `splitKey`
+        // never unquotes a key, so quoting the name on the way out would only relocate the
+        // damage — `"a: b": 1` splits at the colon inside the quotes and yields the name
+        // `"a` — which is why this refuses instead. Measured before the refusal existed:
+        // `["a: b": 1]` was written as `a: b: 1` and read back as `["a": "b: 1"]`, a name
+        // and a value nobody wrote, with nothing thrown; a name opening with `#` was worse
+        // still, because the line became a comment and the entry vanished outright.
+        //
+        // REFUSING IS SAFE PRECISELY BECAUSE NO FILE CAN PRODUCE ONE OF THESE NAMES — see
+        // `DuckYAML.isWritableMetadataName` — so this can only stop a task assembled in code
+        // from being written out. It can never turn away a `.duck` quackd would run, which
+        // is the one thing this reader must not do.
+        for verb in learnedVerbs {
+            if let name = DuckYAML.unwritableMetadataName(in: .mapping(verb.metadata)) {
+                throw ReadError.metadataNameIsNotWritable(verb: verb.name, name: name)
+            }
+        }
     }
 
     // MARK: - typed reads that keep the key in the message
@@ -734,10 +767,25 @@ enum DuckYAML {
                             line: line.number, reason: "a `-` with nothing after it")
                     }
                     out.append(try parseBlock(indent: lines[cursor].indent))
-                } else if splitKey(rest) != nil, !rest.hasPrefix("{"), !rest.hasPrefix("[") {
+                } else if let opener = rest.first, !"\"'[{".contains(opener),
+                          splitKey(rest) != nil {
                     // `- name: moonwalk` opens a mapping whose remaining keys line up under
                     // `name`. Rewriting the dash away and re-entering the mapping parser at
                     // that column is the whole trick, and it is why `lines` is mutable.
+                    //
+                    // THE OPENER SET IS `fold`'s, CHARACTER FOR CHARACTER, AND IT HAS TO BE.
+                    // `splitKey` cannot see quotes — it cuts at the first colon followed by
+                    // a space, wherever that sits — so a QUOTED item was being handed to it
+                    // and read as a mapping. This half of the set (`{` and `[`) was excluded
+                    // from the first line of this parser; `"` and `'` were simply missed,
+                    // and the omission made the writer emit a file its own reader refused:
+                    // `quoteIfNeeded` quotes any criterion containing `: `, so
+                    // `success: ["ball moved: at least 0.3 m"]` went out as
+                    // `  - "ball moved: at least 0.3 m"` and came back as the mapping
+                    // `"ball moved` -> `at least 0.3 m"`, whereupon `stringList` told the
+                    // author "success has to be text" about a file this app had just
+                    // written. PyYAML — and so quackd — reads that line as a plain string,
+                    // which makes it the mirror of the promise at the top of this file.
                     let keyIndent = indent + dashWidth
                     lines[cursor].indent = keyIndent
                     lines[cursor].text = rest
@@ -824,7 +872,7 @@ enum DuckYAML {
             }
             return .mapping(out)
         }
-        if let unquoted = unquote(text) { return .string(unquoted) }
+        if let unquoted = unquote(withoutTrailingComment(text)) { return .string(unquoted) }
 
         // A plain scalar ends at an unquoted " #", which is where YAML starts a comment.
         var plain = text
@@ -869,6 +917,55 @@ enum DuckYAML {
             index = text.index(after: index)
         }
         return seenDigit
+    }
+
+    /// Cut a trailing `# comment` off a scalar that OPENS with a quote, so that
+    /// `- "ball moved: 0.3 m" # note` reads as `ball moved: 0.3 m`.
+    ///
+    /// IT CANNOT WAIT FOR THE PLAIN-SCALAR COMMENT STRIP BELOW, and that ordering is the
+    /// whole bug this exists to close. That strip runs only AFTER `unquote` has failed, and
+    /// `unquote` fails on a quoted scalar with a comment after it for the trivial reason
+    /// that the text no longer ENDS in a quote — so the value came back carrying its own
+    /// quote characters, a wrong answer nobody was told about. Worse, that strip cuts at the
+    /// first ` #` anywhere in the line, so `"a # b" # note` was truncated to `"a`. Both are
+    /// silent, which is the failure mode this app treats as first-order.
+    ///
+    /// ONLY A SCALAR OPENING WITH A QUOTE IS CONSIDERED, and only the text after the
+    /// matching CLOSING quote is inspected. That is what keeps an apostrophe in the middle
+    /// of a plain scalar — `rok's fork`, the one that already cost this parser a bug — from
+    /// opening anything here.
+    private static func withoutTrailingComment(_ text: String) -> String {
+        guard let opener = text.first, opener == "\"" || opener == "'",
+              let close = closingQuote(of: text) else { return text }
+        let after = String(text[text.index(after: close)...])
+        // YAML needs whitespace before a `#` for it to start a comment; `"a"#b` is not a
+        // comment, it is malformed, and guessing at it would invent a value.
+        guard after.first == " " || after.first == "\t",
+              after.trimmingCharacters(in: .whitespaces).hasPrefix("#") else { return text }
+        return String(text[...close])
+    }
+
+    /// The index of the quote closing a scalar that opens at the first character, honouring
+    /// the same two escapes `unquote` understands — `\"` inside a double-quoted scalar and
+    /// `''` inside a single-quoted one. Nil when the scalar never closes, in which case the
+    /// caller leaves the text exactly as it found it rather than guessing at an end.
+    private static func closingQuote(of text: String) -> String.Index? {
+        guard let opener = text.first else { return nil }
+        var index = text.index(after: text.startIndex)
+        while index < text.endIndex {
+            let character = text[index]
+            if opener == "\"", character == "\\" {
+                index = text.index(after: index)
+                if index == text.endIndex { return nil }
+            } else if character == opener {
+                guard opener == "'" else { return index }
+                let next = text.index(after: index)
+                // `''` inside a single-quoted scalar is one apostrophe, not the end of it.
+                if next < text.endIndex, text[next] == "'" { index = next } else { return index }
+            }
+            index = text.index(after: index)
+        }
+        return nil
     }
 
     private static func unquote(_ text: String) -> String? {
@@ -987,6 +1084,67 @@ enum DuckYAML {
             }
         }
         return out
+    }
+
+    /// Whether this writer can put `name` in front of a metadata value and have the reader
+    /// hand back the same name.
+    ///
+    /// THE TWO CONTEXTS ANSWER DIFFERENTLY, the same way `quoteIfNeeded` does, and for the
+    /// same reason: they are read back by different code. In a BLOCK mapping `splitKey` cuts
+    /// at the first colon followed by a space, trims what it found, and refuses a name that
+    /// is empty or opens with `-`; a line opening with `#` is dropped as a comment before it
+    /// ever reaches `splitKey`. In a FLOW mapping the reader splits on top-level commas
+    /// first, so a comma is what destroys a name there while `-` and `#` are harmless.
+    ///
+    /// EVERY NAME THIS REFUSES IS ONE NO FILE CAN PRODUCE, and that is the property the
+    /// refusal in `DuckTask.validate()` rests on. A block name can never arrive carrying a
+    /// colon (the split consumed it), leading or trailing space (trimmed), a leading `-` or
+    /// `#` (refused, or read as a comment) or a newline or tab (the reader works line by
+    /// line and trims). A flow name can never arrive carrying a comma (the split consumed
+    /// it) or a colon. So refusing here cannot cost anybody a file quackd accepts.
+    static func isWritableMetadataName(_ name: String, inFlow: Bool) -> Bool {
+        if name.contains(":") || name.contains("\n") || name.contains("\r") { return false }
+        // A TAB IN THE MIDDLE OF A NAME IS FINE and is deliberately not refused: this
+        // reader really does hand one back — it trims a line's ends and splits at the
+        // colon, so `a\tb: 1` decodes to the name `a\tb` — and refusing what the reader
+        // itself produced would turn away a file quackd runs. A tab at either END is
+        // another matter, and the trim below catches it along with a leading space.
+        if name != name.trimmingCharacters(in: .whitespaces) { return false }
+        if inFlow { return !name.contains(",") }
+        return !name.isEmpty && !name.hasPrefix("-") && !name.hasPrefix("#")
+    }
+
+    /// The first metadata name anywhere in `value` that this writer cannot express, or nil
+    /// when every one of them survives a write and a read.
+    ///
+    /// The `inFlow` bookkeeping MIRRORS `blockMapping`'s own branch and has to keep
+    /// mirroring it: a non-empty nested mapping stays in block form, and everything else —
+    /// an empty mapping, a list with a mapping in it — goes through `inlineScalar`, which is
+    /// flow all the way down. Get that backwards and this either refuses names the writer
+    /// handles fine or waves through the ones it mangles.
+    static func unwritableMetadataName(in value: DuckValue, inFlow: Bool = false) -> String? {
+        switch value {
+        case .mapping(let mapping):
+            for name in mapping.keys.sorted() {
+                guard isWritableMetadataName(name, inFlow: inFlow) else { return name }
+                let nested = mapping[name] ?? .null
+                var nestedInFlow = true
+                if case .mapping(let deeper) = nested, !deeper.isEmpty, !inFlow {
+                    nestedInFlow = false
+                }
+                if let bad = unwritableMetadataName(in: nested, inFlow: nestedInFlow) {
+                    return bad
+                }
+            }
+            return nil
+        case .list(let items):
+            for item in items {
+                if let bad = unwritableMetadataName(in: item, inFlow: true) { return bad }
+            }
+            return nil
+        default:
+            return nil
+        }
     }
 
     private static func isScalar(_ value: DuckValue) -> Bool {

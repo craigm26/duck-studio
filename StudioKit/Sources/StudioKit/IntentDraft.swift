@@ -97,17 +97,52 @@ public struct IntentDraft: Codable, Equatable, Identifiable, Sendable {
     /// draft anybody can edit, and smoothstep between eight of them is a
     /// different curve from the one recorded at fifty hertz. Both facts are
     /// why the provenance line says "sampled".
+    ///
+    /// HELD AT THE STOP, BECAUSE THE RECORDINGS SIT A HAIR OUTSIDE IT. Ten of
+    /// the seventeen bundled clips carry angles just past `DuckModel`'s
+    /// declared travel — solver and stop-boundary artefacts, worst about
+    /// 0.008 rad (0.45°) across the whole corpus — and both `problems` and
+    /// `DuckMove(validating:)` refuse anything more than 1e-6 outside travel.
+    /// Sampled raw, the MAJORITY of remixes therefore opened as drafts that
+    /// could not export and previewed as a motionless home stance, blaming the
+    /// user for a fault the sampler introduced. So every sampled angle is
+    /// clamped to the joint's own travel, exactly as a slider clamps a drag
+    /// (`JointHandles.dragged`) and as `MotionTweak` clamps a joint edit. For
+    /// scale: this moves an angle four orders of magnitude less than the
+    /// eight-keyframe sampling already throws away — 0.008 rad against
+    /// 1.877 rad on `step_up` — so clamping is faithful, not a cover-up.
+    ///
+    /// AND IT SAYS SO, ONLY WHEN IT HAPPENED. The clamp is named in the
+    /// provenance line with its size, and appended only if it actually fired:
+    /// seven clips need none, and a sentence claiming otherwise would be this
+    /// app overclaiming about its own artefact. `IntentDraftTests` bounds the
+    /// distance from the corpus side, so a future recording genuinely half a
+    /// radian out of travel fails the suite rather than being silently
+    /// rewritten and still called a remix.
     public static func remix(_ clip: DuckIntentClip, keyframes count: Int = 8) -> IntentDraft {
         let n = max(count, 2)
+        var worstHold = 0.0
         let keys = (0..<n).map { i -> Key in
             let time = clip.duration * Double(i) / Double(n - 1)
-            return Key(time: time, pose: clip.pose(at: time).jointAngles)
+            let sampled = clip.pose(at: time).jointAngles
+            let held = (0..<DuckModel.jointCount).map { joint -> Double in
+                let range = DuckModel.jointRanges[joint]
+                let inside = min(max(sampled[joint], range.lower), range.upper)
+                worstHold = max(worstHold, abs(inside - sampled[joint]))
+                return inside
+            }
+            return Key(time: time, pose: held)
         }
-        return IntentDraft(
-            name: "\(clip.name) remixed",
-            keys: keys,
-            provenance: "Sampled from the recording of \(clip.name) at \(n) keyframes. "
-                      + "The shapes are its; the physics that produced them is not.")
+        var provenance = "Sampled from the recording of \(clip.name) at \(n) keyframes. "
+                       + "The shapes are its; the physics that produced them is not."
+        // 1e-6 is the tolerance the validating door itself uses: below it
+        // nothing was refused, so nothing was really held and saying so would
+        // be noise.
+        if worstHold > 1e-6 {
+            provenance += String(format: " Recorded angles up to %.4f rad outside the model's "
+                               + "declared travel were held at the stop.", worstHold)
+        }
+        return IntentDraft(name: "\(clip.name) remixed", keys: keys, provenance: provenance)
     }
 
     // MARK: - what is wrong with it
@@ -146,12 +181,35 @@ public struct IntentDraft: Codable, Equatable, Identifiable, Sendable {
 
     public var problems: [Problem] {
         var out: [Problem] = []
-        guard keys.count >= 2 else {
+        guard !keys.isEmpty else {
             out.append(.init(severity: .broken,
-                             text: "A motion needs at least two keyframes — one pose is a pose, not a motion."))
+                             text: "A motion needs at least one keyframe — there is no pose here to hold."))
             return out
         }
         let ordered = keys.sorted { $0.time < $1.time }
+        // ONE POSE IS A MOTION, PROVIDED IT HAS TIME TO HAPPEN IN, and this
+        // check used to say otherwise while `exported()` shipped the file
+        // anyway. The two gates disagreed in the direction that hands a file
+        // out: the Checks tab drew the orange triangle and called a
+        // one-keyframe draft broken, and the share sheet gave it away
+        // regardless. They agree now, and they agree on YES — because a single
+        // pose is a legitimate thing for a beginner to want. "Stand here with
+        // the beak open" is a still, and DuckKit already reads it as one: the
+        // duck travels from the base stance to that pose across the keyframe's
+        // own time and then holds it, which is a real half-second motion and
+        // round-trips as one.
+        //
+        // What is NOT a motion is that same pose at 0.00 s. There the span is
+        // zero: duration 0, nothing to interpolate, a scrubber that cannot
+        // move, and a file OpenCastor finishes the instant it starts. That is
+        // the only cardinality case refused here, and the sentence names the
+        // knob that fixes it. The negative-time case is left to the rule below
+        // so the two refusals do not both claim the keyframe is at 0.00 s.
+        if ordered.count == 1, ordered[0].time >= 0, ordered[0].time <= 1e-6 {
+            out.append(.init(severity: .broken,
+                             text: "A motion of one keyframe at 0.00 s has no time to happen in. "
+                                 + "Move that keyframe later — half a second is plenty — or add a second one."))
+        }
         for (index, key) in ordered.enumerated() {
             if key.time < 0 {
                 out.append(.init(severity: .broken, text: "A keyframe happens before the motion starts."))
@@ -229,7 +287,65 @@ public struct IntentDraft: Codable, Equatable, Identifiable, Sendable {
     // MARK: - handing it over
 
     public static let fileExtension = "duckmove"
-    public var suggestedFilename: String { "\(name).\(Self.fileExtension)" }
+
+    /// The motion's name as ONE path component, which the typed name is not.
+    ///
+    /// A SLASH IN THE NAME KILLED THE SHARE AND BLAMED THE WRONG THING. The
+    /// share sheet writes to `temporaryDirectory.appendingPathComponent(...)`,
+    /// so a motion called "walk / bow" addressed a folder called "walk " that
+    /// does not exist: the write failed with "The file could not be written."
+    /// — honest, naming the wrong cause, and unactionable, because nothing on
+    /// screen connects it to the "/" the person typed, and every retry failed
+    /// the same way. An empty name was worse: ".duckmove", a dotfile that
+    /// AirDrop and Files show as nameless.
+    ///
+    /// NOT `MotionPublication.slug`, THOUGH IT IS RIGHT THERE AND LOOKS LIKE
+    /// THE ANSWER. That slug is ASCII-only on purpose, because the same string
+    /// is offered as a Hugging Face repository name and that name refuses
+    /// anything else. A filesystem is not nearly that strict — "お辞儀.duckmove"
+    /// writes fine — so borrowing the repository's rule here would export
+    /// "Élan" as "lan.duckmove" and would collapse EVERY name without an ASCII
+    /// letter or digit onto the single stem "microduck-motion". Two such
+    /// motions shared in one session then write over each other in the
+    /// temporary directory, which trades a visible wrong cause for a silent
+    /// wrong file: strictly the worse bug. So this fixes only what the
+    /// filesystem actually objects to and leaves the rest of the name alone.
+    ///
+    /// LOSSLESS EITHER WAY: `exported()` writes `name` verbatim into the file
+    /// and `decode` reads it back, so the typed name survives a slugged
+    /// filename and nobody has to be told about the substitution.
+    public var suggestedFilename: String { "\(Self.filenameStem(for: name)).\(Self.fileExtension)" }
+
+    /// The part before the dot: one path component, never empty, never hidden.
+    static func filenameStem(for name: String) -> String {
+        // "/" separates paths everywhere; ":" was the separator on classic Mac
+        // OS and is still refused by some pickers and by SMB shares; "\" is one
+        // wherever these files get opened on a desktop. Control characters
+        // (NUL included) are not representable in a name at all.
+        func isSeparator(_ character: Character) -> Bool {
+            character == "/" || character == "\\" || character == ":"
+                || character.unicodeScalars.contains { $0.value < 0x20 || $0.value == 0x7F }
+        }
+        var out = ""
+        var pendingSeparator = false
+        for character in name {
+            if isSeparator(character) { pendingSeparator = true; continue }
+            if pendingSeparator {
+                // The whitespace either side of the separator goes too, so
+                // "walk / bow" reads as "walk-bow" rather than "walk - bow".
+                if character.isWhitespace { continue }
+                while let last = out.last, last.isWhitespace { out.removeLast() }
+                if !out.isEmpty { out.append("-") }
+                pendingSeparator = false
+            }
+            out.append(character)
+        }
+        while let first = out.first, first == "." || first.isWhitespace { out.removeFirst() }
+        while let last = out.last, last == "." || last.isWhitespace { out.removeLast() }
+        // A name can be nothing but separators, or nothing at all. The file
+        // still has to arrive somewhere a person can point at.
+        return out.isEmpty ? "microduck-motion" : out
+    }
 
     /// The file the sim harness and the robot both take.
     ///
@@ -246,14 +362,58 @@ public struct IntentDraft: Codable, Equatable, Identifiable, Sendable {
     /// wrote it and a person can open the beak. Narrowing it to 14 on export
     /// would silently drop the one thing authoring adds.
     public func exported() throws -> Data {
+        // THE SHARE SHEET MUST NOT CONTRADICT THE CHECKS TAB. `problems` and
+        // this function are the app's two gates on what a motion is, and they
+        // used to disagree in the one direction that matters: the screen drew
+        // the orange triangle and said the draft was broken, while the export
+        // handed the file out anyway, because `DuckMove(validating:)` enforces
+        // the FORMAT's rules and not the DRAFT's. Every other `.broken` rule
+        // happens to have a counterpart at that door; the cardinality one did
+        // not, so a motion the app had just refused went to whoever it was
+        // AirDropped to. The gate belongs here rather than in DuckKit: a
+        // one-keyframe file is legal in the format, is written by other tools,
+        // and refusing it at the door would make the kit unable to READ files
+        // it already writes.
+        guard isPlayable else {
+            throw ExportRefusal.notPlayable(
+                problems.filter { $0.severity == .broken }.map(\.text))
+        }
         // THROUGH THE FORMAT'S SINGLE DOOR. DuckKit's DuckMoveFile is the one
         // writer and reader of .duckmove — OpenCastor plays these files as
         // goal celebrations, and two parsers for one format is how a file
         // works in one app and silently misloads in the other. The caveat
         // travels as the note, because the file is the thing that gets shared
         // and the caveat is the thing most likely to be lost.
-        try DuckMoveFile.encode(name: name, move: try move(),
-                                provenance: provenance, note: Self.disclaimer)
+        return try DuckMoveFile.encode(name: name, move: try move(),
+                                       provenance: provenance, note: Self.disclaimer)
+    }
+
+    /// Why a motion could not be handed over.
+    ///
+    /// A SENTENCE THROUGH BOTH OF THE APP'S CATCH CHAINS, WITHOUT EITHER VIEW
+    /// LEARNING A NEW ERROR. `IntentAuthorView.share()` falls back to
+    /// `"\(error)"` and `PublishMotionView` to `error.localizedDescription`,
+    /// and neither knows this type. Raw, a person would read
+    /// `notPlayable([...])` on one screen and "The operation couldn't be
+    /// completed" on the other — which is how a refusal stops being the
+    /// product and starts being a bug report. `CustomStringConvertible` and
+    /// `LocalizedError` both route to `message`, so the refusal survives every
+    /// door it can leave by, and it carries the SCREEN'S OWN WORDS rather than
+    /// a second wording of the same rule.
+    public enum ExportRefusal: Error, Equatable, CustomStringConvertible, LocalizedError {
+        /// The draft still carries problems the editor calls broken. The
+        /// associated sentences are `problems`, verbatim.
+        case notPlayable([String])
+
+        public var message: String {
+            switch self {
+            case .notPlayable(let reasons):
+                return (["The motion cannot be exported as written."] + reasons)
+                    .joined(separator: " ")
+            }
+        }
+        public var description: String { message }
+        public var errorDescription: String? { message }
     }
 
     public enum ImportError: Error, Equatable {
@@ -280,7 +440,27 @@ public struct IntentDraft: Codable, Equatable, Identifiable, Sendable {
     /// write `duck-move/2`, every import here refused a file the kit had just
     /// produced. It now delegates, which also means a motion authored against
     /// a non-home base resolves correctly instead of being read as if it were
-    /// absolute: `pose(at:)` applies the file's own base and reading mode.
+    /// absolute.
+    ///
+    /// AND IT READS THE KEYFRAMES RATHER THAN SAMPLING FOR THEM. This used to
+    /// rebuild each key as `move.pose(at: $0.time)` — asking the move what it
+    /// LOOKS LIKE at the instant a keyframe happens, which is a different
+    /// question that merely agrees most of the time. It disagreed exactly
+    /// where this editor always writes: at t = 0, where `pose(at:)` answered
+    /// the base stance, so a motion exported starting from a crouch came back
+    /// starting from standing, silently, on the app's own round trip.
+    /// `absolutePose(_:)` asks the real question — give me the pose somebody
+    /// WROTE here — and still applies the file's own base and reading mode, so
+    /// an offset-mode motion resolves as it always did. Recovering stored
+    /// keyframes by sampling is the wrong shape even where it agrees, and
+    /// DuckKit is the one allowed to know how a keyframe resolves: re-deriving
+    /// base and offset here would be the second parser all over again.
+    ///
+    /// RESIDUAL, so nobody overclaims: a draft carries no base of its own, so
+    /// a file whose first keyframe sits at t > 0 and whose base is not home
+    /// still loses that base — the opening span reinterpolates from the home
+    /// stance. Every motion this app writes starts at 0.00 s, where the base
+    /// is irrelevant, so that case is exact.
     public static func decode(_ data: Data) throws -> IntentDraft {
         let contents: DuckMoveFile.Contents
         do {
@@ -299,7 +479,7 @@ public struct IntentDraft: Codable, Equatable, Identifiable, Sendable {
         let move = contents.move
         return IntentDraft(
             name: contents.name,
-            keys: move.keyframes.map { Key(time: $0.time, pose: move.pose(at: $0.time)) },
+            keys: move.keyframes.map { Key(time: $0.time, pose: move.absolutePose($0)) },
             provenance: contents.provenance ?? "Imported")
     }
 }

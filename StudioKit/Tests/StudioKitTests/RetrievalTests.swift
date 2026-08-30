@@ -140,3 +140,267 @@ extension RetrievalTests {
         XCTAssertTrue(task.body.contains("REFUSED:"))
     }
 }
+
+// MARK: - the half of the file a machine acts on
+
+/// EVERY EXPORT USED TO CARRY THREE ADVISORY SENTENCES AND NOTHING ELSE, so a
+/// task written here reached quackd with no battery floor and no repeat-failure
+/// stop while the export screen's footer claimed the file "carries the
+/// constraints in its own body". These pin the machine-readable half.
+extension RetrievalTests {
+
+    private func fetchablePlan() -> Retrieval.Plan {
+        Retrieval.plan(for: .init(grams: 25, thicknessMillimetres: 22, metresAway: 0.8))
+    }
+
+    /// The two phrasings quackd's executor greps for, derived back out of the
+    /// file by the same reader that reports the split.
+    func testTheExportedTaskCarriesTheTwoStopsAMachineEnforces() throws {
+        let task = try fetchablePlan().duckTask(named: "Fetch the dowel")
+        XCTAssertEqual(task.batteryAbortPercent, 15)
+        XCTAssertEqual(task.repeatFailureAbort, 3)
+        XCTAssertEqual(task.abortWhen.first, "Battery below 15%")
+        XCTAssertEqual(task.abortWhen[1], "Same verb fails 3 times in a row")
+    }
+
+    /// And they survive the format, which is the only test that proves a runner
+    /// will ever see them.
+    func testTheEnforcedStopsSurviveTheRoundTrip() throws {
+        let task = try fetchablePlan().duckTask(named: "Fetch the dowel")
+        let reread = try DuckTask.decode(task.encode())
+        XCTAssertEqual(reread, task)
+        XCTAssertEqual(reread.batteryAbortPercent, 15)
+        XCTAssertEqual(reread.repeatFailureAbort, 3)
+    }
+
+    /// The rest is prose handed to the LLM, and it has to be THIS plan's
+    /// numbers rather than a generic warning.
+    func testTheAdvisoryAbortsCarryThisPlansEnvelopes() throws {
+        let task = try fetchablePlan().duckTask(named: "Fetch the dowel")
+        let advisory = task.advisoryAbortConditions.joined(separator: "\n")
+        XCTAssertTrue(advisory.contains("thinner than 20 mm"), advisory)
+        XCTAssertTrue(advisory.contains("heavier than 40 g"), advisory)
+        XCTAssertTrue(advisory.contains("10–40 g"), advisory)
+        XCTAssertTrue(advisory.contains("between 0.76 s and 1.50 s"), advisory)
+        XCTAssertTrue(advisory.contains("lowest at 1.16 s"), advisory)
+        // The old three are still there — they were never wrong, only alone.
+        XCTAssertTrue(task.abortWhen.contains("the duck falls"))
+        XCTAssertTrue(task.abortWhen.contains("the lift leaves the mouth empty"))
+    }
+
+    /// The reach band only matters when something is being taken off the floor,
+    /// so it only travels when the plan has a grip height at all.
+    func testTheReachBandTravelsOnlyWithSomethingHeldUp() throws {
+        let flat = try fetchablePlan().duckTask(named: "Fetch the dowel")
+        XCTAssertFalse(flat.abortWhen.contains { $0.contains("35–184 mm band") })
+
+        let standing = Retrieval.plan(for: .init(grams: 25, thicknessMillimetres: 25,
+                                                 metresAway: 1, graspHeightMillimetres: 150))
+        let task = try standing.duckTask(named: "Fetch the broom")
+        XCTAssertTrue(task.abortWhen.contains { $0.contains("35–184 mm band") },
+                      "\(task.abortWhen)")
+    }
+
+    /// A drag plan carries the ceiling that stops it, and says nobody has
+    /// measured it.
+    func testADragPlanCarriesThePullCeiling() throws {
+        let (_, plan) = Retrieval.plan(for: "drag the carrot 1 m away")
+        let task = try plan.duckTask(named: "Drag the carrot")
+        guard let line = task.abortWhen.first(where: { $0.contains("pull needed") }) else {
+            return XCTFail("no pull ceiling in \(task.abortWhen)")
+        }
+        XCTAssertTrue(line.contains("5.1 N"), line)
+        XCTAssertTrue(line.contains("its feet slide before it pulls harder"), line)
+        XCTAssertTrue(line.contains("nothing has ever measured this duck towing anything"), line)
+        // And a carry plan does not claim a ceiling it never approaches.
+        XCTAssertFalse(try fetchablePlan().duckTask(named: "Fetch the dowel")
+            .abortWhen.contains { $0.contains("pull needed") })
+    }
+
+    /// A DRAG PLAN NEVER STANDS THE LOAD UP, so it must not carry the lift's
+    /// payload abort: a 600 g broom being towed is not a payload violation, and
+    /// a file that says to abort over it says to abort over the job.
+    func testADragPlanDoesNotCarryTheLiftsPayloadAbort() throws {
+        let (_, drag) = Retrieval.plan(for: "drag the broom")
+        XCTAssertFalse(drag.steps.contains(.lift))
+        let task = try drag.duckTask(named: "Drag the broom")
+        XCTAssertFalse(task.abortWhen.contains { $0.contains("heavier than 40 g") },
+                       "\(task.abortWhen)")
+        XCTAssertTrue(try fetchablePlan().duckTask(named: "Fetch the dowel")
+            .abortWhen.contains { $0.contains("heavier than 40 g") },
+            "a plan that does lift still carries it")
+    }
+
+    /// A REFUSED PLAN STILL WRITES A FILE — that is a decided, tested design —
+    /// but it must not write one a machine cannot tell apart from a fine one.
+    /// `verbs.confirm` is the only frontmatter field that changes what a runner
+    /// does with an otherwise legal file, so a refused task needs a human yes
+    /// for every verb it has.
+    func testARefusedPlanNeedsAHumanYesForEveryVerb() throws {
+        let refused = Retrieval.plan(for: .init(grams: 25, thicknessMillimetres: 5,
+                                                metresAway: 0.5))
+        XCTAssertFalse(refused.isPossible)
+        let task = try refused.duckTask(named: "Fetch the chopstick")
+        XCTAssertEqual(task.verbs.confirm, task.verbs.allow)
+        XCTAssertEqual(try DuckTask.decode(task.encode()), task)
+
+        let fine = try fetchablePlan().duckTask(named: "Fetch the dowel")
+        XCTAssertTrue(fine.verbs.confirm.isEmpty, "a plan inside every envelope just runs")
+    }
+
+    /// The refusal reaches `abort_when` too, phrased as something true the
+    /// instant the run starts — the executor's own check catches it before the
+    /// first verb rather than after forty steps.
+    func testTheRefusalReachesTheMachineHalfAndNotOnlyTheBody() throws {
+        let refused = Retrieval.plan(for: .init(grams: 25, thicknessMillimetres: 5,
+                                                metresAway: 0.5))
+        let task = try refused.duckTask(named: "Fetch the chopstick")
+        guard let line = task.abortWhen.first(where: { $0.contains("REFUSED") }) else {
+            return XCTFail("the refusal never left the body: \(task.abortWhen)")
+        }
+        XCTAssertTrue(line.hasPrefix("the run has started at all"), line)
+        XCTAssertTrue(line.contains("passes under the bite"), line)
+        // A fine plan says nothing of the kind.
+        XCTAssertFalse(try fetchablePlan().duckTask(named: "Fetch the dowel")
+            .abortWhen.contains { $0.contains("REFUSED") })
+    }
+
+    /// THE TIME BUDGET CAN ONLY EVER LOOSEN. quackd's default is 5 minutes and a
+    /// long walk would abort itself halfway home; a short plan keeps the default
+    /// so nothing this app writes is tighter than the format's own files.
+    func testTheTimeBudgetOnlyEverLoosens() throws {
+        let near = try fetchablePlan().duckTask(named: "Fetch the dowel")
+        XCTAssertEqual(near.budgets.maxMinutes, 5.0,
+                       "a 23 s plan must not tighten quackd's default")
+
+        // 20 m each way at 0.106 m/s is 6.3 minutes of walking alone.
+        let far = Retrieval.plan(for: .init(grams: 25, thicknessMillimetres: 22, metresAway: 20))
+        XCTAssertGreaterThan(far.seconds / 60, near.budgets.maxMinutes,
+                             "the old fixed budget really did cut this plan short")
+        let task = try far.duckTask(named: "Fetch the dowel")
+        XCTAssertGreaterThan(task.budgets.maxMinutes, far.seconds / 60)
+        XCTAssertLessThanOrEqual(task.budgets.maxMinutes, 180)
+        XCTAssertEqual(try DuckTask.decode(task.encode()), task)
+    }
+
+    /// And it stays inside the schema at any distance somebody can type.
+    func testTheTimeBudgetStaysInsideTheSchema() throws {
+        for metres in [0.1, 1, 50, 500, 5000] as [Double] {
+            let plan = Retrieval.plan(for: .init(grams: 25, thicknessMillimetres: 22,
+                                                 metresAway: metres))
+            let task = try plan.duckTask(named: "Fetch it")
+            XCTAssertGreaterThan(task.budgets.maxMinutes, 0)
+            XCTAssertLessThanOrEqual(task.budgets.maxMinutes, 180)
+        }
+    }
+}
+
+// MARK: - whether the sentence was understood at all
+
+/// A PLAN FOR AN INVENTED DOWEL USED TO BE BYTE-IDENTICAL TO A PLAN FOR A BEER.
+/// "fetch me a beer", "asdfghjkl" and an empty field all fell through to the
+/// same 20 g / 20 mm / 1 m defaults, and the screen answered with a green
+/// "Inside every envelope." and a 22.8 s seven-step schedule. These pin the
+/// three states and every sentence that goes with them.
+extension RetrievalTests {
+
+    func testASentenceThatNamesNothingIsNotUnderstood() {
+        for sentence in ["", "asdfghjkl", "hello", "fetch me a beer", "fetch it", "fetch my keys"] {
+            let reading = Retrieval.read(sentence)
+            XCTAssertFalse(reading.recognisedObject, "\"\(sentence)\"")
+            XCTAssertEqual(reading.confidence, .notUnderstood, "\"\(sentence)\"")
+        }
+    }
+
+    /// The plan is still built — the robot's envelope is a separate question and
+    /// stays one — but the reading no longer claims the sentence was parsed.
+    func testAnUnparsedSentenceStillPlansButNoLongerClaimsToBeUnderstood() {
+        let (reading, plan) = Retrieval.plan(for: "fetch me a beer")
+        XCTAssertEqual(reading.confidence, .notUnderstood)
+        XCTAssertTrue(plan.isPossible, "isPossible is about the robot, not about the sentence")
+        XCTAssertTrue(plan.refusals.isEmpty, "the sentence's legibility is not a Refusal")
+    }
+
+    /// GRAMS ALONE MUST NOT BUY THE GREEN SEAL. The thickness is what the bite
+    /// test measures, and the invented 20 mm is EXACTLY the jaw height — which
+    /// the test compares with a strict `<`, so an unnamed object lands on the
+    /// permissive side of the one threshold that decides the grasp.
+    func testGramsAloneDoNotCountAsUnderstanding() {
+        let reading = Retrieval.read("fetch the 30 g thing")
+        XCTAssertNil(reading.object)
+        XCTAssertEqual(reading.stick.grams, 30, accuracy: 1e-9)
+        XCTAssertEqual(reading.stick.thicknessMillimetres,
+                       Retrieval.closedTipHeight * 1000, accuracy: 1e-9)
+        XCTAssertEqual(reading.confidence, .notUnderstood)
+    }
+
+    /// A thickness given outright is checkable without a noun, so it counts.
+    func testAThicknessGivenOutrightIsEnoughWithoutANoun() {
+        let reading = Retrieval.read("fetch the thing 25 mm thick 2 m away")
+        XCTAssertNil(reading.object)
+        XCTAssertTrue(reading.recognisedObject)
+        XCTAssertNotEqual(reading.confidence, .notUnderstood)
+    }
+
+    func testACatalogueWordWithEstimatesSaysTheyAreEstimates() {
+        let reading = Retrieval.read("fetch the stick")
+        XCTAssertEqual(reading.object, "stick")
+        XCTAssertEqual(reading.confidence, .understoodWithGuesses)
+    }
+
+    /// Say every number and nothing is guessed at all.
+    func testASentenceThatSaysEverythingIsUnderstoodOutright() {
+        let reading = Retrieval.read("fetch the 30 g stick 25 mm thick 2 m away")
+        XCTAssertTrue(reading.assumed.isEmpty, "\(reading.assumed)")
+        XCTAssertEqual(reading.confidence, .understood)
+    }
+
+    /// A prop somebody described by hand is the strongest recognition there is.
+    func testAPropInYourSceneIsUnderstoodOutright() {
+        let (reading, _) = Retrieval.plan(for: "drag the broom over here",
+                                          props: [DuckScene.broom()])
+        XCTAssertTrue(reading.recognisedObject)
+        XCTAssertEqual(reading.confidence, .understood)
+    }
+
+    /// THE SENTENCES ARE THE PRODUCT. Pinned string for string, because a view
+    /// that paraphrased one would be the app going quiet about the one thing it
+    /// exists to say.
+    func testEveryConfidenceSentenceIsPinned() {
+        XCTAssertEqual(Retrieval.Reading.Confidence.understood.sentence,
+                       "Every number in this plan came out of your sentence.")
+        XCTAssertEqual(Retrieval.Reading.Confidence.understoodWithGuesses.sentence,
+                       "Some of these numbers are estimates of YOUR object, not measurements "
+                     + "of the robot. Say the number and the guess goes away.")
+        XCTAssertEqual(Retrieval.Reading.Confidence.notUnderstood.sentence,
+                       "This sentence does not name anything to fetch, so the plan below is "
+                     + "about an invented 20 g object 20 mm thick and answers a question you "
+                     + "did not ask. Name the thing — pencil, pen, chopstick, twig, stick, "
+                     + "dowel, crayon, cork, ball, carrot, broom, mop, rake or umbrella — or "
+                     + "give a thickness outright, like \"25 mm thick\". The thickness is what "
+                     + "decides whether the jaw can take hold of it at all.")
+    }
+
+    /// A word added to the catalogue cannot go missing from the sentence that
+    /// offers the vocabulary.
+    func testTheNotUnderstoodSentenceOffersTheWholeVocabulary() {
+        let sentence = Retrieval.Reading.Confidence.notUnderstood.sentence
+        for object in Retrieval.everydayObjects {
+            XCTAssertTrue(sentence.contains(object.word), "missing \(object.word)")
+        }
+        XCTAssertTrue(Retrieval.vocabulary.hasSuffix("rake or umbrella"), Retrieval.vocabulary)
+    }
+
+    /// The invented numbers the sentence quotes back are the ones `read`
+    /// actually uses. A drift here is a screen describing an assumption nobody
+    /// made.
+    func testTheQuotedDefaultsAreTheOnesReadActuallyUses() {
+        let reading = Retrieval.read("fetch it")
+        XCTAssertEqual(reading.stick.grams, Retrieval.assumedGrams, accuracy: 1e-9)
+        XCTAssertEqual(reading.stick.thicknessMillimetres,
+                       Retrieval.assumedThicknessMillimetres, accuracy: 1e-9)
+        XCTAssertEqual(reading.stick.metresAway, Retrieval.assumedMetresAway, accuracy: 1e-9)
+        XCTAssertEqual(Retrieval.assumedThicknessMillimetres, Retrieval.closedTipHeight * 1000,
+                       accuracy: 1e-9)
+    }
+}

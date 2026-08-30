@@ -335,6 +335,24 @@ extension Retrieval {
         "broom": 150, "mop": 150, "rake": 150, "umbrella": 120,
     ]
 
+    /// What `read` falls back to when the sentence never says.
+    ///
+    /// NAMED RATHER THAN SPELLED FOUR TIMES. These three numbers are quoted
+    /// back at the user in `Reading.Confidence.notUnderstood`'s sentence, and a
+    /// literal `?? 20` that drifted from the sentence describing it would be a
+    /// screen telling somebody the app assumed something it did not.
+    ///
+    /// AND NOTE WHAT `assumedThicknessMillimetres` IS EQUAL TO: exactly
+    /// `closedTipHeight * 1000`. The bite test in `plan(for:)` is a strict `<`,
+    /// so the invented thickness lands on the PERMISSIVE side of the one
+    /// threshold that decides whether the jaw can take hold of anything. A
+    /// sentence that named nothing therefore cannot fail the grasp check — it
+    /// is not that the object passes, it is that nothing was ever tested. That
+    /// is the whole reason `recognisedObject` has to exist.
+    public static let assumedGrams = 20.0
+    public static let assumedThicknessMillimetres = 20.0
+    public static let assumedMetresAway = 1.0
+
     /// What a sentence turned into, and how much of it was guessed.
     public struct Reading: Equatable, Sendable {
         public let stick: Stick
@@ -342,12 +360,92 @@ extension Retrieval {
         public var wantsDrag: Bool = false
         /// The word that matched, if the sentence named a thing.
         public let object: String?
+        /// Whether the sentence pinned down a thing to fetch AT ALL.
+        ///
+        /// THIS IS THE DIFFERENCE BETWEEN "no" AND "I DID NOT UNDERSTAND YOU",
+        /// and without it the two are indistinguishable downstream. "fetch me a
+        /// beer", "asdfghjkl" and an empty field all read as the same invented
+        /// 20 g / 20 mm / 1 m object, and a plan for an invented dowel is
+        /// byte-identical to a plan for a beer — green seal, seven steps,
+        /// 22.8 seconds. An app whose product is honest refusals must not
+        /// answer a sentence it never parsed.
+        ///
+        /// TRUE WHEN A CATALOGUE WORD MATCHED, OR WHEN A THICKNESS WAS GIVEN
+        /// OUTRIGHT. Thickness and not weight, and this is deliberate: the
+        /// thickness is what the bite test measures, so "a 30 g thing" is still
+        /// a sentence nobody has said enough about, while "25 mm thick" is
+        /// checkable without a noun. Grams alone must not buy the green seal.
+        public let recognisedObject: Bool
         /// Facts taken from the sentence, in the sentence's own terms.
         public let understood: [String]
         /// Facts nobody supplied. THE UI MUST SHOW THESE — a plan built on
         /// three defaults and presented as an answer is a guess wearing a
         /// timeline.
         public let assumed: [String]
+
+        /// How much of the sentence this reading is actually standing on.
+        ///
+        /// A SEPARATE QUESTION FROM `Plan.isPossible`, AND IT HAS TO STAY
+        /// SEPARATE. `isPossible` is a statement about the ROBOT — the payload,
+        /// the bite, the arc — and every refusal it carries names a
+        /// measurement. Whether a sentence was legible names no measurement at
+        /// all, so it is not a `Refusal` and must never be folded into one: a
+        /// refusal reading "I did not recognise a thing" would travel into an
+        /// exported task's body under "## This object", directly beneath a line
+        /// still asserting 20 g, 20 mm thick.
+        ///
+        /// StudioKit decides WHICH of the three this is and WHAT each one says.
+        /// DuckStudio decides where on the screen it goes. No view logic here.
+        public enum Confidence: Equatable, Sendable {
+            /// Every number came out of the sentence (or out of a scene prop
+            /// somebody described). Nothing was invented.
+            case understood
+            /// A thing was recognised, but some of its properties are the
+            /// catalogue's estimates rather than anybody's measurement.
+            case understoodWithGuesses
+            /// The sentence named nothing to fetch and gave no thickness. The
+            /// plan below it is about an object this app invented, and means
+            /// nothing.
+            case notUnderstood
+
+            /// The sentence to put on the screen. THESE ARE THE PRODUCT — the
+            /// refusals are what this app sells, so they are pinned by test
+            /// string for string rather than left to a view to paraphrase.
+            public var sentence: String {
+                switch self {
+                case .understood:
+                    return "Every number in this plan came out of your sentence."
+                case .understoodWithGuesses:
+                    return "Some of these numbers are estimates of YOUR object, not "
+                         + "measurements of the robot. Say the number and the guess goes away."
+                case .notUnderstood:
+                    return String(format: "This sentence does not name anything to fetch, so "
+                        + "the plan below is about an invented %.0f g object %.0f mm thick "
+                        + "and answers a question you did not ask. Name the thing — %@ — or "
+                        + "give a thickness outright, like \"25 mm thick\". The thickness is "
+                        + "what decides whether the jaw can take hold of it at all.",
+                        Retrieval.assumedGrams, Retrieval.assumedThicknessMillimetres,
+                        Retrieval.vocabulary)
+                }
+            }
+        }
+
+        public var confidence: Confidence {
+            guard recognisedObject else { return .notUnderstood }
+            return assumed.isEmpty ? .understood : .understoodWithGuesses
+        }
+    }
+
+    /// Every word `read` knows, written out the way a person lists things.
+    ///
+    /// BUILT FROM THE TABLE RATHER THAN TYPED OUT BESIDE IT, so a word added to
+    /// `everydayObjects` cannot go missing from the sentence that offers the
+    /// vocabulary — the same trick `MotionProposal.Unresolvable.unknownJoint`
+    /// uses to list the joints it did not recognise.
+    public static var vocabulary: String {
+        let words = everydayObjects.map(\.word)
+        guard let last = words.last else { return "" }
+        return words.dropLast().joined(separator: ", ") + " or " + last
     }
 
     /// Read a plain sentence into something checkable.
@@ -374,8 +472,13 @@ extension Retrieval {
         }
 
         var thickness = object?.millimetres
+        /// Whether the sentence stated a thickness itself, as opposed to
+        /// inheriting one from a catalogue word. See `Reading.recognisedObject`
+        /// — this is the half of that flag a noun does not supply.
+        var thicknessGivenOutright = false
         if let (value, unit) = number(in: text, units: ["mm", "cm"], near: ["thick", "wide", "across", "diameter"]) {
             thickness = unit == "cm" ? value * 10 : value
+            thicknessGivenOutright = true
             understood.append(String(format: "%.0f mm thick", thickness!))
         } else if let object {
             assumed.append(String(format: "a %@ is about %.0f mm thick", object.word, object.millimetres))
@@ -392,9 +495,16 @@ extension Retrieval {
             assumed.append("\"across the room\" taken as 4 m")
         }
 
-        if grams == nil { assumed.append("weight unknown — taken as 20 g") }
-        if thickness == nil { assumed.append("thickness unknown — taken as 20 mm") }
-        if away == nil { assumed.append("distance unknown — taken as 1 m") }
+        if grams == nil {
+            assumed.append(String(format: "weight unknown — taken as %.0f g", assumedGrams))
+        }
+        if thickness == nil {
+            assumed.append(String(format: "thickness unknown — taken as %.0f mm",
+                                  assumedThicknessMillimetres))
+        }
+        if away == nil {
+            assumed.append(String(format: "distance unknown — taken as %.0f m", assumedMetresAway))
+        }
 
         // Standing, leaning — or laid down, which puts it back on the floor.
         var height: Double? = nil
@@ -426,12 +536,14 @@ extension Retrieval {
         if wantsDrag { understood.append("dragging it, not carrying it") }
 
         return Reading(
-            stick: Stick(grams: grams ?? 20,
-                         thicknessMillimetres: thickness ?? 20,
-                         metresAway: away ?? 1.0,
+            stick: Stick(grams: grams ?? assumedGrams,
+                         thicknessMillimetres: thickness ?? assumedThicknessMillimetres,
+                         metresAway: away ?? assumedMetresAway,
                          graspHeightMillimetres: height),
             wantsDrag: wantsDrag,
-            object: object?.word, understood: understood, assumed: assumed)
+            object: object?.word,
+            recognisedObject: object != nil || thicknessGivenOutright,
+            understood: understood, assumed: assumed)
     }
 
     /// A number and its unit, optionally only when one of `near` appears within
@@ -527,19 +639,112 @@ extension Retrieval.Plan {
                            : refusals.map { ($0.isFatal ? "REFUSED: " : "Warning: ") + $0.message }
                              .joined(separator: "\n"))
         """
+        let allow = ["walk_to", "ground_pick", "mouth", "stand"]
+        let fatal = refusals.filter(\.isFatal)
         return try DuckTask(
             name: slug,
             summary: "Pick something light off the floor and bring it back.",
             author: author,
-            verbs: .init(allow: ["walk_to", "ground_pick", "mouth", "stand"],
-                         confirm: []),
+            // A FATALLY REFUSED PLAN STILL WRITES A FILE, AND STILL HAS TO SAY
+            // SO WHERE A MACHINE LOOKS. `verbs.confirm` is the only frontmatter
+            // field that changes what a runner does with an otherwise legal
+            // file, so a refused task ships with EVERY verb needing a human yes
+            // — the run cannot start by itself. It is not a lock; it is the
+            // strongest thing the format has. (An empty `verbs.allow` would be
+            // the obvious way to say "do not run this" and is illegal:
+            // `ReadError.noAllowedVerbs`. Refusing to write the file at all was
+            // the other candidate and is a deliberate NO — a file that says it
+            // was refused travels and can be read, and
+            // `testARefusedPlanSaysSoInTheTask` pins that decision.)
+            verbs: .init(allow: allow, confirm: fatal.isEmpty ? [] : allow),
+            // THE ONE HARD STOP THIS PLAN CAN HONESTLY TIGHTEN, AND IT ONLY
+            // EVER LOOSENS. quackd's own default is 5 minutes, and a fetch from
+            // 20 m away is 6.3 minutes of walking before anything goes wrong —
+            // so today's file guarantees its own abort halfway home. The
+            // headroom multiplier is a CHOICE, not a measurement: the schedule
+            // is one clean pass and an LLM executor retries, so it gets three
+            // passes' worth. Floored at quackd's default so this can never cut
+            // a run short that the old file would have finished, and capped at
+            // the schema's 180.
+            budgets: .init(maxMinutes: min(180, max(DuckTask.Budgets.quackdDefaults.maxMinutes,
+                                                    (seconds * 3 / 60).rounded(.up)))),
             success: ["the object is back where the duck started",
                       "the duck is standing"],
-            abortWhen: ["the object is not where it was expected",
-                        "the duck falls",
-                        "the lift leaves the mouth empty"],
+            abortWhen: abortConditions(fatal: fatal),
             learnedVerbs: [],
             body: body)
+    }
+
+    /// What has to stop the run, in the order a machine reads it.
+    ///
+    /// THE FIRST TWO LINES ARE THE ONLY ONES quackd's EXECUTOR ENFORCES, and
+    /// they were missing from every file this app has ever written. `abort_when`
+    /// is greppped for exactly two phrasings — `DuckAbortPatterns.battery` and
+    /// `.repeats` — and everything else is prose handed to the LLM. Before this,
+    /// all three of our entries were prose, so an exported task travelled with
+    /// no battery floor and no repeat-failure stop while the export screen's
+    /// footer claimed the file "carries the constraints in its own body".
+    ///
+    /// THE 15% AND THE 3 ARE NOT MEASUREMENTS OF THIS DUCK. They are the
+    /// convention both starter ducks in the quackd repository ship with, copied
+    /// so that a file this app writes stops where a file quackd ships stops.
+    /// Their EXACT WORDING is load-bearing and must not be prettied up: "Stop if
+    /// the battery goes below 15% please" does not match, because the words
+    /// between "battery" and "below" defeat the pattern, and "Battery below 15
+    /// percent" does not match either, because it has no `%`. Check any edit
+    /// against `DuckTask.batteryAbortPercent` and `.repeatFailureAbort`, which
+    /// exist precisely to report whether the machine can see a line.
+    ///
+    /// EVERYTHING AFTER THEM IS PROSE ON PURPOSE. The envelopes below are this
+    /// plan's own numbers — the bite height, the trained payload, the measured
+    /// grasp window, the reach band, the pull ceiling — written where an LLM
+    /// reading the file can act on them, because a task that travels without its
+    /// constraints is a task somebody runs against a carrot.
+    private func abortConditions(fatal: [Retrieval.Refusal]) -> [String] {
+        var out = ["Battery below 15%", "Same verb fails 3 times in a row"]
+
+        // A refusal the app already made, phrased as a condition that is true
+        // the instant the run starts — so the runner's own abort check catches
+        // it before the first verb rather than after forty steps.
+        out += fatal.map { "the run has started at all — this task was REFUSED before it was "
+                         + "written and must not be attempted: \($0.message)" }
+
+        out.append(String(format: "what the mouth closed on is thinner than %.0f mm — the jaw "
+            + "closes that far above the floor and anything thinner passes under the bite",
+            Retrieval.closedTipHeight * 1000))
+        // ONLY WHEN THIS PLAN ACTUALLY LIFTS. A drag plan never stands the load
+        // up, so a 600 g broom being towed is not a payload violation and a
+        // file telling the runner to abort over it would be telling it to abort
+        // over the thing it was sent to do. The drag's own ceiling is below.
+        if steps.contains(.lift) {
+            out.append(String(format: "what it picked up is heavier than %.0f g — the lift was "
+                + "trained against %.0f–%.0f g at the mouth and nothing above that was ever "
+                + "carried", Retrieval.payloadRange.upperBound * 1000,
+                Retrieval.payloadRange.lowerBound * 1000,
+                Retrieval.payloadRange.upperBound * 1000))
+        }
+        out.append(String(format: "the jaw did not shut between %.2f s and %.2f s after the "
+            + "ground pick started — the mouth is lowest at %.2f s and closing after that "
+            + "window closes on the way up",
+            Retrieval.graspWindow.lowerBound, Retrieval.graspWindow.upperBound,
+            Retrieval.graspInstant))
+        if stick.graspHeightMillimetres != nil {
+            out.append(String(format: "the grip point is outside the %.0f–%.0f mm band the "
+                + "mouth sweeps through on the way down — the arc reaches nothing above or "
+                + "below that",
+                Retrieval.Reach.lowestDuringPick * 1000, Retrieval.Reach.highestDuringPick * 1000))
+        }
+        if steps.contains(where: { if case .dragBack = $0 { return true }; return false }) {
+            let (ceiling, limit) = Retrieval.Drag.ceiling(
+                footFriction: Retrieval.Drag.footFriction.lowerBound)
+            out.append(String(format: "the pull needed passes about %.1f N — %@, and nothing "
+                + "has ever measured this duck towing anything", ceiling, limit))
+        }
+
+        out += ["the object is not where it was expected",
+                "the duck falls",
+                "the lift leaves the mouth empty"]
+        return out
     }
 }
 
@@ -727,6 +932,9 @@ extension Retrieval {
             stick: stick,
             wantsDrag: reading.wantsDrag,
             object: prop.name,
+            // A PROP IS THE STRONGEST RECOGNITION THERE IS: somebody described
+            // this thing by hand, so nothing here is the catalogue guessing.
+            recognisedObject: true,
             understood: [String(format: "the %@ in your scene — %.0f g, %.0f mm across, %.2f m away",
                                 prop.name.lowercased(), stick.grams,
                                 stick.thicknessMillimetres, stick.metresAway)]

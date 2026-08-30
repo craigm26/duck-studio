@@ -767,4 +767,317 @@ You are piloting a small biped duck robot. Fetch the ball.
         XCTAssertEqual(declaration.policy, "p.onnx")
         XCTAssertEqual(declaration.metadata["timeout_s"]?.numberValue, 7.5)
     }
+
+    // MARK: - a criterion with a colon in it, which the writer quotes and the reader must
+    //         not then read as a mapping
+
+    /// THE ONE THAT GOT THROUGH. `quoteIfNeeded` quotes any criterion containing `: `, so
+    /// the writer emitted `  - "ball moved: at least 0.3 m"` — and `parseSequence` asked
+    /// `splitKey` about the raw item text, `splitKey` cannot see quotes, and the item came
+    /// back a mapping. The author was then told "success has to be text" about a file this
+    /// app had written thirty milliseconds earlier.
+    func testACriterionContainingAColonSurvivesItsOwnExport() throws {
+        let task = try DuckTask(name: "colon-criterion",
+                                summary: "A success criterion with a colon in it.",
+                                verbs: .init(allow: ["kick"]),
+                                success: ["ball moved: at least 0.3 m"],
+                                abortWhen: ["battery: below 15%"],
+                                body: "# Task\nKick it.")
+        let written = String(decoding: task.encode(), as: UTF8.self)
+        XCTAssertTrue(written.contains("  - \"ball moved: at least 0.3 m\"\n"),
+                      "the writer is expected to quote it — that is not the bug:\n\(written)")
+        let reread = try DuckTask.decode(task.encode())
+        XCTAssertEqual(reread.success, ["ball moved: at least 0.3 m"])
+        XCTAssertEqual(reread.abortWhen, ["battery: below 15%"])
+        XCTAssertEqual(reread, task)
+    }
+
+    /// The mirror half, and the one that matters more: a HAND-WRITTEN file. PyYAML reads
+    /// both of these as a plain string, so quackd runs them, so this reader accepting them
+    /// is the whole justification for the reader existing.
+    func testAQuotedCriterionInAHandWrittenFileIsAccepted() throws {
+        for quote in ["\"", "'"] {
+            let source = """
+            ---
+            duck: 0
+            name: hand-written
+            description: A criterion with a colon in it.
+            verbs:
+              allow: [kick]
+            success:
+              - \(quote)ball moved: at least 0.3 m\(quote)
+            ---
+
+            # Task
+
+            Kick it.
+            """
+            let task = try DuckTask.decode(Data(source.utf8))
+            XCTAssertEqual(task.success, ["ball moved: at least 0.3 m"],
+                           "a \(quote)-quoted criterion is a string, not a mapping")
+        }
+    }
+
+    /// A quoted item that is genuinely a mapping is still a mapping, so the fix above did
+    /// not simply switch the parser off: `learned_verbs` is a block sequence of mappings and
+    /// has to keep parsing as one.
+    func testABlockSequenceOfMappingsIsStillReadAsMappings() throws {
+        let task = try DuckTask(name: "verbs",
+                                summary: "One learned verb.",
+                                verbs: .init(allow: ["flamingo_cycle"],
+                                             confirm: ["flamingo_cycle"]),
+                                success: ["The duck is standing."],
+                                learnedVerbs: [.init(name: "flamingo_cycle",
+                                                     policy: "p.onnx",
+                                                     description: "Stand on one foot.")],
+                                body: "# Task\nStand on one foot.")
+        let reread = try DuckTask.decode(task.encode())
+        XCTAssertEqual(reread.learnedVerbs.count, 1)
+        XCTAssertEqual(reread.learnedVerbs.first?.policy, "p.onnx")
+        XCTAssertEqual(reread, task)
+    }
+
+    /// A quoted scalar may carry a `#` comment after it, and the comment has to come off
+    /// BEFORE the quotes do. It used to come off after, which meant `unquote` had already
+    /// failed on a value that no longer ended in a quote — and the criterion came back
+    /// wearing its own quote characters, silently, with no refusal anybody could act on.
+    func testAQuotedValueMayCarryATrailingComment() throws {
+        let source = """
+        ---
+        duck: 0
+        name: commented
+        description: "one line: with a comment"   # the description's own note
+        verbs:
+          allow: [kick]
+        success:
+          - "ball moved: 0.3 m" # measured in sim
+          - 'the human said "it landed"' # quoted the other way
+        ---
+
+        # Task
+
+        Kick it.
+        """
+        let task = try DuckTask.decode(Data(source.utf8))
+        XCTAssertEqual(task.summary, "one line: with a comment")
+        XCTAssertEqual(task.success, ["ball moved: 0.3 m", "the human said \"it landed\""])
+    }
+
+    /// The trap the same fix has to avoid: a `#` INSIDE the quotes is part of the value, and
+    /// truncating there was the older, louder half of the same bug.
+    func testAHashInsideQuotesIsPartOfTheValueAndNotAComment() throws {
+        let source = """
+        ---
+        duck: 0
+        name: hashed
+        description: A hash inside quotes.
+        verbs:
+          allow: [kick]
+        success:
+          - "the ball is #1 # and this part is a comment"
+          - "trailing hash only # here"
+        ---
+
+        # Task
+
+        Kick it.
+        """
+        let task = try DuckTask.decode(Data(source.utf8))
+        XCTAssertEqual(task.success, ["the ball is #1 # and this part is a comment",
+                                      "trailing hash only # here"])
+    }
+
+    // MARK: - every character YAML cares about, through the writer and back
+
+    /// Each value below contains something YAML reads as punctuation rather than prose, and
+    /// each is a shape a person really types into a criterion. The table exists because
+    /// discovering these one at a time is exactly how a writer that emitted a file its own
+    /// reader refused survived four hundred tests.
+    private static let awkwardValues: [(what: String, value: String)] = [
+        ("a colon and a space", "ball moved: at least 0.3 m"),
+        ("a trailing colon", "check the beak:"),
+        ("a colon with no space after it", "c:\\balls\\moved"),
+        ("a hash after a space", "quack once # then stop"),
+        ("a leading hash", "#1 priority is the ball"),
+        ("a leading dash", "- kick, then look"),
+        ("a leading pipe", "| is not a block scalar here"),
+        ("a leading angle bracket", "> 0.3 m of travel"),
+        ("a leading ampersand", "&anchor is not an anchor"),
+        ("a leading star", "*alias is not an alias"),
+        ("a leading question mark", "? unsure whether the ball moved"),
+        ("a leading bang", "!tag is not a tag"),
+        ("a leading percent", "%directive is not a directive"),
+        ("a leading backtick", "`kick` reports the distance"),
+        ("a leading brace", "{not a flow mapping}"),
+        ("a leading bracket", "[not a flow list]"),
+        ("double quotes around the whole value", "\"the kick landed\""),
+        ("double quotes in the middle", "the human said \"it landed\""),
+        ("single quotes around the whole value", "'the kick landed'"),
+        ("an apostrophe in the middle", "the project's main line"),
+        ("a leading space", " leading space is part of it"),
+        ("a trailing space", "trailing space is part of it "),
+        ("commas", "search, walk, kick"),
+        ("a backslash", "escape \\n is two characters here"),
+        ("a value that reads as a number", "0.3"),
+        ("a value that reads as true", "true"),
+        ("a value that reads as null", "null"),
+        ("unicode", "the ball moved ≥ 0.3 m — quack 🦆"),
+        ("the empty value", ""),
+        ("a very long line",
+         String(repeating: "the ball moved far enough to count. ", count: 60) + "done."),
+    ]
+
+    /// One task carrying the value in every free-text field the frontmatter has — block
+    /// scalar, block list, flow list and metadata all at once, because each of the four has
+    /// its own quoting rule and its own reader.
+    private func taskCarrying(_ value: String) throws -> DuckTask {
+        let summary = value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? "A task carrying an awkward value." : value
+        return try DuckTask(
+            name: "round-trip",
+            summary: summary,
+            author: value,
+            verbs: .init(allow: ["kick", "stop"], confirm: ["stop"]),
+            success: [value, "the duck is standing"],
+            abortWhen: [value, "Battery below 15%"],
+            persona: value,
+            providers: [value, "fake"],
+            learnedVerbs: [.init(name: "flamingo_cycle", policy: "p.onnx", description: value,
+                                 metadata: ["note": .string(value),
+                                            "nested": .mapping(["note": .string(value)]),
+                                            "listed": .list([.string(value), .string("fake")])])],
+            body: "# Task\nStand still and report.")
+    }
+
+    /// THE TEST THAT WOULD HAVE CAUGHT IT. A file this writer produces must be a file this
+    /// reader reads back as the same task — the promise made twice at the top of
+    /// `DuckTask.swift`, and the one a quoted criterion broke.
+    func testEveryAwkwardValueSurvivesTheRoundTrip() throws {
+        for (what, value) in Self.awkwardValues {
+            let task = try taskCarrying(value)
+            let written = task.encode()
+            let reread = try DuckTask.decode(written)
+            XCTAssertEqual(reread, task,
+                           "a value containing \(what) did not survive:\n"
+                         + String(decoding: written, as: UTF8.self))
+            // A SECOND WRITE HAS TO AGREE WITH THE FIRST. Quoting a value that was already
+            // quoted accretes a layer on every save, and the equality above cannot see it
+            // because the value it compares is correct at each step.
+            XCTAssertEqual(reread.encode(), written,
+                           "\(what): writing it a second time produced a different file")
+        }
+    }
+
+    // MARK: - a metadata name this writer cannot write down
+
+    /// `learned_verbs[].metadata` is the format's one untyped corner, and the one place a
+    /// caller names something themselves. A name carrying a colon used to be written
+    /// unquoted — `a: b: 1` — and read back as the name `a` holding `b: 1`: a name and a
+    /// value nobody wrote, with nothing thrown. Quoting it on the way out fixes nothing,
+    /// because the reader splits a key before it unquotes one, so this refuses instead.
+    func testAMetadataNameThisFormatCannotWriteDownIsRefused() {
+        let unwritable = ["a: b", "a:b", "trailing:", "", " leading space", "trailing space ",
+                          "-leading dash", "#leading hash", "two\nlines", "\ttabbed"]
+        for name in unwritable {
+            XCTAssertThrowsError(try metadataTask([name: .integer(1)]),
+                                 "\"\(name)\" is not a name this writer can put in a file") {
+                XCTAssertEqual($0 as? DuckTask.ReadError,
+                               .metadataNameIsNotWritable(verb: "flamingo_cycle", name: name))
+            }
+        }
+    }
+
+    /// And the refusal says which verb and which name, because "invalid metadata" sends an
+    /// author looking through a whole file.
+    func testTheMetadataRefusalNamesTheVerbAndTheName() {
+        let message = DuckTask.ReadError
+            .metadataNameIsNotWritable(verb: "flamingo_cycle", name: "a: b").message
+        XCTAssertTrue(message.contains("flamingo_cycle"), message)
+        XCTAssertTrue(message.contains("\"a: b\""), message)
+        XCTAssertTrue(message.contains("Rename it."), message)
+    }
+
+    /// THE REFUSAL MUST NOT COST ANYBODY A FILE QUACKD RUNS. Every name below is one this
+    /// reader can hand back from a real file — `12` and `true` are names here, not values,
+    /// and `splitKey` does no type inference on a key — so every one of them has to stay
+    /// legal and has to round-trip unchanged.
+    func testAMetadataNameThisFormatCanWriteDownIsKept() throws {
+        let writable = ["timeout_s", "a b", "a#b", "a, b", "12", "true", "[a]", "{a}",
+                        "a's name", "a\"b", "ünïcode", "a\tb"]
+        for name in writable {
+            let task = try metadataTask([name: .integer(1)])
+            let reread = try DuckTask.decode(task.encode())
+            XCTAssertEqual(reread.learnedVerbs.first?.metadata[name], .integer(1),
+                           "\"\(name)\" stopped round-tripping:\n"
+                         + String(decoding: task.encode(), as: UTF8.self))
+            XCTAssertEqual(reread.encode(), task.encode(),
+                           "\"\(name)\": writing it a second time produced a different file")
+        }
+    }
+
+    /// A name nested inside metadata is written by the same writer and read by the same
+    /// reader, so it is refused on the same terms — including the ones `inlineScalar` writes
+    /// in FLOW form, where a comma is what destroys a name instead of a leading dash.
+    func testANestedMetadataNameIsCheckedToo() {
+        XCTAssertThrowsError(try metadataTask(["outer": .mapping(["a: b": .integer(1)])])) {
+            XCTAssertEqual($0 as? DuckTask.ReadError,
+                           .metadataNameIsNotWritable(verb: "flamingo_cycle", name: "a: b"))
+        }
+        XCTAssertThrowsError(try metadataTask(["outer": .list([.mapping(["a, b": .integer(1)])])])) {
+            XCTAssertEqual($0 as? DuckTask.ReadError,
+                           .metadataNameIsNotWritable(verb: "flamingo_cycle", name: "a, b"))
+        }
+    }
+
+    /// THE PROPERTY THE WHOLE REFUSAL RESTS ON. Refusing a name is only safe while no real
+    /// file can produce one, because a `.duck` that quackd runs and this app refuses is the
+    /// one failure this reader exists to prevent. Every name below is fed in as HAND-WRITTEN
+    /// frontmatter: whatever the reader makes of it — a name of its own, or a refusal for a
+    /// different reason — it must never be the metadata refusal, and whatever it reads must
+    /// go back out and come back in unchanged. Pinned here rather than argued for in prose.
+    func testTheMetadataRefusalNeverTurnsAwayAFileThisReaderCanRead() throws {
+        for name in ["a: b", "a:b", "trailing:", "", " leading space", "trailing space ",
+                     "-leading dash", "#leading hash", "\ttabbed", "a\tb", "a b", "a#b",
+                     "a, b", "12", "true", "[a]", "{a}", "a's name", "a\"b", "ünïcode"] {
+            let source = """
+            ---
+            duck: 0
+            name: from-a-file
+            description: A hand-written metadata name.
+            verbs:
+              allow: [flamingo_cycle]
+            success:
+              - The duck is standing.
+            learned_verbs:
+              - name: flamingo_cycle
+                policy: p.onnx
+                description: ""
+                metadata:
+                  \(name): 1
+            ---
+
+            # Task
+
+            Stand on one foot.
+            """
+            do {
+                let task = try DuckTask.decode(Data(source.utf8))
+                XCTAssertEqual(try DuckTask.decode(task.encode()), task,
+                               "\"\(name)\" came out of a file and would not go back into one")
+            } catch let error as DuckTask.ReadError {
+                if case .metadataNameIsNotWritable = error {
+                    XCTFail("the reader read \"\(name)\" out of a file and then refused it")
+                }
+            }
+        }
+    }
+
+    private func metadataTask(_ metadata: [String: DuckValue]) throws -> DuckTask {
+        try DuckTask(name: "metadata", summary: "One learned verb with metadata.",
+                     verbs: .init(allow: ["flamingo_cycle"]),
+                     success: ["The duck is standing."],
+                     learnedVerbs: [.init(name: "flamingo_cycle", policy: "p.onnx",
+                                          metadata: metadata)],
+                     body: "# Task\nStand on one foot.")
+    }
 }
