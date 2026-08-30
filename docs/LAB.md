@@ -115,14 +115,52 @@ arrives has to live inside one of them.
 
 ## Order of work
 
-1. **Re-pre-register the gates.** Cheapest, and it gates everything else.
-2. **Lab tab shell + Bench moved into it.** No new capability; proves the shape.
-3. **Trials over `/ball` + `/measure`.** Small code, real experiment, the first
-   thing in the tab that did not exist before.
-4. **Ghost (AR).** The largest new surface, and the one worth a milestone of its
-   own.
-5. **Deck and Diary as documented, unbuilt screens** — visible in the plan, absent
-   from the binary, in the pattern `README.md`'s "Not built yet" already uses.
+1. ~~Lab tab shell + Bench moved into it.~~ **Done.**
+2. ~~Port the OpenCastor lab.~~ **Done** — see below.
+3. **Re-pre-register the gates.** Now the most urgent item, not the cheapest:
+   the app that the gates in `GATES.md` describe no longer exists.
+4. **Trials over `/ball` + `/measure`.** Small code, real experiment, the first
+   thing in the tab that did not exist in either app.
+5. **Deck and Diary** stay documented and unbuilt until there is a robot.
+
+## What the port actually moved (2026-08-30)
+
+Eight game models went from `CastorKit` into **StudioKit**, with their tests —
+`SoccerEngine`, `Slalom`, `DuckGolf`, `FetchRun`, `BridgeCrossing`, `TrickRun`,
+`FlamingoHold`, `FollowMe`. Every one is `import Foundation` only, so they are
+duck arithmetic that had been living in a rover's kit: 596 StudioKit tests now,
+up from 520.
+
+Fifteen view files came into the app target. There were **no type-name
+collisions at all** between the two apps, and `Theme` — OpenCastor's design
+system, the thing that looked like the expensive part — turned out to be used
+in exactly one duck file.
+
+Seven of the games hang off `GhostDuckView` rather than sitting in the Lab list,
+which is how OpenCastor arranged them and is right: each one is the same ghost
+duck doing something else, so seven rows would be seven doors into one room.
+
+## Ideas, not yet designed
+
+Kept apart from `LabCatalogue` on purpose. That table's `.planned` means
+"designed, not written"; these are not designed, and putting them in the table
+would be the app claiming more than it has — which is the one thing the Lab is
+most able to do.
+
+- **Bobsled, rebuilt rather than ported.** OpenCastor's is a rover game wearing a
+  duck: it steers a sled, and the thing that makes every other game a *duck* game
+  — the 14-degree yaw saturation, the 0.31 m arc a walk cannot beat — has nothing
+  to do with it. A real one would be built against the duck's own turn radius.
+  This is why the port deliberately left `BobsledView`, `BobsledScene` and
+  `CastorKit.BobsledRun` behind.
+- **A hamster ball.** Put the duck inside a sphere and let it drive the sphere by
+  walking. It is a genuinely different control problem from everything else here:
+  the duck's own gait becomes the actuator, the ball's roll is the dynamics, and
+  the 14-degree yaw limit that constrains every other game stops mattering in the
+  same way — a ball does not have a turn radius, it has momentum. Worth thinking
+  about whether the bench can simulate it before any of it is drawn, because if
+  MuJoCo can roll the sphere then this is the first Lab mode whose difficulty
+  would be *measured* rather than authored.
 
 ## What stays in its own repository
 

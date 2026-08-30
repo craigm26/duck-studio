@@ -114,6 +114,17 @@ struct LabView: View {
         switch mode.id {
         case "bench":
             RemoteRunView(scenes: scenes, drafts: drafts, models: models)
+        case "ghost":
+            // The games hub. Golf, fetch, follow me, the bow bridge, the trick
+            // run, the slalom and the flamingo hold are all reached from inside
+            // it, which is how they were arranged in OpenCastor and is right:
+            // every one of them is the same ghost duck doing something else, so
+            // seven rows in the Lab would be seven doors into one room.
+            GhostDuckView()
+        case "soccer":
+            DuckSoccerView()
+        case "room":
+            RoomCaptureView()
         default:
             // Unreachable while `usable` is pinned by test to exactly the rows
             // this switch answers. It is a refusal rather than an EmptyView

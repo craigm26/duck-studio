@@ -67,10 +67,17 @@ see "Run it somewhere with physics," below.
 
 ---
 
-## The four tabs
+## The five tabs
 
 The app opens on **Policies**, and every tab is useful with no network, no
 account and no robot.
+
+The fifth is **Lab**, and it is where three other apps went. Duck Soccer,
+Duckboard and Duck Diary each had their own repository, bundle identifier and
+pre-registered gates; two of them contained no code at all. A person who buys a
+Microduck should not have to find four apps to use one robot. Five is also the
+ceiling: iPhone folds a sixth tab into "More", where a tab is somewhere people
+do not go, so anything arriving after this lives inside one of the five.
 
 **Policies.** The library, organised by *provenance* rather than by folder: two
 sections, "Released by Pollen Robotics" and "From elsewhere", and which one a

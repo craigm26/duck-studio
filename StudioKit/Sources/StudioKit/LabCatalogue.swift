@@ -89,29 +89,31 @@ public enum LabCatalogue {
                    + "Run an imported policy, record it into a motion, or measure how often "
                    + "it ends standing.",
               status: .here),
+        .init(id: "ghost", name: "Ghost duck", symbol: "figure.walk.motion",
+              blurb: "A life-size duck at 1:1, replaying a gait recorded from the trained "
+                   + "policy — and the seven games that hang off it: golf, fetch, follow me, "
+                   + "the bow bridge, the trick run, the slalom and the flamingo hold. "
+                   + "Kinematics, not a simulation of a robot.",
+              status: .here),
+        .init(id: "soccer", name: "Duck soccer", symbol: "soccerball",
+              blurb: "A ball on a stage or on your own floor. Goals are hash-chained and "
+                   + "signed on the device; practice matches are refused for export on "
+                   + "purpose.",
+              status: .here),
+        .init(id: "room", name: "Room capture", symbol: "square.split.bottomrightquarter",
+              blurb: "Turns the room around you into a scene with real dimensions, so a "
+                   + "policy meets your furniture before a robot does.",
+              status: .here),
         .init(id: "trials", name: "Trials", symbol: "chart.dots.scatter",
               blurb: "Place an object at a bearing and a range, run a policy at it a set "
                    + "number of times, and report the fraction that met a stated criterion. "
                    + "A success rate, not a highlight reel.",
               status: .planned),
-        .init(id: "ghost", name: "Ghost duck", symbol: "figure.walk.motion",
-              blurb: "A life-size duck on your floor at 1:1, replaying a gait recorded from "
-                   + "the trained policy. Kinematics only — it is a picture of a pose, not a "
-                   + "simulation of a robot.",
-              status: .portingFrom("OpenCastor")),
-        .init(id: "room", name: "Room capture", symbol: "square.split.bottomrightquarter",
-              blurb: "Turns the room around you into a scene with real dimensions, so a "
-                   + "policy meets your furniture before a robot does.",
-              status: .portingFrom("OpenCastor")),
-        .init(id: "soccer", name: "Duck soccer", symbol: "soccerball",
-              blurb: "A ball on your own floor. Goals are hash-chained and signed on the "
-                   + "device; practice matches are refused for export on purpose.",
-              status: .portingFrom("OpenCastor")),
-        .init(id: "games", name: "The rest of the games", symbol: "gamecontroller",
-              blurb: "Golf, fetch, follow-me, the bow bridge, the trick run, the slalom and "
-                   + "the flamingo hold. Eight more modes, all on a rendered stage rather "
-                   + "than your carpet, because a 3.5 m slalom does not fit in most rooms.",
-              status: .portingFrom("OpenCastor")),
+        .init(id: "bobsled", name: "Bobsled", symbol: "figure.snowboarding",
+              blurb: "A run down a mountain, steered. The version in OpenCastor is a rover "
+                   + "game wearing a duck; this one is to be built for the duck's own turn "
+                   + "radius rather than ported.",
+              status: .planned),
         .init(id: "deck", name: "Deck", symbol: "square.grid.2x2",
               blurb: "Six fat buttons and a stop bar you can hit without looking, over your "
                    + "own Wi-Fi. The whole design is about how fast a stop reaches a robot.",

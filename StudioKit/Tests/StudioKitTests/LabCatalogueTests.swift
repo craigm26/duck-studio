@@ -43,15 +43,14 @@ final class LabCatalogueTests: XCTestCase {
         }
     }
 
-    func testAPortingRowNamesTheAppItComesFrom() {
-        let porting = LabCatalogue.modes.filter {
-            if case .portingFrom = $0.status { return true }
-            return false
-        }
-        XCTAssertFalse(porting.isEmpty, "the catalogue claims a port and lists none")
-        for mode in porting {
-            XCTAssertTrue(mode.status.reason!.contains("OpenCastor"),
-                          "\(mode.name) does not say where it is coming from")
+    /// THE PORT IS DONE, SO NOTHING MAY CLAIM TO BE MID-PORT. `.portingFrom`
+    /// stays in the enum because the next app to fold in will need it, but a
+    /// row still wearing it after the code arrived is a row lying about itself.
+    func testNothingIsStillClaimingToBeBeingPorted() {
+        for mode in LabCatalogue.modes {
+            if case .portingFrom(let app) = mode.status {
+                XCTFail("\(mode.name) still says it is being ported from \(app)")
+            }
         }
     }
 
@@ -72,7 +71,7 @@ final class LabCatalogueTests: XCTestCase {
     /// without moving anything in.
     func testTheLabHasSomethingAPersonCanOpen() {
         XCTAssertFalse(LabCatalogue.usable.isEmpty)
-        XCTAssertEqual(LabCatalogue.usable.map(\.id), ["bench"])
+        XCTAssertEqual(LabCatalogue.usable.map(\.id), ["bench", "ghost", "soccer", "room"])
     }
 
     func testTheRationaleNamesTheAppsThatFoldedIn() {
