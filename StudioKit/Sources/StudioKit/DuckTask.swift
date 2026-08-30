@@ -72,11 +72,14 @@ public enum DuckValue: Equatable, Sendable {
 /// this subset is narrower than PyYAML in a way a real file could stumble over, and it is
 /// written down here rather than discovered later.
 ///
-/// A QUOTED KEY IS THE OTHER PLACE, and it is narrower on the writing side too. This reader
-/// splits `key: value` before it unquotes anything, so `"a: b": 1` — legal PyYAML — is read
-/// as the key `"a` here. Nothing in the format writes one: every schema key is fixed, and
-/// the only author-chosen names are `learned_verbs[].metadata`'s, which `validate()` refuses
-/// outright when they would need quoting rather than writing a file that reads back wrong.
+/// A QUOTED KEY IN A BLOCK MAPPING IS THE OTHER PLACE. This reader splits `key: value`
+/// before it unquotes anything, so `"a: b": 1` — legal PyYAML — is read as the key `"a`
+/// here. A quoted key in a FLOW mapping is fine, because that branch does unquote, and the
+/// writer leans on exactly that: the only author-chosen names in the format are
+/// `learned_verbs[].metadata`'s, and one of those that a block line cannot carry — it starts
+/// with a space or a `#`, or holds a comma — sends its whole mapping into flow form, quoted,
+/// instead of being mangled or turned away. A name with no form at all, which in practice
+/// means one holding a colon, is refused by `validate()`; see `DuckYAML.nameFits`.
 public struct DuckTask: Equatable, Sendable {
 
     // MARK: - the frontmatter
@@ -268,11 +271,10 @@ public struct DuckTask: Equatable, Sendable {
                 return "budgets.\(key) is \(value); it has to be \(allowed)."
             case .metadataNameIsNotWritable(let verb, let name):
                 return "The learned verb \"\(verb)\" has a metadata setting named "
-                     + "\"\(name)\". A metadata name is written into the file plainly, so it "
-                     + "cannot be blank, start or end with a space, start with - or #, or "
-                     + "contain a colon or a line break. Written out, \"\(name)\" would be "
-                     + "read back as a different name holding a different value, and "
-                     + "nothing would complain. Rename it."
+                     + "\"\(name)\", and there is no way to write that name into a .duck "
+                     + "file and read it back: \(DuckYAML.whyNameIsNotWritable(name)). "
+                     + "Written out, \"\(name)\" would come back as a different name "
+                     + "holding a different value, and nothing would complain. Rename it."
             }
         }
     }
@@ -468,9 +470,19 @@ public struct DuckTask: Equatable, Sendable {
                 out += "    description: \(DuckYAML.blockScalar(verb.description))\n"
                 if verb.metadata.isEmpty {
                     out += "    metadata: {}\n"
-                } else {
+                } else if DuckYAML.everyNameFitsBlockForm(verb.metadata) {
                     out += "    metadata:\n"
                     out += DuckYAML.blockMapping(verb.metadata, indent: 6)
+                } else {
+                    // ONE NAME BLOCK FORM CANNOT CARRY SENDS THE WHOLE MAPPING TO FLOW, and
+                    // it has to be the whole mapping: a block line writes its name raw, so
+                    // there is no way to quote one entry and leave its neighbours alone.
+                    // Flow form is where a quoted name survives, because the flow reader
+                    // unquotes a key and the block reader never does — which is why a name
+                    // starting with a space, or a `#`, or holding a comma is WRITTEN HERE
+                    // rather than refused. Measured before this existed: ` x` came back as
+                    // `x`, and `#x` was read as a comment and vanished, both in silence.
+                    out += "    metadata: \(DuckYAML.inlineMapping(verb.metadata))\n"
                 }
             }
         }
@@ -583,19 +595,25 @@ public struct DuckTask: Equatable, Sendable {
             throw ReadError.emptyBody
         }
         // `learned_verbs[].metadata` IS THE ONE UNTYPED CORNER OF THE FORMAT (`dict[str,
-        // Any]`), and so the one place a caller can hand this writer a NAME it cannot write
-        // down. `blockMapping` writes a metadata name plainly and the reader's `splitKey`
-        // never unquotes a key, so quoting the name on the way out would only relocate the
-        // damage — `"a: b": 1` splits at the colon inside the quotes and yields the name
-        // `"a` — which is why this refuses instead. Measured before the refusal existed:
-        // `["a: b": 1]` was written as `a: b: 1` and read back as `["a": "b: 1"]`, a name
-        // and a value nobody wrote, with nothing thrown; a name opening with `#` was worse
-        // still, because the line became a comment and the entry vanished outright.
+        // Any]`), and so the one place a caller names something themselves. Measured before
+        // the writer learned to place a name: `["a: b": 1]` was written as `a: b: 1` and read
+        // back as `["a": "b: 1"]`, a name and a value nobody wrote, with nothing thrown; a
+        // name opening with `#` was worse still, because the line became a comment and the
+        // entry vanished outright. Both are silent, which is the failure this app treats as
+        // first-order.
         //
-        // REFUSING IS SAFE PRECISELY BECAUSE NO FILE CAN PRODUCE ONE OF THESE NAMES — see
-        // `DuckYAML.isWritableMetadataName` — so this can only stop a task assembled in code
-        // from being written out. It can never turn away a `.duck` quackd would run, which
-        // is the one thing this reader must not do.
+        // THIS RUNS ON DECODE TOO, so it may only refuse a name NO FILE CAN PRODUCE — a
+        // `.duck` quackd runs and this reader turns away is the one failure this reader
+        // exists to prevent, and an earlier version of this check committed it: it refused
+        // ` x`, `#x`, `-x`, `a, b` and a leading tab, every one of which arrives from a
+        // hand-written quoted flow key (`outer: {" x": 1}`) that PyYAML and quackd both
+        // read. The answer was to WIDEN THE WRITER rather than the refusal — those names are
+        // now written in flow form, quoted, and come back unchanged. What is left is the set
+        // that has no form at all, and `nameFits` decides it by writing the name and reading
+        // it back rather than by reasoning about the parser.
+        //
+        // `testTheMetadataRefusalNeverTurnsAwayAFileThisReaderCanRead` is what holds this
+        // down: it feeds every awkward name through all three shapes a real file can use.
         for verb in learnedVerbs {
             if let name = DuckYAML.unwritableMetadataName(in: .mapping(verb.metadata)) {
                 throw ReadError.metadataNameIsNotWritable(verb: verb.name, name: name)
@@ -1075,7 +1093,11 @@ enum DuckYAML {
         for key in mapping.keys.sorted() {
             guard let value = mapping[key] else { continue }
             switch value {
-            case .mapping(let nested) where !nested.isEmpty:
+            // THE SAME FORM CHOICE `encode` MAKES FOR `metadata` ITSELF, and the two have to
+            // keep agreeing: a nested mapping stays in block form only while every one of
+            // its own names can be written on a line of its own. Otherwise it falls through
+            // to `inlineScalar` below, which writes flow and quotes its keys.
+            case .mapping(let nested) where !nested.isEmpty && everyNameFitsBlockForm(nested):
                 out += "\(pad)\(key):\n" + blockMapping(nested, indent: indent + 2)
             case .list(let items) where !items.isEmpty && items.allSatisfy(isScalar):
                 out += "\(pad)\(key): [" + items.map(inlineScalar).joined(separator: ", ") + "]\n"
@@ -1086,65 +1108,143 @@ enum DuckYAML {
         return out
     }
 
-    /// Whether this writer can put `name` in front of a metadata value and have the reader
-    /// hand back the same name.
+    /// WHERE A METADATA NAME LANDS IN THE FILE, which is what decides whether it survives.
     ///
-    /// THE TWO CONTEXTS ANSWER DIFFERENTLY, the same way `quoteIfNeeded` does, and for the
-    /// same reason: they are read back by different code. In a BLOCK mapping `splitKey` cuts
-    /// at the first colon followed by a space, trims what it found, and refuses a name that
-    /// is empty or opens with `-`; a line opening with `#` is dropped as a comment before it
-    /// ever reaches `splitKey`. In a FLOW mapping the reader splits on top-level commas
-    /// first, so a comma is what destroys a name there while `-` and `#` are harmless.
-    ///
-    /// EVERY NAME THIS REFUSES IS ONE NO FILE CAN PRODUCE, and that is the property the
-    /// refusal in `DuckTask.validate()` rests on. A block name can never arrive carrying a
-    /// colon (the split consumed it), leading or trailing space (trimmed), a leading `-` or
-    /// `#` (refused, or read as a comment) or a newline or tab (the reader works line by
-    /// line and trims). A flow name can never arrive carrying a comma (the split consumed
-    /// it) or a colon. So refusing here cannot cost anybody a file quackd accepts.
-    static func isWritableMetadataName(_ name: String, inFlow: Bool) -> Bool {
-        if name.contains(":") || name.contains("\n") || name.contains("\r") { return false }
-        // A TAB IN THE MIDDLE OF A NAME IS FINE and is deliberately not refused: this
-        // reader really does hand one back — it trims a line's ends and splits at the
-        // colon, so `a\tb: 1` decodes to the name `a\tb` — and refusing what the reader
-        // itself produced would turn away a file quackd runs. A tab at either END is
-        // another matter, and the trim below catches it along with a leading space.
-        if name != name.trimmingCharacters(in: .whitespaces) { return false }
-        if inFlow { return !name.contains(",") }
-        return !name.isEmpty && !name.hasPrefix("-") && !name.hasPrefix("#")
+    /// `block` is a line of its own, `name: value`, read back by `splitKey`, which never
+    /// unquotes anything. `flow` is a `{ }` mapping sitting in a block line's value, read
+    /// back by `scalar`, which DOES unquote a key — that is why a name block form cannot
+    /// carry is written in flow rather than refused. `nestedFlow` is the same `{ }` one
+    /// level deeper, inside a `[ ]` or another `{ }`, and it is stricter than `flow`
+    /// because `splitTopLevel` only lets a quote open at the START of a piece: by the time
+    /// it reaches a nested key's quote it has already seen the enclosing `{`, so the quote
+    /// is inert there and the name's own brackets have to balance on their own.
+    enum NamePlacement {
+        case block
+        case flow
+        case nestedFlow
     }
 
-    /// The first metadata name anywhere in `value` that this writer cannot express, or nil
-    /// when every one of them survives a write and a read.
+    /// Whether this writer can put `name` in front of a metadata value at `placement` and
+    /// have the reader hand back the same name.
     ///
-    /// The `inFlow` bookkeeping MIRRORS `blockMapping`'s own branch and has to keep
-    /// mirroring it: a non-empty nested mapping stays in block form, and everything else —
-    /// an empty mapping, a list with a mapping in it — goes through `inlineScalar`, which is
-    /// flow all the way down. Get that backwards and this either refuses names the writer
-    /// handles fine or waves through the ones it mangles.
-    static func unwritableMetadataName(in value: DuckValue, inFlow: Bool = false) -> String? {
+    /// ANSWERED BY DOING IT, not by a list of characters. Two hand-written rules stood here
+    /// before and both were wrong in the same direction — they refused names a real file
+    /// hands this reader every day (` x` and `#x` and `a, b` through a quoted flow key) and
+    /// they waved through `a}b`, which passed the rule, encoded, and then threw
+    /// `unbalanced quotes or brackets` on the way back in. A predicate that reasons ABOUT
+    /// the parser will keep drifting away from the parser. This one writes the name exactly
+    /// as the writer would, reads it back with exactly the reader the file will meet, and
+    /// answers with what came out.
+    ///
+    /// THE READER THROWING IS THE ANSWER, not an error to pass on: a name that makes the
+    /// parser refuse the line is a name this writer must not put there. That is the one
+    /// place in this file where a caught error is a measurement rather than a swallowed
+    /// failure, and it is caught HERE so that `validate` can throw a sentence naming the
+    /// name instead of a parser complaint naming a line number the author never wrote.
+    static func nameFits(_ name: String, at placement: NamePlacement) -> Bool {
+        // A CARRIAGE RETURN IS SETTLED BEFORE THE ORACLE RUNS. `decode` normalises `\r` to
+        // `\n` and splits the file into lines before the parser sees a character of it,
+        // while `quoteIfNeeded` escapes `\n` and `\t` and leaves `\r` alone — so a name
+        // holding one would cut its own line in half in a real file and still read back
+        // cleanly here, where nothing splits lines. This is the one hazard the oracle below
+        // is structurally blind to, and it is written down rather than left to be found.
+        if name.contains("\r") { return false }
+        switch placement {
+        case .block:
+            // ` #` STARTS A COMMENT FOR PyYAML, and so for quackd, even though this reader's
+            // block branch keeps it. Writing `a #b: 1` would hand quackd a file it refuses,
+            // and this writer's whole claim is that it cannot do that — so the name goes to
+            // flow form, quoted, where the `#` is inside a scalar and harmless.
+            if name.contains(" #") { return false }
+            // SPLIT THE WAY `decode` SPLITS, so a name holding a line break is measured as
+            // the two lines it would really become rather than as the one string it is here.
+            var reader = Reader(lines: "\(name): 1".components(separatedBy: "\n"),
+                                firstLineNumber: 1)
+            do {
+                guard case .mapping(let read) = try reader.parseDocument(),
+                      read.count == 1, read[name] != nil else { return false }
+                return true
+            } catch {
+                return false
+            }
+        case .flow, .nestedFlow:
+            let entry = "{\(quoteIfNeeded(name, inFlow: true)): 1}"
+            do {
+                let value = try scalar(placement == .nestedFlow ? "[\(entry)]" : entry, line: 1)
+                var read = value
+                if placement == .nestedFlow {
+                    guard case .list(let items) = value, items.count == 1 else { return false }
+                    read = items[0]
+                }
+                guard case .mapping(let mapping) = read,
+                      mapping.count == 1, mapping[name] != nil else { return false }
+                return true
+            } catch {
+                return false
+            }
+        }
+    }
+
+    /// Whether every name in `mapping` can be written on a line of its own — the question
+    /// `encode` and `blockMapping` both ask before choosing block form over flow.
+    static func everyNameFitsBlockForm(_ mapping: [String: DuckValue]) -> Bool {
+        mapping.keys.allSatisfy { nameFits($0, at: .block) }
+    }
+
+    /// The first metadata name anywhere in `value` that this writer cannot express in ANY
+    /// form, or nil when every one of them survives a write and a read.
+    ///
+    /// The placement bookkeeping MIRRORS the writer's own form choice and has to keep
+    /// mirroring it: a non-empty mapping stays in block form while every one of its names
+    /// fits there, and otherwise the whole mapping — and everything under it — goes through
+    /// `inlineScalar`, which is flow all the way down. Get that backwards and this either
+    /// refuses names the writer handles fine or waves through the ones it mangles.
+    static func unwritableMetadataName(in value: DuckValue,
+                                       at placement: NamePlacement = .block) -> String? {
         switch value {
         case .mapping(let mapping):
+            var namePlacement = placement
+            if placement == .block, !everyNameFitsBlockForm(mapping) { namePlacement = .flow }
             for name in mapping.keys.sorted() {
-                guard isWritableMetadataName(name, inFlow: inFlow) else { return name }
+                guard nameFits(name, at: namePlacement) else { return name }
                 let nested = mapping[name] ?? .null
-                var nestedInFlow = true
-                if case .mapping(let deeper) = nested, !deeper.isEmpty, !inFlow {
-                    nestedInFlow = false
-                }
-                if let bad = unwritableMetadataName(in: nested, inFlow: nestedInFlow) {
+                // A CHILD OF A BLOCK MAPPING IS STILL A CANDIDATE FOR BLOCK; a child of any
+                // flow mapping is already inside braces and can only be nested flow.
+                let childPlacement: NamePlacement = namePlacement == .block ? .block : .nestedFlow
+                if let bad = unwritableMetadataName(in: nested, at: childPlacement) {
                     return bad
                 }
             }
             return nil
         case .list(let items):
+            // A LIST WITH A MAPPING IN IT IS ALWAYS WRITTEN BY `inlineScalar`, so anything
+            // inside one is nested flow however the list itself got here.
             for item in items {
-                if let bad = unwritableMetadataName(in: item, inFlow: true) { return bad }
+                if let bad = unwritableMetadataName(in: item, at: .nestedFlow) { return bad }
             }
             return nil
         default:
             return nil
         }
+    }
+
+    /// The trait that makes `name` impossible to write down, as the sentence an author
+    /// reads. Computed from the name itself so the refusal names the offending character
+    /// rather than a rule — "invalid name" sends somebody hunting through their own file.
+    static func whyNameIsNotWritable(_ name: String) -> String {
+        if name.contains("\n") || name.contains("\r") { return "it contains a line break" }
+        if name.contains(":") { return "it contains a colon" }
+        if name.contains("{") || name.contains("}") {
+            return "its { and } braces do not close each other"
+        }
+        if name.contains("[") || name.contains("]") {
+            return "its [ and ] brackets do not close each other"
+        }
+        if name.contains("\"") || name.contains("'") {
+            return "it contains a quote this writer cannot escape where the name has to go"
+        }
+        if name.contains(",") { return "it contains a comma" }
+        return "this writer has no form that reads it back unchanged"
     }
 
     private static func isScalar(_ value: DuckValue) -> Bool {
@@ -1173,11 +1273,23 @@ enum DuckYAML {
             return items.isEmpty
                 ? "[]" : "[" + items.map(inlineScalar).joined(separator: ", ") + "]"
         case .mapping(let map):
+            // A FLOW KEY IS QUOTED WHEN IT NEEDS IT, unlike a block key, and the difference
+            // is the reader's: the flow branch of `scalar` runs `unquote` on a key, the
+            // block reader's `splitKey` never does. So quoting here gets the same name back
+            // — `{"a, b": 1}` reads as `a, b` — where quoting a block key would only hand
+            // back `"a` and its stray quote.
             return map.isEmpty
                 ? "{}"
-                : "{" + map.keys.sorted().map { "\($0): \(inlineScalar(map[$0] ?? .null))" }
-                    .joined(separator: ", ") + "}"
+                : "{" + map.keys.sorted().map {
+                        "\(quoteIfNeeded($0, inFlow: true)): \(inlineScalar(map[$0] ?? .null))"
+                    }.joined(separator: ", ") + "}"
         }
+    }
+
+    /// A whole metadata mapping written in flow form, for the moment `encode` finds a name
+    /// that block form cannot carry.
+    static func inlineMapping(_ mapping: [String: DuckValue]) -> String {
+        inlineScalar(.mapping(mapping))
     }
 
     /// Quote only when a plain scalar would be read back as something else.

@@ -26,12 +26,90 @@ struct PublishMotionView: View {
     @State private var failure: String?
     @State private var published: String?
 
-    private var publication: MotionPublication? {
-        try? MotionPublication(draft: draft, whenToUse: whenToUse,
-                               note: note.isEmpty ? nil : note)
+    /// The publication, or whatever refused to build it.
+    ///
+    /// A `Result`, NOT A `try?`. The optional this replaced swallowed two
+    /// unrelated refusals — a blank "when to play it" sentence
+    /// (`HuggingFacePublish.Refusal.noWhenToUse`) and a draft whose keyframes
+    /// are not a legal move (`DuckMove.Invalid`, thrown by `draft.exported()`)
+    /// — while the blue button stayed lit over both. Tapping it returned on
+    /// the first line of `publish()`: no spinner, no message, no repository,
+    /// nothing on screen changed, however many times it was pressed. The second
+    /// refusal is reachable in two taps — the ••• menu opens this sheet with no
+    /// check on `draft.problems`, so a draft the editor is already calling
+    /// broken arrives here and used to be met with silence.
+    private var built: Result<MotionPublication, Error> {
+        Result {
+            try MotionPublication(draft: draft, whenToUse: whenToUse,
+                                  note: note.isEmpty ? nil : note)
+        }
+    }
+
+    /// Where this would go, or the refusal that stops it going anywhere.
+    ///
+    /// A DATASET, NOT A MODEL. A trajectory is data; Pollen's community moves
+    /// are all datasets, and a move published as a model is one nobody's loader
+    /// will look for. The address is built here rather than inside `publish()`
+    /// so that the rules for a namespace and a name — which are the kit's, in
+    /// one place — are checked while the button can still say so, instead of
+    /// after a person has tapped it.
+    ///
+    /// A MISSING ACCOUNT IS A REFUSAL LIKE ANY OTHER, hence `?? ""`: an empty
+    /// namespace is `Refusal.noNamespace`, whose message is "Sign in first",
+    /// which is exactly what is wrong and exactly what the token Section above
+    /// is for. It used to be a bare `account == nil` term in `.disabled` with
+    /// nothing printed anywhere.
+    private var address: Result<HuggingFacePublish.Repository, Error> {
+        Result {
+            try HuggingFacePublish.repository(namespace: account ?? "",
+                                              name: repositoryName,
+                                              kind: MotionPublication.repositoryKind)
+        }
+    }
+
+    /// The first thing standing between this draft and a repository, in the
+    /// kit's own words — or nil when nothing is.
+    ///
+    /// THE BUTTON'S ENABLED STATE AND THE SENTENCE BESIDE IT NOW COME FROM THIS
+    /// ONE VALUE, so they cannot drift. They had already drifted: the screen
+    /// kept its own copy of the blank-sentence rule, trimming `.whitespaces`
+    /// — space and tab only — against the kit's `.whitespacesAndNewlines`, and
+    /// the field is `axis: .vertical`, so a field holding one Return showed no
+    /// warning at all while the initializer still refused.
+    ///
+    /// THE ADDRESS IS ASKED FIRST because it is answered by the Section at the
+    /// top of the form, and naming one missing thing at a time is what a person
+    /// can act on.
+    private static func stop(address: Result<HuggingFacePublish.Repository, Error>,
+                             publication: Result<MotionPublication, Error>) -> String? {
+        if case .failure(let error) = address { return message(error) }
+        if case .failure(let error) = publication { return message(error) }
+        return nil
+    }
+
+    /// EACH REFUSAL IS ASKED FOR ITS OWN MESSAGE. Telling somebody whose
+    /// keyframe is outside its travel to "say when this move should be played"
+    /// is a lie, and a wrong refusal is worse in this app than a missing one.
+    /// `localizedDescription` is not an option either — `DuckMove.Invalid` has
+    /// no localisation and renders as "(DuckKit.DuckMove.Invalid error 3.)".
+    /// The ladder is the one `IntentAuthorView.share()` already uses.
+    private static func message(_ error: Error) -> String {
+        switch error {
+        case let refusal as HuggingFacePublish.Refusal: return refusal.message
+        case let invalid as DuckMove.Invalid: return invalid.message
+        default: return "\(error)"
+        }
     }
 
     var body: some View {
+        // READ ONCE PER PASS. Building a publication runs `draft.exported()`,
+        // serialises the manifest and interpolates the whole README card;
+        // asking for it from the file list, the refusal row and the button's
+        // gate separately would do all of that three times per keystroke.
+        let outcome = built
+        let destination = address
+        let stop = Self.stop(address: destination, publication: outcome)
+
         NavigationStack {
             Form {
                 Section {
@@ -59,18 +137,17 @@ struct PublishMotionView: View {
                         .lineLimit(1...3)
                     TextField("A line about it (optional)", text: $note, axis: .vertical)
                         .lineLimit(1...3)
-                    if let account, !repositoryName.isEmpty {
+                    if case .success(let repository) = destination {
                         // THE `datasets/` PREFIX IS SHOWN BECAUSE ITS ABSENCE
                         // IS INVISIBLE: huggingface.co/<you>/<name> does not
                         // 404 for a dataset when a model of that name exists,
-                        // it silently opens the model instead.
-                        Text("huggingface.co/datasets/\(account)/\(repositoryName)")
+                        // it silently opens the model instead. This is the
+                        // kit's own `webURL` for the repository the button
+                        // would create — not a second copy of the rule spelled
+                        // out here, which is how a preview comes to show an
+                        // address that is not the one that gets made.
+                        Text(repository.webURL)
                             .font(.caption2.monospaced()).foregroundStyle(.secondary)
-                    }
-                    if whenToUse.trimmingCharacters(in: .whitespaces).isEmpty {
-                        Text("Say when to play it — \"when you find something surprising\" — "
-                             + "before this can be published.")
-                            .font(.caption2).foregroundStyle(.orange)
                     }
                 } header: {
                     Text("Where it goes")
@@ -80,7 +157,34 @@ struct PublishMotionView: View {
                          : "PUBLIC: anyone can find and download it, and anything already fetched stays fetched even if you delete it later.")
                 }
 
-                if let publication {
+                // WHERE THE FILE LIST WOULD HAVE BEEN. These two are the same
+                // question asked once — either there is something to publish
+                // and this is it, or there is not and this is why. The screen
+                // used to show the first and simply omit the second, so the
+                // form quietly got shorter and the button stayed blue.
+                //
+                // The refusal is printed verbatim from the kit rather than
+                // paraphrased here, because it is the sentence the tests
+                // assert and the one a person can act on.
+                //
+                // THE REFUSAL IS TESTED FIRST, AND THE ORDER IS THE WHOLE FIX.
+                // Keying the outer branch on `outcome` looked equivalent and is
+                // not: `stop` asks the ADDRESS first, so a good motion with a
+                // bad repository name — "my duck bow", one space away — landed
+                // in `.success` for `outcome`, drew the file list, never drew
+                // the reason, and greyed the button out. Testing `stop` first
+                // makes the two branches total, because `stop == nil` already
+                // implies both halves succeeded. The button's gate and the
+                // printed reason are then literally the same expression, which
+                // is what the comment on `.disabled` below claims.
+                if let stop {
+                    Section {
+                        Label(stop, systemImage: "exclamationmark.triangle")
+                            .font(.footnote).foregroundStyle(.orange)
+                    } header: {
+                        Text("Not ready to publish")
+                    }
+                } else if case .success(let publication) = outcome {
                     Section {
                         ForEach(publication.files, id: \.path) { file in
                             HStack {
@@ -121,7 +225,16 @@ struct PublishMotionView: View {
                         }
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(account == nil || repositoryName.isEmpty || busy || published != nil)
+                    // `stop != nil` IS THE SAME EXPRESSION THAT PRINTED THE
+                    // REASON ABOVE. A button cannot go dead here without the
+                    // sentence explaining it appearing in the same pass, which
+                    // is why the `account == nil` and `repositoryName.isEmpty`
+                    // terms that used to be here are gone: both are refusals
+                    // the kit already has words for, and both are inside
+                    // `stop`. The two remaining terms are the two states the
+                    // screen shows for itself — the spinner in this button, and
+                    // the "Published" Section above it.
+                    .disabled(busy || published != nil || stop != nil)
                 }
             }
             .navigationTitle("Share this motion")
@@ -163,16 +276,16 @@ struct PublishMotionView: View {
     }
 
     private func publish() async {
-        guard let account, let publication else { return }
+        // NOT A SILENT EXIT ANY MORE. Both halves of this guard are the two
+        // values `stop` reads, and `stop` is what disables the button and
+        // prints the reason beside it — so reaching this return means the state
+        // changed between the tap and the task starting, not that somebody
+        // pressed a live button and was ignored.
+        guard case .success(let repository) = address,
+              case .success(let publication) = built else { return }
         busy = true; failure = nil
         defer { busy = false }
         do {
-            // A DATASET, NOT A MODEL. A trajectory is data; Pollen's community
-            // moves are all datasets, and a move published as a model is one
-            // nobody's loader will look for.
-            let repository = try HuggingFacePublish.repository(
-                namespace: account, name: repositoryName,
-                kind: MotionPublication.repositoryKind)
             let create = HuggingFacePublish.urlRequest(
                 for: HuggingFacePublish.create(repository, isPrivate: isPrivate), token: token)
             let (_, createResponse) = try await URLSession.shared.data(for: create)

@@ -17,7 +17,11 @@ packages:
   # parser nobody can identify later.
   DuckKit:
     url: https://github.com/craigm26/duckkit.git
-    from: 1.29.0
+    # 1.30.0 is the floor, not a preference: below it `DuckMove.pose(at:)`
+    # answers the base pose for every non-positive time, which makes the
+    # keyframe at 0.00 s unreachable — and every motion this app's editor
+    # writes starts there. StudioKit/Package.swift pins the same floor.
+    from: 1.30.0
 targets:
   DuckStudio:
     type: application
@@ -81,6 +85,41 @@ targets:
             UTTypeTagSpecification:
               public.filename-extension:
                 - onnx
+          # The third format this app WRITES — and the same rule applies to it
+          # as to ONNX, for the same reason. A `.duck` is quackd's
+          # (rokbenko/quackd, spec `duck: 0`); StudioKit's DuckTask says it in
+          # capitals — this implements it, it does not define it. So the
+          # identifier sits under the repository that owns the spec rather than
+          # under com.duckstudio, which would claim a format somebody else
+          # defined and collide the day quackd declares its own.
+          #
+          # WHAT THIS DECLARATION BUYS, STATED SO NOBODY EXPECTS MORE. Without
+          # it a `.duck` resolves to a dynamic type conforming to public.data:
+          # a blank icon, no type name in the share preview, and no place in
+          # any activity that filters on a declared type. The declaration fixes
+          # exactly those three things on the way OUT.
+          #
+          # WHAT IT DELIBERATELY DOES NOT DO IS OPEN A DOOR. There is no
+          # CFBundleDocumentTypes row for it below, and that omission is the
+          # whole design: a document type is what makes iOS hand the file to
+          # this app, and this app has no reader for a task — `DuckTask.decode`
+          # exists in StudioKit but nothing in the target has anywhere to put
+          # the result. Declaring the row would make Duck Studio the thing that
+          # opens a `.duck` and then refuses it, which is worse than not being
+          # offered. THE ROW GOES IN THE DAY A TASK SCREEN DOES, and then as
+          # Viewer/Alternate like ONNX, because quackd runs these and this app
+          # would only be reading them.
+          #
+          # public.plain-text, not public.json like the two exported types:
+          # DuckTask.encode() writes `---` YAML frontmatter and a Markdown body,
+          # so a JSON conformance would be a false claim about the bytes.
+          - UTTypeIdentifier: io.github.rokbenko.quackd.duck
+            UTTypeDescription: Microduck task
+            UTTypeConformsTo:
+              - public.plain-text
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - duck
         # REQUIRED ONCE CFBundleDocumentTypes IS DECLARED — ITMS-90737 on the
         # first upload. Declaring the types says "this app opens documents";
         # Apple then insists you say HOW, and there is no default.
@@ -117,10 +156,33 @@ targets:
             UTTypeTagSpecification:
               public.filename-extension:
                 - duckintent
+        # ONE ROW PER FORMAT THIS APP CAN ACTUALLY FILE, and the one format
+        # missing from this list is missing on purpose.
+        #
+        # `.duck` has no row, for the reason written out beside its imported
+        # declaration above: there is no reader. A document type is what makes
+        # iOS hand a file over, so declaring one for a format this target cannot
+        # put anywhere would make Duck Studio the app that offers to open a task
+        # and then turns it away — an enabled, inert door, which is the thing
+        # this app is built not to be. The row goes in the day a task screen
+        # does, and then as Viewer/Alternate: quackd runs these, this app would
+        # only be reading them.
         CFBundleDocumentTypes:
           - CFBundleTypeName: Microduck intent
             LSItemContentTypes:
               - com.duckstudio.intent
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Owner
+          # THE ROW WENT IN WITH THE BRANCH THAT FILES THE DRAFT, which is the
+          # order that matters: `LibraryModel.open` now takes the live
+          # `DraftStore` — not an optional one — decodes a `.duckmove` and puts
+          # it in the drafts list, so iOS offering this app for the type leads
+          # somewhere. Owner rather than Alternate because this is our format:
+          # Duck Studio writes `.duckmove` and OpenCastor reads it, so a motion
+          # coming back the other way should land here by default.
+          - CFBundleTypeName: Microduck authored motion
+            LSItemContentTypes:
+              - com.duckstudio.move
             CFBundleTypeRole: Viewer
             LSHandlerRank: Owner
           - CFBundleTypeName: ONNX model

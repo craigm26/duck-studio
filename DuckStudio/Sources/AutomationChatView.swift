@@ -38,6 +38,14 @@ struct AutomationChatView: View {
     @State private var thinking = false
     @State private var clips: [String: DuckIntentClip] = [:]
     @State private var previewing: DraftID?
+    /// A `.duck` task on its way out, presented on the file itself rather than
+    /// on a flag beside it — see `ExportedFile`, which exists because the pair
+    /// it replaced could reach a state where the sheet was open and the file
+    /// was not there.
+    @State private var outgoing: ExportedFile?
+    /// Why a task could not be written. This screen refuses things for a
+    /// living; it does not get to fail quietly when it is the one that failed.
+    @State private var exportFailure: String?
     /// How many tries the model gets, how long it gets, and when to stop
     /// asking it. Every one of those decisions lives in StudioKit where a test
     /// drives it; this screen only calls it and shows what it says.
@@ -167,10 +175,38 @@ struct AutomationChatView: View {
                                 Text(refusal.message).font(.caption2)
                                     .foregroundStyle(refusal.isFatal ? Color.orange : Color.secondary)
                             }
-                            NavigationLink {
-                                RetrieveView()
+                            // THE PLAN ON THIS CARD, NOT A DIFFERENT ONE.
+                            //
+                            // This was a NavigationLink to `RetrieveView()`,
+                            // which takes no arguments and cannot be told
+                            // anything: it opens on its own literal default,
+                            // "fetch the stick 1 m away", and its "Save as a
+                            // .duck task" writes THAT stick under THAT name.
+                            // So somebody who typed "fetch the carrot", read
+                            // "60 g is more than it can lift" right here, and
+                            // tapped through to export, got fetch-the-stick.duck
+                            // saying "Inside every envelope." A task file
+                            // carries its constraints in its own body — that is
+                            // the whole reason the format exists — so the wrong
+                            // body is not a cosmetic wrong. It is a file that
+                            // tells whoever runs it the job is fine at the
+                            // exact moment this screen said it is not.
+                            //
+                            // Exporting from here instead makes the file and
+                            // the card the same thing by construction: one
+                            // `plan`, computed once in `draftFetchLocally` or
+                            // `draftOnServer` with the scene's own props, shown
+                            // above and written below. Nothing re-reads the
+                            // sentence and nothing can disagree.
+                            //
+                            // The detail screen is still worth opening, but it
+                            // cannot be given this plan until `RetrieveView`
+                            // takes a sentence and the props that resolved it.
+                            Button {
+                                save(plan, named: entry.asked)
                             } label: {
-                                Label("Open the plan", systemImage: "list.bullet.rectangle")
+                                Label("Save this plan as a .duck task",
+                                      systemImage: "square.and.arrow.up")
                                     .font(.footnote)
                             }
                         }
@@ -213,6 +249,18 @@ struct AutomationChatView: View {
                 }
             }
             .scrollDismissesKeyboard(.interactively)
+            // The house pattern: present on the value, and put the sheet down
+            // again when UIKit says the share is over. Hung on the list rather
+            // than on the enclosing stack because the draft preview already
+            // owns a sheet there.
+            .sheet(item: $outgoing) { out in
+                ShareSheet(items: [out.url]) { outgoing = nil }
+            }
+            .alert("That did not save",
+                   isPresented: .constant(exportFailure != nil),
+                   presenting: exportFailure) { _ in
+                Button("OK") { exportFailure = nil }
+            } message: { Text($0) }
 
             HStack(spacing: 8) {
                 TextField(mode == .motion
@@ -527,6 +575,33 @@ struct AutomationChatView: View {
                              planObject: reading.object,
                              timing: reading.assumed.isEmpty ? nil
                                  : "Guessed: " + reading.assumed.joined(separator: "; ")))
+    }
+
+    /// Write the plan a card is showing, titled with the sentence that made it.
+    ///
+    /// THE TITLE IS THE PERSON'S OWN WORDS, not a phrase composed here. The kit
+    /// slugs it (`Retrieval.Plan.slug`), so "fetch the carrot" becomes
+    /// `fetch-the-carrot.duck` and the file that lands in Messages is named
+    /// after the thing that was asked for. Nothing about the object, the
+    /// refusals or the schedule is re-derived on this side — `plan` is the one
+    /// the card already printed.
+    ///
+    /// EVERY EXIT SAYS SOMETHING, which is the same three-rung ladder
+    /// `RetrieveView.save()` and `IntentAuthorView.share()` use. A `try?` here
+    /// would be a button that looks pressed and does nothing — the failure this
+    /// app exists to explain.
+    private func save(_ plan: Retrieval.Plan, named title: String) {
+        do {
+            let task = try plan.duckTask(named: title)
+            outgoing = ExportedFile(url: try ExportFile.write(task.encode(),
+                                                              named: "\(task.name).duck"))
+        } catch let error as DuckTask.ReadError {
+            exportFailure = error.message
+        } catch let error as ExportFile.Failure {
+            exportFailure = error.message
+        } catch {
+            exportFailure = "\(error)"
+        }
     }
 
     /// Everything in every scene the duck could take hold of.

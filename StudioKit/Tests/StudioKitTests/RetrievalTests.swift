@@ -335,11 +335,21 @@ extension RetrievalTests {
     }
 
     /// A thickness given outright is checkable without a noun, so it counts.
+    ///
+    /// AND THIS IS THE CASE THE APP'S UNNAMED-TASK TITLE FALLBACK EXISTS FOR.
+    /// `object == nil` and `confidence != .notUnderstood` CO-OCCUR, so a
+    /// confidence guard in front of the export does not make an unnamed reading
+    /// unreachable — RetrieveView's `reading.object.map { "Fetch the \($0)" }
+    /// ?? "Fetch it"` still has to handle exactly this sentence. An earlier
+    /// handoff note claimed the fallback became dead code; deleting it would
+    /// fail to compile, and short-circuiting it would export an unnamed task.
     func testAThicknessGivenOutrightIsEnoughWithoutANoun() {
         let reading = Retrieval.read("fetch the thing 25 mm thick 2 m away")
         XCTAssertNil(reading.object)
         XCTAssertTrue(reading.recognisedObject)
         XCTAssertNotEqual(reading.confidence, .notUnderstood)
+        XCTAssertEqual(reading.confidence, .understoodWithGuesses)
+        XCTAssertEqual(reading.assumed, ["weight unknown — taken as 20 g"])
     }
 
     func testACatalogueWordWithEstimatesSaysTheyAreEstimates() {
@@ -365,30 +375,107 @@ extension RetrievalTests {
 
     /// THE SENTENCES ARE THE PRODUCT. Pinned string for string, because a view
     /// that paraphrased one would be the app going quiet about the one thing it
-    /// exists to say.
-    func testEveryConfidenceSentenceIsPinned() {
-        XCTAssertEqual(Retrieval.Reading.Confidence.understood.sentence,
+    /// exists to say. Four branches, not three: `.notUnderstood` says something
+    /// different depending on whose weight is in the plan.
+    func testEverySentenceOnAReadingIsPinned() {
+        XCTAssertEqual(Retrieval.read("fetch the 30 g stick 25 mm thick 2 m away").sentence,
                        "Every number in this plan came out of your sentence.")
-        XCTAssertEqual(Retrieval.Reading.Confidence.understoodWithGuesses.sentence,
+        XCTAssertEqual(Retrieval.read("fetch the stick").sentence,
                        "Some of these numbers are estimates of YOUR object, not measurements "
                      + "of the robot. Say the number and the guess goes away.")
-        XCTAssertEqual(Retrieval.Reading.Confidence.notUnderstood.sentence,
+        XCTAssertEqual(Retrieval.read("fetch me a beer").sentence,
                        "This sentence does not name anything to fetch, so the plan below is "
                      + "about an invented 20 g object 20 mm thick and answers a question you "
                      + "did not ask. Name the thing — pencil, pen, chopstick, twig, stick, "
                      + "dowel, crayon, cork, ball, carrot, broom, mop, rake or umbrella — or "
                      + "give a thickness outright, like \"25 mm thick\". The thickness is what "
                      + "decides whether the jaw can take hold of it at all.")
+        XCTAssertEqual(Retrieval.read("fetch the 30 g thing").sentence,
+                       "This sentence does not name anything to fetch. Your 30 g is in the "
+                     + "plan below, but the 20 mm thickness beside it is this app's invention, "
+                     + "not yours, so the plan still answers a question you did not ask. "
+                     + "Name the thing — pencil, pen, chopstick, twig, stick, dowel, crayon, "
+                     + "cork, ball, carrot, broom, mop, rake or umbrella — or give a thickness "
+                     + "outright, like \"25 mm thick\". The thickness is what decides whether "
+                     + "the jaw can take hold of it at all.")
+    }
+
+    /// THE REFUSAL MUST NOT CALL A PERSON'S OWN FIGURE MADE UP. "fetch the
+    /// 30 g thing" is not understood — no noun, no thickness, so nothing was
+    /// ever grasp-checked — but the 30 g came straight out of the sentence and
+    /// the screen lists it two rows up under "Read as". The old sentence hung
+    /// off `Confidence` alone and answered that with "an invented 20 g object",
+    /// which is the app fabricating a fabrication.
+    func testASentenceThatGaveAWeightIsNeverToldItsWeightWasInvented() {
+        let reading = Retrieval.read("fetch the 30 g thing")
+        XCTAssertEqual(reading.understood, ["30 g"])
+        XCTAssertEqual(reading.confidence, .notUnderstood)
+        XCTAssertFalse(reading.weightWasInvented)
+        XCTAssertFalse(reading.sentence.contains("invented 20 g"), reading.sentence)
+        XCTAssertTrue(reading.sentence.contains("Your 30 g is in the plan below"),
+                      reading.sentence)
+    }
+
+    /// Every number the sentence quotes is a number out of the plan it sits
+    /// above — by construction, not by two constants happening to agree.
+    func testTheSentenceQuotesTheNumbersInThePlanItSitsAbove() {
+        for text in ["fetch me a beer", "fetch the 30 g thing", "fetch the 0.4 kg thing",
+                     "fetch it 2 m away", "asdfghjkl"] {
+            let reading = Retrieval.read(text)
+            XCTAssertEqual(reading.confidence, .notUnderstood, "\"\(text)\"")
+            XCTAssertTrue(reading.sentence.contains(String(format: "%.0f g", reading.stick.grams)),
+                          "\"\(text)\" → \(reading.sentence)")
+            XCTAssertTrue(reading.sentence.contains(
+                String(format: "%.0f mm thick", reading.stick.thicknessMillimetres))
+                || reading.sentence.contains(
+                    String(format: "%.0f mm thickness", reading.stick.thicknessMillimetres)),
+                "\"\(text)\" → \(reading.sentence)")
+        }
+    }
+
+    /// THE ONE INVARIANT THE SENTENCE LEANS ON, PROVED OVER A TABLE OF
+    /// HAND-WRITTEN SENTENCES. Both `.notUnderstood` branches state flatly that
+    /// the thickness is this app's, with no flag behind it — that is only
+    /// honest because `recognisedObject` is false EXACTLY when no catalogue
+    /// word matched and no thickness was given outright, and those are the only
+    /// two ways a thickness can arrive. Weight, distance, grasp height, drag
+    /// and "across the room" can all be supplied and none of them changes it.
+    func testAnUnderstoodThicknessIsUnreachableWhileNotUnderstood() {
+        for text in ["", "   ", "hello", "asdfghjkl", "fetch me a beer", "fetch my keys",
+                     "fetch it", "fetch the 30 g thing", "fetch the 0.4 kg thing",
+                     "fetch it 2 m away", "fetch it across the room",
+                     "drag the 30 g thing 2 m away", "fetch the thing 150 mm up",
+                     "fetch the 30 g thing 2 m away laid down",
+                     "fetch the 25 g thing 60 cm away standing"] {
+            let reading = Retrieval.read(text)
+            XCTAssertEqual(reading.confidence, .notUnderstood, "\"\(text)\"")
+            XCTAssertEqual(reading.stick.thicknessMillimetres,
+                           Retrieval.assumedThicknessMillimetres, accuracy: 1e-9, "\"\(text)\"")
+            XCTAssertTrue(reading.sentence.contains("20 mm"), "\"\(text)\" → \(reading.sentence)")
+            for fact in reading.understood {
+                XCTAssertFalse(fact.hasSuffix("mm thick"), "\"\(text)\" understood \(fact)")
+            }
+        }
     }
 
     /// A word added to the catalogue cannot go missing from the sentence that
-    /// offers the vocabulary.
+    /// offers the vocabulary — in EITHER `.notUnderstood` branch.
     func testTheNotUnderstoodSentenceOffersTheWholeVocabulary() {
-        let sentence = Retrieval.Reading.Confidence.notUnderstood.sentence
-        for object in Retrieval.everydayObjects {
-            XCTAssertTrue(sentence.contains(object.word), "missing \(object.word)")
+        for text in ["fetch me a beer", "fetch the 30 g thing"] {
+            let sentence = Retrieval.read(text).sentence
+            for object in Retrieval.everydayObjects {
+                XCTAssertTrue(sentence.contains(object.word), "\"\(text)\" missing \(object.word)")
+            }
         }
         XCTAssertTrue(Retrieval.vocabulary.hasSuffix("rake or umbrella"), Retrieval.vocabulary)
+    }
+
+    /// A prop somebody described by hand has no invented weight in it.
+    func testAPropsWeightIsNeverTheAppsInvention() {
+        let (reading, _) = Retrieval.plan(for: "drag the broom over here",
+                                          props: [DuckScene.broom()])
+        XCTAssertFalse(reading.weightWasInvented)
+        XCTAssertEqual(reading.sentence, "Every number in this plan came out of your sentence.")
     }
 
     /// The invented numbers the sentence quotes back are the ones `read`
@@ -404,3 +491,4 @@ extension RetrievalTests {
                        accuracy: 1e-9)
     }
 }
+

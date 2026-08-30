@@ -337,10 +337,12 @@ extension Retrieval {
 
     /// What `read` falls back to when the sentence never says.
     ///
-    /// NAMED RATHER THAN SPELLED FOUR TIMES. These three numbers are quoted
-    /// back at the user in `Reading.Confidence.notUnderstood`'s sentence, and a
-    /// literal `?? 20` that drifted from the sentence describing it would be a
-    /// screen telling somebody the app assumed something it did not.
+    /// NAMED RATHER THAN SPELLED FOUR TIMES. A literal `?? 20` that drifted
+    /// from the screen describing it would be a screen telling somebody the app
+    /// assumed something it did not. `Reading.sentence` goes one better and
+    /// quotes `stick` itself rather than these constants, so the sentence
+    /// describes the plan it sits above BY CONSTRUCTION; these stay named
+    /// because `read` still has to fall back to something.
     ///
     /// AND NOTE WHAT `assumedThicknessMillimetres` IS EQUAL TO: exactly
     /// `closedTipHeight * 1000`. The bite test in `plan(for:)` is a strict `<`,
@@ -376,6 +378,25 @@ extension Retrieval {
         /// a sentence nobody has said enough about, while "25 mm thick" is
         /// checkable without a noun. Grams alone must not buy the green seal.
         public let recognisedObject: Bool
+        /// Whether the weight in `stick` is this app's invention rather than
+        /// the person's number.
+        ///
+        /// IT EXISTS SO THE REFUSAL CANNOT CALL SOMEBODY'S OWN FIGURE MADE UP.
+        /// `.notUnderstood` is reachable WITH a weight — "fetch the 30 g thing"
+        /// names no object and gives no thickness, so it is not understood, but
+        /// its 30 g came straight out of the sentence and `understood` says so.
+        /// A refusal that answered that with "an invented 20 g object" would be
+        /// telling a person their own number was fabricated, which is the exact
+        /// failure this whole feature exists to prevent.
+        ///
+        /// ONLY THE WEIGHT NEEDS A FLAG. In `.notUnderstood` the thickness is
+        /// ALWAYS this app's, because `recognisedObject` is false precisely
+        /// when no catalogue word matched and no thickness was given outright —
+        /// there is no third way for a thickness to arrive. `read` cannot
+        /// produce a counter-example and
+        /// `testAnUnderstoodThicknessIsUnreachableWhileNotUnderstood` proves it
+        /// over every shape of sentence that reaches this state.
+        public let weightWasInvented: Bool
         /// Facts taken from the sentence, in the sentence's own terms.
         public let understood: [String]
         /// Facts nobody supplied. THE UI MUST SHOW THESE — a plan built on
@@ -404,35 +425,60 @@ extension Retrieval {
             /// catalogue's estimates rather than anybody's measurement.
             case understoodWithGuesses
             /// The sentence named nothing to fetch and gave no thickness. The
-            /// plan below it is about an object this app invented, and means
-            /// nothing.
+            /// thickness in the plan below it is one this app invented, and the
+            /// grasp it checks means nothing.
+            ///
+            /// IT DOES NOT MEAN THE PERSON SAID NOTHING. "fetch the 30 g thing"
+            /// lands here with a weight that is entirely theirs, which is why
+            /// the words belong on `Reading` — see `Reading.sentence`.
             case notUnderstood
-
-            /// The sentence to put on the screen. THESE ARE THE PRODUCT — the
-            /// refusals are what this app sells, so they are pinned by test
-            /// string for string rather than left to a view to paraphrase.
-            public var sentence: String {
-                switch self {
-                case .understood:
-                    return "Every number in this plan came out of your sentence."
-                case .understoodWithGuesses:
-                    return "Some of these numbers are estimates of YOUR object, not "
-                         + "measurements of the robot. Say the number and the guess goes away."
-                case .notUnderstood:
-                    return String(format: "This sentence does not name anything to fetch, so "
-                        + "the plan below is about an invented %.0f g object %.0f mm thick "
-                        + "and answers a question you did not ask. Name the thing — %@ — or "
-                        + "give a thickness outright, like \"25 mm thick\". The thickness is "
-                        + "what decides whether the jaw can take hold of it at all.",
-                        Retrieval.assumedGrams, Retrieval.assumedThicknessMillimetres,
-                        Retrieval.vocabulary)
-                }
-            }
         }
 
         public var confidence: Confidence {
             guard recognisedObject else { return .notUnderstood }
             return assumed.isEmpty ? .understood : .understoodWithGuesses
+        }
+
+        /// The sentence to put on the screen. THIS IS THE PRODUCT — the
+        /// refusals are what this app sells, so every branch is pinned by test
+        /// string for string rather than left to a view to paraphrase.
+        ///
+        /// IT HANGS OFF THE READING, NOT OFF `Confidence`, AND IT HAS TO. A
+        /// sentence built from the case alone can only describe the average
+        /// reading, and the average is wrong the moment somebody types a
+        /// figure: `Confidence.notUnderstood` used to hard-code "an invented
+        /// 20 g object", so "fetch the 30 g thing" — `understood == ["30 g"]`,
+        /// the number right there on the screen two rows above — was answered
+        /// by a refusal calling that person's own 30 g made up. Here every
+        /// number comes out of `stick`, so the words cannot describe a
+        /// different plan from the one underneath them, and `weightWasInvented`
+        /// decides only WHOSE those numbers are.
+        public var sentence: String {
+            switch confidence {
+            case .understood:
+                return "Every number in this plan came out of your sentence."
+            case .understoodWithGuesses:
+                return "Some of these numbers are estimates of YOUR object, not "
+                     + "measurements of the robot. Say the number and the guess goes away."
+            case .notUnderstood:
+                // ONE TAIL FOR BOTH BRANCHES. The way out of this state is the
+                // same either way, and two copies of it would be two things to
+                // keep in step with `everydayObjects`.
+                let wayOut = String(format: "Name the thing — %@ — or give a thickness "
+                    + "outright, like \"25 mm thick\". The thickness is what decides whether "
+                    + "the jaw can take hold of it at all.", Retrieval.vocabulary)
+                if weightWasInvented {
+                    return String(format: "This sentence does not name anything to fetch, so "
+                        + "the plan below is about an invented %.0f g object %.0f mm thick "
+                        + "and answers a question you did not ask. ",
+                        stick.grams, stick.thicknessMillimetres) + wayOut
+                }
+                return String(format: "This sentence does not name anything to fetch. Your "
+                    + "%.0f g is in the plan below, but the %.0f mm thickness beside it is "
+                    + "this app's invention, not yours, so the plan still answers a question "
+                    + "you did not ask. ",
+                    stick.grams, stick.thicknessMillimetres) + wayOut
+            }
         }
     }
 
@@ -495,7 +541,12 @@ extension Retrieval {
             assumed.append("\"across the room\" taken as 4 m")
         }
 
-        if grams == nil {
+        // ONE TEST, TWO CONSEQUENCES. The "weight unknown" line the UI lists
+        // and the `weightWasInvented` flag the refusal reads are the same fact,
+        // so they are asked once — a screen that listed the weight as guessed
+        // while the refusal called it the person's would be arguing with itself.
+        let weightWasInvented = (grams == nil)
+        if weightWasInvented {
             assumed.append(String(format: "weight unknown — taken as %.0f g", assumedGrams))
         }
         if thickness == nil {
@@ -543,6 +594,7 @@ extension Retrieval {
             wantsDrag: wantsDrag,
             object: object?.word,
             recognisedObject: object != nil || thicknessGivenOutright,
+            weightWasInvented: weightWasInvented,
             understood: understood, assumed: assumed)
     }
 
@@ -935,6 +987,8 @@ extension Retrieval {
             // A PROP IS THE STRONGEST RECOGNITION THERE IS: somebody described
             // this thing by hand, so nothing here is the catalogue guessing.
             recognisedObject: true,
+            // Somebody typed this prop's weight in by hand. It is theirs.
+            weightWasInvented: false,
             understood: [String(format: "the %@ in your scene — %.0f g, %.0f mm across, %.2f m away",
                                 prop.name.lowercased(), stick.grams,
                                 stick.thicknessMillimetres, stick.metresAway)]

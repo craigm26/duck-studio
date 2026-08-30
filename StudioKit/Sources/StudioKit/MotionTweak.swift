@@ -41,7 +41,13 @@ public struct MotionTweak: Equatable, Sendable {
         case wouldEmptyTheMotion
         /// The destination already belongs to another keyframe.
         case timeAlreadyTaken(Double)
-        /// The removal would leave a motion with nowhere to happen.
+        /// The removal would leave something `IntentDraft.cardinalityRefusal`
+        /// calls broken — today, one keyframe at 0.00 s. THE DECISION IS THAT
+        /// FUNCTION'S; only the voice is this one's, because a refusal to the
+        /// person who asked for a removal is about the removal, not about the
+        /// wreck it would leave. If that rule ever grows a second non-empty
+        /// case, this sentence stops covering it — which is what
+        /// `testTheRemovalRefusalSpeaksTheRuleItAsked` is there to notice.
         case wouldLeaveNoTimeToHappenIn
 
         /// Why one instruction could not be applied. One sentence, no verdict
@@ -87,17 +93,17 @@ public struct MotionTweak: Equatable, Sendable {
 
     /// Everything a list of edits did, and everything it could not do.
     ///
-    /// A PARTIAL FAILURE KEEPS THE GOOD EDITS. `applied(to:)` used to throw out
-    /// of the middle of the loop, so "bow deeper and look left" with one joint
+    /// A PARTIAL FAILURE KEEPS THE GOOD EDITS. Applying used to throw out of
+    /// the middle of the loop, so "bow deeper and look left" with one joint
     /// word the resolver did not know threw away the deeper bow as well and
     /// reported only the word it refused. Nothing said the rest had been
     /// dropped, so the obvious retry — type it again — dropped it again.
     ///
-    /// The refusals are kept SEPARATE from the notes because they are not the
-    /// same claim: `notes` is what the motion now does, `refusals` is what it
-    /// still does not. `applied(to:)` flattens both into one chronological list
-    /// for the caller that cannot tell them apart yet; a caller that can should
-    /// use this and render them differently.
+    /// THE REFUSALS ARE KEPT SEPARATE FROM THE NOTES BECAUSE THEY ARE NOT THE
+    /// SAME CLAIM: `notes` is what the motion now does, `refusals` is what it
+    /// still does not. They must not be concatenated on the way to a screen —
+    /// that was the old `applied(to:)`, and what it produced was a refusal
+    /// under a checkmark. Two lists, two icons, or the sentence lies.
     public struct Outcome: Equatable, Sendable {
         /// The motion with every edit that could be applied already in it.
         public let draft: IntentDraft
@@ -140,19 +146,21 @@ public struct MotionTweak: Equatable, Sendable {
     /// a correct answer over rounding.
     public static let nearEnough = 0.26
 
-    /// Apply the edits, and say what actually happened.
+    /// Apply the edits, with what was applied and what was refused kept apart.
     ///
-    /// IT RETURNS THE NOTES AS WELL AS THE DRAFT, because an edit that silently
-    /// did nothing is worse than one that failed: the screen redraws, the
-    /// motion looks unchanged, and the person types the same sentence again.
-    public func applied(to draft: IntentDraft) throws -> (draft: IntentDraft, notes: [String]) {
-        let outcome = try self.outcome(applyingTo: draft)
-        // Chronological, because a caller that renders one flat list is showing
-        // the person the order they asked for things in.
-        return (outcome.draft, outcome.notes + outcome.refusals)
-    }
-
-    /// The same edits, with what was applied and what was refused kept apart.
+    /// IT RETURNS THE SENTENCES AS WELL AS THE DRAFT, because an edit that
+    /// silently did nothing is worse than one that failed: the screen redraws,
+    /// the motion looks unchanged, and the person types the same sentence
+    /// again.
+    ///
+    /// THERE IS NO COMBINED RETURN ANY MORE, AND ITS ABSENCE IS THE POINT.
+    /// `applied(to:)` handed back `notes + refusals` as one `[String]`, and the
+    /// one caller there is renders every string it is given as
+    /// `Label($0, systemImage: "checkmark")` — so "wing is not a joint this
+    /// robot has" arrived under a green tick, which is worse than the refusal
+    /// it replaced. A flat list cannot be rendered honestly, so a caller with
+    /// no way to tell a refusal from a change should not be able to compile.
+    /// Deleting the shape was the only version of that which is enforced.
     ///
     /// IT THROWS ONLY WHEN NOTHING SURVIVED. A refusal beside a change is a
     /// sentence in `refusals`; a refusal beside nothing at all is a `Failure`,
@@ -225,15 +233,23 @@ public struct MotionTweak: Equatable, Sendable {
                     refuse(.wouldEmptyTheMotion)
                     continue
                 }
-                // THE TWEAK AND THE DRAFT MUST AGREE ON WHAT A MOTION IS. The
-                // old guard here refused only the LAST keyframe, while
-                // `IntentDraft.problems` calls a lone keyframe at 0.00 s broken
-                // — so "drop the second pose" on a two-keyframe motion reported
-                // success and left something that will not play or export.
+                // THE TWEAK AND THE DRAFT MUST AGREE ON WHAT A MOTION IS, SO IT
+                // ASKS RATHER THAN REMEMBERS. The old guard here refused only
+                // the LAST keyframe, while `IntentDraft.problems` calls a lone
+                // keyframe at 0.00 s broken — so "drop the second pose" on a
+                // two-keyframe motion reported success and left something that
+                // will not play or export.
                 //
-                // The rule tested is the DRAFT's own, not a second copy of it:
-                // one pose is a motion provided it has time to happen in, so
-                // what is refused is a removal that takes the time away.
+                // THE SECOND COPY WAS THE REMAINING BUG. Restating the rule as
+                // `trimmed.duration > 1e-6` agreed with the draft on every
+                // shape a person types and disagreed on one a FILE can carry:
+                // keyframes at 0.00 s and 0.0000005 s, which `problems` is
+                // content with, made every removal elsewhere in that motion
+                // refusable — this editor refusing to edit a file quackd
+                // accepts. `IntentDraft.cardinalityRefusal` is where the rule
+                // is written down, and its own comment says other editors are
+                // to ask it; `MotionTweakTests` walks a hand-written table
+                // through both and fails the day they part.
                 //
                 // ORDER MATTERS AND THAT IS THE PRICE. "Remove the 0.5 and put
                 // one at 1.0" answered as remove-then-add is refused on its
@@ -241,7 +257,7 @@ public struct MotionTweak: Equatable, Sendable {
                 // add still happens and the sentence says which half did not.
                 // Refusing loudly beats the alternative, which silently shipped
                 // an unplayable draft under a checkmark.
-                guard trimmed.duration > 1e-6 else {
+                guard IntentDraft.cardinalityRefusal(for: trimmed.keys) == nil else {
                     refuse(.wouldLeaveNoTimeToHappenIn)
                     continue
                 }
@@ -255,6 +271,23 @@ public struct MotionTweak: Equatable, Sendable {
                 }
                 let from = result.keys[index].time
                 let time = max(to, 0)
+                // A MOVE THAT MOVED NOTHING IS NOT A MOVE, AND SAYING SO IS THE
+                // WHOLE REASON NOTES EXIST (see `outcome`'s doc above). "Moved
+                // 0.80 s to 0.80 s." under a green tick is the exact shape that
+                // sends a person back to type the same sentence again: the
+                // panel agreed with them, the stage did not change, and there
+                // was nothing on screen to say which one was lying.
+                //
+                // THE WINDOW IS THE DRAFT'S, NOT `sameInstant`. At 0.005 s this
+                // would call a legal 2 ms retime a no-op and refuse it;
+                // `IntentDraft.sameInstant` (1e-6) is the epsilon below which
+                // the package itself holds two times to be one time, so below
+                // it there is genuinely no new file to write.
+                guard abs(from - time) > IntentDraft.sameInstant else {
+                    refuse(sentence: String(format: "That keyframe is already at %.2f s, so "
+                                                  + "nothing moved.", time))
+                    continue
+                }
                 // TWO KEYFRAMES ON ONE INSTANT IS NOT AN UNPLAYABLE MOTION, IT
                 // IS A CRASH WAITING FOR A CALLER. `DuckMove.init(name:
                 // keyframes:)` has `precondition(... $0.time < $1.time ...)`,
@@ -293,9 +326,19 @@ public struct MotionTweak: Equatable, Sendable {
                 }
                 let when = result.keys[index].time
                 var achieved: [(word: String, degrees: Double)] = []
+                // WHAT THE WORD ASKED FOR AND DID NOT GET. A slot missing from
+                // a short pose used to be skipped with a bare `continue`, and
+                // the note was then written for the WHOLE word from whatever
+                // survived: "both hips set to 15°" over a keyframe holding one
+                // hip. The all-nothing case was already refused; the halfway
+                // case was the one that read as success.
+                var skipped: [String] = []
                 for (joint, mirror) in targets {
                     guard let slot = DuckModel.jointIndex(of: joint),
-                          result.keys[index].pose.indices.contains(slot) else { continue }
+                          result.keys[index].pose.indices.contains(slot) else {
+                        skipped.append(MotionTweak.plainName(joint))
+                        continue
+                    }
                     let radians = degrees * mirror * .pi / 180
                     let home = DuckModel.homePose[slot]
                     let range = DuckModel.jointRanges[slot]
@@ -319,14 +362,24 @@ public struct MotionTweak: Equatable, Sendable {
                     // Only reachable on a keyframe whose pose is the wrong
                     // width, which `IntentDraft.problems` already calls broken
                     // — but silence here would be the app claiming an edit it
-                    // could not have made.
-                    refuse(sentence: String(format: "%@ is not in the pose at %.2f s, so nothing "
-                                                  + "was set there.",
-                                            MotionProposal.normalised(word), when))
+                    // could not have made. It names the JOINTS, so "both hips"
+                    // does not leave the person guessing which half is missing;
+                    // the word itself is the fallback for the impossible case
+                    // of a group that resolved to nothing at all.
+                    refuse(sentence: MotionTweak.missingNote(
+                        skipped.isEmpty ? [MotionProposal.normalised(word)] : skipped, at: when))
                     continue
                 }
-                note(MotionTweak.jointNote(word: MotionProposal.normalised(word),
-                                           asked: degrees, achieved: achieved, at: when))
+                // THE SENTENCE NAMES WHAT WAS WRITTEN. When part of a group
+                // landed, the group's own word is no longer an honest subject
+                // for it — "both hips" wrote one hip — so the joints that were
+                // actually set speak for themselves, and the refusal beside it
+                // names the ones that were not.
+                note(MotionTweak.jointNote(
+                    word: skipped.isEmpty ? MotionProposal.normalised(word)
+                                          : MotionTweak.spoken(achieved.map(\.word)),
+                    asked: degrees, achieved: achieved, at: when))
+                if !skipped.isEmpty { refuse(sentence: MotionTweak.missingNote(skipped, at: when)) }
             }
         }
 
@@ -363,6 +416,23 @@ public struct MotionTweak: Equatable, Sendable {
             .joined(separator: ", ")
         return String(format: "%@ set to %.0f° at %.2f s, except %@, which stopped at the end "
                             + "of travel.", word, asked, time, named)
+    }
+
+    /// The refusal for joints a keyframe has no slot for, in the plain words a
+    /// person reads. It names the JOINTS rather than the word that asked for
+    /// them, because "both hips is not in the pose" does not tell you which
+    /// half went missing.
+    static func missingNote(_ joints: [String], at time: Double) -> String {
+        String(format: "%@ %@ not in the pose at %.2f s, so nothing was set there.",
+               spoken(joints), joints.count == 1 ? "is" : "are", time)
+    }
+
+    /// A list of joints as a person would say it: "left hip", "left hip and
+    /// right hip", "left hip, left knee and left ankle".
+    static func spoken(_ words: [String]) -> String {
+        guard let last = words.last else { return "" }
+        guard words.count > 1 else { return last }
+        return words.dropLast().joined(separator: ", ") + " and " + last
     }
 
     /// A joint's plain word, for a sentence a person reads — "left knee", not

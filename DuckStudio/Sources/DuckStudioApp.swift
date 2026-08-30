@@ -47,7 +47,7 @@ struct DuckStudioApp: App {
             // A policy handed over from Files, Mail, AirDrop or another app.
             // Declared in Info.plist as an IMPORTED type — ONNX is not this
             // app's format to own.
-            .onOpenURL { model.open($0) }
+            .onOpenURL { model.open($0, into: drafts) }
         }
     }
 }

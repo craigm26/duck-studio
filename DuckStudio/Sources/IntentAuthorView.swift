@@ -58,6 +58,11 @@ struct IntentAuthorView: View {
     @State private var asked = ""
     @State private var thinking = false
     @State private var tweakNotes: [String] = []
+    /// The instructions the kit could NOT apply. Kept apart from the notes
+    /// because they are drawn apart: StudioKit stopped handing back one
+    /// combined list precisely so this screen could not put "wing is not a
+    /// joint this robot has" under a green tick, which is what it used to do.
+    @State private var tweakRefusals: [String] = []
     @State private var tweakFailure: String?
     /// The motion as it was before the last tweak, so a sentence that made it
     /// worse can be taken back. ONE STEP IS ENOUGH: the alternative is an undo
@@ -313,6 +318,21 @@ struct IntentAuthorView: View {
             }
         }
 
+        // ABOVE THE NOTES, NOT AFTER THEM. What was refused is the thing the
+        // person has to act on; what worked they can see on the robot.
+        if !tweakRefusals.isEmpty {
+            Section {
+                ForEach(tweakRefusals, id: \.self) {
+                    Label($0, systemImage: "exclamationmark.triangle")
+                        .font(.footnote).foregroundStyle(.orange)
+                }
+            } header: {
+                Text("Not applied")
+            } footer: {
+                Text("Everything else in the same sentence was applied. Say these again in other words, or change them by hand in Pose.")
+            }
+        }
+
         if !tweakNotes.isEmpty {
             Section {
                 ForEach(tweakNotes, id: \.self) {
@@ -324,6 +344,7 @@ struct IntentAuthorView: View {
                             draft = before
                             beforeTweak = nil
                             tweakNotes = []
+                            tweakRefusals = []
                         }
                     } label: {
                         Label("Put it back", systemImage: "arrow.uturn.backward")
@@ -340,7 +361,7 @@ struct IntentAuthorView: View {
     private func applyTweak() async {
         guard let models else { return }
         let sentence = asked.trimmingCharacters(in: .whitespaces)
-        thinking = true; tweakFailure = nil
+        thinking = true; tweakFailure = nil; tweakRefusals = []
         defer { thinking = false }
         let endpoint = models.armed(models.selected)
         do {
@@ -348,16 +369,24 @@ struct IntentAuthorView: View {
                 endpoint, kind: .tweak, prompt: sentence, knownIntents: [],
                 instructions: ChatDraft.tweakInstructions(for: draft))
             let tweak = try ChatDraft.tweak(fromJSON: answer.json)
-            let (edited, notes) = try tweak.applied(to: draft)
+            let outcome = try tweak.outcome(applyingTo: draft)
             beforeTweak = draft
-            draft = edited
-            tweakNotes = notes.isEmpty ? [tweak.summary] : notes
+            draft = outcome.draft
+            // THE MODEL'S SUMMARY IS NOT A SUBSTITUTE FOR A NOTE. This used to
+            // read `notes.isEmpty ? [tweak.summary] : notes`, which meant that
+            // when every instruction was refused the screen showed the model's
+            // own description of what it INTENDED — "made the bow deeper" —
+            // under a checkmark, beside a motion nothing had happened to. An
+            // empty notes list is now simply an empty section, and the refusals
+            // beside it say why.
+            tweakNotes = outcome.notes
+            tweakRefusals = outcome.refusals
             asked = ""
             // Show the first thing that changed, so the preview is looking at
             // the edit rather than wherever the playhead happened to be.
             // The editor autosaves on every change of `draft`, so there is
             // nothing to call here — the onChange above has already run.
-            if let first = edited.keys.map(\.time).sorted().first { playhead = first }
+            if let first = outcome.draft.keys.map(\.time).sorted().first { playhead = first }
             isRunning = false
         } catch let failure as MotionTweak.Failure {
             tweakFailure = failure.message

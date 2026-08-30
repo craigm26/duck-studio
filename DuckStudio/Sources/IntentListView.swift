@@ -35,6 +35,17 @@ struct IntentListView: View {
     /// the list re-rendered continuously underneath it, re-running the sheet's
     /// content closure on every change.
     @State private var editing: DraftID?
+    /// The brand-new motion that nobody has written into yet, and which is
+    /// therefore NOT in the store. See the "Write a new motion" button for why
+    /// it waits here instead.
+    ///
+    /// LOAD-BEARING FOR THE SHEET'S LOOKUP. Until the editor's first change
+    /// reaches `onSave`, this is the only place that draft exists, and the
+    /// sheet below has no `else` — lose it while the sheet is up and the
+    /// person gets an empty, toolbar-less NavigationStack they cannot leave.
+    /// So it is cleared in `onDismiss`, after the sheet is gone, and nowhere
+    /// else.
+    @State private var unwritten: IntentDraft?
     @State private var clips: [String: DuckIntentClip] = [:]
     @State private var picking = false
     /// Rolled-out rates, loaded once. The list is the place these matter most:
@@ -56,6 +67,13 @@ struct IntentListView: View {
         c.sorted { $0.name < $1.name }
     }
 
+    /// The not-yet-written new motion, but only if it is the one this sheet was
+    /// opened for. Matched by id rather than handed over on trust, so a stale
+    /// one can never stand in for a row that means something else.
+    private func standIn(for id: UUID) -> IntentDraft? {
+        unwritten?.id == id ? unwritten : nil
+    }
+
     var body: some View {
         List {
             Section {
@@ -72,8 +90,39 @@ struct IntentListView: View {
                     for index in offsets { drafts.delete(drafts.drafts[index]) }
                 }
                 Button {
+                    // NOT SAVED HERE, AND THAT IS THE WHOLE FIX. This line used
+                    // to be `drafts.save(fresh)`, because the sheet looks a
+                    // draft up by id and cannot present one the store has never
+                    // heard of. The cost was that the row — and, 0.4 s later,
+                    // the file — existed before the person had written a single
+                    // thing into it, so every way OUT of the editor then needed
+                    // its own agreement to un-create it. Cancel got one
+                    // (`IntentAuthorView.discard()`), the confirmation dialog
+                    // got one (`reallyDiscard()`), and the fourth exit — a
+                    // swipe down, which is the one most people reach for — got
+                    // nothing, ran neither, and left a motion called "New
+                    // motion" that its owner never asked for and could not
+                    // explain. Twice fixed, twice by adding a guard to one more
+                    // exit.
+                    //
+                    // A FOURTH GUARD WOULD HAVE BEEN THE THIRD PATCH ON THE
+                    // SAME DANCE, and it could not have worked anyway: from out
+                    // here Done and a swipe are the same event — both just set
+                    // `editing` to nil — so no rule applied on dismissal can
+                    // keep one and throw away the other. Whatever such a rule
+                    // did to the swipe, it would also do to Done, and a Done
+                    // that quietly produces nothing is worse than a leftover
+                    // row.
+                    //
+                    // So the state that needed guarding is gone instead. A
+                    // blank motion is a motion nobody has written; it waits in
+                    // `unwritten` and becomes a row and a file at the moment
+                    // the editor's first change is saved. All four exits now
+                    // do the same thing to an untouched one — nothing — and
+                    // they cannot drift apart again, because none of them has
+                    // anything left to do.
                     let fresh = IntentDraft.blank()
-                    drafts.save(fresh)
+                    unwritten = fresh
                     editing = DraftID(id: fresh.id, isNew: true)
                 } label: { Label("Write a new motion", systemImage: "plus") }
                 NavigationLink {
@@ -111,6 +160,15 @@ struct IntentListView: View {
                 }
             }
 
+            // WHERE THE IMPORTER SAYS WHAT HAPPENED. `model.lastImport` was
+            // drawn on the Policies tab and nowhere else, so a `.duckmove`, a
+            // `.duck` or an unrecognised file picked from THIS screen's own
+            // import button was refused into a void: the sheet closed, the list
+            // did not change, and the sentence explaining why was on a tab the
+            // person was not looking at.
+            if let message = model.lastImport {
+                Section { Text(message).font(.footnote).foregroundStyle(.secondary) }
+            }
             if !fromPollen.isEmpty {
                 Section {
                     ForEach(fromPollen, id: \.name) { row($0) }
@@ -159,18 +217,43 @@ struct IntentListView: View {
                       allowsMultipleSelection: false) { result in
             // The same door as onOpenURL, so a motion picked from Files and one
             // AirDropped end up in the same place having had the same checks.
-            if case .success(let urls) = result, let url = urls.first { model.open(url) }
+            switch result {
+            case .success(let urls):
+                if let url = urls.first { model.open(url, into: drafts) }
+            case .failure(let error):
+                // THE PICKER CAN FAIL AND USED TO DO IT IN SILENCE. `if case
+                // .success` dropped the other half on the floor, so a file the
+                // system would not hand over — a permission the user backed out
+                // of, an iCloud item that never downloaded — looked exactly like
+                // a tap that did nothing.
+                model.lastImport = "That file could not be opened. \(error.localizedDescription)"
+            }
         }
         .onAppear {
             clips = (try? DuckIntentClip.bundled()) ?? [:]
             odds = try? DuckIntentSuccess.bundled()
         }
-        .sheet(item: $editing) { wrapper in
+        // ONLY AFTER THE SHEET IS GONE. `onDismiss` runs on every way out —
+        // Done, Cancel, the confirmation dialog, and the swipe — which is
+        // exactly why nothing that decides a draft's fate lives here: it cannot
+        // tell those four apart. It does one safe thing, which is to stop
+        // holding a motion the editor has finished with.
+        // CLEARED ONLY IF NOTHING IS WAITING TO OPEN. `onDismiss` is a
+        // trailing event: if it lands after a second "Write a new motion" tap
+        // has already set `unwritten` and `editing`, an unconditional clear
+        // takes the new draft out from under the sheet that is opening, and the
+        // lookup then resolves to neither the store nor the stand-in — which is
+        // the empty, toolbar-less editor this file has been bitten by before.
+        .sheet(item: $editing, onDismiss: { if editing == nil { unwritten = nil } }) { wrapper in
             NavigationStack {
                 // Looked up fresh, so the editor opens on what is actually
                 // stored rather than on whatever was in hand when the row was
-                // tapped.
-                if let current = drafts.drafts.first(where: { $0.id == wrapper.id }) {
+                // tapped. A brand-new motion is not stored yet — see
+                // `unwritten` — so it stands in until the editor's first change
+                // lands in the store, after which the store's copy is the newer
+                // one and wins. Order matters for that reason.
+                if let current = drafts.drafts.first(where: { $0.id == wrapper.id })
+                                 ?? standIn(for: wrapper.id) {
                     IntentAuthorView(
                         draft: current, scenes: store, models: models,
                         isNew: wrapper.isNew,
@@ -181,6 +264,11 @@ struct IntentListView: View {
                         // title, no Cancel, no Done. That is a real permanent
                         // trap, manufactured while fixing one. Clear the
                         // binding first; the store only changes afterwards.
+                        //
+                        // Deleting a motion that was never written into is a
+                        // no-op on both halves of `DraftStore.delete` — no such
+                        // row, no such file — so Cancel on an untouched new one
+                        // still does exactly what it says, and says it once.
                         onDiscard: { doomed in
                             editing = nil
                             drafts.delete(doomed)
@@ -394,6 +482,18 @@ struct IntentPlayerView: View {
                             // at fifty hertz, and the draft's provenance line
                             // says so — a remix of a clip that works is not a
                             // motion that works.
+                            //
+                            // SAVED IMMEDIATELY, UNLIKE "Write a new motion",
+                            // which now waits for its first edit. The two are
+                            // not the same thing: a blank motion holds nothing
+                            // anybody wrote, so an untouched one is worth
+                            // nothing and is never created; a remix holds this
+                            // clip's poses and carries its name into the list,
+                            // so an untouched one is a real starting point and
+                            // an explicable row. Deferring it would mean
+                            // remixing a clip, tapping Done, and getting no
+                            // motion — a menu item that did nothing, which is
+                            // the failure this app minds most.
                             let draft = IntentDraft.remix(clip)
                             drafts.save(draft)
                             remixed = DraftID(id: draft.id, isNew: true)
@@ -760,10 +860,17 @@ struct TransportBar: View {
 struct DraftID: Identifiable, Hashable {
     let id: UUID
     /// Whether the editor CREATED this motion, rather than opening one that
-    /// already existed. A draft has to be in the store before the sheet can
-    /// look it up, so a brand-new one is committed before its editor appears —
-    /// and Cancel then has to be able to un-create it, or the person who did
-    /// not want it is left with a row called "New motion" and no idea why.
+    /// already existed.
+    ///
+    /// THIS NO LONGER MEANS "ALREADY IN THE STORE", AND THE HISTORY IS THE
+    /// REASON THE DISTINCTION SURVIVES. A brand-new draft used to be committed
+    /// before its editor appeared, purely so the sheet's lookup could resolve
+    /// it — which made Cancel responsible for un-creating it, and left a row
+    /// called "New motion" behind every exit that did not run Cancel. There
+    /// were three such exits before the swipe was counted, and each was fixed
+    /// separately. A new draft is now held in `unwritten` and becomes a row at
+    /// its first change, so no exit has to clean anything up. `isNew` is still
+    /// what tells the editor it is looking at something nobody has saved.
     var isNew = false
 }
 

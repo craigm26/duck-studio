@@ -72,9 +72,15 @@ public struct IntentDraft: Codable, Equatable, Identifiable, Sendable {
     /// A new draft: the robot standing, and one keyframe half a second later to
     /// move away from.
     ///
-    /// TWO KEYFRAMES, NOT ONE. A single-keyframe move has zero duration and
-    /// nothing to interpolate, so the editor would open on a timeline with no
-    /// length and a scrubber that cannot move.
+    /// TWO KEYFRAMES BECAUSE A TIMELINE NEEDS ENDS, NOT BECAUSE ONE IS ILLEGAL.
+    /// `cardinalityRefusal(for:)` is where the rule about how many keyframes a
+    /// motion needs is written down, and it says one pose at t > 0 is a motion.
+    /// What a lone keyframe does not give is somewhere to author FROM: the
+    /// editor would open with the scrubber sitting on the only pose there is,
+    /// and the first thing anybody does is drag a joint and look for the
+    /// difference. So a blank draft opens on the standing pose and a second
+    /// keyframe half a second later to move away from — a starting point, not
+    /// a floor.
     public static func blank(named name: String = "New motion") -> IntentDraft {
         IntentDraft(name: name, keys: [
             Key(time: 0, pose: DuckModel.homePose),
@@ -179,37 +185,71 @@ public struct IntentDraft: Codable, Equatable, Identifiable, Sendable {
     /// guess; a later corpus made 17 stale the other way.
     public static let observedPeakJointRate = 13.0
 
+    /// Two times closer together than this are the same instant.
+    ///
+    /// ONE EPSILON, ONE MEANING, EVERYWHERE A SPAN IS MEASURED — the opening
+    /// span from the standing pose, the span between two keyframes, and the
+    /// lone keyframe that has no span at all. Below it there is nothing to
+    /// interpolate across, and a rate got by dividing by it is arithmetic
+    /// rather than a claim about a servo. A 50 Hz player samples every 0.02 s,
+    /// four orders of magnitude coarser, so nothing a person can author lands
+    /// inside it by accident.
+    public static let sameInstant = 1e-6
+
+    /// HOW MANY KEYFRAMES A MOTION NEEDS, WRITTEN DOWN ONCE FOR THE PACKAGE.
+    /// Nil means the count is fine; anything else is the `.broken` sentence the
+    /// Checks tab shows and `exported()` refuses with.
+    ///
+    /// A draft is a list of poses and the times they happen at. It needs at
+    /// least one — nothing is not a motion. And ONE POSE IS A MOTION, PROVIDED
+    /// IT HAS TIME TO HAPPEN IN: DuckKit reads a lone keyframe at t > 0 as the
+    /// duck travelling from the standing pose to that pose across the
+    /// keyframe's own time and then holding it, which is exactly what a still
+    /// is, and it is a legitimate thing for a beginner to want to author
+    /// ("stand here with the beak open"). Other tools write such files and the
+    /// kit round-trips them, so refusing one here would be this reader
+    /// refusing a file quackd accepts — the same failure as accepting one
+    /// quackd refuses, from the other side.
+    ///
+    /// WHAT IS REFUSED IS THE LONE KEYFRAME AT 0.00 s. A keyframe at zero is
+    /// where the motion BEGINS — the kit samples it as the opening pose rather
+    /// than somewhere the duck travels to — so on its own it is a pose with no
+    /// span at all: duration 0, nothing to interpolate, a scrubber that cannot
+    /// move, and a file OpenCastor finishes the instant it starts. The sentence
+    /// names the knob that fixes it rather than the rule it broke. Negative
+    /// times are left to the ordering rule in `problems`, so that two refusals
+    /// do not both claim the keyframe is at 0.00 s.
+    ///
+    /// THE PROVISO IS NOT SELF-ENFORCING, AND FOR ONE PATCH IT WENT
+    /// UNENFORCED. "Time to happen in" is not "any positive time at all": the
+    /// span from the standing pose to the first keyframe is a span like every
+    /// other one, and it answers to the same rate rule in `problems`. A lone
+    /// knee-at-the-stop keyframe stepped down to 0.05 s asks for 47 rad/s
+    /// against a corpus that never exceeds 13 — and while that span was
+    /// skipped, the Checks tab said NOTHING about it, though the identical
+    /// motion written as two keyframes was flagged. Relaxing the count without
+    /// checking the span is how a rule becomes a sentence in a comment.
+    ///
+    /// OTHER EDITORS ASK THIS RATHER THAN CARRYING A COPY. `MotionTweak`'s
+    /// `.removeKey` has to know whether a cut leaves a motion behind, and a
+    /// second statement of the rule there is how "drop the second pose"
+    /// reported success and left something the Checks tab called broken.
+    public static func cardinalityRefusal(for keys: [Key]) -> Problem? {
+        guard let first = keys.first else {
+            return .init(severity: .broken,
+                         text: "A motion needs at least one keyframe — there is no pose here to hold.")
+        }
+        guard keys.count == 1, first.time >= 0, first.time <= sameInstant else { return nil }
+        return .init(severity: .broken,
+                     text: "A motion of one keyframe at 0.00 s has no time to happen in. "
+                         + "Move that keyframe later — half a second is plenty — or add a second one.")
+    }
+
     public var problems: [Problem] {
         var out: [Problem] = []
-        guard !keys.isEmpty else {
-            out.append(.init(severity: .broken,
-                             text: "A motion needs at least one keyframe — there is no pose here to hold."))
-            return out
-        }
+        if let refusal = Self.cardinalityRefusal(for: keys) { out.append(refusal) }
+        guard !keys.isEmpty else { return out }
         let ordered = keys.sorted { $0.time < $1.time }
-        // ONE POSE IS A MOTION, PROVIDED IT HAS TIME TO HAPPEN IN, and this
-        // check used to say otherwise while `exported()` shipped the file
-        // anyway. The two gates disagreed in the direction that hands a file
-        // out: the Checks tab drew the orange triangle and called a
-        // one-keyframe draft broken, and the share sheet gave it away
-        // regardless. They agree now, and they agree on YES — because a single
-        // pose is a legitimate thing for a beginner to want. "Stand here with
-        // the beak open" is a still, and DuckKit already reads it as one: the
-        // duck travels from the base stance to that pose across the keyframe's
-        // own time and then holds it, which is a real half-second motion and
-        // round-trips as one.
-        //
-        // What is NOT a motion is that same pose at 0.00 s. There the span is
-        // zero: duration 0, nothing to interpolate, a scrubber that cannot
-        // move, and a file OpenCastor finishes the instant it starts. That is
-        // the only cardinality case refused here, and the sentence names the
-        // knob that fixes it. The negative-time case is left to the rule below
-        // so the two refusals do not both claim the keyframe is at 0.00 s.
-        if ordered.count == 1, ordered[0].time >= 0, ordered[0].time <= 1e-6 {
-            out.append(.init(severity: .broken,
-                             text: "A motion of one keyframe at 0.00 s has no time to happen in. "
-                                 + "Move that keyframe later — half a second is plenty — or add a second one."))
-        }
         for (index, key) in ordered.enumerated() {
             if key.time < 0 {
                 out.append(.init(severity: .broken, text: "A keyframe happens before the motion starts."))
@@ -234,11 +274,33 @@ public struct IntentDraft: Codable, Equatable, Identifiable, Sendable {
             // How fast the interpolation asks the joint to move. Smoothstep's
             // peak rate is 1.5× the average over the span, which is where the
             // 1.5 comes from rather than a fudge.
-            guard index > 0, ordered[index - 1].pose.count == DuckModel.jointCount else { continue }
-            let span = key.time - ordered[index - 1].time
-            guard span > 1e-6 else { continue }
+            //
+            // EVERY SPAN, THE OPENING ONE INCLUDED. This used to start at the
+            // second keyframe, which left the run from the standing pose to the
+            // first one unchecked — and that is a real span, not a formality:
+            // when the first keyframe sits at t > 0 the kit interpolates the
+            // duck from the base stance to it across exactly that time, the
+            // same smoothstep as every other span. Skipping it meant a
+            // one-keyframe knee-at-the-stop draft stepped down to 0.05 s
+            // reported nothing at all, while the identical motion written as
+            // two keyframes was flagged at 47 rad/s. The previous pose for the
+            // opening span is the home stance because that is the base
+            // `move()` hands DuckMove, and the file carries the same one.
+            //
+            // AT 0.00 s THERE IS NO OPENING SPAN, and that is not a hole. A
+            // first keyframe at zero IS where the motion begins — the kit
+            // samples it as the opening pose — so there is nothing to travel
+            // across and no rate to compute. Every recording remixes to a draft
+            // shaped exactly like that, and how the robot reaches its opening
+            // pose before a move starts is the player's business, not the
+            // file's.
+            let previousTime = index > 0 ? ordered[index - 1].time : 0
+            let previousPose = index > 0 ? ordered[index - 1].pose : DuckModel.homePose
+            guard previousPose.count == DuckModel.jointCount else { continue }
+            let span = key.time - previousTime
+            guard span > Self.sameInstant else { continue }
             for joint in 0..<DuckModel.jointCount {
-                let rate = 1.5 * abs(key.pose[joint] - ordered[index - 1].pose[joint]) / span
+                let rate = 1.5 * abs(key.pose[joint] - previousPose[joint]) / span
                 if rate > Self.observedPeakJointRate {
                     out.append(.init(
                         severity: .impossible,

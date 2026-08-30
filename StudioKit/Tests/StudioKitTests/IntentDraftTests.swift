@@ -131,6 +131,109 @@ final class IntentDraftTests: XCTestCase {
         XCTAssertTrue(draft.isPlayable)
     }
 
+    /// THE OPENING SPAN IS A SPAN. When the first keyframe sits at t > 0 the
+    /// duck travels to it from the standing pose across exactly that time, so
+    /// it answers to the rate rule like every other span — and for one patch it
+    /// did not, which is the whole reason a lone keyframe is allowed to be a
+    /// motion at all. Reachable in about four gestures: swipe-delete the first
+    /// keyframe of a blank draft, drag the knee to its stop, step the remaining
+    /// keyframe's time down to 0.05 s.
+    func testTheOpeningSpanIsRateCheckedLikeEveryOtherSpan() {
+        var stop = DuckModel.homePose
+        stop[3] = DuckModel.jointRanges[3].upper
+        let expected = "left_knee is asked to move at 47 rad/s around 0.05 s. "
+                     + "Nothing in the recorded corpus exceeds 13."
+        let lone = IntentDraft(name: "x", keys: [.init(time: 0.05, pose: stop)])
+        XCTAssertEqual(lone.problems.map(\.text), [expected])
+        // THE SAME MOTION WRITTEN THE OTHER WAY HAS TO READ THE SAME. Standing
+        // still and then moving is what the one-keyframe draft means, so the
+        // two-keyframe spelling of it must not be the only one that warns.
+        let pair = IntentDraft(name: "x", keys: [
+            .init(time: 0, pose: DuckModel.homePose),
+            .init(time: 0.05, pose: stop),
+        ])
+        XCTAssertEqual(pair.problems.map(\.text), [expected])
+    }
+
+    /// And the line the rule draws: a first keyframe AT 0.00 s is where the
+    /// motion begins, not somewhere the duck travels to, so there is no opening
+    /// span and nothing to rate-check. Every remix of every recording is shaped
+    /// exactly like that, and how the robot reaches its opening pose before a
+    /// move starts is the player's business, not the file's.
+    func testAFirstKeyframeAtZeroIsTheOpeningPoseAndNotATravelledSpan() {
+        var stop = DuckModel.homePose
+        stop[3] = DuckModel.jointRanges[3].upper
+        let begins = IntentDraft(name: "x", keys: [
+            .init(time: 0, pose: stop),
+            .init(time: 0.6, pose: DuckModel.homePose),
+        ])
+        XCTAssertEqual(begins.problems.map(\.text), [])
+        // Shift that same first keyframe off zero and the span appears, with
+        // it. 0.05 s is one press of the editor's own time stepper.
+        let travels = IntentDraft(name: "x", keys: [
+            .init(time: 0.05, pose: stop),
+            .init(time: 0.65, pose: DuckModel.homePose),
+        ])
+        XCTAssertEqual(travels.problems.map(\.text), [
+            "left_knee is asked to move at 47 rad/s around 0.05 s. "
+          + "Nothing in the recorded corpus exceeds 13.",
+        ])
+    }
+
+    /// THE OPENING-SPAN CHECK WARNS AND NEVER REFUSES, and this table is the
+    /// proof rather than an argument about what the editor can produce. Every
+    /// draft here is hand-written, every one still exports, and a file this
+    /// reader refuses that the kit accepts is the same bug as the reverse.
+    func testCheckingTheOpeningSpanRefusesNothingThatUsedToExport() throws {
+        var stop = DuckModel.homePose
+        stop[3] = DuckModel.jointRanges[3].upper
+        var open = DuckModel.homePose
+        open[DuckModel.mouthIndex] = DuckModel.mouthOpen
+        let table: [(what: String, draft: IntentDraft)] = [
+            ("a blank draft", .blank()),
+            ("a still held for half a second",
+             IntentDraft(name: "beak open", keys: [.init(time: 0.5, pose: open)])),
+            ("a still the servos cannot reach in time",
+             IntentDraft(name: "snap", keys: [.init(time: 0.05, pose: stop)])),
+            ("a motion that starts from somewhere other than standing",
+             IntentDraft(name: "crouch start", keys: [
+                .init(time: 0, pose: stop), .init(time: 0.6, pose: DuckModel.homePose)])),
+            ("a lead-in from standing",
+             IntentDraft(name: "lead in", keys: [
+                .init(time: 0.4, pose: stop), .init(time: 1.0, pose: DuckModel.homePose)])),
+            ("a remix", .remix(try XCTUnwrap(try DuckIntentClip.bundled()["step_up"]))),
+        ]
+        for (what, draft) in table {
+            XCTAssertTrue(draft.isPlayable, "\(what): \(draft.problems.map(\.text))")
+            XCTAssertNoThrow(try draft.exported(), what)
+        }
+        // The one that warns still warns, or the table above proves nothing.
+        XCTAssertTrue(table[2].draft.problems.contains { $0.severity == .impossible })
+    }
+
+    /// The rule about how many keyframes a motion needs is written down once,
+    /// in a form the other editors ask instead of copying. `MotionTweak`'s
+    /// `.removeKey` decides whether a cut leaves a motion behind by asking
+    /// this; a second copy of the rule there is how "drop the second pose"
+    /// once reported success and left something the Checks tab called broken.
+    func testTheCardinalityRuleIsOnePlaceAnyEditorCanAsk() {
+        XCTAssertEqual(IntentDraft.cardinalityRefusal(for: [])?.text,
+                       "A motion needs at least one keyframe — there is no pose here to hold.")
+        XCTAssertEqual(
+            IntentDraft.cardinalityRefusal(for: [.init(time: 0, pose: DuckModel.homePose)])?.text,
+            "A motion of one keyframe at 0.00 s has no time to happen in. "
+          + "Move that keyframe later — half a second is plenty — or add a second one.")
+        // One pose with time to happen in is a motion, and two of anything is.
+        XCTAssertNil(IntentDraft.cardinalityRefusal(for: [.init(time: 0.5, pose: DuckModel.homePose)]))
+        XCTAssertNil(IntentDraft.cardinalityRefusal(for: [
+            .init(time: 0, pose: DuckModel.homePose), .init(time: 0.5, pose: DuckModel.homePose)]))
+        // Both refusals are the ones the Checks tab and the share sheet use,
+        // rather than a third wording of the same rule.
+        let lone = IntentDraft(name: "x", keys: [.init(time: 0, pose: DuckModel.homePose)])
+        XCTAssertEqual(lone.problems, [IntentDraft.cardinalityRefusal(for: lone.keys)])
+        XCTAssertEqual(lone.problems.first?.severity, .broken)
+    }
+
     /// A draft is 15 wide because a person can open the beak and no policy can.
     func testDrivingTheMouthIsCalledOutAsSomethingNoPolicyDoes() {
         var open = DuckModel.homePose

@@ -1,242 +1,333 @@
 # Duck Studio
 
-A debugger for Microduck reinforcement-learning policies that fits in a pocket.
+A bench for Microduck reinforcement-learning policies and the motions they
+produce, on a phone.
 
-Load any alpha-family ONNX policy — the seven that ship with
-`pollen-robotics/microduck`, or the one you exported from your own training run
-twenty minutes ago — and take it apart. Sixty-one observation inputs grouped by
-block. Fourteen actions on live bars. An exact Jacobian showing which inputs the
-network actually listens to. A recurrence probe that finds the limit cycle the
-last-action feedback loop settles into. And, when you want to believe the
-numbers, the resulting pose standing on your real floor at true 25 cm scale.
+Open a policy and take it apart: sixty-one observation inputs grouped into eight
+blocks, fourteen actions on bars drawn against the travel stops the robot
+actually has, a z-score per input saying how far out of the training
+distribution you have wandered, and an exact Jacobian ranking which inputs the
+network is actually listening to. Watch the motions those policies produced when
+they drove a robot through MuJoCo on a bigger machine. Build a place to play
+them in. Write a new motion by posing the robot, or by typing a sentence and
+letting a model draft the keyframes for you to fix.
 
-**Duck Studio never talks to a robot.** No Bonjour, no local network, no
-Bluetooth, no pairing. The only network call in the app is a model URL you typed
-yourself. This is a tool for the part of the work that happens *before* hardware
-exists, which — with first Microduck deliveries around Christmas 2026 — is all of
-the work anyone is doing right now.
+And when a file will not load, find out why — with the op sequence, the
+parameter count, the layer widths and the input and output tensor names of what
+*was* in the file sitting underneath the refusal. `DuckPolicy.load` accepts
+exactly
+`Sub → Div → Gemm → Elu → Gemm → Elu → Gemm → Elu → Gemm` at 61→512→256→128→14
+with `transB=1` and refuses everything else with a reason. Duck Studio shows the
+reason and the structure together, which is the screen an RL person installs
+this app for.
 
-Bundle id `com.duckstudio.ios` · team `WYGG3JXWMG` · iPhone-only,
-portrait, iOS 17+.
-
----
-
-## The hero is the numbers. AR is the proof of scale.
-
-This decision drives the whole layout, so it is written down first.
-
-An RL practitioner opens a policy debugger because something is wrong and they
-are not at their desk. What they need in the first five seconds is *what does
-this net do* — the action vector, how saturated it is, which joints are riding
-their travel stops, how far out of the training distribution the current
-observation sits. None of that needs a camera, a floor, or standing up. The app
-therefore **opens on the numeric view and is completely useful with the camera
-never granted.**
-
-AR earns exactly one job, and it is a job nothing else can do: **25 cm is
-smaller than you think.** Everybody who pre-ordered has a wrong mental model of
-this robot's size. Putting the kinematic pose on your actual floor with the head
-camera site at 244 mm — because that is where `robot_walk.xml` says it is, not
-because an artist eyeballed it — corrects that in one second. And for a two-net
-diff, two ghosts at a shared origin with a millimetre readout at the feet is
-genuinely the clearest way to see that two checkpoints disagree.
-
-So: four tabs, AR is the fourth, and the app ships fully functional if a
-reviewer never taps it.
+Bundle id `com.duckstudio.ios` · team `WYGG3JXWMG` · iPhone and iPad, iOS 17+.
+Three orientations on iPhone and four on iPad — iPad multitasking demands all
+four or App Store Connect refuses the upload.
 
 ---
 
-## The four screens
+## What this app cannot do, said before anything else
 
-**Policies.** The library. Seven bundled (Apache-2.0, upstream, attributed),
-plus whatever you import. Each row carries name, weight fingerprint, parameter
-count, and load state. Tap for the architecture table, the normalization
-statistics, and the source.
+**A phone has no physics engine.** Nothing here runs MuJoCo. That single fact
+shapes every screen:
 
-Files that *fail* to load stay in the list. This is the most important design
-decision in the app. `DuckPolicy.load` refuses anything that is not exactly
-`Sub → Div → Gemm → Elu → Gemm → Elu → Gemm → Elu → Gemm` at
-61→512→256→128→14 with `transB=1`, and refuses it at load with a reason. Duck
-Studio shows that reason next to a full structural dump of what *was* found —
-the op sequence, the initializer names and dims, the input and output tensor
-names. If you just exported a net from your own PPO run and it will not load,
-this screen tells you why in one glance instead of sending you to Netron on a
-laptop you do not have with you. That single screen is the reason an RL person
-installs this app.
+- The **bench is one honest step of the network**, not a loop. Feed it an
+  observation and you see the fourteen numbers, the joint targets `DuckGait`
+  derives from them, and the robot standing in that pose. Closing the loop —
+  feeding the resulting pose back in — is not offered and cannot be made to
+  work: the policy locks its gait phase to *contact*, read through the gyro,
+  projected gravity and joint velocities, and on a bench all three are whatever
+  you last typed. Measured, that loop gives a 25 Hz flip-flop or a slam into the
+  travel stops.
+- A **preview is not a run.** An authored motion is poses and times,
+  interpolated. What the stage draws is what you *asked* the robot for, never
+  what it would do. All four authored stair motions in the corpus get up their
+  flight 0 times in 16, and no preview on this phone would ever have told you
+  that.
+- The **recorded intents are recordings.** Playing one shows what a policy did
+  in MuJoCo on a bigger machine when the app was built. It does not re-run the
+  network.
+- **Nothing here trains anything.** The training screen writes and checks a
+  *request* — "lift two kilos" is refused in a second by arithmetic rather than
+  after a day of training that was never going to converge. There is no Python,
+  no mjlab and no GPU on a phone.
+- **Drafted rules do not fire.** `DuckToF` and `DuckState` are inbound decoders
+  with no output channel, so a when/then is a checkable specification and the
+  screen says so.
+- **The forward pass matches onnxruntime to 1e-4, not exactly.** Same weights,
+  same input bytes, different accumulation order; DuckKit's own tests assert that
+  tolerance against golden vectors. A debugger that quietly disagreed with the
+  reference implementation in the fifth decimal would be worse than no debugger —
+  so it is written down here, and **it is not yet shown on the policy card**,
+  which is where `GATES.md` says it belongs.
 
-**Inspect.** Actions sticky at the top, observation scrolling underneath —
-because you are watching the outputs while your thumb is on an input. Under the
-action bars, a segmented control: Observation / Sensitivity / Recurrence.
-
-**Diff.** Same observation, two networks, paired bars with signed deltas, plus
-the scalars that matter (‖Δa‖₂, cosine similarity, max |Δ| and which joint).
-Then the part people do not expect: run both closed-loop from an identical
-initial state and plot the divergence over time. Two nets that agree to 1e-3 at
-t=0 can be 8 cm apart at t=100, because the observation carries the previous
-action and that makes the policy a dynamical system rather than a function.
-
-**AR.** True scale, floor-anchored, honest. See "What is not real," below.
-
----
-
-## Solving the 61-slider problem
-
-Sixty-one sliders on one screen is unusable, and shipping it would be the
-failure mode of this app. Five things fix it, in order of how much they help:
-
-1. **Most slots are not driven by hand.** The observation has three sources and
-   you pick per block. `.loop` — a `DuckSimulation` is running and the 42 slots
-   of joint position, joint velocity and previous action are whatever the closed
-   loop produced; sliders become read-outs and you scrub *time* instead.
-   `.device` — the iPhone's own gyroscope and gravity vector feed slots 0..6
-   live over CoreMotion, so you tilt the phone and watch the policy react, and
-   six slots need no UI at all. `.manual` — the sliders, which are then a
-   deliberate override rather than the primary input.
-
-2. **Pinning is the actual debugging primitive.** Any slot can be pinned: it
-   holds its manual value while everything else keeps running. That is how you
-   ask *what does this policy do if the left knee encoder is stuck reading
-   3 rad/s forever* — a question you cannot ask in a notebook without writing a
-   harness, and can ask here in two taps. Pinned slots are the difference
-   between a viewer and a debugger.
-
-3. **Six collapsed blocks with informative headers.** gyro(3) · gravity(3) ·
-   joint position(14) · joint velocity(14) · previous action(14) · command(13).
-   Each header shows the block's L2 norm, its worst z-score, and a value strip.
-   You expand the one you care about.
-
-4. **The command block is the only one expanded by default,** because it is the
-   only block a human semantically drives: vx, vy, vyaw, four head angles, body
-   z/roll/pitch. Three of its thirteen slots — body x, body y, body yaw — are
-   rendered locked at zero and labelled *unbound in training*. They are the
-   nominal encoding, not placeholders. Showing them greyed and explained kills a
-   whole class of "your observation builder has a bug" reports before they exist.
-
-5. **Units, everywhere, correctly.** Joint position slots show both the raw
-   observation value (delta from home pose, radians — which is what the policy
-   sees) and the absolute joint angle in radians and degrees. Everybody forgets
-   the observation is home-relative exactly once, and it costs them an afternoon.
+The one way to get real physics is to point the app at a machine that has some —
+see "Run it somewhere with physics," below.
 
 ---
 
-## The three things you cannot get from `print(actions)`
+## The four tabs
+
+The app opens on **Policies**, and every tab is useful with no network, no
+account and no robot.
+
+**Policies.** The library, organised by *provenance* rather than by folder: two
+sections, "Released by Pollen Robotics" and "From elsewhere", and which one a
+policy lands in is decided by its parameter fingerprint, not by whether it
+shipped in the bundle. Nine policies ship (Apache-2.0, upstream), plus whatever
+you import. Each row carries the display name, a sixteen-character identity and
+where the file arrived from; the toolbar says how many of them run.
+
+Files that *fail* to load stay in the list, and that is the most important design
+decision in the app. The detail screen shows the refusal reason, a remedy where
+there is one, and the structure table — operations, parameter count, layer
+widths, input and output names — for what *was* found. If you just exported a net
+from your own PPO run and it will not load, this screen tells you why in one
+glance instead of sending you to Netron on a laptop you do not have with you.
+
+From a policy that runs, **Probe this network** opens the bench: a 3D stage on
+top wearing the pose the policy just asked for, and a segmented control
+underneath — **Inputs / Actions / Sensitivity**.
+
+**Intents.** The motions. Clips recorded from Pollen's policies in physics,
+authored moves written here, motions somebody sent you as `.duckintent`, and the
+drafts you are working on. Playing one draws the robot walking its recorded path
+against whichever scene you choose. Each draft also carries a **Sim to real**
+pipeline row: what has actually happened to it — written, previewed, run on a
+bench — so a motion opened a week later is not just keyframes and a name.
+
+**Fetch something** lives here too, and it writes no poses at all. It composes
+skills the robot already has — walking is `alpha_walking`, reaching down is
+`alpha_ground_pick`, and the grasp is the fifteenth servo, which no policy
+drives — so a sentence becomes a plan rather than a keyframe track. The refusals
+are the lesson: ask for a pencil and it says no, because the jaw closes 20 mm
+above the floor and a 7 mm pencil passes underneath. Somebody who reads two
+refusals knows more about this robot than somebody who watched a demo work.
+
+**Scenes.** The world a motion is judged against: the floor, a flight of steps,
+a corridor, props the duck could take hold of. Build one here and play any intent
+in it rather than only where it was recorded. The staircase starts at the step
+height the robot has actually been measured to clear, and the editor says so when
+you raise it past that.
+
+**Draft.** Say what you want in a sentence and watch what your words became.
+Four modes — **Motion**, **Rule**, **Fetch**, **Train** — all going through the
+same model of your choosing, and all landing in the same tested resolver a
+hand-made draft goes through. A model that invents a joint gets a person's
+refusal. A drafted motion opens immediately in the 3D editor with every keyframe
+where the sentence put it, which is how somebody learns this robot's joints
+without reading a manual.
+
+---
+
+## The observation editor
+
+Sixty-one sliders on one screen is unusable. Three things fix it today:
+
+1. **You start from a preset, not from zero.** *Standing still*, *Walking
+   forward* (0.15 m/s, inside the trained range), *Turning left* (1.0 rad/s
+   yaw), or *All zeros* — which is deliberately kept and labelled as not a robot
+   state at all, since an all-zero gravity vector describes free fall and sits
+   about 32 training standard deviations out.
+
+2. **Eight blocks with a section each.** Angular velocity (3) · projected
+   gravity (3) · joint positions (14) · joint velocities (14) · previous action
+   (14) · twist command (3) · head command (4) · body command (6). The thirteen
+   command slots are three blocks rather than one, because vx/vy/vyaw, the four
+   head angles and the six body deltas are three different things a person
+   drives for three different reasons.
+
+3. **Every slot says what it is and how far out it is.** Label, unit, a slider
+   bounded by the range training actually sampled where such a range exists, the
+   value, and the z-score beside it — flagged past |z| > 3. Slots the app's own
+   observation builder never writes into (55, 56 and 60) are marked *unused*, so
+   a sensitivity ranking cannot put a slot you cannot vary near the top and
+   nobody files a "your observation builder has a bug" report about it. Joint
+   position labels say `rel. home` in as many words, because everybody forgets
+   the observation is home-relative exactly once and it costs them an afternoon
+   — though the absolute joint angle beside it, in radians and degrees, is still
+   owed.
+
+   The bounds are not all the same kind of thing, and `ObservationSlot`
+   distinguishes them: where training sampled a command from a range, the range
+   means something; where nothing bounds a value — the gyro, the joint
+   velocities and the previous action are all unclipped in training — the bound
+   is a sane editing range and nothing more.
+
+Every label, unit and bound is read out of `pollen-robotics/microduck_rl`, not
+guessed by watching a running policy.
+
+Pinning, the `.loop` and `.device` observation sources, and the CoreMotion feed
+are **not built** — see "Not built yet."
+
+## The two things you cannot get from `print(actions)`
 
 **Z-scores.** The first two ops of every alpha policy are `Sub(mean)` and
 `Div(std)` — trained statistics baked into the file. Reading `(obs − mean) / std`
 per slot tells you *how many training standard deviations out of distribution
-your current observation is.* Slots past |z| > 3 get flagged. "This network was
-never asked this question" is the single most useful sentence a policy debugger
-can say, and the answer is sitting in the file already, unused by every other
-tool.
+your current observation is.* "This network was never asked this question" is the
+single most useful sentence a policy debugger can say, and the answer is sitting
+in the file already, unused by every other tool.
 
 **The exact Jacobian.** ∂action/∂z, 14 × 61, computed analytically by reverse
 mode through the ELU stack — not finite differences. ELU′ is 1 for x > 0 and
-eˣ for x ≤ 0, so the whole thing is fourteen backward passes over a network
-whose forward pass measures 40 microseconds. It renders as a heat map that
-updates while you drag. A policy that ignores the yaw command entirely shows a
-zero column at slot 50, and that is a training bug you can *see*. Because the
-derivative is taken with respect to the *normalized* input, the 61 columns are
-directly comparable despite the underlying units spanning rad, rad/s, and
-dimensionless. Finite differences survive only as the test oracle that proves
-the analytic version.
+eˣ for x ≤ 0, so the whole thing is fourteen backward passes over a network whose
+forward pass measures about 40 microseconds. Because the derivative is taken with
+respect to the *normalized* input, the 61 columns are directly comparable despite
+the underlying units spanning rad, rad/s and dimensionless. Finite differences
+survive only as the test oracle that proves the analytic version.
 
-**Recurrence.** Observation slots 34..48 are the previous raw action. Hold
-everything else frozen and iterate: does the action converge to a fixed point,
-settle into a limit cycle, or run away? Under a nonzero vx you should find a
-cycle at the gait period, and you can read the gait frequency straight off it.
-Duck Studio reports *converged* (‖Δa‖ < ε for K ticks), *periodic, P ticks
-(P × 20 ms)*, or *unbounded*. No other tool on any platform gives you this in
-four taps.
+The bench presents it as a ranked list — what this policy listens to, and, in its
+own section, what it **ignores entirely**. A policy that ignores the yaw command
+shows up as a name in a list rather than as a mystery in behaviour.
 
-Plus the two things you can get elsewhere but always want here: **action
-saturation** (rolling |a| distribution per slot — a policy living at ±3 has a
-broken normalization or an out-of-distribution input) and **clip rate**
-(`DuckGait` already names every joint held at a travel stop; Duck Studio counts
-them, so "left_knee clipped 41% of the last 250 ticks" is a number on screen).
-
-And a toggle for the trained low-pass. `DuckGait` applies the first-order filter
-the policies were *trained with* — head α = 0.5, legs α = 0.7. Duck Studio draws
-the filtered and unfiltered joint target on the same bar so the gap between them
-is visible, and lets you sweep α to feel the lag. Any α other than 0.5/0.7 keeps
-a permanent banner saying you are no longer looking at the robot.
+The action bars draw the raw action against the clamped joint target, so the gap
+between them *is* the travel limit, and every joint the clamp caught is named
+under "At the travel stops" — `DuckGait` already knows which ones those are. The
+gait scale applied is the one `robotd` would use for *that* policy: roulade,
+ground-pick and the sit/rise cycle run at 1.0, and only walking and the kicks are
+de-rated to 0.9, so a bench that applied the walking scale to a roulade policy
+would show targets 10% short of what the robot is actually sent.
 
 ---
 
 ## Loading a policy
 
-Four doors, and all four matter:
-
-- **Bundled.** All seven upstream alpha policies ship in the app (~5.6 MB,
-  Apache-2.0, `NOTICE` in the bundle and on the Policies screen). The app is
-  fully useful with zero user files on first launch, which also settles App
-  Review's minimum-functionality question.
-- **Files.** `.fileImporter`, user-initiated, unambiguous.
-- **AirDrop and Open With.** This is the workflow that makes the app real: your
-  training run finishes on the Mac, you AirDrop the `.onnx`, it lands in Duck
-  Studio. It only works if the app *declares the type* — there is no system
-  UTType for ONNX, so `Info.plist` carries a `UTImportedTypeDeclarations` entry
-  for `org.onnx.model` conforming to `public.data` with extension `onnx`, plus a
-  matching `CFBundleDocumentTypes`. Without both, iOS treats `.onnx` as generic
-  data and never offers Duck Studio in the share sheet. Silent failure, far-away
-  symptom — the same shape of bug as the entitlements trap in OpenCastor.
+- **Bundled.** Nine upstream policies ship in the app (about 6.9 MB,
+  Apache-2.0). The app is fully useful with zero user files on first launch,
+  which also settles App Review's minimum-functionality question.
+- **Files, AirDrop and Open With.** This is the workflow that makes the app real:
+  your training run finishes on the Mac, you AirDrop the `.onnx`, it lands in
+  Duck Studio. It only works because the app *declares the type* — there is no
+  system UTType for ONNX, so `project.yml` carries a `UTImportedTypeDeclarations`
+  entry for `org.onnx.model` conforming to `public.data` with extension `onnx`,
+  plus a matching `CFBundleDocumentTypes` row. Without both, iOS treats `.onnx`
+  as generic data and never offers Duck Studio in the share sheet. Silent
+  failure, far-away symptom — the same shape of bug as the entitlements trap in
+  OpenCastor.
 - **URL.** Paste an `https://` model URL, or give `owner/repo` + filename and
-  Duck Studio builds the Hugging Face resolve URL for you. Public repos only.
-  **No token field, ever** — a credential in a Data-Not-Collected app is a
-  liability I am not taking on, and the audience mirrors public checkpoints
-  anyway.
+  Duck Studio builds the Hugging Face resolve URL for you. `resolve/` and not
+  `blob/`, which fetches the HTML page around the file and fails as a confusing
+  protobuf error. https only, public repos only, 8 MB cap, and the whole URL is
+  shown before anything leaves the device. **No token field on this path** — a
+  credential for reading someone's private checkpoint is a liability this app
+  does not want, and the audience mirrors public checkpoints anyway.
+- **Browse what exists.** The app's own list of official policies is frozen at
+  build time and Pollen keep training, so a release newer than this build shows
+  up as "unrecognised" — honest, and unhelpful. The catalogue screen goes and
+  looks at what Pollen currently publish, and a second screen browses what other
+  people have trained, leading with the manifest rather than the weights, because
+  an `.onnx` states its input and output widths and nothing else. Nothing is
+  fetched until you press the button, and the address is printed first.
 
 **Identity is by weight fingerprint, not filename.** SHA-256 over the parameters
 in canonical order — mean, std, then each layer's weights and biases as
 little-endian Float32 — so two files that differ only in metadata or opset are
 recognized as the same network, and two files with the same name and different
-weights are not. This settles "did I actually load the new checkpoint," which is
-the most common self-inflicted bug in this entire field.
+weights are not. The bytes come from `DuckPolicy.canonicalParameterBytes` in
+DuckKit and the digest from `DuckEvidence`, because DuckKit having no
+dependencies is what lets the real network run under `swift test` on a Pi.
 
----
+Identity needs **two** rules, not one, and they cannot be merged: a policy that
+loads is identified by its parameter fingerprint, so one network under two
+filenames is one entry — but a file that does not load has no parameters to
+digest, and the refusal screen is the whole point, so those fall back to a digest
+of the file, and the screen says that is the weaker kind of identity.
 
-## What is not real, said out loud
+## Run it somewhere with physics
 
-- **There is no physics.** `DuckSimulation` says so itself: `isGrounded` is a
-  constant `true`, joint velocity is estimated by differencing targets, and
-  gravity is assumed to point down at whatever pose the policy is holding. The
-  legs move the way the network says to. That is correct as a gait and wrong as
-  a fall. The AR ghost carries a permanent *kinematic only — no contact forces*
-  label, and the recurrence result is a property of the network in isolation,
-  not a prediction about hardware. Overclaiming here would be the intellectual
-  failure of the whole app.
-- **The AR ghost is anchored, not simulated.** The trunk's world position is not
-  computed by anything, so the ghost is placed such that the lower foot touches
-  the detected floor plane each frame. The duck's height therefore changes as
-  its legs bend, which is the truthful rendering of "no ground contact."
-- **The forward pass matches onnxruntime to 1e-4, not exactly.** Same weights,
-  same input bytes, different accumulation order. That tolerance is printed on
-  the policy card, not buried in this file. A debugger that quietly disagrees
-  with the reference implementation in the fifth decimal is worse than no
-  debugger, so it disagrees loudly.
+You can import a policy and then find there is nothing to press, because this
+device cannot run one forward in a world. **Run on your network** points the app
+at a machine that can: a box on your own network running `duckbench.mjs` from the
+duck-sounds repository. It reports what plant it is simulating, at what rate, on
+how many cores, and what is in that world; a run comes back as a real result the
+draft keeps. Plain http, and only a private address or a `.local` name is
+accepted, because a Pi on a desk has no certificate.
 
----
+## Where a draft comes from
+
+Apple's on-device model, a box on your own network, or another app on this
+phone — anything speaking `/v1/chat/completions` (Ollama, LM Studio,
+llama.cpp's server, vLLM, an OpenAI-compatible proxy). `tools/claudebridge.mjs`
+puts a Claude Code subscription behind that same interface in forty lines.
+
+Every endpoint carries a one-sentence note saying *where what you type will end
+up*, shown before you type it, because "drafted by AI" says nothing about whether
+the sentence left the building. Bearer tokens for these go in the Keychain, never
+in the plist a backup carries.
+
+The default timeout is enormous on purpose: a 7.5B Gemma at Q4 on a CPU-only
+Raspberry Pi 5 took 766 seconds to write one 200-token motion draft. The remedy
+for the wait is a smaller model, not a shorter timeout, and the screen says so
+after a test run.
+
+## What the app writes
+
+| Extension | What | Read back? |
+|---|---|---|
+| `.duckintent` | A recorded or shared motion. Exported type, `com.duckstudio.intent`. | Yes — the app opens these. |
+| `.duckmove` | A motion you authored here. Exported type, `com.duckstudio.move`. | Not yet: `LibraryModel.open` decodes it but has no live `DraftStore` to file it into, so the document type row is deliberately absent until it does. An enabled, inert door is worse than no door. |
+| `.duck` | A task brief for quackd (`rokbenko/quackd`, spec `duck: 0`). Imported type — this app implements the spec, it does not own it. | No, on purpose. There is no task store and no task screen, so a decode whose success showed up in no list would be a false "Added" banner. |
+| `.onnx` | The policy file itself, handed on with a message that leads with the digest. | Yes — this is the import path. |
+
+## Not built yet
+
+Kept here rather than deleted, because they are scheduled work in `PLAN.md` and
+not features that were removed. Nothing below exists in the shipping app.
+
+- **The rest of M2 — observation sources.** Pinning a slot so it holds its manual
+  value while everything else moves, the `.loop` and `.device` block sources, and
+  the CoreMotion feed for gyro and gravity. The app requests no motion permission
+  today.
+- **The rest of M3 — saturation.** The rolling |a| window and the per-joint clip
+  rate ("left_knee clipped 41% of the last 250 ticks"), and the low-pass toggle
+  and α sweep with the not-the-robot banner. The bench applies the trained
+  filter; it does not let you sweep it.
+- **The rest of M4 — the heat map.** The bench ranks the Jacobian's columns and
+  names the ignored ones; it does not draw the 14 × 61 matrix. The pre-registered
+  16 ms engineering gate in `GATES.md` is a COMPUTE gate, and the bench does
+  compute the full Jacobian on every edit — so what is missing is the
+  measurement on an iPhone 12 with `os_signpost`, not the arithmetic.
+- **M5 — Recurrence.** Iterating the previous-action loop and classifying it as
+  converged / periodic / unbounded. `StudioKit/Sources/StudioKit/Recurrence.swift`
+  does not exist.
+- **M6 — Diff.** Two networks on one observation: paired bars, ‖Δa‖₂, cosine
+  similarity, argmax joint, and closed-loop divergence over time. `PolicyDiff` was
+  never written.
+- **M7 — AR.** A true-scale ghost anchored to a real floor. **There is no AR in
+  this app and no camera use of any kind**: the 3D stage is a RealityKit
+  turntable running with `cameraMode: .nonAR`, the app declares no
+  `NSCameraUsageDescription`, and an AR session could not start if one were
+  written. The argument for eventually building it is unchanged — 25 cm is
+  smaller than everyone who pre-ordered thinks, and putting the pose on a real
+  floor with the head camera site at 244 mm, because that is where
+  `robot_walk.xml` says it is, corrects that in one second.
 
 ## Layout
 
 | Path | What |
 |---|---|
-| `StudioKit/` | Pure-Swift, UI-free core. Builds and `swift test`s on Linux aarch64. Every number the app displays is computed here. |
-| `StudioKit/Tests/StudioKitTests/Fixtures/policies/` | The seven real upstream `.onnx` files. |
-| `StudioKit/Tests/StudioKitTests/Fixtures/refusals/` | The refusal corpus: hand-mutated ONNX files, one per distinct rejection reason. |
-| `DuckStudio/project.yml` | xcodegen manifest (source of truth; `.xcodeproj` is generated and gitignored). |
-| `DuckStudio/Info.plist` | Camera (AR), motion (IMU-driven gyro/gravity), the `org.onnx.model` type declarations, `ITSAppUsesNonExemptEncryption=false`. Deliberately **no** local-network, Bonjour, Bluetooth, microphone, or location keys. |
-| `DuckStudio/Resources/PrivacyInfo.xcprivacy` | The Data-Not-Collected manifest. Flattens to the app-bundle root. |
+| `StudioKit/` | Pure-Swift, UI-free core. Builds and `swift test`s on Linux aarch64. Every number the app displays is computed here, and so is every sentence that makes a claim about a policy, a motion or a refusal — the ones a test has to be able to assert letter by letter. Ordinary screen furniture (section headers, footers, button titles) is still written in the views. |
+| `StudioKit/Tests/StudioKitTests/Fixtures/policies/` | The nine real upstream `.onnx` files. |
+| `StudioKit/Tests/StudioKitTests/Fixtures/refusals/` | The refusal corpus: eleven ONNX files — one per distinct rejection reason, plus a synthetic control that must load, without which the corpus would only prove the generator emits unusable bytes. |
+| `DuckStudio/project.yml` | xcodegen manifest, and the source of truth for `Info.plist` — which is generated, not committed, along with the whole `.xcodeproj`. Carries the type declarations, the document types, and `ITSAppUsesNonExemptEncryption=false`. It declares **no** camera, motion, microphone, location, Bluetooth or Bonjour key, which is why there is no AR and no IMU source — those come back with the milestones that need them. |
+| `DuckStudio/Resources/` | The nine bundled policies and `PrivacyInfo.xcprivacy`, which flattens to the app-bundle root. |
 | `DuckStudio/Sources/` | SwiftUI only. No arithmetic lives here; `scripts/check_no_studio_math.sh` enforces that. |
-| `zoo/` | What gets published to Hugging Face and the public companion repo. |
-| `scripts/mac_build.py` | MacInCloud driver: tar the tree, SFTP up, `xcodegen generate`, `xcodebuild`. |
-| `scripts/make_refusal_corpus.py` | Generates the mutated ONNX fixtures from the vendored `alpha_walking.onnx`. |
-| `NOTICE` | Apache-2.0 attribution for the vendored policies and the MJCF model. |
+| `scripts/check_no_studio_math.sh` | The guard. Run it before you finish. |
+| `scripts/make_refusal_corpus.py` | Generates the refusal fixtures. They are **synthesized, not mutated**: renaming an op is four bytes where there were three, so every enclosing length prefix has to be recomputed, and writing that is writing a protobuf encoder anyway. Building each file from nothing also means it carries exactly one defect, which is what makes it fair to assert the message names that defect. |
+| `scripts/mac_compile_check.py` | The FREE gate. Tars the tree, ships it to the build Mac over SFTP, generates the project and runs `xcodebuild ... CODE_SIGNING_ALLOWED=NO`. Unlimited, so never spend a TestFlight upload finding out whether something builds. |
+| `scripts/archive_upload.sh` | Runs on the Mac: archive, sign with an App Store Connect API key, upload to TestFlight. No Apple ID login on the machine. |
+| `tools/claudebridge.mjs` | A Claude Code subscription behind an OpenAI-compatible endpoint, for the Draft tab. |
+| `PLAN.md` · `GATES.md` · `docs/` | The plan, the pre-registered decision gates, and the working notes. |
 
-Depends on `github.com/craigm26/duckkit` for everything Microduck-shaped:
+Depends on `github.com/craigm26/duckkit` for everything Microduck-shaped —
 `DuckModel`, `DuckObservation`, `DuckPolicy`, `DuckGait`, `DuckKinematics`,
-`DuckSimulation`. That package is already written and tested (848 tests). Duck
-Studio adds no robot knowledge of its own and reimplements nothing — see
-`PLAN.md` for the small, specific list of things DuckKit has to grow.
+`DuckSimulation`, plus `DuckEvidence` for the fingerprint and the official-policy
+manifest and `DuckVisual`/`DuckRender` for the geometry the stage draws. By tag,
+never by path: an inspector that reports which network it loaded must be built
+against a pinned reader, or its report describes a parser nobody can identify
+later. Duck Studio adds no robot knowledge of its own and reimplements nothing.
 
 ## Build and test
 
@@ -244,33 +335,62 @@ Studio adds no robot knowledge of its own and reimplements nothing — see
 # The core — runs anywhere, no Mac and no device needed. This is where the work is.
 cd StudioKit && /home/craigm26/swift-6.3.3/usr/bin/swift test
 
-# The app — needs a Mac. Locally, or via the MacInCloud driver:
+# The rule, before anything else:
+bash scripts/check_no_studio_math.sh
+
+# The app — needs a Mac:
 cd DuckStudio && xcodegen generate
 xcodebuild -scheme DuckStudio -destination 'generic/platform=iOS Simulator' build
 
-# Or, from the Pi:
-MAC_PASS=... python3 scripts/mac_build.py
+# TestFlight, from the Mac:
+./scripts/archive_upload.sh <KEY_ID> <ISSUER_ID>
 ```
 
-No GitHub Actions. The `.xcodeproj` is generated and never committed.
+No GitHub Actions. The `.xcodeproj` and `Info.plist` are generated and never
+committed.
 
 ## Privacy
 
-**Data Not Collected**, and unusually easy to mean it here: the app has no
-account, no server, no analytics endpoint, no SDK, no event stream. Camera
-frames for AR are processed on device by ARKit and never leave it. Motion
-readings feed six floats of an observation vector and are never stored. The one
-outbound request in the entire binary is a model URL the user typed, shown in
-full before the fetch, going to a host the user chose.
+**Data Not Collected.** There is no account, no server of ours, no analytics
+endpoint, no SDK and no event stream, and `PrivacyInfo.xcprivacy` declares an
+empty `NSPrivacyCollectedDataTypes`. Nothing about what you do in this app is
+reported anywhere.
 
-Which means there is no way to watch this app work from the inside, on purpose.
-Every success metric in `GATES.md` is a $0 side channel measured outside the
-app — App Store Connect downloads, Cloudflare Web Analytics on the docs site,
+That is not the same as "the app makes no network calls", and the difference
+matters enough to enumerate. Every outbound request in the binary is one you
+started, to a host you chose:
+
+- A policy fetched from a URL you typed or built from `owner/repo` — shown in
+  full first.
+- A catalogue scan of `huggingface.co`, `api.github.com` or
+  `raw.githubusercontent.com`, when you press the scan button. The address is
+  printed before the button.
+- Publishing a motion to Hugging Face, which needs a write token. That token
+  lives in the Keychain, is read only at the moment a request is signed, and the
+  screen shows which account, which address and every file with its size before
+  anything is sent. The default is a private repository.
+- A draft request to whichever model you chose — Apple's on-device model makes no
+  request at all; anything else goes where its privacy note says it goes.
+- A run on a bench at a private address on your own network.
+
+`GATES.md`'s hard rule — no in-app analytics, Data Not Collected — still holds
+exactly. Its supporting sentence "exactly one outbound request in the whole
+binary" predates the catalogue, publish, bench and drafting screens, and the list
+above is the current answer.
+
+Which means there is still no way to watch this app work from the inside, on
+purpose. Every success metric in `GATES.md` is a $0 side channel measured outside
+the app — App Store Connect downloads, Cloudflare Web Analytics on the docs site,
 Hugging Face download counts, GitHub stars. Count the doors people walk through,
 never the people.
 
 ## Attribution
 
-The seven policies, the observation layout, the control constants and the MuJoCo
-model are from `pollen-robotics/microduck`, Apache-2.0. Every number Duck Studio
-displays about the robot is upstream's number. See `NOTICE`.
+The nine policies, the observation layout, the control constants and the MuJoCo
+model are from `pollen-robotics/microduck` and `pollen-robotics/microduck_rl`,
+Apache-2.0. Every number Duck Studio displays about the robot is upstream's
+number, and the Policies screen says of each file whether it is one of Pollen's
+releases. The `.duck` task format is `rokbenko/quackd`'s.
+
+A top-level `NOTICE` file carrying the Apache-2.0 attribution is still owed and
+is not in the tree; it is required before the first App Store submission.
