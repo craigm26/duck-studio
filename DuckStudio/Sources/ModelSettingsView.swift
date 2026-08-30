@@ -66,7 +66,7 @@ struct ModelSettingsView: View {
             } header: {
                 Text("Add one")
             } footer: {
-                Text("Anything speaking the OpenAI chat API works — Ollama, LM Studio, llama.cpp's server, vLLM. It does not have to be a big model: the app checks every number that comes back, so a small one that gets a joint name wrong is refused rather than believed.\n\nMeasured on a Raspberry Pi 5, CPU only: a 7.5B Gemma took 766 s to draft one motion; a 2B model with reasoning suppressed answered a fetch in 37 s. Small and quick beats large and correct here, because the checking is done afterwards either way.")
+                Text("Claude needs a bridge, because a subscription is a CLI on a computer rather than an HTTP endpoint and a phone cannot shell out. tools/claudebridge.mjs in this repo is that bridge: run it on a machine signed in to Claude Code and point this at it. Measured on a Raspberry Pi 5: a motion draft in 8.8 s and a training request in 26.5 s, against 766 s for a 7.5B model running locally on the same board.\n\nAnything speaking the OpenAI chat API works — Ollama, LM Studio, llama.cpp's server, vLLM. It does not have to be a big model: the app checks every number that comes back, so a small one that gets a joint name wrong is refused rather than believed.\n\nMeasured on a Raspberry Pi 5, CPU only: a 7.5B Gemma took 766 s to draft one motion; a 2B model with reasoning suppressed answered a fetch in 37 s. Small and quick beats large and correct here, because the checking is done afterwards either way.")
             }
         }
         .navigationTitle("Models")
@@ -101,6 +101,13 @@ struct ModelSettingsView: View {
                    symbol: "iphone") {
                        ModelEndpoint(name: "On this phone", kind: .openAICompatible,
                                      baseURL: "http://localhost:8080/v1", model: "")
+                   },
+            Preset(name: "Claude, through my subscription",
+                   detail: "A machine on your network running claudebridge.mjs",
+                   symbol: "sparkles") {
+                       ModelEndpoint(name: "Claude", kind: .openAICompatible,
+                                     baseURL: "http://192.168.1.10:8780/v1", model: "sonnet",
+                                     timeout: 300, relay: true)
                    },
             Preset(name: "A service over the internet",
                    detail: "Any OpenAI-compatible endpoint, with a key",
@@ -194,6 +201,9 @@ struct EndpointEditor: View {
                         Text("\(Int(endpoint.timeout)) s").foregroundStyle(.secondary)
                     }
                     Slider(value: $endpoint.timeout, in: 30...1800, step: 30)
+                    Toggle("Forwards to a model elsewhere", isOn: $endpoint.relay)
+                    Text("On for a bridge — a machine on your network that answers by asking something else, like a Claude subscription. It changes nothing about the request and everything about where your words end up, which is why the note below has to know.")
+                        .font(.caption).foregroundStyle(.secondary)
                     Toggle("Suppress reasoning", isOn: $endpoint.suppressReasoning)
                     Text("A thinking model asked for a motion can spend its whole budget reasoning and answer with nothing — measured at 725 seconds and an empty reply. This sends reasoning_effort: none, which local servers honour. Turn it off only if a hosted service rejects it.")
                         .font(.caption).foregroundStyle(.secondary)

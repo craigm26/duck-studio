@@ -61,10 +61,20 @@ public struct ModelEndpoint: Equatable, Sendable, Codable, Identifiable {
     /// case for turning this off.
     public var suppressReasoning: Bool
 
+    /// This host does not answer for itself — it forwards to a model somewhere
+    /// else.
+    ///
+    /// WITHOUT THIS THE PRIVACY NOTE LIES. A Claude bridge runs on your own Pi,
+    /// so every test of the address says "on your own network, nothing leaves
+    /// it" — and every word typed into it goes to Anthropic. The app cannot
+    /// tell the difference by looking at an address, so it has to be told, and
+    /// the preset that creates one sets it.
+    public var relay: Bool
+
     public init(id: UUID = UUID(), name: String, kind: Kind,
                 baseURL: String = "", model: String = "",
                 apiKey: String? = nil, timeout: Double = 900,
-                suppressReasoning: Bool = true) {
+                suppressReasoning: Bool = true, relay: Bool = false) {
         self.id = id
         self.name = name
         self.kind = kind
@@ -73,6 +83,7 @@ public struct ModelEndpoint: Equatable, Sendable, Codable, Identifiable {
         self.apiKey = apiKey
         self.timeout = timeout
         self.suppressReasoning = suppressReasoning
+        self.relay = relay
     }
 
     /// Apple's, which needs nothing configured.
@@ -177,6 +188,11 @@ public struct ModelEndpoint: Equatable, Sendable, Codable, Identifiable {
             return "Nothing you type leaves this phone."
         case .openAICompatible:
             let host = URL(string: baseURL)?.host ?? baseURL
+            if relay {
+                return "Goes to \(host) on your own network, which forwards it to Anthropic. "
+                     + "The words leave your network; no key of yours is involved, and it is "
+                     + "billed to whatever account that machine is signed in as."
+            }
             if host == "localhost" || host == "127.0.0.1" {
                 return "Goes to another app on this phone. Nothing leaves the device."
             }

@@ -274,3 +274,31 @@ extension ChatWireTests {
         XCTAssertTrue(ModelEndpoint(name: "x", kind: .openAICompatible).suppressReasoning)
     }
 }
+
+/// A bridge is on your network AND forwards off it. Both halves have to be
+/// said, because the app cannot tell by looking at an address.
+extension ChatWireTests {
+
+    func testABridgeSaysTheWordsLeaveYourNetwork() {
+        let bridge = ModelEndpoint(name: "Claude", kind: .openAICompatible,
+                                   baseURL: "http://100.122.199.6:8780/v1", model: "sonnet",
+                                   relay: true)
+        XCTAssertNoThrow(try bridge.validate(), "http to your own Pi is still fine")
+        let note = bridge.privacyNote
+        XCTAssertTrue(note.contains("forwards it to Anthropic"))
+        XCTAssertTrue(note.contains("leave your network"))
+        XCTAssertFalse(note.contains("Nothing leaves it"),
+                       "the plain local sentence would be a lie here")
+    }
+
+    /// And the same host without the flag keeps the honest local note.
+    func testTheSameHostWithoutTheFlagIsStillLocal() {
+        let ollama = ModelEndpoint(name: "Ollama", kind: .openAICompatible,
+                                   baseURL: "http://100.122.199.6:11434/v1", model: "gemma4:e2b")
+        XCTAssertTrue(ollama.privacyNote.contains("Nothing leaves it"))
+    }
+
+    func testRelayIsOffUnlessAskedFor() {
+        XCTAssertFalse(ModelEndpoint(name: "x", kind: .openAICompatible).relay)
+    }
+}

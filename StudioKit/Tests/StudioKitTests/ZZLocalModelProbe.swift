@@ -20,6 +20,7 @@ final class ZZLocalModelProbe: XCTestCase {
             name: "probe", kind: .openAICompatible,
             baseURL: environment["STUDIOKIT_LOCAL_URL"] ?? "http://localhost:11434/v1",
             model: environment["STUDIOKIT_LOCAL_MODEL"]!,
+            apiKey: environment["STUDIOKIT_LOCAL_TOKEN"],
             timeout: 900)
         let asked = environment["STUDIOKIT_LOCAL_PROMPT"] ?? "take a bow"
         let kind = ChatDraft.Kind(rawValue: environment["STUDIOKIT_LOCAL_KIND"] ?? "motion")!
@@ -28,6 +29,9 @@ final class ZZLocalModelProbe: XCTestCase {
         request.httpMethod = "POST"
         request.timeoutInterval = endpoint.timeout
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let key = endpoint.apiKey, !key.isEmpty {
+            request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+        }
         request.httpBody = try ChatWire.requestBody(
             model: endpoint.model,
             instructions: ChatDraft.instructions(for: kind, knownIntents: ["wave", "sit", "walk"]),
