@@ -27,6 +27,10 @@ struct AutomationChatView: View {
 
     @ObservedObject var drafts: DraftStore
     @ObservedObject var scenes: SceneStore
+    /// Which model writes the draft. Apple's, a box on your network, or
+    /// another app on this phone — the draft lands in the same checker either
+    /// way, so this is a choice about privacy and speed, not about trust.
+    @ObservedObject var models: EndpointStore
 
     @State private var typed = ""
     @State private var mode: Mode = .motion
@@ -51,8 +55,16 @@ struct AutomationChatView: View {
     private var motionDraftingStopped: Bool { mode == .motion && gate.isStopped }
 
     enum Mode: String, CaseIterable, Identifiable {
-        case motion = "Motion", rule = "Rule"
+        case motion = "Motion", rule = "Rule", fetch = "Fetch"
         var id: String { rawValue }
+
+        var draftKind: ChatDraft.Kind {
+            switch self {
+            case .motion: return .motion
+            case .rule: return .rule
+            case .fetch: return .retrieval
+            }
+        }
     }
 
     struct Entry: Identifiable {
@@ -62,6 +74,12 @@ struct AutomationChatView: View {
         var motionDraftID: UUID? = nil
         var motionSummary: String? = nil
         var refusal: String? = nil
+        /// A fetch, checked against measurements rather than asked about.
+        var plan: Retrieval.Plan? = nil
+        var planObject: String? = nil
+        /// What the model cost in wall-clock, when it was not Apple's. A local
+        /// model on a small board is slow, and saying so beats a spinner.
+        var timing: String? = nil
     }
 
     private var knownIntents: Set<String> { Set(clips.keys) }
@@ -80,13 +98,16 @@ struct AutomationChatView: View {
                         .font(.footnote)
                         .foregroundStyle(availability.isUsable
                             ? AnyShapeStyle(.secondary) : AnyShapeStyle(Color.orange))
+                    NavigationLink {
+                        ModelSettingsView(store: models)
+                    } label: {
+                        Label(models.selected.name, systemImage: "brain")
+                            .font(.footnote)
+                    }
                 }
 
                 Section {
-                    Text(mode == .motion
-                         ? "Describe a motion and the robot performs your words in 3D, immediately — then open the keyframes and see the sliders the sentence moved. Drafts land in your Intents tab."
-                         : "A rule you draft here is one you can read, check and share. It does not fire: reaching a robot needs hardware that does not exist yet, so nothing here is live.")
-                        .font(.caption).foregroundStyle(.secondary)
+                    Text(blurb).font(.caption).foregroundStyle(.secondary)
                 }
 
                 ForEach(entries) { entry in
@@ -125,6 +146,34 @@ struct AutomationChatView: View {
                                         .font(.footnote)
                                 }
                             }
+                        }
+
+                        if let plan = entry.plan {
+                            Label(plan.isPossible
+                                  ? "It can do this — \(String(format: "%.0f s", plan.seconds))"
+                                  : "It cannot do this",
+                                  systemImage: plan.isPossible ? "checkmark.seal" : "xmark.octagon")
+                                .font(.footnote)
+                                .foregroundStyle(plan.isPossible ? Color.green : Color.orange)
+                            Text(String(format: "%@%.0f g, %.0f mm thick, %.1f m away",
+                                        entry.planObject.map { "\($0): " } ?? "",
+                                        plan.stick.grams, plan.stick.thicknessMillimetres,
+                                        plan.stick.metresAway))
+                                .font(.caption).foregroundStyle(.secondary)
+                            ForEach(plan.refusals, id: \.message) { refusal in
+                                Text(refusal.message).font(.caption2)
+                                    .foregroundStyle(refusal.isFatal ? Color.orange : Color.secondary)
+                            }
+                            NavigationLink {
+                                RetrieveView()
+                            } label: {
+                                Label("Open the plan", systemImage: "list.bullet.rectangle")
+                                    .font(.footnote)
+                            }
+                        }
+
+                        if let timing = entry.timing {
+                            Text(timing).font(.caption2).foregroundStyle(.secondary)
                         }
 
                         if let refusal = entry.refusal {
@@ -194,7 +243,27 @@ struct AutomationChatView: View {
         let explanation: String
     }
 
+    private var blurb: String {
+        switch mode {
+        case .motion:
+            return "Describe a motion and the robot performs your words in 3D, immediately — then open the keyframes and see the sliders the sentence moved. Drafts land in your Intents tab."
+        case .rule:
+            return "A rule you draft here is one you can read, check and share. It does not fire: reaching a robot needs hardware that does not exist yet, so nothing here is live."
+        case .fetch:
+            return "Say what you want fetched. The model only sizes the object; whether the duck can pick it up is decided here, against measurements — the jaw closes 20 mm above the floor and the lift was trained against 10–40 g."
+        }
+    }
+
     private var availability: Availability {
+        // A configured server outranks Apple's model: somebody who has pointed
+        // this at their own Pi has said which model they want.
+        if models.selected.kind == .openAICompatible {
+            let endpoint = models.selected
+            return Availability(isUsable: !endpoint.model.isEmpty, explanation:
+                "Drafted by \(endpoint.model) on \(endpoint.name). \(endpoint.privacyNote) "
+                + "Everything it writes is resolved and checked by the same code a hand-made "
+                + "draft goes through, so a model that invents a joint is refused, not believed.")
+        }
         #if canImport(FoundationModels)
         if #available(iOS 26.0, *) {
             switch SystemLanguageModel.default.availability {
@@ -279,17 +348,117 @@ struct AutomationChatView: View {
         thinking = true
         defer { thinking = false }
 
+        // A configured server handles every mode through one path. Apple's
+        // model keeps its own, because @Generable guarantees the shape and
+        // guessing at JSON when the platform will hand over a typed value
+        // would be throwing away the better answer.
+        if models.selected.kind == .openAICompatible {
+            await draftOnServer(asked)
+            return
+        }
+
         #if canImport(FoundationModels)
         if #available(iOS 26.0, *) {
             switch mode {
             case .rule:     await draftRule(asked)
             case .motion:   await draftMotion(asked)
+            case .fetch:    draftFetchLocally(asked)
             }
             return
         }
         #endif
+        // No Apple model and no server: the deterministic reader still works
+        // for a fetch, because sizing a stick does not need a model at all.
+        if mode == .fetch { draftFetchLocally(asked); return }
+        entries.append(Entry(asked: asked, refusal:
+            "There is no on-device model on this device. Add one in Models — anything "
+            + "speaking the OpenAI chat API will do, including one running on this phone."))
+    }
+
+    /// Everything a configured server does, in one path.
+    ///
+    /// THE MODEL WRITES; THIS CHECKS. Whatever comes back is pulled out of
+    /// whatever costume it arrived in, read into a proposal, and resolved
+    /// against the real joints and travels. A model that invents a joint gets
+    /// the refusal a person would — which is what makes it safe to let anybody
+    /// point this at any model they like.
+    private func draftOnServer(_ asked: String) async {
+        let endpoint = models.armed(models.selected)
+        do {
+            let answer = try await DraftEngine.ask(endpoint, kind: mode.draftKind,
+                                                   prompt: asked, knownIntents: knownIntents)
+            var timing = String(format: "%@ took %.0f s", endpoint.model, answer.seconds)
+            if let rate = answer.tokensPerSecond {
+                timing += String(format: " (%.1f tokens/s)", rate)
+            }
+            switch mode {
+            case .rule:
+                let proposal = try ChatDraft.rule(fromJSON: answer.json)
+                let rule = try proposal.resolve(knownIntents: knownIntents)
+                entries.append(Entry(asked: asked, rule: rule, timing: timing))
+            case .motion:
+                let proposal = try ChatDraft.motion(fromJSON: answer.json)
+                // THE SAME GATE AND THE SAME JUDGE the Apple path faces. A
+                // server-drafted motion is not a different kind of draft.
+                let draft: IntentDraft
+                switch gate.draft(proposal) {
+                case .drafted(let resolved):
+                    draft = resolved
+                case .feedback(let reason), .stopped(let reason):
+                    entries.append(Entry(asked: asked, refusal: reason, timing: timing))
+                    return
+                }
+                if let broken = draft.problems.first(where: { $0.severity == .broken }) {
+                    entries.append(Entry(asked: asked, refusal: broken.text, timing: timing))
+                    return
+                }
+                drafts.save(draft)
+                let notes = draft.problems.map(\.text).joined(separator: " ")
+                entries.append(Entry(asked: asked, motionDraftID: draft.id,
+                                     motionSummary: "\(draft.name) — \(draft.keys.count) keyframes"
+                                         + (notes.isEmpty ? "" : ". \(notes)"),
+                                     timing: timing))
+                previewing = DraftID(id: draft.id)
+            case .fetch:
+                // THE MODEL SIZES THE OBJECT; IT DOES NOT JUDGE THE ROBOT.
+                // Whether a duck can lift the thing is decided here, against
+                // measurements, offline. Letting a language model answer
+                // "can it?" would hand it the one part that is actually known.
+                let (object, stick) = try ChatDraft.stick(fromJSON: answer.json)
+                entries.append(Entry(asked: asked,
+                                     plan: Retrieval.plan(for: stick),
+                                     planObject: object, timing: timing))
+            }
+        } catch let wire as ChatWire.WireError {
+            entries.append(Entry(asked: asked, refusal: wire.message))
+        } catch let draft as ChatDraft.DraftError {
+            entries.append(Entry(asked: asked, refusal: draft.message))
+        } catch let refusal as ModelEndpoint.Refusal {
+            entries.append(Entry(asked: asked, refusal: refusal.message))
+        } catch let error as MotionProposal.Unresolvable {
+            entries.append(Entry(asked: asked, refusal: error.message))
+        } catch let error as AutomationProposal.Unresolvable {
+            entries.append(Entry(asked: asked, refusal: error.message))
+        } catch let error as AutomationValidator.Refusal {
+            entries.append(Entry(asked: asked, refusal: error.message))
+        } catch {
+            entries.append(Entry(asked: asked,
+                                 refusal: "The model could not answer: \(error.localizedDescription)"))
+        }
+    }
+
+    /// A fetch, read without any model at all.
+    ///
+    /// SIZING A STICK DOES NOT NEED A LANGUAGE MODEL, and on a device with no
+    /// Apple Intelligence and no server configured this is still the whole
+    /// feature. A model only makes the sentence freer.
+    private func draftFetchLocally(_ asked: String) {
+        let reading = Retrieval.read(asked)
         entries.append(Entry(asked: asked,
-                             refusal: "There is no on-device model available on this device."))
+                             plan: Retrieval.plan(for: reading.stick),
+                             planObject: reading.object,
+                             timing: reading.assumed.isEmpty ? nil
+                                 : "Guessed: " + reading.assumed.joined(separator: "; ")))
     }
 
     #if canImport(FoundationModels)

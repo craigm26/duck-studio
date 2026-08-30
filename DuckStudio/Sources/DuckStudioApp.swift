@@ -20,6 +20,9 @@ struct DuckStudioApp: App {
     @StateObject private var model = LibraryModel()
     @StateObject private var scenes = SceneStore()
     @StateObject private var drafts = DraftStore()
+    /// Which model writes drafts. One store, shared: the Draft tab uses it and
+    /// the Models screen edits it.
+    @StateObject private var models = EndpointStore()
 
     var body: some Scene {
         WindowGroup {
@@ -36,7 +39,9 @@ struct DuckStudioApp: App {
                 // made every clip play in a void.
                 NavigationStack { SceneListView(store: scenes) }
                     .tabItem { Label("Scenes", systemImage: "square.3.layers.3d") }
-                NavigationStack { AutomationChatView(drafts: drafts, scenes: scenes) }
+                NavigationStack {
+                    AutomationChatView(drafts: drafts, scenes: scenes, models: models)
+                }
                     .tabItem { Label("Draft", systemImage: "wand.and.stars") }
             }
             // A policy handed over from Files, Mail, AirDrop or another app.

@@ -70,10 +70,15 @@ struct IntentListView: View {
                     drafts.save(fresh)
                     editing = DraftID(id: fresh.id, isNew: true)
                 } label: { Label("Write a new motion", systemImage: "plus") }
+                NavigationLink {
+                    RetrieveView()
+                } label: {
+                    Label("Fetch something", systemImage: "arrow.down.to.line")
+                }
             } header: {
                 Text("Written here")
             } footer: {
-                Text("Poses and times, interpolated. A phone has no physics engine, so this is what you asked the robot for — not what it would do. Every authored move already in this app was written the same way, and all four stair ones get up their flight 0 times in 16.")
+                Text("Poses and times, interpolated. A phone has no physics engine, so this is what you asked the robot for — not what it would do. Every authored move already in this app was written the same way, and all four stair ones get up their flight 0 times in 16.\n\nFetch something is different: it writes no poses at all. Retrieval composes policies the robot already has — walk, ground pick, and the one servo no network drives — so a sentence there becomes a plan, not a keyframe track.")
             }
 
             if !fromPollen.isEmpty {
