@@ -13,6 +13,18 @@ public enum ChatDraft {
     /// What kind of thing the sentence is asking for.
     public enum Kind: String, Sendable, CaseIterable {
         case motion, rule, retrieval, training, tweak
+
+        /// The kind in the words a person uses, for the line that says how a
+        /// sentence was read. "retrieval" is not a word anybody types.
+        public var spoken: String {
+            switch self {
+            case .motion:    return "a motion"
+            case .rule:      return "a rule"
+            case .retrieval: return "fetching something"
+            case .training:  return "a training brief"
+            case .tweak:     return "an edit to a motion"
+            }
+        }
     }
 
     // MARK: - what to tell the model

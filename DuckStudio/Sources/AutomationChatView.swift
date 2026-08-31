@@ -33,7 +33,23 @@ struct AutomationChatView: View {
     @ObservedObject var models: EndpointStore
 
     @State private var typed = ""
+    /// WHAT THE ROUTER LAST DECIDED, not what somebody picked in advance.
+    ///
+    /// This used to be a segmented control at the top of the screen, so before
+    /// anybody could say what they wanted they had to know which of four
+    /// internal categories it fell into. Those are the app's categories: a
+    /// person who wants the duck to bow when the door opens has written a rule
+    /// whose action is a motion that does not exist yet, and no tab was right
+    /// for that sentence. The model reads the sentence instead — see
+    /// `DraftRouting` — and this holds what it concluded, so the placeholder
+    /// and the stop-gate still have something to key on.
     @State private var mode: Mode = .motion
+    /// The one thing the router wanted to know before it could tell. Shown as
+    /// a question in the transcript; answering it is just typing again.
+    @State private var routerQuestion: String?
+    /// What the router concluded and why, shown above the transcript so a wrong
+    /// turn can be corrected in one sentence instead of started again.
+    @State private var reading: String?
     @State private var entries: [Entry] = []
     @State private var thinking = false
     @State private var clips: [String: DuckIntentClip] = [:]
@@ -65,6 +81,18 @@ struct AutomationChatView: View {
     enum Mode: String, CaseIterable, Identifiable {
         case motion = "Motion", rule = "Rule", fetch = "Fetch", train = "Train"
         var id: String { rawValue }
+
+        /// The tab a routed kind lands on. `tweak` has none: it edits a motion
+        /// already on screen and is never routed from a typed sentence.
+        init?(_ kind: ChatDraft.Kind) {
+            switch kind {
+            case .motion:    self = .motion
+            case .rule:      self = .rule
+            case .retrieval: self = .fetch
+            case .training:  self = .train
+            case .tweak:     return nil
+            }
+        }
 
         var draftKind: ChatDraft.Kind {
             switch self {
@@ -105,13 +133,17 @@ struct AutomationChatView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("Draft", selection: $mode) {
-                ForEach(Mode.allCases) { Text($0.rawValue).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal).padding(.top, 8)
-
             List {
+                // HOW THE SENTENCE WAS READ, above everything else. Losing the
+                // picker means nobody chooses the kind any more, so the app has
+                // to say which one it took — otherwise a wrong turn is
+                // invisible until a training brief arrives for a bow.
+                if let reading {
+                    Section {
+                        Label(reading, systemImage: "arrow.triangle.branch")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
+                }
                 Section {
                     Text(availability.explanation)
                         .font(.footnote)
@@ -295,9 +327,10 @@ struct AutomationChatView: View {
             } message: { Text($0) }
 
             HStack(spacing: 8) {
-                TextField(mode == .motion
-                          ? "Take a slow bow, then look left"
-                          : "When something is close, sit down",
+                // ONE PLACEHOLDER, NOT ONE PER TAB. It shows the range rather
+                // than one kind, because the point of losing the picker is that
+                // nobody has to know which kind theirs is.
+                TextField(routerQuestion ?? "Take a slow bow — or fetch the stick, or sit when something is close",
                           text: $typed, axis: .vertical)
                     .textFieldStyle(.roundedBorder)
                     .lineLimit(1...3)
@@ -506,12 +539,17 @@ struct AutomationChatView: View {
             return
         }
         #endif
-        // No Apple model and no server: the deterministic reader still works
-        // for a fetch, because sizing a stick does not need a model at all.
-        if mode == .fetch { draftFetchLocally(asked); return }
-        entries.append(Entry(asked: asked, refusal:
-            "There is no on-device model on this device. Add one in Models — anything "
-            + "speaking the OpenAI chat API will do, including one running on this phone."))
+        // FETCH NEVER NEEDED A MODEL, and losing the picker must not lose that.
+        // `DraftRouting.withoutAModel` claims a fetch only when `Retrieval`
+        // actually recognised something — the same test the fetch screen uses
+        // before it will show a green seal — and refuses to guess at the other
+        // three.
+        if case .kind(.retrieval, _)? = DraftRouting.withoutAModel(asked) {
+            mode = .fetch
+            draftFetchLocally(asked)
+            return
+        }
+        entries.append(Entry(asked: asked, refusal: DraftRouting.needsAModel))
     }
 
     /// Everything a configured server does, in one path.
@@ -524,6 +562,26 @@ struct AutomationChatView: View {
     private func draftOnServer(_ asked: String) async {
         let endpoint = models.armed(models.selected)
         do {
+            // ROUTE FIRST, and let it decline. A second call costs a few
+            // seconds; guessing wrong costs a whole round trip AND produces a
+            // confident answer to a question nobody asked — a training brief
+            // for somebody who wanted a bow. The router may come back with one
+            // question instead, which is the thing a segmented control could
+            // never do: ask.
+            let routing = try await DraftEngine.ask(
+                endpoint, kind: .motion, prompt: asked, knownIntents: knownIntents,
+                instructions: DraftRouting.instructions(knownIntents: knownIntents))
+            switch try DraftRouting.read(fromJSON: routing.json) {
+            case .ask(let question):
+                routerQuestion = question
+                entries.append(Entry(asked: asked, refusal: question))
+                return
+            case .kind(let kind, let because):
+                routerQuestion = nil
+                mode = Mode(kind) ?? mode
+                reading = because.isEmpty ? nil : "Reading this as \(kind.spoken) — \(because)."
+            }
+
             let answer = try await DraftEngine.ask(endpoint, kind: mode.draftKind,
                                                    prompt: asked, knownIntents: knownIntents)
             var timing = String(format: "%@ took %.0f s", endpoint.model, answer.seconds)
