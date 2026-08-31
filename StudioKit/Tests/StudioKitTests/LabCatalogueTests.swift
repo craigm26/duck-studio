@@ -56,7 +56,7 @@ final class LabCatalogueTests: XCTestCase {
     /// finishing one means deleting a line — a row cannot drift into limbo
     /// quietly in either direction.
     func testOnlyTheRowsListedHereMayClaimToBeMidPort() {
-        let expected = ["Duck sounds": "Duck Sounds"]
+        let expected: [String: String] = [:]
         var seen: [String: String] = [:]
         for mode in LabCatalogue.modes {
             if case .portingFrom(let app) = mode.status { seen[mode.name] = app }
@@ -97,7 +97,12 @@ final class LabCatalogueTests: XCTestCase {
     /// without moving anything in.
     func testTheLabHasSomethingAPersonCanOpen() {
         XCTAssertFalse(LabCatalogue.usable.isEmpty)
-        XCTAssertEqual(LabCatalogue.usable.map(\.id), ["bench", "ghost", "soccer", "room"])
+        // PINNED EXACTLY, because `LabView.destination` switches on these ids
+        // and its default branch is a refusal rather than a screen. A row that
+        // became usable without a case would push an empty view; a case with
+        // no row is dead code. Changing this line is how you notice.
+        XCTAssertEqual(LabCatalogue.usable.map(\.id),
+                       ["bench", "ghost", "soccer", "room", "sounds"])
     }
 
     /// ROOM CAPTURE IS THE ROW MOST ABLE TO OVERCLAIM, because what it produces

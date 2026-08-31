@@ -154,6 +154,8 @@ struct LabView: View {
             GhostDuckView()
         case "soccer":
             DuckSoccerView()
+        case "sounds":
+            DuckSoundsView()
         case "room":
             RoomCaptureView()
         default:

@@ -121,21 +121,31 @@ public enum LabCatalogue {
                    + "shapes. It does not yet become a scene this app can stand a duck in.",
               status: .here),
         // THE FOURTH APP TO STOP BEING AN APP. Duck Sounds was a separate iOS
-        // app with its own README, gates and bundle identifier; it becomes a
-        // screen here for the same reason Duck Soccer did.
+        // app with its own README, gates and bundle identifier; it is a screen
+        // here for the same reason Duck Soccer is.
         //
-        // MOST OF IT IS ALREADY SHARED. `DuckSound`, `DuckVoice` and
+        // MOST OF IT WAS ALREADY SHARED. `DuckSound`, `DuckVoice` and
         // `DuckPerformance` are in DuckKit and tested on a Pi with no phone in
-        // the room — the voice is synthesised rather than recorded, so there
-        // are no audio assets to move. What is missing is the screen and the
-        // step the web version does in duckloop.mjs: turning the performance's
-        // command-and-mouth stream into a duck to look at.
+        // the room, and the voice is synthesised rather than recorded, so there
+        // were no audio assets to move. What had to be written was the screen
+        // and `SoundStaging` — the step the web version does inside MuJoCo in
+        // duckloop.mjs, done without a physics engine.
+        //
+        // THE BLURB SAYS HOLD THE LAST ONE, NOT THE LAST TWO. It said "hold coo
+        // or wheee", which the app it came from says in its README table and
+        // DuckKit contradicts with a reason: "held is not long" — `coo` is the
+        // longest thing sent whole and is still fire-and-forget, while every
+        // part `wheee` is sent in is shorter and held regardless. Held means
+        // the duck is waiting to hear from you again. `DuckSound.isHeld` is the
+        // robot's own hold semantics, so the button follows it and this
+        // sentence follows the button.
         .init(id: "sounds", name: "Duck sounds", symbol: "waveform",
-              blurb: "Seven duck calls — the honk, the tilt, the peck, the held joy ride. Each "
-                   + "one is a synthesised voice and a movement of the whole body, not a sound "
-                   + "effect with an animation. Hold coo or wheee and it keeps going until you "
-                   + "let go.",
-              status: .portingFrom("Duck Sounds")),
+              blurb: "Seven duck calls — the honk, the tilt, the peck, the joy ride. Each one is "
+                   + "a voice synthesised on this phone and a movement of the whole body, not a "
+                   + "sound effect with an animation over it. Hold the last one and the duck "
+                   + "keeps going until you let go. The head and beak are exactly what the robot "
+                   + "would be commanded; the legs are a recording.",
+              status: .here),
         .init(id: "trials", name: "Trials", symbol: "chart.dots.scatter",
               blurb: "Place an object at a bearing and a range, run a policy at it a set "
                    + "number of times, and report the fraction that met a stated criterion. "
