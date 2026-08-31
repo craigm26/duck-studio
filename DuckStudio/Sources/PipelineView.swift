@@ -85,7 +85,6 @@ struct PipelineView: View {
                         LabeledContent("Ran", value: bench.when.formatted(date: .abbreviated,
                                                                           time: .shortened))
                         LabeledContent("Bench", value: bench.bench)
-                        LabeledContent("Plant", value: bench.plant)
                         LabeledContent("Policy", value: bench.policy)
                         LabeledContent("Upright", value: "\(bench.achieves) of \(bench.rollouts)")
                         if let height = bench.medianHeight {
@@ -96,10 +95,23 @@ struct PipelineView: View {
                             LabeledContent("Peak joint rate",
                                            value: String(format: "%.1f rad/s", rate))
                         }
+                        // NOT A LABELLED ROW. "Plant: the bench's own plant"
+                        // read like a fact with a value, and for every result
+                        // stored before today there is no value at all — the
+                        // honest answer there is a sentence, not a blank and
+                        // not a placeholder. Composed in StudioKit, where a
+                        // test asserts it.
+                        Text(bench.plantSentence)
+                            .font(.caption).foregroundStyle(.secondary)
                     } header: {
                         Text("The run")
                     } footer: {
-                        Text("Standing height on this plant is \(String(format: "%.3f", Pipeline.standingHeight)) m — what the standing policy holds when it is simply left alone. A motion that ends much below that stayed up without standing up.")
+                        // "Standing height on THIS plant" was a claim about
+                        // whichever world the run above happened in, and until
+                        // today no run recorded one. The number was measured on
+                        // the canon plant and the sentence now says so — in
+                        // StudioKit, where a test asserts it letter by letter.
+                        Text(Pipeline.standingHeightSaid)
                     }
                 }
             } else {
@@ -154,9 +166,15 @@ struct PipelineView: View {
             // Eight rollouts of physics on a small board is not quick.
             request.timeoutInterval = 900
             let (data, _) = try await URLSession.shared.data(for: request)
-            let health = try? DuckBench.readHealth(data)
-            let outcome = try DuckBench.readOutcome(
-                data, when: Date(), plant: health?.plant ?? "the bench's own plant")
+            // THE PLANT IS READ, NEVER SUPPLIED. This used to hand
+            // `readOutcome` a plant of its own — `readHealth` on a /perform
+            // body, which cannot succeed because that body has no `bench` key,
+            // falling back to the literal "the bench's own plant". Every stored
+            // result in every install carries that string, and the screen
+            // printed it in the same voice as the measured numbers beside it.
+            // The bench now names its own world in the answer; if it does not,
+            // the outcome says so instead of borrowing a name from here.
+            let outcome = try DuckBench.readOutcome(data, when: Date())
             var updated = draft
             updated.bench = outcome
             drafts.save(updated)

@@ -18,10 +18,43 @@ import StudioKit
 /// point of it. Stroll off at a human 1.4 m/s and the duck is lost in a few
 /// seconds; the screen says how far behind it is and asks you to slow down,
 /// which is more use than a duck that magically keeps up.
+///
+/// AND IT IS THE ONE MODE THAT CANNOT FALL BACK. Every other Lab mode swaps a
+/// camera feed for a rendered stage and loses a backdrop. This one would have
+/// to swap the person for a joystick, which is the app inventing the very
+/// number the mode exists to measure. So when the camera cannot be opened this
+/// screen refuses outright and says what it is that it cannot do without —
+/// `CameraAvailability` composes that sentence and `swift test` reads it.
 struct FollowMeView: View {
     @StateObject private var model = FollowMeModel()
+    /// THE DOOR IS CHECKED HERE AND NOT ONLY IN THE HUB THAT LINKS HERE.
+    /// `GhostDuckView` disables its Follow me row when this is shut, so the
+    /// branch below is unreachable through the UI — and it stays, because the
+    /// unconditional `ARView(cameraMode: .ar)` that used to sit in
+    /// `FollowContainer.makeUIView` is exactly the shape of the bug that killed
+    /// build 27: a session started with no gate anywhere between the tap and
+    /// the plist.
+    @State private var door = CameraDoor.availability
 
     var body: some View {
+        Group {
+            if let refusal = door.refusal(for: .followMe) {
+                ContentUnavailableView(CameraAvailability.Dependent.followMe.title,
+                                       systemImage: "video.slash",
+                                       description: Text(refusal))
+            } else {
+                walking
+            }
+        }
+        .refreshingCameraDoor($door)
+        .navigationTitle("Follow me")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    /// The mode itself. Reached only when the door is open, so nothing under
+    /// here has to ask again — `FollowContainer` builds its `ARView` on the
+    /// strength of this branch having been taken.
+    private var walking: some View {
         ZStack(alignment: .bottom) {
             FollowContainer(model: model).ignoresSafeArea()
             VStack(spacing: 6) {
@@ -33,8 +66,6 @@ struct FollowMeView: View {
             .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
             .padding()
         }
-        .navigationTitle("Follow me")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
@@ -83,6 +114,12 @@ final class FollowMeModel: ObservableObject {
 private struct FollowContainer: UIViewRepresentable {
     @ObservedObject var model: FollowMeModel
 
+    /// REACHED ONLY WHEN THE DOOR IS OPEN. `FollowMeView.body` puts this
+    /// container behind an `if` on `CameraAvailability`, so SwiftUI never
+    /// builds it — and this `ARView(cameraMode: .ar)` never exists — on a build
+    /// with no camera usage description, a device that cannot world-track, or a
+    /// phone where the person said no. It used to be unconditional, which is
+    /// how a screen with no venue picker still managed to run an ARSession.
     func makeUIView(context: Context) -> ARView {
         let view = ARView(frame: .zero, cameraMode: .ar, automaticallyConfigureSession: false)
         if ARWorldTrackingConfiguration.isSupported {

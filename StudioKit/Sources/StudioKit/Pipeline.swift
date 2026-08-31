@@ -22,10 +22,35 @@ public struct Pipeline: Equatable, Sendable {
         public var when: Date
         /// What answered — the bench's own version string.
         public var bench: String
-        /// Which plant it ran against. The rollers scene and the legs scene
-        /// are different robots and a result from one is not a result for the
-        /// other.
-        public var plant: String
+        /// Which plant it ran against, as the bench named it — a filename like
+        /// `scene.mjb`. The rollers scene and the legs scene are different
+        /// robots and a result from one is not a result for the other.
+        ///
+        /// OPTIONAL, AND ITS ABSENCE IS THE HONEST STATE. This field replaces a
+        /// non-Optional `plant` that every stored outcome carried and no bench
+        /// ever filled: `/perform` did not report a plant, so the app wrote the
+        /// literal string "the bench's own plant" at the call site and the
+        /// screen printed it as though it were a fact about a world. Dropping
+        /// the old key rather than migrating it is deliberate — there is
+        /// nothing in it to migrate, and a fabricated value carried forward is
+        /// still fabricated.
+        ///
+        /// IT MUST STAY OPTIONAL WITH NO DEFAULT. A non-Optional stored
+        /// property with a default does NOT decode when its key is missing;
+        /// synthesised `Decodable` throws `keyNotFound` regardless of the
+        /// default, and `DraftStore.reload` decodes each file inside
+        /// `compactMap { try? … }` — so a throw here is not an error message,
+        /// it is every older draft silently vanishing from the list.
+        public var plantName: String?
+        /// sha256 of the plant file's bytes, hex, as the bench reported it.
+        ///
+        /// THE NAME ALONE WILL NOT DO. Two files called `scene.mjb` exist in
+        /// the duck-sounds tree with the same size and different bytes, and one
+        /// of them is four times stiffer in the solver than the other — so
+        /// "ran on scene.mjb" does not identify a world. Also Optional: a bench
+        /// old enough not to send it is not lying, it is silent, and the
+        /// difference is a sentence rather than a crash.
+        public var plantDigest: String?
         /// The policy the motion rode on.
         public var policy: String
         /// How many rollouts stood up, out of how many.
@@ -40,10 +65,12 @@ public struct Pipeline: Equatable, Sendable {
         /// The fastest any joint was actually driven, rad/s.
         public var peakJointRate: Double?
 
-        public init(when: Date, bench: String, plant: String, policy: String,
+        public init(when: Date, bench: String, plantName: String? = nil,
+                    plantDigest: String? = nil, policy: String,
                     achieves: Int, rollouts: Int, criterion: String,
                     medianHeight: Double? = nil, peakJointRate: Double? = nil) {
-            self.when = when; self.bench = bench; self.plant = plant
+            self.when = when; self.bench = bench
+            self.plantName = plantName; self.plantDigest = plantDigest
             self.policy = policy; self.achieves = achieves; self.rollouts = rollouts
             self.criterion = criterion; self.medianHeight = medianHeight
             self.peakJointRate = peakJointRate
@@ -72,6 +99,21 @@ public struct Pipeline: Equatable, Sendable {
                                (Pipeline.standingHeight - height) * 1000)
             }
             return text
+        }
+
+        /// Which world this ran in, in one sentence, or that nothing recorded
+        /// it. See `DuckBench.plantSaid` for why this is never a placeholder.
+        public var plantSentence: String {
+            DuckBench.plantSaid(name: plantName, digest: plantDigest)
+        }
+
+        /// The whole result in words: what happened, then which world it
+        /// happened in. Composed here rather than in the view because both
+        /// halves make a claim, and the join between them is where a screen
+        /// would otherwise stitch a measured number to an unmeasured world.
+        public var told: String {
+            let head = summary.hasSuffix(".") ? summary : summary + "."
+            return head + " " + plantSentence
         }
     }
 
@@ -117,6 +159,20 @@ public struct Pipeline: Equatable, Sendable {
     /// seconds holds 0.1162 m from the first frame to the last. The model's
     /// nominal rest height is 0.12; this is what the policy actually does.
     public static let standingHeight = 0.116
+
+    /// That baseline in words, to sit beside any result compared against it.
+    ///
+    /// IT NAMES THE PLANT IT WAS MEASURED ON INSTEAD OF SAYING "this plant".
+    /// The screen used to say the latter, directly under a run whose world the
+    /// app had never recorded — so "this plant" pointed at nothing, and the
+    /// sentence read as a measurement of the world the motion had just run in.
+    /// It is a measurement of the canon plant, and of no other.
+    public static var standingHeightSaid: String {
+        String(format: "Standing height is %.3f m — what the standing policy holds on "
+                     + "scene.mjb, the canon plant, when it is simply left alone. A motion "
+                     + "that ends much below that stayed up without standing up.",
+               standingHeight)
+    }
 
     public let stages: [Stage]
 
@@ -175,7 +231,7 @@ public struct Pipeline: Equatable, Sendable {
             stages.append(Stage(
                 name: "Run in physics",
                 state: bench.isClean && !bench.endedLow ? .done : .attention,
-                detail: "\(bench.summary) On \(bench.plant)."))
+                detail: bench.told))
         } else if hasBench {
             stages.append(Stage(name: "Run in physics", state: .waiting,
                                 detail: "Never run. The preview on this phone is what you asked "

@@ -10,6 +10,16 @@ import StudioKit
 @MainActor
 final class EndpointStore: ObservableObject {
     @Published private(set) var endpoints: [ModelEndpoint] = []
+    /// What could not be read back out of storage, in one sentence, or nil when
+    /// everything was.
+    ///
+    /// THE MODELS SCREEN HAS TO DRAW THIS. It is a person's only notice that
+    /// something they configured is gone, and it is a one-time notice: the next
+    /// `save()` flushes the salvaged list back over the stored one, and the
+    /// rows that could not be read are then gone for good. Losing them is the
+    /// right outcome — a row this build cannot read is a row it cannot use —
+    /// but losing them WITHOUT SAYING SO is the bug this exists to end.
+    @Published private(set) var unreadableNote: String? = nil
     @Published var selectedID: UUID? {
         didSet { UserDefaults.standard.set(selectedID?.uuidString, forKey: Self.selectedKey) }
     }
@@ -22,9 +32,17 @@ final class EndpointStore: ObservableObject {
     }
 
     init() {
-        if let data = UserDefaults.standard.data(forKey: Self.listKey),
-           let saved = try? JSONDecoder().decode([ModelEndpoint].self, from: data) {
-            endpoints = saved
+        // ELEMENT BY ELEMENT, NOT ALL-OR-NOTHING. This was one
+        // `try? JSONDecoder().decode([ModelEndpoint].self, …)`, and a JSON
+        // array throws for the whole array when a single element is
+        // unreadable — so one bad row erased every endpoint a person had, put
+        // Apple's on-device model in their place, and said nothing at all.
+        // `decodeList` keeps what it can read and counts what it cannot; the
+        // counting is in StudioKit where a test asserts the sentence.
+        if let data = UserDefaults.standard.data(forKey: Self.listKey) {
+            let salvage = ModelEndpoint.decodeList(from: data)
+            endpoints = salvage.endpoints
+            unreadableNote = salvage.note
         }
         // Apple's is always in the list and cannot be deleted: a device with
         // Apple Intelligence should never end up with nowhere to draft.

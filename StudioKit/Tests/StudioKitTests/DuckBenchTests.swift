@@ -77,6 +77,41 @@ final class DuckBenchTests: XCTestCase {
         XCTAssertEqual(health.policies.count, 2)
         XCTAssertFalse(health.trains, "the bench is honest about not training")
         XCTAssertTrue(health.trainsWhy!.contains("inference ASIC"))
+        // This body is a duck-bench/1 answer, from before the bench identified
+        // its own plant. It must read as silence, not as an identification.
+        XCTAssertNil(health.plantName)
+        XCTAssertEqual(health.plantSentence,
+                       "This bench does not say which world it runs, so a result from it "
+                     + "cannot be matched to a result from another bench.")
+    }
+
+    /// The bench identifies the world it is actually running now — the file's
+    /// bare name and a sha256 of its bytes. VERIFIED against the real thing:
+    /// `sim/scene.mjb` in duck-sounds digests to 3f8c9ab9b409… , which is the
+    /// canon plant every recorded clip in DuckKit came from (sim/PLANT.md).
+    func testABenchThatIdentifiesItsWorldIsSaidToIdentifyIt() throws {
+        let data = Data(#"""
+        {"bench":"duck-bench/2","plant":"scene.mjb — Pollen robot_allcollisions, training parameters",
+         "plantName":"scene.mjb",
+         "plantDigest":"3f8c9ab9b409ba74c73c30179d5f7c12b025f631693f9eec78d80dca242547be",
+         "tickHz":50,"cores":4,"policies":["BEST_alpha_stand.onnx"],"trains":false}
+        """#.utf8)
+        let health = try DuckBench.readHealth(data)
+        XCTAssertEqual(health.plantName, "scene.mjb")
+        XCTAssertEqual(health.plantSentence,
+                       "Running scene.mjb, sha256 3f8c9ab9b409.")
+    }
+
+    /// A name with no digest is a bench that can be run and whose results
+    /// cannot be compared, and the person pressing Run is told which.
+    func testABenchThatNamesItsWorldWithoutDigestingItSaysSo() throws {
+        let data = Data(#"""
+        {"bench":"duck-bench/2","plant":"scene.mjb","plantName":"scene.mjb",
+         "tickHz":50,"cores":4,"policies":[],"trains":false}
+        """#.utf8)
+        XCTAssertEqual(try DuckBench.readHealth(data).plantSentence,
+                       "Running scene.mjb. It will not say which bytes that is, and two "
+                     + "benches can call different worlds by that name.")
     }
 
     func testARecordingBecomesAClipThisAppCanDraw() throws {

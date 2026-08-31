@@ -157,6 +157,22 @@ final class BridgeCoordinator: NSObject {
 
     func ensure(venue: LabVenue) {
         guard built != venue, let view, let referee else { return }
+        // THE SECOND LOCK, AND THE ONE THAT MATTERS: it is the line above
+        // `session.run`. `VenuePicker` already disables "Your floor" and prints
+        // the reason when the camera cannot be opened, so this is unreachable
+        // through the UI — which is exactly why it is here. Build 27 shipped
+        // with `session.run` called against a plist that did not permit it and
+        // iOS killed the app; a guard that only lives in a picker is a guard
+        // the next screen forgets to copy.
+        //
+        // It refuses BEFORE `built` is updated and before the stage comes down,
+        // so a refusal leaves the world that was already standing rather than
+        // tearing it down for one that never arrives. The sentence is on screen
+        // under the venue picker, which is the only route to `.ar`.
+        if venue == .ar, let refusal = CameraDoor.availability.refusal(for: .venue) {
+            referee.status = refusal
+            return
+        }
         built = venue
         stage?.dismantle(); stage = nil
         if let anchor { view.scene.removeAnchor(anchor) }

@@ -14,7 +14,9 @@ final class PipelineTests: XCTestCase {
 
     private var goodRun: Pipeline.BenchOutcome {
         .init(when: Date(timeIntervalSince1970: 0), bench: "duck-bench/2",
-              plant: "legs", policy: "BEST_alpha_stand.onnx",
+              plantName: "scene.mjb",
+              plantDigest: "3f8c9ab9b409ba74c73c30179d5f7c12b025f631693f9eec78d80dca242547be",
+              policy: "BEST_alpha_stand.onnx",
               achieves: 16, rollouts: 16, criterion: "stayed upright", medianHeight: 0.116)
     }
 
@@ -47,7 +49,9 @@ final class PipelineTests: XCTestCase {
         let physics = pipeline.stages.first { $0.name == "Run in physics" }
         XCTAssertEqual(physics?.state, .done)
         XCTAssertTrue(physics!.detail.contains("16 of 16"))
-        XCTAssertTrue(physics!.detail.contains("legs"), "the plant is part of the result")
+        XCTAssertEqual(physics!.detail,
+                       "16 of 16 — stayed upright. On scene.mjb, sha256 3f8c9ab9b409.",
+                       "the plant is part of the result, and it is the plant that ran")
         let attested = pipeline.stages.first { $0.name == "Attested" }
         XCTAssertEqual(attested?.state, .waiting)
         XCTAssertTrue(attested!.detail.contains("real run to attest"))
@@ -162,8 +166,7 @@ extension PipelineTests {
          "medianHeight":0.0908,"endsUpright":true,"endHeight":0.0911,"peakJointRate":10.765}
         """
         let outcome = try DuckBench.readOutcome(Data(body.utf8),
-                                                when: Date(timeIntervalSince1970: 0),
-                                                plant: "legs")
+                                                when: Date(timeIntervalSince1970: 0))
         XCTAssertEqual(outcome.achieves, 8)
         XCTAssertEqual(outcome.peakJointRate, 10.765)
         XCTAssertTrue(outcome.isClean)
@@ -172,7 +175,142 @@ extension PipelineTests {
 
     func testABenchErrorIsNotSilentlyAnEmptyResult() {
         let body = #"{"error":"perform needs a track of keyframes"}"#
-        XCTAssertThrowsError(try DuckBench.readOutcome(Data(body.utf8), when: Date(), plant: "legs"))
+        XCTAssertThrowsError(try DuckBench.readOutcome(Data(body.utf8), when: Date()))
+    }
+}
+
+// MARK: - which world it ran in
+
+extension PipelineTests {
+
+    /// The bench names its own world now, and the outcome keeps both halves of
+    /// the name: the file, and which bytes that file was.
+    func testAPerformAnswerCarriesThePlantTheBenchActuallyRan() throws {
+        let body = """
+        {"format":"duck-intent-clips/3","policy":"BEST_alpha_stand.onnx","authored":true,
+         "plantName":"scene.mjb",
+         "plantDigest":"3f8c9ab9b409ba74c73c30179d5f7c12b025f631693f9eec78d80dca242547be",
+         "rollouts":8,"achieves":8,"criterion":"stayed upright","medianHeight":0.116}
+        """
+        let outcome = try DuckBench.readOutcome(Data(body.utf8), when: Date())
+        XCTAssertEqual(outcome.plantName, "scene.mjb")
+        XCTAssertEqual(outcome.plantDigest,
+                       "3f8c9ab9b409ba74c73c30179d5f7c12b025f631693f9eec78d80dca242547be")
+        XCTAssertEqual(outcome.plantSentence, "On scene.mjb, sha256 3f8c9ab9b409.")
+    }
+
+    /// THE BUG THIS FIXES, stated as a test. Every outcome stored before today
+    /// carries the literal placeholder "the bench's own plant" under a key this
+    /// type no longer has, because `readHealth` on a `/perform` body always
+    /// threw and the fallback at the call site always won. Read one back and it
+    /// must say nothing was recorded — never the placeholder, and never a
+    /// sentence shaped like a fact.
+    func testAnOutcomeStoredBeforeAnyBenchNamedItsWorldSaysNothingRecordedIt() throws {
+        let stored = """
+        {"when":0,"bench":"duck-intent-clips/3","plant":"the bench's own plant",
+         "policy":"BEST_alpha_stand.onnx","achieves":8,"rollouts":8,
+         "criterion":"stayed upright to the end, over drop heights 0.120-0.130 m",
+         "medianHeight":0.0908,"peakJointRate":10.765}
+        """
+        let outcome = try JSONDecoder().decode(Pipeline.BenchOutcome.self,
+                                               from: Data(stored.utf8))
+        XCTAssertNil(outcome.plantName)
+        XCTAssertNil(outcome.plantDigest)
+        XCTAssertEqual(outcome.plantSentence,
+                       "Nothing recorded which world this ran in, so nothing here can tell you. "
+                     + "A result with no world beside it cannot be compared with one that has "
+                     + "another.")
+        // IT MUST NOT NAME A CAUSE. An outcome stored before the bench reported
+        // a plant, a bench on an older build, and a bench that did not answer
+        // this time are indistinguishable here — so a sentence picking one of
+        // them is the same fabrication as the placeholder this replaced.
+        XCTAssertFalse(outcome.plantSentence.contains("predates"))
+        XCTAssertFalse(outcome.plantSentence.lowercased().contains("older"))
+        XCTAssertFalse(outcome.told.contains("the bench's own plant"))
+        XCTAssertEqual(outcome.achieves, 8, "the numbers it did measure survive intact")
+    }
+
+    /// THE ONE THAT WOULD DELETE PEOPLE'S WORK IF IT FAILED. `DraftStore.reload`
+    /// decodes every file inside `compactMap { try? … }`, so a `keyNotFound`
+    /// here is not an error a user sees — it is the draft disappearing from the
+    /// list. A non-Optional stored property with a default does NOT rescue a
+    /// missing key; synthesised `Decodable` throws regardless of the default.
+    /// So both new fields are Optional with no default, and this proves it on
+    /// an outcome written by the version that shipped before them.
+    func testAnOutcomeWithNoPlantKeysAtAllStillDecodesRatherThanVanishing() throws {
+        let stored = """
+        {"when":0,"bench":"duck-bench","policy":"unknown","achieves":3,"rollouts":8,
+         "criterion":"stayed upright"}
+        """
+        let outcome = try JSONDecoder().decode(Pipeline.BenchOutcome.self,
+                                               from: Data(stored.utf8))
+        XCTAssertNil(outcome.plantName)
+        XCTAssertEqual(outcome.rollouts, 8)
+
+        // And the same file inside a whole draft, which is the shape on disk.
+        var made = draft()
+        made.bench = try JSONDecoder().decode(Pipeline.BenchOutcome.self,
+                                              from: Data(stored.utf8))
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: try JSONEncoder().encode(made)) as? [String: Any])
+        var benchJSON = try XCTUnwrap(json["bench"] as? [String: Any])
+        benchJSON.removeValue(forKey: "plantName")
+        benchJSON.removeValue(forKey: "plantDigest")
+        json["bench"] = benchJSON
+        let decoded = try JSONDecoder().decode(
+            IntentDraft.self, from: try JSONSerialization.data(withJSONObject: json))
+        XCTAssertEqual(decoded.bench?.rollouts, 8)
+        XCTAssertNil(decoded.bench?.plantName)
+    }
+
+    /// A bench that names a file but will not digest it is not lying, it is
+    /// silent — and the difference is a sentence. A filename alone does not
+    /// identify a world: two files called `scene.mjb` exist in duck-sounds,
+    /// same size, different bytes, one running a solver four times stiffer.
+    func testABenchThatNamesItsPlantWithoutDigestingItSaysWhatThatCosts() {
+        var vague = goodRun
+        vague.plantDigest = nil
+        XCTAssertEqual(vague.plantSentence,
+                       "On scene.mjb. This bench will not say which bytes that was, and two "
+                     + "benches can call different worlds by that name — so a result from this "
+                     + "one cannot be matched to a result from another.")
+    }
+
+    /// The stage line joins a measured claim to a world, so the join is
+    /// asserted rather than left to a view's string interpolation.
+    func testTheResultAndTheWorldAreOneSentenceEach() {
+        var crouched = goodRun
+        crouched.medianHeight = 0.0908
+        XCTAssertEqual(crouched.told,
+                       "16 of 16 — stayed upright. It ends 25 mm below standing height. "
+                     + "On scene.mjb, sha256 3f8c9ab9b409.")
+    }
+
+    /// The baseline every crouch is measured against names the world it was
+    /// measured in. It sits directly under a run that may have recorded no
+    /// world at all, so it must not borrow that run's.
+    func testTheStandingBaselineNamesThePlantItWasMeasuredOn() {
+        XCTAssertEqual(Pipeline.standingHeightSaid,
+                       "Standing height is 0.116 m — what the standing policy holds on "
+                     + "scene.mjb, the canon plant, when it is simply left alone. A motion "
+                     + "that ends much below that stayed up without standing up.")
+        XCTAssertFalse(Pipeline.standingHeightSaid.contains("this plant"))
+    }
+
+    /// No composed sentence anywhere may contain the placeholder that started
+    /// this. It was never measured, and there is no code path left that can
+    /// produce it — this asserts the absence rather than trusting it.
+    func testThePlaceholderPlantIsNotSayableAnyMore() {
+        for name in [nil, "scene.mjb"] as [String?] {
+            for digest in [nil, "3f8c9ab9b409ba74"] as [String?] {
+                let said = DuckBench.plantSaid(name: name, digest: digest)
+                XCTAssertFalse(said.contains("the bench's own plant"), said)
+                XCTAssertFalse(said.isEmpty)
+            }
+        }
+        // An empty string from a bench is an absent answer, not a world named "".
+        XCTAssertEqual(DuckBench.plantSaid(name: "", digest: "abc"),
+                       DuckBench.plantSaid(name: nil, digest: nil))
     }
 }
 

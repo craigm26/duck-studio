@@ -27,6 +27,11 @@ struct LabView: View {
     @ObservedObject var scenes: SceneStore
     @ObservedObject var drafts: DraftStore
     @ObservedObject var models: EndpointStore
+    /// ROOM CAPTURE IS THE ONE ROW HERE THAT NEEDS A CAMERA TO EXIST AT ALL,
+    /// so the Lab reads the door too. The ghost duck and soccer are not in this
+    /// list on purpose: both open on a rendered venue and offer the camera only
+    /// behind a picker, which disables itself with its own reason.
+    @State private var door = CameraDoor.availability
 
     var body: some View {
         List {
@@ -45,23 +50,45 @@ struct LabView: View {
             } header: {
                 Text("Modes")
             } footer: {
-                Text("A mode is greyed out because nothing is behind it here yet, not because it is locked. What it is waiting for is written under its name.")
+                // AMENDED WHEN THE CAMERA DOOR WENT IN, BECAUSE IT HAD BECOME
+                // FALSE. Room capture is written and reachable, and it still
+                // greys out on a build with no camera usage description, on a
+                // device that cannot world-track, or when the person has said
+                // no — none of which is "nothing is behind it yet". Ideally
+                // this sentence lives in `LabCatalogue` beside the others; it
+                // is left here only because it was already here.
+                Text("A mode is greyed out because nothing is behind it here yet, or because this build or this phone cannot open something it needs — never because it is locked. Which of the two it is is written under its name.")
             }
         }
+        .refreshingCameraDoor($door)
         .navigationTitle("Lab")
+    }
+
+    /// Why a row that IS built still cannot be opened right now.
+    ///
+    /// THIS IS A DIFFERENT KIND OF REASON FROM `LabCatalogue.Status.reason` AND
+    /// THE TWO MUST NOT MERGE. Every status reason means "nobody has written
+    /// this"; this one means "it is written, and this build or this phone will
+    /// not let you in". Both are drawn in the same place because a person only
+    /// wants to know why the row is grey — but a status reason always wins,
+    /// because a mode nobody has written cannot be blocked by a camera.
+    private func cameraRefusal(for mode: LabCatalogue.Mode) -> String? {
+        guard mode.id == "room" else { return nil }
+        return door.refusal(for: .roomCapture)
     }
 
     /// One mode. Live rows navigate; the rest are inert AND look inert, with
     /// the reason under the name rather than in a dialog after the tap.
     @ViewBuilder private func row(_ mode: LabCatalogue.Mode) -> some View {
-        if mode.status == .here {
+        let blocked = cameraRefusal(for: mode)
+        if mode.status == .here, blocked == nil {
             NavigationLink {
                 destination(mode)
             } label: {
-                label(mode)
+                label(mode, reason: nil)
             }
         } else {
-            label(mode)
+            label(mode, reason: mode.status.reason ?? blocked)
                 .foregroundStyle(.secondary)
                 // Combined so a screen reader gets the name, what it does and
                 // why it cannot be opened as one thing, rather than three
@@ -70,7 +97,11 @@ struct LabView: View {
         }
     }
 
-    private func label(_ mode: LabCatalogue.Mode) -> some View {
+    /// `reason` is nil exactly for a row that can be opened. It is passed in
+    /// rather than read off `mode.status` here because a built row can also be
+    /// shut by the camera, and the label must not have to know which of the two
+    /// happened to draw the sentence.
+    private func label(_ mode: LabCatalogue.Mode, reason: String?) -> some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: mode.symbol)
                 .font(.title3)
@@ -80,7 +111,7 @@ struct LabView: View {
                 // `Color.accentColor`, and a ternary needs one type — the kind
                 // of mistake `swiftc -parse` waves through on this box because
                 // it is a type error, not a syntax one.
-                .foregroundStyle(mode.status == .here ? Color.accentColor : Color.secondary)
+                .foregroundStyle(reason == nil ? Color.accentColor : Color.secondary)
                 // The name is right there; the symbol is decoration.
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
@@ -89,7 +120,7 @@ struct LabView: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                if let reason = mode.status.reason {
+                if let reason {
                     Text(reason)
                         .font(.caption2)
                         .foregroundStyle(.tertiary)

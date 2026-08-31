@@ -6,6 +6,7 @@ import QuartzCore
 import DuckKit
 import DuckVisual
 import DuckRender
+import StudioKit
 
 /// A life-size Microduck standing on your floor, before one exists to stand there.
 ///
@@ -43,6 +44,10 @@ struct GhostDuckView: View {
 
     @StateObject private var ghost = GhostDuckModel()
     @ObservedObject private var celebrations = CelebrationStore.shared
+    /// FOLLOW ME IS REACHED FROM HERE AND FROM NOWHERE ELSE, so this hub is
+    /// where its door is shut. Every other row in the grid below runs on a
+    /// stage and does not care whether there is a camera.
+    @State private var door = CameraDoor.availability
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -104,70 +109,114 @@ struct GhostDuckView: View {
                 // Six modes no longer fit across a phone in one row, so they
                 // wrap. The grid is three wide because that is what keeps
                 // "Bow Bridge" on one line at caption2.
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10),
-                                         count: 3), spacing: 10) {
-                    NavigationLink {
-                        TrickRunView(model: ghost)
-                    } label: {
-                        Label("Trick run", systemImage: "figure.gymnastics")
-                            .padding(.vertical, 10).frame(maxWidth: .infinity)
-                            .background(.thinMaterial, in: Capsule())
+                VStack(spacing: 8) {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10),
+                                             count: 3), spacing: 10) {
+                        NavigationLink {
+                            TrickRunView(model: ghost)
+                        } label: {
+                            Label("Trick run", systemImage: "figure.gymnastics")
+                                .padding(.vertical, 10).frame(maxWidth: .infinity)
+                                .background(.thinMaterial, in: Capsule())
+                        }
+                        NavigationLink {
+                            BowBridgeView()
+                        } label: {
+                            Label("Bow Bridge", systemImage: "figure.walk")
+                                .padding(.vertical, 10).frame(maxWidth: .infinity)
+                                .background(.thinMaterial, in: Capsule())
+                        }
+                        NavigationLink {
+                            FlamingoHoldView(model: ghost)
+                        } label: {
+                            Label("Flamingo", systemImage: "figure.stand")
+                                .padding(.vertical, 10).frame(maxWidth: .infinity)
+                                .background(.thinMaterial, in: Capsule())
+                        }
+                        // BOBSLED IS NOT HERE, AND IT IS NOT AN OVERSIGHT. OpenCastor's
+                        // bobsled is a rover game wearing a duck: it steers a sled, and
+                        // the thing that makes every other game on this screen a DUCK
+                        // game — the 14-degree yaw saturation, the 0.31 m arc a walk
+                        // cannot beat — has nothing to do with it. Porting it would put
+                        // a mode in the Lab whose difficulty comes from a vehicle this
+                        // robot is not. It is listed in `LabCatalogue` as planned, to be
+                        // built against the duck's own turn radius instead.
+                        NavigationLink {
+                            SlalomView()
+                        } label: {
+                            Label("Slalom", systemImage: "flag.2.crossed")
+                                .padding(.vertical, 10).frame(maxWidth: .infinity)
+                                .background(.thinMaterial, in: Capsule())
+                        }
+                        NavigationLink {
+                            DuckGolfView()
+                        } label: {
+                            Label("Golf", systemImage: "flag.filled.and.flag.crossed")
+                                .padding(.vertical, 10).frame(maxWidth: .infinity)
+                                .background(.thinMaterial, in: Capsule())
+                        }
+                        // FOLLOW ME IS THE ONE ROW THAT CAN GO DEAD, and it is
+                        // the only mode in the Lab with nothing to fall back to:
+                        // what it follows is the phone, and ARKit's camera pose is
+                        // a real reading of where a person is standing. A stage
+                        // version would feed the steering law a joystick position,
+                        // which is the app inventing the very number the mode
+                        // exists to measure. So it is disabled rather than
+                        // substituted, and the sentence goes under the grid where
+                        // there is room for it — a capsule this size cannot hold a
+                        // reason, and a reason that only appears after a tap is a
+                        // control that looked alive.
+                        if let refusal = door.refusal(for: .followMe) {
+                            Label("Follow me", systemImage: "figure.walk.motion")
+                                .padding(.vertical, 10).frame(maxWidth: .infinity)
+                                .background(.thinMaterial, in: Capsule())
+                                .foregroundStyle(.secondary)
+                                .accessibilityElement(children: .combine)
+                                // BOTH HALVES COME FROM StudioKit. A label
+                                // assembled here out of a word like
+                                // "unavailable" would be a claim about a
+                                // refusal that no test reads, which is the one
+                                // thing the sentences were moved into the kit
+                                // to stop.
+                                .accessibilityLabel(CameraAvailability.Dependent.followMe.title
+                                                    + ". " + refusal)
+                        } else {
+                            NavigationLink {
+                                FollowMeView()
+                            } label: {
+                                Label("Follow me", systemImage: "figure.walk.motion")
+                                    .padding(.vertical, 10).frame(maxWidth: .infinity)
+                                    .background(.thinMaterial, in: Capsule())
+                            }
+                        }
+                        NavigationLink {
+                            FetchView()
+                        } label: {
+                            Label("Fetch", systemImage: "circle.circle")
+                                .padding(.vertical, 10).frame(maxWidth: .infinity)
+                                .background(.thinMaterial, in: Capsule())
+                        }
                     }
-                    NavigationLink {
-                        BowBridgeView()
-                    } label: {
-                        Label("Bow Bridge", systemImage: "figure.walk")
-                            .padding(.vertical, 10).frame(maxWidth: .infinity)
-                            .background(.thinMaterial, in: Capsule())
-                    }
-                    NavigationLink {
-                        FlamingoHoldView(model: ghost)
-                    } label: {
-                        Label("Flamingo", systemImage: "figure.stand")
-                            .padding(.vertical, 10).frame(maxWidth: .infinity)
-                            .background(.thinMaterial, in: Capsule())
-                    }
-                    // BOBSLED IS NOT HERE, AND IT IS NOT AN OVERSIGHT. OpenCastor's
-                    // bobsled is a rover game wearing a duck: it steers a sled, and
-                    // the thing that makes every other game on this screen a DUCK
-                    // game — the 14-degree yaw saturation, the 0.31 m arc a walk
-                    // cannot beat — has nothing to do with it. Porting it would put
-                    // a mode in the Lab whose difficulty comes from a vehicle this
-                    // robot is not. It is listed in `LabCatalogue` as planned, to be
-                    // built against the duck's own turn radius instead.
-                    NavigationLink {
-                        SlalomView()
-                    } label: {
-                        Label("Slalom", systemImage: "flag.2.crossed")
-                            .padding(.vertical, 10).frame(maxWidth: .infinity)
-                            .background(.thinMaterial, in: Capsule())
-                    }
-                    NavigationLink {
-                        DuckGolfView()
-                    } label: {
-                        Label("Golf", systemImage: "flag.filled.and.flag.crossed")
-                            .padding(.vertical, 10).frame(maxWidth: .infinity)
-                            .background(.thinMaterial, in: Capsule())
-                    }
-                    NavigationLink {
-                        FollowMeView()
-                    } label: {
-                        Label("Follow me", systemImage: "figure.walk.motion")
-                            .padding(.vertical, 10).frame(maxWidth: .infinity)
-                            .background(.thinMaterial, in: Capsule())
-                    }
-                    NavigationLink {
-                        FetchView()
-                    } label: {
-                        Label("Fetch", systemImage: "circle.circle")
-                            .padding(.vertical, 10).frame(maxWidth: .infinity)
-                            .background(.thinMaterial, in: Capsule())
+                    .font(.caption2)
+                    .padding(.horizontal)
+                    if let refusal = door.refusal(for: .followMe) {
+                        Text(refusal)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                            // Hidden from VoiceOver because the disabled row
+                            // above already reads this same sentence as part
+                            // of its own label; announcing it twice makes the
+                            // grid harder to get through, not clearer.
+                            .accessibilityHidden(true)
+                            .padding(.horizontal)
                     }
                 }
-                .font(.caption2)
-                .padding(.horizontal).padding(.bottom, 8)
+                .padding(.bottom, 8)
             }
         }
+        .refreshingCameraDoor($door)
         .navigationTitle("Ghost duck")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -324,6 +373,22 @@ final class GhostDuckCoordinator: NSObject {
     /// waits for a tap on a real floor, as it always has.
     func ensure(venue: LabVenue) {
         guard built != venue, let view, let model else { return }
+        // THE SECOND LOCK, AND THE ONE THAT MATTERS: it is the line above
+        // `session.run`. `VenuePicker` already disables "Your floor" and prints
+        // the reason when the camera cannot be opened, so this is unreachable
+        // through the UI — which is exactly why it is here. Build 27 shipped
+        // with `session.run` called against a plist that did not permit it and
+        // iOS killed the app; a guard that only lives in a picker is a guard
+        // the next screen forgets to copy.
+        //
+        // It refuses BEFORE `built` is updated and before the stage comes down,
+        // so a refusal leaves the world that was already standing rather than
+        // tearing it down for one that never arrives. The sentence is on screen
+        // under the venue picker, which is the only route to `.ar`.
+        if venue == .ar, let refusal = CameraDoor.availability.refusal(for: .venue) {
+            model.status = refusal
+            return
+        }
         built = venue
         stage?.dismantle(); stage = nil
         if let anchor = ghost?.parent as? AnchorEntity { view.scene.removeAnchor(anchor) }

@@ -173,6 +173,22 @@ final class SlalomCoordinator: NSObject {
     /// A REBUILD: the skater is a different entity, not a different setting.
     func ensure(venue: LabVenue, gear: SlalomModel.Gear) {
         guard needsRebuild(venue: venue, gear: gear), let view, let model else { return }
+        // THE SECOND LOCK, AND THE ONE THAT MATTERS: it is the line above
+        // `session.run`. `VenuePicker` already disables "Your floor" and prints
+        // the reason when the camera cannot be opened, so this is unreachable
+        // through the UI — which is exactly why it is here. Build 27 shipped
+        // with `session.run` called against a plist that did not permit it and
+        // iOS killed the app; a guard that only lives in a picker is a guard
+        // the next screen forgets to copy.
+        //
+        // It refuses BEFORE `built` is updated and before the stage comes down,
+        // so a refusal leaves the world that was already standing rather than
+        // tearing it down for one that never arrives. The sentence is on screen
+        // under the venue picker, which is the only route to `.ar`.
+        // The slalom has no writable status line either — its headline and
+        // detail are computed from the run — so the refusal beside the venue
+        // picker is what a person reads, and this only keeps the session shut.
+        if venue == .ar, !CameraDoor.availability.canOfferAR { return }
         built = (venue, gear)
         stage?.dismantle(); stage = nil
         if let anchor { view.scene.removeAnchor(anchor) }

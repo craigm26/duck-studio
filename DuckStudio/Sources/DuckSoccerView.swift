@@ -188,6 +188,10 @@ private struct SoccerSetupSheet: View {
     @ObservedObject var referee: SoccerReferee
     @ObservedObject var celebrations: CelebrationStore
     let onStart: () -> Void
+    /// Soccer's venue switch is its own control rather than `VenuePicker` — it
+    /// says "Stadium" where the games say "Stage" — so it carries its own copy
+    /// of the door.
+    @State private var door = CameraDoor.availability
 
     var body: some View {
         NavigationStack {
@@ -198,6 +202,15 @@ private struct SoccerSetupSheet: View {
                         Text("Your floor (AR)").tag(SoccerReferee.Venue.ar)
                     }
                     .pickerStyle(.segmented)
+                    // A segmented control cannot disable one segment, so the
+                    // whole switch goes inert — which is honest, because with
+                    // the carpet gone there is one venue and no choice — and
+                    // the reason sits under it instead of arriving in a dialog
+                    // after a tap that did nothing.
+                    .disabled(!door.canOfferAR)
+                    if let refusal = door.refusal(for: .venue) {
+                        Text(refusal).font(.caption).foregroundStyle(.secondary)
+                    }
                     if referee.venue == .stadium {
                         Picker("Stadium", selection: $referee.theme) {
                             ForEach(SoccerTheme.stadiums) { theme in
@@ -268,7 +281,17 @@ private struct SoccerSetupSheet: View {
             .navigationTitle("Match setup")
             .navigationBarTitleDisplayMode(.inline)
         }
+        // The selection is put back rather than left pointing at a pitch that
+        // cannot be laid: `start(venue:theme:)` refuses `.ar` when the door is
+        // shut, and a refusal there would leave a match with no world in it.
+        .onAppear { coerce() }
+        .refreshingCameraDoor($door)
+        .onChange(of: door) { _, _ in coerce() }
         .presentationDetents([.large])
+    }
+
+    private func coerce() {
+        if !door.canOfferAR && referee.venue != .stadium { referee.venue = .stadium }
     }
 }
 
@@ -630,12 +653,38 @@ final class SoccerCoordinator: NSObject, ARSessionDelegate {
     /// The setup dialog closed: build the chosen world.
     func start(venue: SoccerReferee.Venue, theme: SoccerTheme) {
         guard let view, let referee, pitch == nil else { return }
+
+        // REFUSE BEFORE ANYTHING IS COMMITTED. The two assignments below used
+        // to run first, so a refused AR start left the coordinator holding
+        // `venue == .ar` with `pitch` still nil — a state no later code
+        // expects. `handleTap` guards on exactly that pair, so the screen came
+        // up looking alive and every tap on it did nothing, silently, which is
+        // a worse outcome than the crash this gate was added to prevent.
+        if venue == .ar, let refusal = CameraDoor.availability.refusal(for: .venue) {
+            referee.status = refusal
+            return
+        }
+
         self.venue = venue
         self.theme = venue == .stadium ? theme : .classic
 
         if venue == .ar {
+            // THE SECOND LOCK, AND THE ONE ABOVE `session.run`. The setup sheet
+            // already disables the venue switch and puts the selection back
+            // when the camera cannot be opened, so this is unreachable through
+            // the UI — which is why it is here. Build 27 ran a session against
+            // a plist that did not permit it and iOS killed the app; a gate
+            // that lives only in a picker is a gate the next screen forgets.
+            //
+            // It returns rather than quietly kicking off in the stadium: the
+            // person chose a carpet, and substituting a different venue without
+            // saying so is the silent failure this app is built against. The
+            // status line above is what they get instead.
             view.cameraMode = .ar
             view.environment.background = .cameraFeed()
+            // Kept even though `refusal(for:)` has already read the same fact:
+            // this is the ARKit-side check the file has always had, and it is
+            // the one that sits immediately above the session.
             guard ARWorldTrackingConfiguration.isSupported else {
                 referee.status = "This device cannot do world tracking."
                 return

@@ -2,6 +2,12 @@ import UIKit
 import SwiftUI
 import RealityKit
 import ARKit
+// The permission store, read and never written: `authorizationStatus(for:)`
+// raises no prompt. Nothing in this app calls `requestAccess` — ARKit's own
+// session raises the prompt when a venue actually opens, which is the only
+// moment a person can be told what it is for.
+import AVFoundation
+import StudioKit
 
 /// A world of its own for the lab's games — floor, sky, lights and an orbit
 /// camera — with no camera feed, no plane detection and no tap-to-place.
@@ -33,6 +39,92 @@ enum LabVenue: String, CaseIterable, Identifiable {
     case ar
     var id: String { rawValue }
     var name: String { self == .stage ? "Stage" : "Your floor" }
+}
+
+// MARK: - the door
+
+/// The one place in the app target that reads the three facts, so that the
+/// deciding and the talking can both live in StudioKit where `swift test` sees
+/// them.
+///
+/// THIS EXISTS BECAUSE BUILD 27 DIED ON EVERY LAB MODE. Eight files in this
+/// target call `ARSession.run` (counted: BowBridge, Golf, Soccer, Fetch, Follow
+/// me, the ghost duck, Room capture, the slalom), and the Info.plist they were
+/// shipped against had no `NSCameraUsageDescription`. iOS ends a process that
+/// touches a privacy-sensitive API without one, so opening any Lab mode killed
+/// the app. The key is in `project.yml` now, and the point of this type is that
+/// if it is ever taken back out, the app notices and shuts its own doors
+/// instead of dying.
+///
+/// NO GATE ON THIS MACHINE CAN SEE THAT KEY GO MISSING. It is a runtime plist
+/// check: `swiftc -parse`, `swift test` and a clean `xcodebuild` all pass while
+/// the binary is unusable. This is the only thing that looks.
+///
+/// EVERY ONE OF THESE THREE READS IS FREE OF SIDE EFFECTS. Nothing here starts
+/// a session, opens a device, or raises a permission prompt, so this may be
+/// read from `body` as often as SwiftUI likes.
+enum CameraDoor {
+
+    /// What this build, this device and this person's answer add up to.
+    static var availability: CameraAvailability {
+        CameraAvailability(usageDescriptionIsDeclared: usageDescriptionIsDeclared,
+                           permission: permission,
+                           // `class var isSupported: Bool`, iOS 11.0, read on
+                           // the concrete configuration class the Lab actually
+                           // runs — the base class's answer would be about a
+                           // different set of hardware requirements.
+                           deviceSupportsWorldTracking: ARWorldTrackingConfiguration.isSupported)
+    }
+
+    /// PRESENT AND NON-EMPTY, not merely present. iOS wants a sentence to show
+    /// somebody, and an empty string is as fatal as a missing key — the same
+    /// termination, with a manifest that looks correct in a diff.
+    private static var usageDescriptionIsDeclared: Bool {
+        let text = Bundle.main.object(forInfoDictionaryKey: "NSCameraUsageDescription") as? String
+        return !(text ?? "").isEmpty
+    }
+
+    /// A one-to-one transcription of `AVAuthorizationStatus`. It is written out
+    /// case by case rather than by raw value so that a reordering of Apple's
+    /// enum cannot silently turn `denied` into `authorized`.
+    private static var permission: CameraAvailability.Permission {
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .notDetermined: return .notDetermined
+        case .restricted: return .restricted
+        case .denied: return .denied
+        case .authorized: return .authorized
+        // A status this build has never heard of is treated as a no. FAILING
+        // CLOSED IS THE ONLY SAFE DIRECTION HERE: guessing "probably fine" for
+        // an unknown answer is how the app ends up asking for a camera it was
+        // not granted, which is the failure this whole file is about.
+        @unknown default: return .denied
+        }
+    }
+}
+
+/// Keeps a view's copy of the verdict current across a trip to Settings.
+///
+/// WHY THE VERDICT IS HELD IN `@State` AND NOT RECOMPUTED IN `body`. The
+/// permission can change while this app is in the background — the person walks
+/// to Settings, switches the camera on, and comes back — and SwiftUI has no
+/// reason to re-run a `body` that read a plain static. Refreshing on the return
+/// to `.active` is what stops a "no" from outliving the fact that made it.
+struct CameraDoorRefresh: ViewModifier {
+    @Environment(\.scenePhase) private var scenePhase
+    @Binding var door: CameraAvailability
+
+    func body(content: Content) -> some View {
+        content.onChange(of: scenePhase) { _, phase in
+            if phase == .active { door = CameraDoor.availability }
+        }
+    }
+}
+
+extension View {
+    /// Pair with `@State private var door = CameraDoor.availability`.
+    func refreshingCameraDoor(_ door: Binding<CameraAvailability>) -> some View {
+        modifier(CameraDoorRefresh(door: door))
+    }
 }
 
 /// The palette a stage is dressed in.
@@ -222,13 +314,50 @@ final class LabStage: NSObject {
 }
 
 /// The same two-way switch on every mode that has both.
+///
+/// AND THE SAME DOOR ON EVERY ONE OF THEM. A segmented control cannot disable
+/// one of its segments, so when the camera cannot be opened the whole switch
+/// goes inert — which is honest, because with "Your floor" gone there is only
+/// one venue left and no choice to make — and the reason is drawn underneath
+/// rather than raised in a dialog after a tap that did nothing.
+///
+/// IT ALSO PUTS THE SELECTION BACK. A mode whose venue somehow already reads
+/// `.ar` when the door is shut would build nothing at all and show a blank
+/// screen, so the binding is coerced to `.stage` rather than left pointing at a
+/// world that cannot be constructed.
 struct VenuePicker: View {
     @Binding var venue: LabVenue
+    @State private var door = CameraDoor.availability
+
     var body: some View {
-        Picker("Venue", selection: $venue) {
-            ForEach(LabVenue.allCases) { v in Text(v.name).tag(v) }
+        VStack(spacing: 5) {
+            Picker("Venue", selection: $venue) {
+                ForEach(LabVenue.allCases) { v in Text(v.name).tag(v) }
+            }
+            .pickerStyle(.segmented)
+            .frame(maxWidth: 260)
+            .disabled(!door.canOfferAR)
+            if let refusal = door.refusal(for: .venue) {
+                Text(refusal)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: 320)
+            }
         }
-        .pickerStyle(.segmented)
-        .frame(maxWidth: 260)
+        // NOT `.accessibilityElement(children: .combine)`. It would read the
+        // switch and its reason as one element, which is nicer to hear — and it
+        // would also swallow the segmented control's own interaction in the
+        // case where the switch is LIVE, which is every case where somebody
+        // wants to use it. VoiceOver reads the dimmed control and then the
+        // sentence; two elements is the price of the control still working.
+        .onAppear { coerce() }
+        .refreshingCameraDoor($door)
+        .onChange(of: door) { _, _ in coerce() }
+    }
+
+    private func coerce() {
+        if !door.canOfferAR && venue != .stage { venue = .stage }
     }
 }

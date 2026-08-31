@@ -146,7 +146,31 @@ public struct ModelEndpoint: Equatable, Sendable, Codable, Identifiable {
     public func validate() throws {
         guard !name.trimmingCharacters(in: .whitespaces).isEmpty else { throw Refusal.emptyName }
         guard kind == .openAICompatible else { return }
+        // The model is checked BEFORE the address, and the order is pinned by
+        // test: an endpoint with neither is missing a model name first.
         guard !model.trimmingCharacters(in: .whitespaces).isEmpty else { throw Refusal.emptyModel }
+        try validateAddress()
+    }
+
+    /// Everything the ADDRESS has to satisfy, with nothing in it about the name
+    /// or the model.
+    ///
+    /// SPLIT OUT BECAUSE THE WHOLE CHECK WAS CIRCULAR. `modelsURL()` — the
+    /// address of the list a server keeps of its own models — used to run the
+    /// full `validate()`, so asking a server what models it has was refused
+    /// with "Name the model as the server names it. Ask the server for its
+    /// list — /v1/models — if you are not sure." That is the app sending
+    /// somebody to do the very thing it has just refused to do, and it made
+    /// both "Ask what models it has" and "Check this address" unusable at the
+    /// only moment they are wanted: on a new endpoint, before anything is
+    /// known. Nothing about a bearer token, a name or a model id is needed to
+    /// know whether an address is reachable.
+    ///
+    /// THE PLAINTEXT REFUSAL IS IN HERE, NOT IN THE OTHER HALF. It is the one
+    /// rule that must hold for every request this app makes, including a
+    /// check, so it has to live on the address side of the split.
+    public func validateAddress() throws {
+        guard kind == .openAICompatible else { return }
         let trimmed = baseURL.trimmingCharacters(in: .whitespaces)
         guard let url = URL(string: trimmed), let host = url.host, !host.isEmpty,
               let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else {
@@ -156,6 +180,101 @@ public struct ModelEndpoint: Equatable, Sendable, Codable, Identifiable {
         if scheme == "http", !ModelEndpoint.isLocalHost(host) {
             throw Refusal.plaintextToThePublicInternet(host: host)
         }
+    }
+
+    // MARK: - reading the saved list back
+
+    /// What came back out of storage: the endpoints that could be read, and how
+    /// many could not.
+    ///
+    /// WHY THIS TYPE EXISTS AT ALL. The saved list used to come back through
+    /// one `try? JSONDecoder().decode([ModelEndpoint].self, …)`, and a JSON
+    /// array decodes all-or-nothing: ONE unreadable element throws for the
+    /// whole array, `try?` turns that throw into nil, and every endpoint a
+    /// person had configured vanished — with Apple's on-device model silently
+    /// selected in their place and not one word said about it. That is the
+    /// exact silent failure this app is built against, and it is reachable from
+    /// any future field added to this struct the wrong way.
+    public struct Salvage: Equatable, Sendable {
+        public var endpoints: [ModelEndpoint]
+        /// How many stored entries could not be read.
+        ///
+        /// nil MEANS SOMETHING DIFFERENT FROM ZERO: the stored list could not
+        /// be read as a list at all, so nobody can say how many were in it.
+        /// Reporting that as 0 would be the app claiming a number it does not
+        /// have.
+        public var unreadable: Int?
+
+        public init(endpoints: [ModelEndpoint], unreadable: Int?) {
+            self.endpoints = endpoints
+            self.unreadable = unreadable
+        }
+
+        /// The line for the Models screen, or nil when everything was read.
+        public var note: String? {
+            guard let unreadable else {
+                return "The saved list of models could not be read at all, so this has started "
+                     + "again with Apple's on-device model. Add your own addresses back and they "
+                     + "will save as before."
+            }
+            switch unreadable {
+            case 0:
+                return nil
+            case 1:
+                return "1 saved model could not be read and has been left out of this list. "
+                     + "Everything else survived — add it again with the address and model name "
+                     + "that server uses."
+            default:
+                return "\(unreadable) saved models could not be read and have been left out of "
+                     + "this list. Everything else survived — add them again with the addresses "
+                     + "and model names those servers use."
+            }
+        }
+    }
+
+    /// Read the saved list one element at a time, keeping what can be read.
+    ///
+    /// THE LOOP HAS A TRAP IN IT AND THE TRAP IS SILENT. A failed
+    /// `container.decode` does NOT advance an unkeyed container's cursor — it
+    /// throws before the increment — so the obvious `while !isAtEnd { if let x
+    /// = try? … }` spins on the first bad element forever and hangs the app on
+    /// launch. The cursor has to be stepped past the bad element deliberately,
+    /// which is what `decodeNil` and `Skipped` are for, and the `break` at the
+    /// bottom is the last guarantee that this function terminates even if both
+    /// of those ever stop working.
+    public static func decodeList(from data: Data) -> Salvage {
+        struct Reader: Decodable {
+            var salvage: Salvage
+
+            /// Decodes from anything at all, so the cursor can be stepped over
+            /// an element `ModelEndpoint` refused.
+            struct Skipped: Decodable {
+                init(from decoder: Decoder) throws {}
+            }
+
+            init(from decoder: Decoder) throws {
+                var container = try decoder.unkeyedContainer()
+                var kept: [ModelEndpoint] = []
+                var lost = 0
+                while !container.isAtEnd {
+                    if let one = try? container.decode(ModelEndpoint.self) {
+                        kept.append(one)
+                        continue
+                    }
+                    lost += 1
+                    // A null steps the cursor only through decodeNil, which
+                    // returns false without moving for anything that is not one.
+                    if (try? container.decodeNil()) == true { continue }
+                    if (try? container.decode(Skipped.self)) != nil { continue }
+                    break
+                }
+                salvage = Salvage(endpoints: kept, unreadable: lost)
+            }
+        }
+        guard let reader = try? JSONDecoder().decode(Reader.self, from: data) else {
+            return Salvage(endpoints: [], unreadable: nil)
+        }
+        return reader.salvage
     }
 
     /// Where the chat request goes.
@@ -169,9 +288,13 @@ public struct ModelEndpoint: Equatable, Sendable, Codable, Identifiable {
         return url
     }
 
-    /// Where its model list lives, for the "what have you got?" button.
+    /// Where its model list lives, for the "what have you got?" button and for
+    /// the address check.
+    ///
+    /// ADDRESS ONLY. Both of its callers exist to be used before a model has
+    /// been named — see the note on `validateAddress()`.
     public func modelsURL() throws -> URL {
-        try validate()
+        try validateAddress()
         let trimmed = baseURL.trimmingCharacters(in: .whitespaces)
             .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         guard let url = URL(string: trimmed + "/models") else { throw Refusal.notAURL(baseURL) }

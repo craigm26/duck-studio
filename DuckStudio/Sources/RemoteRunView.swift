@@ -51,6 +51,12 @@ struct RemoteRunView: View {
                     LabeledContent("Cores", value: "\(health.cores)")
                     LabeledContent("Rate", value: "\(Int(health.tickHz)) Hz")
                     Text(health.plant).font(.caption).foregroundStyle(.secondary)
+                    // WHETHER A RESULT FROM HERE COULD EVER BE ATTRIBUTED. The
+                    // line above is the bench's own prose about its world; this
+                    // one says whether it identified that world well enough for
+                    // a stored result to be matched against anyone else's.
+                    // Composed in StudioKit, where a test asserts it.
+                    Text(health.plantSentence).font(.caption2).foregroundStyle(.secondary)
                     if !health.graspables.isEmpty {
                         Text("Things in that world: "
                              + health.graspables.map {

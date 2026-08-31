@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 import StudioKit
 
@@ -17,6 +18,18 @@ struct ModelSettingsView: View {
 
     var body: some View {
         List {
+            // A ROW THAT IS USUALLY NOT THERE, and the whole point of it is the
+            // day it is: something a person configured could not be read back,
+            // and this is their only notice before the next save writes the
+            // list without it. It sits above "Draft with" rather than in a
+            // footer because a footer under a list is where notices go to die.
+            if let note = store.unreadableNote {
+                Section {
+                    Label(note, systemImage: "exclamationmark.triangle")
+                        .font(.footnote).foregroundStyle(Color.orange)
+                }
+            }
+
             Section {
                 ForEach(store.endpoints) { endpoint in
                     Button {
@@ -136,6 +149,21 @@ struct EndpointEditor: View {
     @State private var busy = false
     @State private var report: String?
     @State private var failure: String?
+    @State private var verdict: Reachability.Verdict?
+
+    /// How long "Check this address" waits, and deliberately NOT the timeout
+    /// on the slider below.
+    ///
+    /// THE TIMEOUT IS FOR DRAFTING, WHICH IS ALLOWED TO TAKE 766 SECONDS. A
+    /// check that hung for a quarter of an hour would tell somebody nothing
+    /// they could act on, and the one thing being asked for here is a list the
+    /// server holds on disk. If fifteen seconds is not enough to hand that
+    /// over, that IS the finding, and `Reachability` says so in both readings.
+    private static let checkAllowance: Double = 15
+
+    private var addressIsEmpty: Bool {
+        endpoint.baseURL.trimmingCharacters(in: .whitespaces).isEmpty
+    }
 
     /// Printed and spoken from one expression, so the two cannot round apart.
     private var timeoutSeconds: String { "\(Int(endpoint.timeout)) s" }
@@ -183,6 +211,33 @@ struct EndpointEditor: View {
 
             Section {
                 Button {
+                    Task { await check() }
+                } label: {
+                    HStack {
+                        Label("Check this address",
+                              systemImage: "antenna.radiowaves.left.and.right")
+                        if busy { Spacer(); ProgressView() }
+                    }
+                }
+                .disabled(busy || addressIsEmpty)
+                // A DISABLED CONTROL WITH NOTHING BESIDE IT IS A SILENT
+                // REFUSAL. The sentence comes from StudioKit so a test owns it.
+                if addressIsEmpty {
+                    Text(Reachability.nothingToCheck)
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+                if let verdict {
+                    Text(verdict.sentence).font(.footnote)
+                        .foregroundStyle(verdict.isReady ? Color.green : Color.orange)
+                }
+            } header: {
+                Text("Check")
+            } footer: {
+                Text("Asks the address for its list of models — the one thing a server answers without running anything, so this works before a model is named. It waits \(Int(Self.checkAllowance)) seconds rather than the timeout below, and says which of the several very different reasons an address can fail it hit: nothing listening, nothing serving an API there, a name that did not resolve, a key it wanted, a connection iOS would not make, or a machine that is simply slow.")
+            }
+
+            Section {
+                Button {
                     Task { await test() }
                 } label: {
                     HStack {
@@ -191,6 +246,14 @@ struct EndpointEditor: View {
                     }
                 }
                 .disabled(busy || endpoint.model.isEmpty)
+                // The other disabled control on this screen, with its reason.
+                // The refusal already exists and is already tested — it is what
+                // Save would say — so this says the same words rather than
+                // inventing a second set.
+                if endpoint.model.isEmpty {
+                    Text(ModelEndpoint.Refusal.emptyModel.message)
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
                 if let report {
                     Text(report).font(.footnote).foregroundStyle(.green)
                 }
@@ -237,6 +300,15 @@ struct EndpointEditor: View {
         }
         .navigationTitle(endpoint.name.isEmpty ? "New model" : endpoint.name)
         .navigationBarTitleDisplayMode(.inline)
+        // A VERDICT IS ABOUT ONE ADDRESS, AND DIES WITH IT. `check()` cleared
+        // this only on its way in, so a green "192.168.1.10 port 11434
+        // answered … The address is right." survived being edited into a
+        // different address entirely — the reassurance outliving the thing it
+        // was about, which is the class of stale claim this app is built
+        // against. Anything that changes what would be probed clears it.
+        .onChange(of: endpoint.baseURL) { _, _ in verdict = nil }
+        .onChange(of: endpoint.model) { _, _ in verdict = nil }
+        .onChange(of: endpoint.relay) { _, _ in verdict = nil }
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Cancel") { dismiss() }
@@ -272,6 +344,69 @@ struct EndpointEditor: View {
         } catch {
             failure = "\(error.localizedDescription)"
         }
+    }
+
+    /// Ask the address for its model list, write down exactly what came back,
+    /// and let StudioKit say what it means.
+    ///
+    /// THE VIEW OBSERVES AND STUDIOKIT JUDGES, and the split is the whole
+    /// design: everything below writes into an `Observation` — a code, a
+    /// status, a body, a clock — and not one sentence is composed here. That is
+    /// what lets every branch of the answer be asserted by `swift test` on a
+    /// machine with no phone, no iOS and no Ollama on it.
+    ///
+    /// NOTE WHAT IS NOT WRITTEN DOWN: whether Local Network permission was
+    /// granted. Nothing in this app reads that switch, so nothing here claims
+    /// to — `Reachability` offers it as the shape of two failures that cannot
+    /// be anything else, and says in the same breath that it is not a reading.
+    private func check() async {
+        busy = true; failure = nil; report = nil; verdict = nil
+        defer { busy = false }
+
+        // The address is refused before anything is sent, by the same rule Save
+        // uses — so a plaintext address off your own network never leaves here.
+        let url: URL
+        do {
+            url = try endpoint.modelsURL()
+        } catch let refusal as ModelEndpoint.Refusal {
+            failure = refusal.message
+            return
+        } catch {
+            failure = error.localizedDescription
+            return
+        }
+
+        var seen = Reachability.Observation(host: url.host ?? endpoint.baseURL,
+                                            port: url.port,
+                                            scheme: url.scheme ?? "http",
+                                            path: url.path,
+                                            allowance: Self.checkAllowance)
+        var request = URLRequest(url: url)
+        request.timeoutInterval = Self.checkAllowance
+        if let key = endpoint.apiKey, !key.isEmpty {
+            request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+        }
+
+        let started = Date()
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            seen.seconds = Date().timeIntervalSince(started)
+            seen.status = (response as? HTTPURLResponse)?.statusCode
+            // Decoded rather than initialised from Data so a body cut mid
+            // character still quotes; a nil here would read as "no body at all".
+            seen.body = String(decoding: data.prefix(400), as: UTF8.self)
+            // nil and 0 MEAN DIFFERENT THINGS DOWNSTREAM: nil is "that was not
+            // a model list", 0 is "a model list with nothing in it".
+            if let top = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let listed = top["data"] as? [[String: Any]] {
+                seen.modelsFound = listed.compactMap { $0["id"] as? String }.count
+            }
+        } catch {
+            seen.seconds = Date().timeIntervalSince(started)
+            seen.urlErrorCode = (error as NSError).code
+            seen.systemText = error.localizedDescription
+        }
+        verdict = Reachability.explain(seen)
     }
 
     private func test() async {

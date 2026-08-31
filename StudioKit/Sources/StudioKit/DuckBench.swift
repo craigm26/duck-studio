@@ -147,7 +147,16 @@ public enum DuckBench {
     }
 
     /// A `/perform` answer, as something a draft can keep.
-    public static func readOutcome(_ data: Data, when: Date, plant: String) throws
+    ///
+    /// THE PLANT COMES OUT OF THE ANSWER AND NOWHERE ELSE. This used to take a
+    /// `plant:` parameter, and the only caller passed
+    /// `try? readHealth(performBody)?.plant ?? "the bench's own plant"` — a
+    /// `readHealth` that always threw, because a `/perform` body has no `bench`
+    /// key, so the literal fallback won every single time and was then printed
+    /// as a fact about a world nobody had read. A reader is the wrong place to
+    /// invent a value; a reader that cannot find a fact must return its
+    /// absence, which is what the Optionals below are for.
+    public static func readOutcome(_ data: Data, when: Date) throws
         -> Pipeline.BenchOutcome {
         guard let top = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw ReadError.notJSON
@@ -159,12 +168,50 @@ public enum DuckBench {
         return Pipeline.BenchOutcome(
             when: when,
             bench: top["format"] as? String ?? "duck-bench",
-            plant: plant,
+            plantName: top["plantName"] as? String,
+            plantDigest: top["plantDigest"] as? String,
             policy: top["policy"] as? String ?? "unknown",
             achieves: achieves, rollouts: rollouts,
             criterion: top["criterion"] as? String ?? "stayed upright",
             medianHeight: top["medianHeight"] as? Double,
             peakJointRate: top["peakJointRate"] as? Double)
+    }
+
+    /// How long a plant digest is shown. Twelve hex characters — enough that
+    /// two hand-built scenes will not collide by accident, short enough to sit
+    /// in a caption. The whole digest is kept; only the printing is shortened.
+    static let digestShown = 12
+
+    /// Which world a run happened in, in one sentence — or plainly that
+    /// nothing recorded it.
+    ///
+    /// IT LIVES IN ONE PLACE ON PURPOSE. Two screens print this and a future
+    /// receipt will want it too, and the bug this replaces was exactly a
+    /// second version of the sentence written at a call site: a placeholder
+    /// that no bench ever produced, indistinguishable on screen from a
+    /// measurement. There is no fallback string here. The three cases below
+    /// are all the cases there are, and each says what it knows and stops.
+    public static func plantSaid(name: String?, digest: String?) -> String {
+        guard let name, !name.isEmpty else {
+            // SAY WHAT IS KNOWN AND STOP. The first version of this sentence
+            // read "This run predates the app recording which world it ran in",
+            // which is a CAUSE, and the app cannot tell which cause it is: an
+            // outcome stored before the bench reported a plant, a bench running
+            // an older build that still does not, and a bench that simply did
+            // not answer this time all arrive here identically. Naming one of
+            // the three is exactly the move that produced the placeholder this
+            // whole change exists to delete — a plausible sentence nothing
+            // measured.
+            return "Nothing recorded which world this ran in, so nothing here can tell you. "
+                 + "A result with no world beside it cannot be compared with one that has "
+                 + "another."
+        }
+        guard let digest, !digest.isEmpty else {
+            return "On \(name). This bench will not say which bytes that was, and two benches "
+                 + "can call different worlds by that name — so a result from this one cannot "
+                 + "be matched to a result from another."
+        }
+        return "On \(name), sha256 \(digest.prefix(digestShown))."
     }
 
     public static func urlRequest(for call: Call, token: String? = nil) -> URLRequest {
@@ -183,7 +230,14 @@ public enum DuckBench {
 
     public struct Health: Equatable, Sendable {
         public let bench: String
+        /// The bench's own prose description of its world.
         public let plant: String
+        /// The plant file's bare name, if the bench says one.
+        public let plantName: String?
+        /// sha256 of that file's bytes, hex, if the bench says one. A bench
+        /// older than this field is silent rather than wrong, so it is
+        /// Optional and its absence gets its own sentence.
+        public let plantDigest: String?
         public let tickHz: Double
         public let cores: Int
         public let policies: [String]
@@ -204,6 +258,23 @@ public enum DuckBench {
             public let kilograms: Double
             public var id: String { name }
             public var grams: Double { kilograms * 1000 }
+        }
+
+        /// Whether a result from this bench could be attributed to a world
+        /// later, said in the present tense because this bench is answering
+        /// now. A bench that will not identify its plant is still usable; it
+        /// just cannot have its results compared with anyone else's, and the
+        /// person pressing Run deserves to know that before they press it.
+        public var plantSentence: String {
+            guard let plantName, !plantName.isEmpty else {
+                return "This bench does not say which world it runs, so a result from it "
+                     + "cannot be matched to a result from another bench."
+            }
+            guard let plantDigest, !plantDigest.isEmpty else {
+                return "Running \(plantName). It will not say which bytes that is, and two "
+                     + "benches can call different worlds by that name."
+            }
+            return "Running \(plantName), sha256 \(plantDigest.prefix(DuckBench.digestShown))."
         }
     }
 
@@ -241,6 +312,8 @@ public enum DuckBench {
         guard let bench = root["bench"] as? String else { throw ReadError.notJSON }
         return Health(bench: bench,
                       plant: root["plant"] as? String ?? "unstated",
+                      plantName: root["plantName"] as? String,
+                      plantDigest: root["plantDigest"] as? String,
                       tickHz: root["tickHz"] as? Double ?? DuckModel.tickHz,
                       cores: root["cores"] as? Int ?? 0,
                       policies: root["policies"] as? [String] ?? [],

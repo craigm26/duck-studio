@@ -3,6 +3,7 @@ import ARKit
 import RealityKit
 import Combine
 import DuckKit
+import StudioKit
 
 /// Scan a room, get a MuJoCo scene the duck can be trained in.
 ///
@@ -23,11 +24,59 @@ import DuckKit
 /// and only exists on Pro hardware, and `DuckSceneMJCF.Obstacle` is a box
 /// either way — so a mesh would have to be reduced to its bounding box, which
 /// is roughly what the plane already is. Planes work on every ARKit device.
+///
+/// AND IT HAS NO STAGE VERSION EITHER, for a different reason from Follow me's.
+/// Follow me could be faked and must not be; this one cannot be faked at all —
+/// what it writes out is the floor and the furniture ARKit found in the room
+/// you are standing in, and with no camera there is nothing to find. So when
+/// the door is shut it refuses outright rather than opening an ARView over a
+/// session that will never run. The sentence is composed in
+/// `CameraAvailability`, where `swift test` reads it.
 struct RoomCaptureView: View {
 
     @StateObject private var capture = RoomCaptureModel()
+    /// Checked here as well as in the Lab's row, because the unconditional
+    /// `ARView(cameraMode: .ar)` this replaces is the shape of the bug that
+    /// killed build 27.
+    @State private var door = CameraDoor.availability
 
     var body: some View {
+        Group {
+            if let refusal = door.refusal(for: .roomCapture) {
+                ContentUnavailableView(CameraAvailability.Dependent.roomCapture.title,
+                                       systemImage: "video.slash",
+                                       description: Text(refusal))
+            } else {
+                scanning
+            }
+        }
+        .refreshingCameraDoor($door)
+        .navigationTitle("Room capture")
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $capture.showingScene) {
+            NavigationStack {
+                ScrollView {
+                    Text(capture.mjcf)
+                        .font(.caption2.monospaced())
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .textSelection(.enabled)
+                        .padding()
+                }
+                .navigationTitle("captured-room.xml")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { capture.showingScene = false }
+                    }
+                }
+            }
+        }
+    }
+
+    /// The scan itself. Reached only when the door is open, so
+    /// `RoomCaptureContainer` builds its `ARView` on the strength of this
+    /// branch having been taken.
+    private var scanning: some View {
         ZStack(alignment: .bottom) {
             RoomCaptureContainer(model: capture).ignoresSafeArea()
 
@@ -53,26 +102,6 @@ struct RoomCaptureView: View {
                     .disabled(capture.floorExtent == nil)
             }
             .padding(.bottom, 24)
-        }
-        .navigationTitle("Room capture")
-        .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $capture.showingScene) {
-            NavigationStack {
-                ScrollView {
-                    Text(capture.mjcf)
-                        .font(.caption2.monospaced())
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .textSelection(.enabled)
-                        .padding()
-                }
-                .navigationTitle("captured-room.xml")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Done") { capture.showingScene = false }
-                    }
-                }
-            }
         }
     }
 }
@@ -111,6 +140,10 @@ final class RoomCaptureModel: ObservableObject {
 private struct RoomCaptureContainer: UIViewRepresentable {
     @ObservedObject var model: RoomCaptureModel
 
+    /// REACHED ONLY WHEN THE DOOR IS OPEN — see `RoomCaptureView.body`. The
+    /// `isSupported` guard below is kept anyway: it is the ARKit-side check
+    /// this file has always had, and a second reading of a fact costs nothing
+    /// next to a session started on a device that cannot hold one.
     func makeUIView(context: Context) -> ARView {
         let view = ARView(frame: .zero, cameraMode: .ar, automaticallyConfigureSession: false)
         guard ARWorldTrackingConfiguration.isSupported else {
