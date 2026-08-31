@@ -133,6 +133,33 @@ targets:
         # nothing here ever cleans up, to hand over a copy of a file this app
         # never writes to anyway.
         LSSupportsOpeningDocumentsInPlace: true
+        # WITHOUT THIS KEY THE LAB CRASHES THE APP. iOS terminates a process
+        # that touches a privacy-sensitive API with no usage description, and
+        # `ARSession.run` with a camera-backed configuration is exactly that.
+        # Nine files in this target run one — the ghost duck, soccer, room
+        # capture and the games — and every one of them was ported from
+        # OpenCastor, whose own project.yml declares this key. The screens came
+        # across and the key did not, so build 27 dies the moment anybody opens
+        # a Lab mode on their floor. There is no compile-time gate that can see
+        # this: it is a runtime plist check, so `swiftc -parse`, `swift test`
+        # and a clean `xcodebuild` all pass while the binary is unusable.
+        NSCameraUsageDescription: "Duck Studio uses the camera only in the Lab, and only when you choose 'Your floor' — to find the floor you are standing on so a duck can be drawn at its real 25 cm on it. No image is recorded, stored, or sent anywhere, and every Lab mode also runs on a rendered stage with the camera switched off."
+        # THE BENCH IS ON YOUR NETWORK, WHICH iOS TREATS AS PRIVATE. A plain
+        # request to an RFC1918 or `.local` address needs this key from iOS 14
+        # on, and `DuckBench` refuses to send anywhere else — see its `Address`
+        # type, which rejects a host that is not obviously local precisely so a
+        # typo cannot post a policy to a stranger.
+        #
+        # NO BONJOUR SERVICES ARE DECLARED, deliberately: nothing here browses
+        # for a bench. You type its address. Discovery would be the moment this
+        # app started looking at a network it was not pointed at.
+        NSLocalNetworkUsageDescription: "Duck Studio contacts a physics bench on your own network — only the address you type in, and only when you ask it to run something. It never looks for machines by itself and nothing about your policies or motions leaves your network."
+        # ATS BLOCKS PLAIN HTTP, AND A PI ON A DESK HAS NO CERTIFICATE. This
+        # exception covers local addresses only; everything else in the app is
+        # still held to HTTPS, which is what `ModelEndpoint`'s
+        # `plaintextToThePublicInternet` refusal is about.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
         # A shared motion, which is this app's OWN format — so Exported here,
         # unlike ONNX. Declaring it is what lets a .duckintent arriving in a
         # chat or in Files offer Duck Studio to open it.

@@ -302,14 +302,20 @@ not features that were removed. Nothing below exists in the shipping app.
 - **M6 — Diff.** Two networks on one observation: paired bars, ‖Δa‖₂, cosine
   similarity, argmax joint, and closed-loop divergence over time. `PolicyDiff` was
   never written.
-- **M7 — AR.** A true-scale ghost anchored to a real floor. **There is no AR in
-  this app and no camera use of any kind**: the 3D stage is a RealityKit
-  turntable running with `cameraMode: .nonAR`, the app declares no
-  `NSCameraUsageDescription`, and an AR session could not start if one were
-  written. The argument for eventually building it is unchanged — 25 cm is
-  smaller than everyone who pre-ordered thinks, and putting the pose on a real
-  floor with the head camera site at 244 mm, because that is where
-  `robot_walk.xml` says it is, corrects that in one second.
+- ~~**M7 — AR.**~~ **Built, in the Lab.** This entry used to say "there is no AR
+  in this app and no camera use of any kind", and that stopped being true the
+  day the Lab arrived: nine files run an `ARSession`, and every Lab mode offers
+  "Your floor" beside its rendered stage. The plist now declares
+  `NSCameraUsageDescription` to match, which it did not for one build — see the
+  note beside that key, because the gap crashed the app and no compile-time
+  check could see it.
+
+  The argument was always that 25 cm is smaller than everyone who pre-ordered
+  thinks, and that putting the pose on a real floor with the head camera site at
+  244 mm — because that is where `robot_walk.xml` says it is — corrects that in
+  one second. What is still unbuilt is the part M7 was really about: the
+  two-ghost diff, authored against recorded, with per-site millimetre
+  separation.
 
 ## Layout
 
@@ -318,7 +324,7 @@ not features that were removed. Nothing below exists in the shipping app.
 | `StudioKit/` | Pure-Swift, UI-free core. Builds and `swift test`s on Linux aarch64. Every number the app displays is computed here, and so is every sentence that makes a claim about a policy, a motion or a refusal — the ones a test has to be able to assert letter by letter. Ordinary screen furniture (section headers, footers, button titles) is still written in the views. |
 | `StudioKit/Tests/StudioKitTests/Fixtures/policies/` | The nine real upstream `.onnx` files. |
 | `StudioKit/Tests/StudioKitTests/Fixtures/refusals/` | The refusal corpus: eleven ONNX files — one per distinct rejection reason, plus a synthetic control that must load, without which the corpus would only prove the generator emits unusable bytes. |
-| `DuckStudio/project.yml` | xcodegen manifest, and the source of truth for `Info.plist` — which is generated, not committed, along with the whole `.xcodeproj`. Carries the type declarations, the document types, and `ITSAppUsesNonExemptEncryption=false`. It declares **no** camera, motion, microphone, location, Bluetooth or Bonjour key, which is why there is no AR and no IMU source — those come back with the milestones that need them. |
+| `DuckStudio/project.yml` | xcodegen manifest, and the source of truth for `Info.plist` — which is generated, not committed, along with the whole `.xcodeproj`. Carries the type declarations, the document types, and `ITSAppUsesNonExemptEncryption=false`. It declares `NSCameraUsageDescription` (the Lab's AR modes), `NSLocalNetworkUsageDescription` and an `NSAllowsLocalNetworking` ATS exception (the physics bench, at an address you type). It declares **no** motion, microphone, location, Bluetooth or **Bonjour** key — nothing here listens for a machine it was not pointed at. |
 | `DuckStudio/Resources/` | The nine bundled policies and `PrivacyInfo.xcprivacy`, which flattens to the app-bundle root. |
 | `DuckStudio/Sources/` | SwiftUI only. No arithmetic lives here; `scripts/check_no_studio_math.sh` enforces that. |
 | `scripts/check_no_studio_math.sh` | The guard. Run it before you finish. |

@@ -10,9 +10,23 @@ numerator does not exist until the app is live.
 no SDK, no event stream, no per-user telemetry. The App Privacy label is **Data
 Not Collected** and the Privacy Manifest declares an empty
 `NSPrivacyCollectedDataTypes`. This is easier to mean here than anywhere else in
-the family: the app has no account, no server, and exactly one outbound request
-in the whole binary — a model URL the user typed. Every number below is a **$0
-side-channel proxy** measured *outside* the app.
+the family: the app has no account and no server of its own. What it used to
+claim beside that — "exactly one outbound request in the whole binary" — stopped
+being true and is corrected here rather than left standing. There are four kinds
+of outbound request, and the property that matters is not that there is one, it
+is that **every one of them goes to an address the person typed or a service
+they signed into, and none of them is ours**:
+
+- a language model endpoint, at a URL the person entered (on-device and
+  local-network models make no request leave the house at all),
+- a policy `.onnx`, at a URL the person entered,
+- Hugging Face, with the person's own token, when they search the hub or publish,
+- a physics bench on the local network, at an address the person entered, which
+  `DuckBench.Address` refuses to send anywhere that is not obviously local.
+
+No analytics, no SDK, no event stream, no per-user telemetry, and no endpoint
+this project controls — that is the claim, and it is still true. Every number
+below is a **$0 side-channel proxy** measured *outside* the app.
 
 ---
 
