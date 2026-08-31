@@ -302,4 +302,44 @@ final class DuckBenchTests: XCTestCase {
         let note = try XCTUnwrap(ClipNote.provenance(for: clip))
         XCTAssertTrue(note.hasPrefix("Contributed — trained by a stranger."), note)
     }
+
+    /// A TAILNET HOST IS YOUR OWN MACHINE, AND THE BENCH USED TO DISAGREE WITH
+    /// THE REST OF THE APP ABOUT IT. `ModelEndpoint.isLocalHost` accepted
+    /// 100.64/10 with a comment explaining why Tailscale counts; `DuckBench`
+    /// kept a narrower copy that did not. So the same host was private enough
+    /// to send a sentence to and not private enough to send a policy to.
+    ///
+    /// It matters because of the arrangement this family is actually for: a
+    /// phone, a physics bench and a GPU box on one tailnet and three different
+    /// networks. Under the old rule the bench half of that was unreachable.
+    func testTheBenchAcceptsATailnetHost() throws {
+        for host in ["100.122.199.6", "100.64.76.122", "100.95.79.116"] {
+            XCTAssertNoThrow(try DuckBench.address("http://\(host):8770"),
+                             "\(host) is a tailnet address and is somebody's own machine")
+        }
+        // MagicDNS names resolve into that same range, so the name is accepted
+        // for the same reason the number is.
+        XCTAssertNoThrow(try DuckBench.address("http://forge.tail1234.ts.net:8770"))
+    }
+
+    /// And the refusal it exists for is untouched: a bench address is checked
+    /// precisely so a typo cannot post a policy to a stranger.
+    func testTheBenchStillRefusesTheOpenInternet() {
+        for host in ["example.com", "8.8.8.8", "203.0.113.9", "100.200.0.1"] {
+            XCTAssertThrowsError(try DuckBench.address("http://\(host):8770"),
+                                 "\(host) is not on anybody's own network")
+        }
+    }
+
+    /// The two rules are now one function, not two that agree today.
+    func testTheBenchAndTheModelEndpointAnswerTheSameQuestionTheSameWay() {
+        let hosts = ["localhost", "127.0.0.1", "::1", "10.0.0.4", "192.168.1.10",
+                     "172.20.0.5", "100.64.76.122", "169.254.1.1", "pi.local",
+                     "box.internal", "forge.tail1234.ts.net",
+                     "example.com", "8.8.8.8", "100.200.0.1", "not a host"]
+        for host in hosts {
+            XCTAssertEqual(DuckBench.isLocal(host), ModelEndpoint.isLocalHost(host),
+                           "\(host) got two different answers about being your own network")
+        }
+    }
 }

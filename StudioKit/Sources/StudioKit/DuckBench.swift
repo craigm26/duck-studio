@@ -72,16 +72,17 @@ public enum DuckBench {
         return Address(host: host, port: port)
     }
 
+    /// THE SAME RULE THE MODEL ENDPOINT USES, because it is the same question.
+    ///
+    /// This used to be a second, narrower copy: no 100.64/10, so a tailnet host
+    /// was refused here while `ModelEndpoint` accepted it with a comment
+    /// explaining why Tailscale counts. The result was that a person could
+    /// point the app's language model at their own machine across a tailnet and
+    /// not the physics bench — the same host, the same privacy, two answers.
+    /// It also blocked the arrangement this family is for: a phone, a bench and
+    /// a GPU box on one tailnet and three different Wi-Fis.
     static func isLocal(_ host: String) -> Bool {
-        if host == "localhost" || host.hasSuffix(".local") { return true }
-        let parts = host.split(separator: ".").compactMap { Int($0) }
-        guard parts.count == 4, parts.allSatisfy({ (0...255).contains($0) }) else { return false }
-        switch (parts[0], parts[1]) {
-        case (127, _), (10, _): return true
-        case (192, 168): return true
-        case (172, 16...31): return true
-        default: return false
-        }
+        ModelEndpoint.isLocalHost(host)
     }
 
     // MARK: - what to ask it

@@ -149,10 +149,25 @@ public struct ModelEndpoint: Equatable, Sendable, Codable, Identifiable {
     /// tailnet is as private as one at 192.168.x, and 100.64.0.0/10 is the
     /// carrier-grade NAT range Tailscale hands out. Refusing it would push
     /// people onto plaintext-to-the-internet or onto nothing.
+    ///
+    /// ONE RULE, AND THE BENCH USES IT TOO. `DuckBench` kept its own copy of
+    /// this test and that copy was NARROWER — no 100.64/10, no `.internal`, no
+    /// `::1` — so the same tailnet host was private enough to send a sentence
+    /// to and not private enough to send a policy to. That is not a defensible
+    /// distinction, and it blocked the case this family is actually built for:
+    /// a phone, a bench and a GPU box all on one tailnet, none of them on the
+    /// same Wi-Fi. Two copies of a security predicate is one copy too many;
+    /// this is the one.
     public static func isLocalHost(_ host: String) -> Bool {
         let name = host.lowercased()
         if name == "localhost" || name == "127.0.0.1" || name == "::1" { return true }
         if name.hasSuffix(".local") || name.hasSuffix(".internal") { return true }
+        // A MAGICDNS NAME IS A TAILNET NAME. Tailscale's own suffix is
+        // `.ts.net`, and a host reached by one resolves to 100.64/10 — the
+        // range two lines below. Accepting the name as well as the number
+        // spares somebody having to look the number up to use their own
+        // machine.
+        if name.hasSuffix(".ts.net") { return true }
         let parts = name.split(separator: ".").compactMap { Int($0) }
         guard parts.count == 4, parts.allSatisfy({ (0...255).contains($0) }) else { return false }
         switch (parts[0], parts[1]) {
