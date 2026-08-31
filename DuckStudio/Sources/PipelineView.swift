@@ -153,7 +153,7 @@ struct PipelineView: View {
         }
     }
 
-    private func run(_ draft: IntentDraft) async {
+    @MainActor private func run(_ draft: IntentDraft) async {
         busy = true; failure = nil
         defer { busy = false }
         do {

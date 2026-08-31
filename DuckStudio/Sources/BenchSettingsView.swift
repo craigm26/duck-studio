@@ -212,7 +212,7 @@ struct BenchEditorView: View {
         }
     }
 
-    private func check() async {
+    @MainActor private func check() async {
         busy = true; refusal = nil; diagnosis = nil; policies = []
         defer { busy = false }
         bench.address = BenchSetup.tidy(bench.address)

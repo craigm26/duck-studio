@@ -202,7 +202,7 @@ struct PolicyBlendView: View {
     /// Upload, then run the blend and its liveliest ingredient under the SAME
     /// command — because the ingredient's distance is the yardstick, and a
     /// yardstick measured under a different command is not one.
-    private func measure(_ data: Data) async {
+    @MainActor private func measure(_ data: Data) async {
         busy = true; failure = nil; verdict = nil
         defer { busy = false }
         do {

@@ -219,7 +219,7 @@ struct RemoteRunView: View {
         return bench
     }
 
-    private func run<T>(_ work: () async throws -> T) async -> T? {
+    @MainActor private func run<T>(_ work: () async throws -> T) async -> T? {
         busy = true; failure = nil
         defer { busy = false }
         do { return try await work() }
@@ -229,7 +229,7 @@ struct RemoteRunView: View {
         return nil
     }
 
-    private func connect() async {
+    @MainActor private func connect() async {
         health = nil; clip = nil; success = nil
         health = await run {
             let address = try requireBench().resolved()
@@ -240,7 +240,7 @@ struct RemoteRunView: View {
         if let health, chosen.isEmpty { chosen = health.policies.first ?? "" }
     }
 
-    private func record() async {
+    @MainActor private func record() async {
         success = nil
         clip = await run {
             let address = try requireBench().resolved()
@@ -252,7 +252,7 @@ struct RemoteRunView: View {
         }
     }
 
-    private func measure() async {
+    @MainActor private func measure() async {
         clip = nil
         success = await run {
             let address = try requireBench().resolved()
