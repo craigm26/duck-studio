@@ -108,6 +108,18 @@ def tarball(worktree: bool) -> pathlib.Path:
     return path
 
 
+# TWO FLAGS AND A TOOLCHAIN, ALL THREE FOUND THE HARD WAY.
+#
+# `-skipPackagePluginValidation`: mlx-swift ships a build-tool plugin called
+# CudaBuild. Xcode will not run an unvalidated package plugin in a headless
+# build and fails with "Validate plug-in ... in package mlx-swift" and no
+# further explanation. `-skipMacroValidation` is the same rule for the
+# swift-syntax macros MLX pulls in.
+#
+# And the build machine needs the Metal toolchain, which Xcode 26 made a
+# separate 688 MB component: without it MLX's shaders stop at "cannot execute
+# tool 'metal' due to missing Metal Toolchain". Install once per machine with
+#     xcodebuild -downloadComponent MetalToolchain
 REMOTE_BUILD = f"""set -e
 export PATH=$HOME/.local/bin:$PATH
 command -v xcodegen >/dev/null || {{ echo "xcodegen missing on the Mac — see the note in this script"; exit 127; }}
@@ -118,6 +130,7 @@ xcodegen generate >/dev/null
 set -o pipefail
 xcodebuild -project DuckStudio.xcodeproj -scheme DuckStudio \
     -destination 'generic/platform=iOS' -configuration Release \
+    -skipPackagePluginValidation -skipMacroValidation \
     CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build 2>&1 \
   | sed -e 's|/Volumes/Macintosh_HD||g' -e 's|{REMOTE_SRC}/||g' \
   | grep -E 'error:|warning: [A-Z]|\\*\\* BUILD' | tail -60

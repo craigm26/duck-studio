@@ -59,8 +59,11 @@ fi
 # xcodegen is the source of truth; the .xcodeproj is gitignored + regenerated.
 xcodegen generate
 
+# See scripts/mac_compile_check.py for why these two flags and the Metal
+# toolchain are needed: mlx-swift ships a build-tool plugin and Metal shaders.
 xcodebuild archive \
   -project DuckStudio.xcodeproj \
+  -skipPackagePluginValidation -skipMacroValidation \
   -scheme DuckStudio \
   -destination 'generic/platform=iOS' \
   -archivePath "$ARCHIVE" \
@@ -70,6 +73,7 @@ xcodebuild archive \
   -authenticationKeyIssuerID "$ISSUER_ID"
 
 xcodebuild -exportArchive \
+  -skipPackagePluginValidation -skipMacroValidation \
   -archivePath "$ARCHIVE" \
   -exportOptionsPlist exportOptions.plist \
   -allowProvisioningUpdates \

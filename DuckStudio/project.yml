@@ -22,6 +22,16 @@ packages:
     # keyframe at 0.00 s unreachable — and every motion this app's editor
     # writes starts there. StudioKit/Package.swift pins the same floor.
     from: 1.31.1
+  # The engine for a model downloaded onto the phone itself.
+  #
+  # WHY THIS PACKAGE. "A model on this phone" already existed and meant an
+  # address — localhost:8080, where ANOTHER app was serving one. Running one
+  # here needs an inference engine, and MLX is Apple's: it reads the quantised
+  # weights mlx-community publishes, downloads them from Hugging Face itself,
+  # and runs on the phone's unified memory. iOS 17 is its floor and ours.
+  mlx-swift-lm:
+    url: https://github.com/ml-explore/mlx-swift-lm.git
+    from: 3.31.4
 targets:
   DuckStudio:
     type: application
@@ -31,6 +41,13 @@ targets:
       - Resources
       - Assets.xcassets
     dependencies:
+      # MLXLLM loads and runs the weights; MLXLMCommon is the load/generate API
+      # and carries the Hugging Face downloader, so the app does not implement
+      # a second one.
+      - package: mlx-swift-lm
+        product: MLXLLM
+      - package: mlx-swift-lm
+        product: MLXLMCommon
       - package: StudioKit
         product: StudioKit
       - package: DuckKit
