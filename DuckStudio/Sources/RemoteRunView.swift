@@ -19,7 +19,10 @@ struct RemoteRunView: View {
     @ObservedObject var models: EndpointStore
 
     @AppStorage("duckbench.address") private var addressText = ""
-    @State private var token = ""
+    // THE SAME TOKEN EVERY BENCH SCREEN USES. Each screen kept its own
+    // @State copy, so a token typed to connect was empty again on the next
+    // screen and the bench looked like it had started refusing.
+    @AppStorage("duckbench.token") private var token = ""
     @State private var health: DuckBench.Health?
     @State private var chosen = ""
     @State private var seconds = 6.0
@@ -33,6 +36,9 @@ struct RemoteRunView: View {
     var body: some View {
         List {
             Section {
+                NavigationLink { BenchSetupView() } label: {
+                    Label("Set one up", systemImage: "questionmark.circle")
+                }
                 TextField("192.168.1.20:8770", text: $addressText)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()

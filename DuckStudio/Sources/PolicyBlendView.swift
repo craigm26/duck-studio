@@ -24,7 +24,10 @@ struct PolicyBlendView: View {
     let library: PolicyLibrary
 
     @AppStorage("duckbench.address") private var addressText = ""
-    @State private var token = ""
+    // THE SAME TOKEN EVERY BENCH SCREEN USES. Each screen kept its own
+    // @State copy, so a token typed to connect was empty again on the next
+    // screen and the bench looked like it had started refusing.
+    @AppStorage("duckbench.token") private var token = ""
     @State private var first: String?
     @State private var second: String?
     @State private var towardSecond = 0.5
