@@ -58,6 +58,10 @@ struct IntentAuthorView: View {
     @State private var confirmingDiscard = false
     @State private var confirmingDelete = false
     @State private var publishing = false
+    /// The two-ducks screen. A sheet rather than a fifth panel: the comparison
+    /// needs the whole width twice over, and the editor's own stage is already
+    /// using the top third.
+    @State private var preferring = false
 
     enum Panel: String, CaseIterable, Identifiable {
         case joints = "Pose", timeline = "Keyframes", ask = "Ask", checks = "Checks"
@@ -181,6 +185,14 @@ struct IntentAuthorView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
+                    // TWO DUCKS AND A CHOICE. It sits above Export because it
+                    // is a way of WRITING the motion, not a way of sending it —
+                    // the same class of thing as the Ask panel, and the only
+                    // one in the app that changes a motion from what somebody
+                    // preferred rather than from what they typed.
+                    Button { preferring = true } label: {
+                        Label("Tune by preference", systemImage: "arrow.left.arrow.right")
+                    }
                     Button { share() } label: {
                         Label("Export the motion", systemImage: "square.and.arrow.up")
                     }
@@ -236,6 +248,19 @@ struct IntentAuthorView: View {
             Text("It goes from the list and from this iPhone. This cannot be undone.")
         }
         .onAppear { if original == nil { original = draft } }
+        .sheet(isPresented: $preferring) {
+            NavigationStack {
+                PreferenceSearchView(draft: draft, scene: scene) { chosen in
+                    // THE SEARCH RETURNS A MOTION, NOT A SETTING. Keeping the
+                    // knob values would leave the draft's keyframes untouched
+                    // and the preference living somewhere only this screen
+                    // understands; writing the poses back means what was
+                    // chosen IS the motion, and every other screen — export,
+                    // the bench, the checks — sees it.
+                    draft.keys = chosen.keys
+                }
+            }
+        }
         .sheet(item: $outgoing) { out in
             NavigationStack {
                 ShareDestinationsView(title: draft.name, file: out.url, message: out.message)
