@@ -19,10 +19,27 @@ import DuckKit
 /// declares `artifact: "motion"`, and `PolicyManifest` refuses it by name.
 ///
 /// THE CARD LEADS WITH WHAT IS NOT TRUE OF IT. An authored motion is a
-/// request, not a result: the same keyframes fed through a standing policy on
-/// the real robot come out shallower — measured at 40-60% of the authored
-/// depth for a crouch, because the policy resists leg offsets it did not ask
-/// for. Somebody downloading this needs that before they need anything else.
+/// request, not a result: the same keyframes fed through a standing policy
+/// come out shallower — measured at 40-60% of the authored depth for a crouch,
+/// because the policy resists leg offsets it did not ask for. Somebody
+/// downloading this needs that before they need anything else.
+///
+/// WHERE THAT NUMBER COMES FROM, AND WHERE IT DOES NOT. It was measured in
+/// MuJoCo, riding the standing policy, and it is written down in the
+/// provenance field of OpenCastor's bundled `Victory bounce.duckmove`:
+/// "verified in MuJoCo riding the standing policy: 16 of 16 randomised
+/// rollouts end standing, peak joint rate 6.0 rad/s. One honest caveat from
+/// the verification: the standing policy resists the leg offsets, so the
+/// physical crouch is 40-60% of what was authored". Introduced by OpenCastor
+/// commit 78fa0ff.
+///
+/// This file used to attribute it to "the real robot". That was wrong, and it
+/// was wrong in the direction this app exists to avoid: a simulation result
+/// promoted to a hardware result, published to strangers on the Hub, in a card
+/// whose very next line says "Never run on hardware. Everything here was
+/// authored and previewed in simulation." The card contradicted itself two
+/// lines apart. Nobody has measured an authored motion on a Microduck, because
+/// nobody has a Microduck.
 public struct MotionPublication: Equatable, Sendable {
 
     /// The tag that makes a move findable, and the repository type it has to
@@ -87,9 +104,10 @@ public struct MotionPublication: Equatable, Sendable {
     /// Everything the author is told to expect, in the card and the manifest.
     public static func cautions(for draft: IntentDraft) -> [String] {
         var out = [
-            "Authored keyframes are a request, not a result: driven through a policy on the "
-          + "robot, leg offsets come out shallower than authored — measured at 40-60% of the "
-          + "authored depth for a crouch.",
+            "Authored keyframes are a request, not a result: driven through the standing "
+          + "policy in MuJoCo, leg offsets come out shallower than authored — measured at "
+          + "40-60% of the authored depth for a crouch. That figure is from simulation. No "
+          + "authored motion has been measured on a Microduck, because none has shipped yet.",
             "Never run on hardware. Everything here was authored and previewed in simulation.",
             "The joint order in the file IS the contract. A file whose joints are in another "
           + "order is a plausible-looking motion for a different robot.",

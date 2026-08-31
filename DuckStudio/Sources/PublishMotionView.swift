@@ -196,7 +196,7 @@ struct PublishMotionView: View {
                     } header: {
                         Text("What gets published")
                     } footer: {
-                        Text("A motion, not a policy — a list of poses with times. The card says so, and says what an authored motion does not promise: driven through a policy on the robot, leg offsets come out shallower than authored.")
+                        Text("A motion, not a policy — a list of poses with times. The card says so, and says what an authored motion does not promise: driven through the standing policy in simulation, leg offsets come out shallower than authored. Nobody has measured that on a robot.")
                     }
                 }
 

@@ -272,6 +272,14 @@ final class PublishTests: XCTestCase {
         XCTAssertFalse(card.contains("microduck-policy"), "it is not a policy")
         XCTAssertTrue(card.contains("This is a motion, not a policy."))
         XCTAssertTrue(card.contains("40-60%"), "the authored-versus-achieved caveat")
+        // THE NUMBER IS REAL AND ITS ATTRIBUTION USED TO BE FALSE. It was
+        // measured in MuJoCo riding the standing policy; the card claimed "on
+        // the robot", two lines above its own "Never run on hardware". Pin the
+        // attribution, not just the figure, or the lie can come back with the
+        // number still passing.
+        XCTAssertTrue(card.contains("in MuJoCo"), "the figure must say where it was measured")
+        XCTAssertFalse(card.contains("policy on the robot"),
+                       "a simulation result must not be attributed to hardware nobody owns")
         XCTAssertTrue(card.contains("Never run on hardware"))
         XCTAssertTrue(card.contains(DuckModel.jointNames.joined(separator: ", ")),
                       "the joint order IS the contract and belongs in the card")

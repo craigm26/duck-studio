@@ -55,6 +55,22 @@ below is a **$0 side-channel proxy** measured *outside* the app.
   for. The stars alternative exists so a single HF outage or a renamed repo does
   not decide the question.
 
+  **The dataset went live 2026-08-30 and read `downloads: 0` on its first
+  query**, so the clock on this criterion starts from a real zero rather than
+  from a repository that did not exist — which is what it was measuring until
+  now: the URL above returned 401 for as long as this gate has been written
+  down, so this criterion has never been measurable and neither has the PASS it
+  is part of.
+
+  **NOTHING WE CONTROL MAY LINK TO IT.** Hugging Face counts a download per file
+  GET or HEAD, deduplicated per IP per five minutes — so a link from the app, a
+  Space, the docs site or a README turns some fraction of this number into our
+  own traffic measuring itself. That would not be a small distortion of a
+  40-download threshold, it would be the whole threshold. Either no surface we
+  own links to this dataset, or this line gets amended to name every link that
+  exists before the count is read. A pre-registered gate and a funnel pointing
+  at it cannot both be had.
+
 A PASS means the tool reached practitioners and practitioners pointed it at
 their own networks. Build M6 (diff), M7 (AR) and the v1.1 geom ghost.
 
