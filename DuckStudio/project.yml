@@ -21,7 +21,7 @@ packages:
     # answers the base pose for every non-positive time, which makes the
     # keyframe at 0.00 s unreachable — and every motion this app's editor
     # writes starts there. StudioKit/Package.swift pins the same floor.
-    from: 1.30.0
+    from: 1.31.1
 targets:
   DuckStudio:
     type: application
