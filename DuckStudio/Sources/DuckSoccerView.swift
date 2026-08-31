@@ -686,7 +686,17 @@ final class SoccerCoordinator: NSObject, ARSessionDelegate {
             // this is the ARKit-side check the file has always had, and it is
             // the one that sits immediately above the session.
             guard ARWorldTrackingConfiguration.isSupported else {
-                referee.status = "This device cannot do world tracking."
+                // THE KIT OWNS THIS SENTENCE. This stub predates
+                // `CameraAvailability` and says strictly less than it: no
+                // consequence, no remedy, and a second place the same fact
+                // is worded. The door has already refused on
+                // `deviceCannotWorldTrack`, so reaching here means the door
+                // said yes and ARKit then said no — rare, and worth saying
+                // in the same words as everywhere else.
+                referee.status = CameraAvailability(usageDescriptionIsDeclared: true,
+                                          permission: .authorized,
+                                          deviceSupportsWorldTracking: false)
+                    .refusal(for: .venue) ?? ""
                 return
             }
             let config = ARWorldTrackingConfiguration()

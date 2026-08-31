@@ -57,7 +57,7 @@ struct LabView: View {
                 // no — none of which is "nothing is behind it yet". Ideally
                 // this sentence lives in `LabCatalogue` beside the others; it
                 // is left here only because it was already here.
-                Text("A mode is greyed out because nothing is behind it here yet, or because this build or this phone cannot open something it needs — never because it is locked. Which of the two it is is written under its name.")
+                Text("A mode is greyed out because nothing is behind it here yet, or because something it needs cannot be opened — this build, this phone, or a permission you have turned off. Never because it is locked. Which one it is is written under its name.")
             }
         }
         .refreshingCameraDoor($door)

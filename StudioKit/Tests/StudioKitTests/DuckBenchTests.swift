@@ -170,4 +170,53 @@ final class DuckBenchTests: XCTestCase {
         XCTAssertEqual(success.medianHeight, 0.116)
         XCTAssertTrue(success.criterion.contains("100 mm"))
     }
+
+    // MARK: - captured off a live bench, not written by hand
+
+    /// THESE TWO BODIES CAME OFF A SOCKET, AND THAT IS THE POINT. Every other
+    /// bench fixture in this file is JSON somebody typed, and a hand-written
+    /// fixture is exactly the evidence that let the placeholder "the bench's
+    /// own plant" ship in the first place: it agreed with the reader because
+    /// the same person wrote both. `Fixtures/bench/health.json` and
+    /// `Fixtures/bench/perform.json` were captured on 2026-08-30 by running
+    /// `node duckbench.mjs` on this machine and calling it over HTTP — the
+    /// perform body from a real two-rollout run of BEST_alpha_stand against a
+    /// two-keyframe track, with its frames/roots/commands trimmed to three rows
+    /// so the file stays readable.
+    private func captured(_ name: String) throws -> Data {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "Fixtures/bench/\(name)",
+                                                  withExtension: "json"),
+                                "the captured \(name) fixture is missing")
+        return try Data(contentsOf: url)
+    }
+
+    func testALiveBenchsHealthNamesTheCanonPlant() throws {
+        let health = try DuckBench.readHealth(captured("health"))
+        XCTAssertEqual(health.plantName, "scene.mjb")
+        // The digest a real bench computed over its own scene file, which is
+        // the one sim/PLANT.md settles as canon.
+        XCTAssertEqual(health.plantDigest,
+                       "3f8c9ab9b409ba74c73c30179d5f7c12b025f631693f9eec78d80dca242547be")
+        XCTAssertEqual(health.plantSentence, "Running scene.mjb, sha256 3f8c9ab9b409.")
+        // THE VERSION IS WHAT MAKES SILENCE READABLE LATER. duck-bench/2 could
+        // not say which world it ran; /3 can. Without the bump, a bench too old
+        // to answer and a bench that simply did not are the same bytes, and any
+        // future sentence naming a cause would be guessing — which is how the
+        // placeholder this all replaced came to exist.
+        XCTAssertEqual(health.bench, "duck-bench/3")
+    }
+
+    func testALivePerformCarriesTheWorldItRanIn() throws {
+        let outcome = try DuckBench.readOutcome(captured("perform"),
+                                                   when: Date(timeIntervalSince1970: 0))
+        XCTAssertEqual(outcome.plantName, "scene.mjb")
+        XCTAssertEqual(outcome.plantDigest?.prefix(12), "3f8c9ab9b409")
+        XCTAssertEqual(outcome.plantSentence, "On scene.mjb, sha256 3f8c9ab9b409.")
+        // And it is a real result, not a stub: two rollouts, both upright.
+        XCTAssertEqual(outcome.rollouts, 2)
+        XCTAssertEqual(outcome.achieves, 2)
+        XCTAssertEqual(outcome.criterion,
+                       "stayed upright to the end, over drop heights 0.120-0.130 m")
+        XCTAssertFalse(outcome.told.contains("the bench's own plant"))
+    }
 }

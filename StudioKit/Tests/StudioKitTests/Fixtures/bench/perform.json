@@ -1,0 +1,128 @@
+{
+ "format": "duck-intent-clips/3",
+ "hz": 50,
+ "joints": [
+  "left_hip_yaw",
+  "left_hip_roll",
+  "left_hip_pitch",
+  "left_knee",
+  "left_ankle",
+  "neck_pitch",
+  "head_pitch",
+  "head_yaw",
+  "head_roll",
+  "right_hip_yaw",
+  "right_hip_roll",
+  "right_hip_pitch",
+  "right_knee",
+  "right_ankle"
+ ],
+ "policy": "BEST_alpha_stand.onnx",
+ "authored": true,
+ "plantName": "scene.mjb",
+ "plantDigest": "3f8c9ab9b409ba74c73c30179d5f7c12b025f631693f9eec78d80dca242547be",
+ "blend": 1,
+ "frames": [
+  [
+   -0.0044,
+   -0.0961,
+   -0.4308,
+   0.0381,
+   0.4688,
+   0.2314,
+   0.445,
+   -0.0419,
+   0.0422,
+   -0.0051,
+   0.0982,
+   0.402,
+   -0.0382,
+   -0.4328
+  ],
+  [
+   -0.0037,
+   -0.0961,
+   -0.4057,
+   0.038,
+   0.447,
+   0.2126,
+   0.426,
+   -0.041,
+   0.0422,
+   -0.0058,
+   0.0982,
+   0.3765,
+   -0.0368,
+   -0.4105
+  ],
+  [
+   -0.0036,
+   -0.0964,
+   -0.3584,
+   0.0373,
+   0.4082,
+   0.1758,
+   0.3839,
+   -0.0413,
+   0.0418,
+   -0.0077,
+   0.0987,
+   0.3289,
+   -0.0353,
+   -0.3736
+  ]
+ ],
+ "roots": [
+  [
+   0.0019,
+   -0.0001,
+   0.1162,
+   1,
+   0.0003,
+   -0.0001,
+   0.0083
+  ],
+  [
+   0.0024,
+   -0.0001,
+   0.1161,
+   0.9999,
+   0.0006,
+   -0.0063,
+   0.0086
+  ],
+  [
+   0.0036,
+   -0.0001,
+   0.1159,
+   0.9998,
+   0.0008,
+   -0.0168,
+   0.0089
+  ]
+ ],
+ "commands": [
+  [
+   0,
+   0,
+   0
+  ],
+  [
+   0,
+   0,
+   0
+  ],
+  [
+   0,
+   0,
+   0
+  ]
+ ],
+ "rollouts": 2,
+ "achieves": 2,
+ "criterion": "stayed upright to the end, over drop heights 0.120-0.130 m",
+ "medianHeight": 0.0978,
+ "endsUpright": true,
+ "endHeight": 0.0978,
+ "peakJointRate": 10.355
+}
