@@ -133,6 +133,7 @@ struct DuckStage: View {
     /// furniture, in the words the legend's own button uses.
     private var spokenScene: String {
         let contents = StageCaption.context(
+            gridMetres: StageSurface.gridMetres,
             stepCount: environment.steps.count,
             tallestStepMetres: environment.steps.map(\.top).max() ?? 0,
             wallCount: environment.walls.count,
@@ -187,6 +188,17 @@ struct DuckStage: View {
 
 /// The RealityKit half: the scene, the camera and the three recognisers.
 struct StageSurface: UIViewRepresentable {
+
+    /// How far apart the floor's rules are, in metres.
+    ///
+    /// ONE CONSTANT, READ BY BOTH THE DRAWING AND THE CAPTION. They used to be
+    /// two literals — `line += 0.1` here and "100 mm grid" in StudioKit — which
+    /// is the arrangement where a floor and the sentence describing it drift
+    /// apart without anything failing. The Lab's own stage rules a half-metre,
+    /// so the pair was one reuse away from printing a number that was wrong by
+    /// a factor of five.
+    static let gridMetres = 0.1
+
     let pose: StagePose
     /// Which feet: a roller clip is drawn on Pollen's roller blades.
     var variant: DuckKinematics.Variant = .legs
@@ -354,7 +366,11 @@ struct StageSurface: UIViewRepresentable {
                     entity.position = alongX ? SIMD3(0, 0.0006, line) : SIMD3(line, 0.0006, 0)
                     world.addChild(entity)
                 }
-                line += 0.1
+                // Float at the drawing site, Double in the constant: RealityKit
+                // works in Float and StudioKit's caption takes Double, so the
+                // conversion has to happen somewhere. It happens here, once,
+                // rather than by keeping two constants that can drift.
+                line += Float(StageSurface.gridMetres)
             }
 
             // Where the robot starts and which way it faces. Every clip is
@@ -690,7 +706,8 @@ struct StageLegend: View {
     private var followWord: LocalizedStringKey { orbit.follows ? "Following" : "Fixed" }
 
     private var context: String {
-        StageCaption.context(stepCount: environment.steps.count,
+        StageCaption.context(gridMetres: StageSurface.gridMetres,
+                             stepCount: environment.steps.count,
                              tallestStepMetres: environment.steps.map(\.top).max() ?? 0,
                              wallCount: environment.walls.count,
                              propCount: props.count)

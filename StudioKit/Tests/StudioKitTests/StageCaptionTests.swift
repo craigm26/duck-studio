@@ -15,7 +15,7 @@ final class StageCaptionTests: XCTestCase {
     func testAnEmptyPlaceIsBareFloor() {
         XCTAssertEqual(StageCaption.contents(stepCount: 0, tallestStepMetres: 0,
                                              wallCount: 0, propCount: 0), [])
-        XCTAssertEqual(StageCaption.context(stepCount: 0, tallestStepMetres: 0,
+        XCTAssertEqual(StageCaption.context(gridMetres: 0.1, stepCount: 0, tallestStepMetres: 0,
                                             wallCount: 0, propCount: 0),
                        "100 mm grid · bare floor")
     }
@@ -23,19 +23,19 @@ final class StageCaptionTests: XCTestCase {
     /// The defect this file exists for: a room with three things in it, no
     /// steps and no walls, captioned as empty.
     func testThingsToPickUpAreNotBareFloor() {
-        XCTAssertEqual(StageCaption.context(stepCount: 0, tallestStepMetres: 0,
+        XCTAssertEqual(StageCaption.context(gridMetres: 0.1, stepCount: 0, tallestStepMetres: 0,
                                             wallCount: 0, propCount: 3),
                        "100 mm grid · 3 things to pick up")
-        XCTAssertEqual(StageCaption.context(stepCount: 0, tallestStepMetres: 0,
+        XCTAssertEqual(StageCaption.context(gridMetres: 0.1, stepCount: 0, tallestStepMetres: 0,
                                             wallCount: 0, propCount: 1),
                        "100 mm grid · 1 thing to pick up")
     }
 
     func testStepsWallsAndThingsReadInOrder() {
-        XCTAssertEqual(StageCaption.context(stepCount: 4, tallestStepMetres: 0.04,
+        XCTAssertEqual(StageCaption.context(gridMetres: 0.1, stepCount: 4, tallestStepMetres: 0.04,
                                             wallCount: 1, propCount: 2),
                        "100 mm grid · 4 steps to 40 mm · 1 wall · 2 things to pick up")
-        XCTAssertEqual(StageCaption.context(stepCount: 1, tallestStepMetres: 0.01,
+        XCTAssertEqual(StageCaption.context(gridMetres: 0.1, stepCount: 1, tallestStepMetres: 0.01,
                                             wallCount: 2, propCount: 0),
                        "100 mm grid · 1 step to 10 mm · 2 walls")
     }
@@ -48,7 +48,7 @@ final class StageCaptionTests: XCTestCase {
         XCTAssertTrue(scene.steps.isEmpty)
         XCTAssertTrue(scene.walls.isEmpty)
         XCTAssertEqual(scene.summary, "3 things to pick up")
-        XCTAssertEqual(StageCaption.context(stepCount: scene.steps.count,
+        XCTAssertEqual(StageCaption.context(gridMetres: 0.1, stepCount: scene.steps.count,
                                             tallestStepMetres: 0,
                                             wallCount: scene.walls.count,
                                             propCount: scene.props.count),
@@ -218,5 +218,26 @@ final class DraftEditingTests: XCTestCase {
     func testANegativeTimeIsJudgedAtZero() {
         let draft = bow()
         XCTAssertNotNil(IntentDraft.retimeRefusal(draft.keys, moving: draft.keys[1].id, to: -1.0))
+    }
+
+    /// THE GRID IS A RULER AND MUST NOT LIE ABOUT ITS OWN SPACING. Every
+    /// distance a person reads off the floor is scaled by it, so a caption
+    /// claiming 100 mm over a half-metre rule misreports every one of them.
+    func testTheCaptionReportsTheGridItWasGiven() {
+        let half = StageCaption.context(gridMetres: 0.5, stepCount: 0, tallestStepMetres: 0,
+                                        wallCount: 0, propCount: 0)
+        XCTAssertTrue(half.hasPrefix("500 mm grid · "), half)
+        let fine = StageCaption.context(gridMetres: 0.1, stepCount: 0, tallestStepMetres: 0,
+                                        wallCount: 0, propCount: 0)
+        XCTAssertTrue(fine.hasPrefix("100 mm grid · "), fine)
+    }
+
+    /// A floor with nothing ruled on it says so, rather than claiming a
+    /// spacing of nothing.
+    func testAFloorWithNoGridSaysSo() {
+        let none = StageCaption.context(gridMetres: 0, stepCount: 0, tallestStepMetres: 0,
+                                        wallCount: 0, propCount: 0)
+        XCTAssertEqual(none, "no grid · bare floor")
+        XCTAssertFalse(none.contains("0 mm"), none)
     }
 }

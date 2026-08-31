@@ -45,11 +45,27 @@ public enum StageCaption {
     }
 
     /// The line under the stage: the grid, then whatever is standing on it.
-    public static func context(stepCount: Int, tallestStepMetres: Double,
+    ///
+    /// `gridMetres` HAS NO DEFAULT, DELIBERATELY. This used to open with the
+    /// literal "100 mm grid", which is true of `DuckStage` — it rules its floor
+    /// every 0.1 m — and false of the Lab's stage, which rules a half-metre.
+    /// Nothing was printing the wrong number yet only because the Lab stage
+    /// does not draw this caption; the day it does, a default would have made
+    /// the caption quietly wrong instead of failing to compile. A grid is a
+    /// ruler, and a ruler that lies about its own spacing is worse than no
+    /// ruler: every distance a person reads off the floor is scaled by it.
+    ///
+    /// Pass 0 for a floor with no grid ruled on it, and it says so rather than
+    /// claiming a spacing of nothing.
+    public static func context(gridMetres: Double, stepCount: Int,
+                               tallestStepMetres: Double,
                                wallCount: Int, propCount: Int) -> String {
         let parts = contents(stepCount: stepCount, tallestStepMetres: tallestStepMetres,
                              wallCount: wallCount, propCount: propCount)
-        return (["100 mm grid"] + (parts.isEmpty ? ["bare floor"] : parts))
+        let grid = gridMetres > 0
+            ? "\(Int((gridMetres * 1000).rounded())) mm grid"
+            : "no grid"
+        return ([grid] + (parts.isEmpty ? ["bare floor"] : parts))
             .joined(separator: " · ")
     }
 
