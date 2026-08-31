@@ -132,6 +132,10 @@ final class EndpointStore: ObservableObject {
     func delete(_ endpoint: ModelEndpoint) {
         guard endpoint.kind != .appleOnDevice else { return }
         if endpoint.kind == .downloadedMLX {
+            // MEMORY AND DISK. Deleting the files while the weights stay
+            // resident leaves the app holding two gigabytes of something that
+            // no longer exists, and the next draft would answer from it.
+            PhoneModelRuntime.shared.unload(ifHolding: endpoint.model)
             PhoneModelFiles.delete(endpoint.model)
         }
         EndpointKeyStore.clear(for: endpoint.id)

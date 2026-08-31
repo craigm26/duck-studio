@@ -32,14 +32,58 @@ public enum PhoneModelInstall {
         "Not on this phone. \(model.downloadDescription) to download."
     }
 
-    /// Mid-download. THE PERCENTAGE AND THE BYTES TOGETHER: a percentage alone
-    /// hides how much of somebody's data allowance is going, and a byte count
-    /// alone hides how far along it is.
-    public static func downloading(completed: Int, total: Int) -> String {
-        guard total > 0 else { return "Downloading…" }
-        let percent = Int((Double(completed) / Double(total) * 100).rounded())
-        return "Downloading — \(percent)%, \(PhoneModel.megabytes(completed)) of "
-             + "\(PhoneModel.megabytes(total))."
+    /// Mid-download, driven by the FRACTION rather than a unit count.
+    ///
+    /// THE UNIT COUNT ONLY MOVES IN WHOLE FILES, and these repositories are one
+    /// enormous `model.safetensors` beside a dozen small JSONs. Counting units
+    /// meant the line read "Downloading — 1%, 14 MB of 2.3 GB" and then sat
+    /// frozen for twenty minutes while the only file that matters came down.
+    /// `fractionCompleted` is the one field a composed `Progress` advances
+    /// continuously.
+    ///
+    /// THE CLAMP IS LOAD-BEARING. The parent's total is a sum of tree-entry
+    /// sizes while each child's is later overwritten by the HTTP content
+    /// length, so an unclamped fraction prints 103%.
+    public static func downloading(fraction: Double, totalBytes: Int) -> String {
+        let f = min(max(fraction.isFinite ? fraction : 0, 0), 1)
+        let percent = Int((f * 100).rounded())
+        // The hub reports a placeholder count of 1 when the snapshot was
+        // already cached: there are no bytes to name, so do not invent
+        // "0 MB of 0 MB".
+        guard totalBytes > 1 else { return "Downloading — \(percent)%." }
+        return "Downloading — \(percent)%, "
+             + "\(PhoneModel.megabytes(Int(f * Double(totalBytes)))) of "
+             + "\(PhoneModel.megabytes(totalBytes))."
+    }
+
+    /// How much of a model is actually here.
+    ///
+    /// THERE ARE THREE STATES AND THE CODE KNEW TWO. A directory with any file
+    /// in it read as installed, so a download torn off half way showed the
+    /// green "On this phone, taking 1.4 GB" with a Delete button and no way
+    /// back to Download.
+    public enum InstallState: Equatable, Sendable { case absent, partial, complete }
+
+    /// Complete means a config, a tokenizer, and — when the repository is
+    /// sharded — every distinct file the weight map names.
+    public static func state(paths: [String], indexJSON: Data?, bytes: Int) -> InstallState {
+        guard bytes > 0, !paths.isEmpty else { return .absent }
+        let names = Set(paths.map { $0.split(separator: "/").last.map(String.init) ?? $0 })
+        guard names.contains("config.json"),
+              names.contains(where: { $0.hasPrefix("tokenizer") }) else { return .partial }
+
+        guard let indexJSON,
+              let index = try? JSONSerialization.jsonObject(with: indexJSON) as? [String: Any],
+              let map = index["weight_map"] as? [String: String] else {
+            // Not sharded: one weights file is the whole of it.
+            return names.contains(where: { $0.hasSuffix(".safetensors") }) ? .complete : .partial
+        }
+        return Set(map.values).isSubset(of: names) ? .complete : .partial
+    }
+
+    public static func partlyDownloaded(bytes: Int) -> String {
+        "Partly downloaded — \(PhoneModel.megabytes(bytes)) on this phone. Downloading again "
+      + "keeps the files that finished and starts the one in progress over."
     }
 
     /// Installed, with the size MEASURED on disk.
@@ -54,9 +98,15 @@ public enum PhoneModelInstall {
     /// THE DOWNLOAD STOPS IF YOU LEAVE, and saying so is not optional: a
     /// two-gigabyte fetch that silently dies when somebody switches apps is a
     /// wasted evening they will blame on their network.
+    ///
+    /// AND IT DOES NOT RESUME MID-FILE, WHICH THE OLD WORDING PROMISED. The
+    /// hub writes its partial-blob marker only on the success path and then
+    /// moves it away; the in-flight temporary file is discarded on cancel. So
+    /// files that finished are kept and the one in progress starts over — which
+    /// is a materially different promise on a 2.3 GB single-file download.
     public static let staysOpenNote =
-        "Keep this screen open while it downloads. Leaving stops it, and it starts again from "
-      + "where it got to."
+        "Keep this screen open while it downloads. Leaving stops it. Files that already finished "
+      + "are kept, and the one in progress starts over."
 
     public static let cellularWarning =
         "This is a large download. On cellular it will use that much of your data allowance."
@@ -70,10 +120,29 @@ public enum PhoneModelInstall {
         "That model is not loaded. It may have been deleted while this screen was open."
 
     /// The delete confirmation, naming the MEASURED bytes it frees.
-    public static func deleteConfirmation(_ model: PhoneModel, bytes: Int) -> String {
-        "Delete \(model.name) and free \(PhoneModel.megabytes(bytes))? It can be downloaded "
-      + "again, at the same cost."
+    ///
+    /// TAKES A NAME, NOT A `PhoneModel`. The swipe-to-delete path holds a
+    /// `ModelEndpoint` whose repository may be one somebody searched for, which
+    /// is in no catalogue — and the bytes may be unknown if the directory has
+    /// already gone.
+    public static func deleteConfirmation(named name: String, bytes: Int?) -> String {
+        guard let bytes else {
+            return "Delete \(name)? Its weights come off this phone and can be downloaded "
+                 + "again, at the same cost."
+        }
+        return "Delete \(name) and free \(PhoneModel.megabytes(bytes))? It can be downloaded "
+             + "again, at the same cost."
     }
+
+    /// Turns a chat template's thinking block off, where the template reads it.
+    ///
+    /// TWO OF THE FIVE CATALOGUE MODELS THINK BY DEFAULT. Qwen3's template
+    /// suppresses it only through `enable_thinking`, and nothing set it — so
+    /// both spent a 1200-token ceiling reasoning at temperature 0, which
+    /// Qwen's own card warns against by name: greedy decoding with thinking on
+    /// gives "endless repetitions". Greedy decoding is right here *because*
+    /// this is set; shipping one without the other is the documented failure.
+    public static let templateThinkingOff: [String: any Sendable] = ["enable_thinking": false]
 
     /// Said when a repository downloaded and then would not open.
     ///

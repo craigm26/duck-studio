@@ -44,6 +44,15 @@ final class PhoneModelRuntime {
     /// memory. Loading a different repository drops the first.
     private var held: (repository: String, container: ModelContainer)?
 
+    /// ONE LOAD IN FLIGHT AT A TIME, KEYED BY NOTHING. `held` is written only
+    /// after the await, so two overlapping calls both ran the loader and put
+    /// two multi-gigabyte models resident — breaking this file's own promise
+    /// two comments up. It is reachable without a contrived double tap: start a
+    /// download on the Models tab, switch to Draft, ask with an installed
+    /// model. Unstructured on purpose, so one waiter walking away does not
+    /// cancel work another is waiting on.
+    private var loading: Task<ModelContainer, Error>?
+
     /// SET ONCE, BEFORE ANYTHING LOADS. MLX keeps a buffer cache that grows to
     /// fill what it is allowed, and on a phone that competes directly with the
     /// budget iOS kills the app for exceeding.
@@ -71,18 +80,46 @@ final class PhoneModelRuntime {
     func load(_ repository: String,
               progress: @escaping @Sendable (Progress) -> Void = { _ in }) async throws
         -> ModelContainer {
-        if let held, held.repository == repository { return held.container }
+        // THE SHORT-CIRCUIT IS CHECKED AGAINST THE DISK, not just against
+        // memory: a model deleted while still held would otherwise "re-download"
+        // instantly and successfully, having done nothing.
+        if let held, held.repository == repository,
+           PhoneModelFiles.bytesOnDisk(repository) != nil {
+            return held.container
+        }
+        if let loading {
+            _ = try? await loading.value
+            if let held, held.repository == repository { return held.container }
+        }
         capCacheOnce()
+        // DROP THE OLD ONE BEFORE MATERIALISING THE NEW ONE. Without this even
+        // strictly sequential switching peaks at both models resident, which on
+        // a phone is the difference between working and being killed.
+        if held != nil {
+            held = nil
+            MLX.GPU.clearCache()
+        }
+        let job = Task<ModelContainer, Error> { [weak self] in
+            defer { Task { @MainActor in self?.loading = nil } }
+            return try await Self.fetch(repository, progress: progress)
+        }
+        loading = job
+        let container = try await job.value
+        held = (repository, container)
+        return container
+    }
+
+    private static func fetch(_ repository: String,
+                              progress: @escaping @Sendable (Progress) -> Void) async throws
+        -> ModelContainer {
         // THE `id:` OVERLOAD, NOT A REGISTRY CONSTANT. The registry names a
         // fixed set; this app lets somebody pick any mlx-community repository,
         // which only the String-taking form can express.
-        let container = try await loadModelContainer(
+        try await loadModelContainer(
             from: #hubDownloader(),
             using: #huggingFaceTokenizerLoader(),
             id: repository,
             progressHandler: progress)
-        held = (repository, container)
-        return container
     }
 
     /// Ask it, with the same instructions-and-prompt shape every other kind
@@ -99,9 +136,27 @@ final class PhoneModelRuntime {
     /// work inside ModelContainer's own mutex actor instead.
     func ask(_ repository: String, instructions: String, prompt: String) async throws -> String {
         let container = try await load(repository)
-        let session = ChatSession(container, instructions: instructions,
-                                  generateParameters: parameters())
+        // THINKING OFF, BY LABEL NOT POSITION — `speculativeDecoding` sits
+        // between `instructions` and `generateParameters`, and
+        // `additionalContext` comes after `processing`. Two of the five
+        // catalogue models carry Qwen3's hybrid template, whose only
+        // suppression path is this flag; without it both reason into the token
+        // ceiling at temperature 0, which Qwen's own card warns produces
+        // "endless repetitions".
+        let session = ChatSession(container,
+                                  instructions: instructions,
+                                  generateParameters: parameters(),
+                                  additionalContext: PhoneModelInstall.templateThinkingOff)
         return try await session.respond(to: prompt)
+    }
+
+    /// Whether this repository's weights are the ones currently resident.
+    func isResident(_ repository: String) -> Bool { held?.repository == repository }
+
+    /// Let go of a specific model, if it is the one being held.
+    func unload(ifHolding repository: String) {
+        guard held?.repository == repository else { return }
+        unload()
     }
 
     /// Let go of the weights without deleting them from disk.
@@ -124,6 +179,13 @@ final class PhoneModelRuntime {
     func ask(_ repository: String, instructions: String, prompt: String) async throws -> String {
         throw Failure.unavailable(PhoneModelInstall.simulatorRefusal)
     }
+
+    /// STUB PARITY IS NOT OPTIONAL. Every method must exist in both branches or
+    /// the Simulator build — which is what the free compile gate uses — fails
+    /// on the first call site added.
+    func unload() {}
+    func unload(ifHolding repository: String) {}
+    func isResident(_ repository: String) -> Bool { false }
 
     var isSupported: Bool { false }
 

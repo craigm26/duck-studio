@@ -15,6 +15,19 @@ import StudioKit
 struct ModelSettingsView: View {
     @ObservedObject var store: EndpointStore
     @State private var editing: ModelEndpoint?
+    /// Held for the confirmation, because removing a downloaded model frees
+    /// gigabytes and the sentence should name how many first.
+    @State private var removing: ModelEndpoint?
+
+    /// Names the MEASURED bytes for a downloaded model, and stays a plain
+    /// question for anything else — an address costs nothing to retype.
+    private func confirmationText(_ endpoint: ModelEndpoint) -> String {
+        guard endpoint.kind == .downloadedMLX else {
+            return "Remove \(endpoint.name)?"
+        }
+        return PhoneModelInstall.deleteConfirmation(
+            named: endpoint.name, bytes: PhoneModelFiles.bytesOnDisk(endpoint.model))
+    }
 
     private func subtitle(for endpoint: ModelEndpoint) -> String {
         switch endpoint.kind {
@@ -88,9 +101,12 @@ struct ModelSettingsView: View {
                             }
                         }
                     }
-                    .swipeActions {
+                    // NO FULL SWIPE. The default is true, so an unintended
+                    // flick deleted an endpoint — and, for a downloaded model,
+                    // up to two gigabytes of weights — without a single tap.
+                    .swipeActions(allowsFullSwipe: false) {
                         if endpoint.kind != .appleOnDevice {
-                            Button("Remove", role: .destructive) { store.delete(endpoint) }
+                            Button("Remove", role: .destructive) { removing = endpoint }
                         }
                     }
                 }
@@ -131,6 +147,16 @@ struct ModelSettingsView: View {
         }
         .navigationTitle("Models")
         .navigationBarTitleDisplayMode(.inline)
+        .confirmationDialog(removing.map(confirmationText) ?? "",
+                            isPresented: Binding(get: { removing != nil },
+                                                 set: { if !$0 { removing = nil } }),
+                            titleVisibility: .visible) {
+            Button("Remove", role: .destructive) {
+                if let removing { store.delete(removing) }
+                removing = nil
+            }
+            Button("Keep it", role: .cancel) { removing = nil }
+        }
         .sheet(item: $editing) { endpoint in
             NavigationStack { EndpointEditor(store: store, endpoint: endpoint) }
         }
@@ -185,6 +211,33 @@ struct ModelSettingsView: View {
                        ModelEndpoint(name: "Claude", kind: .openAICompatible,
                                      baseURL: "http://192.168.1.10:8780/v1", model: "sonnet",
                                      timeout: 300, relay: true, relayNote: "Anthropic")
+                   },
+            // GOOGLE, WITH THE THREE FIELDS THAT MAKE IT WORK AND ONE THAT
+            // MAKES IT HONEST. Verified against Google's live documentation:
+            // the OpenAI-compat base is /v1beta/openai (which passes this app's
+            // "/v1" check), reasoning CANNOT be turned off for its 3-series
+            // models — Google says so verbatim — and its reasoning_effort table
+            // offers minimal/low/medium/high and no "none". So suppressReasoning
+            // must be false here or the app asks for something the counterparty
+            // has documented as impossible.
+            //
+            // NO PRICE ON SCREEN. A hardcoded dollar figure is a claim with an
+            // expiry date and nothing here can notice when it passes. "Free key"
+            // is the only money claim and it is true.
+            Preset(name: "Google AI Studio",
+                   detail: "Gemini over the internet, with a key you get free from Google",
+                   symbol: "cloud") {
+                       var endpoint = ModelEndpoint(
+                           name: "Gemini", kind: .openAICompatible,
+                           baseURL: "https://generativelanguage.googleapis.com/v1beta/openai",
+                           model: "gemini-3.5-flash-lite",
+                           timeout: 120,
+                           suppressReasoning: false)
+                       // Thinking tokens come out of this same budget, and this
+                       // model thinks at minimum. Headroom, not a measurement.
+                       endpoint.maxTokens = 4000
+                       endpoint.hostNote = ModelEndpoint.googleUnpaidTierNote
+                       return endpoint
                    },
             Preset(name: "A service over the internet",
                    detail: "Any OpenAI-compatible endpoint, with a key",

@@ -54,7 +54,8 @@ public struct PhoneModel: Equatable, Sendable, Identifiable {
     /// THE MULTIPLIER IS A RULE OF THUMB AND IS LABELLED AS ONE. It is not
     /// measured on a phone — nothing here has been — so `fits` is deliberately
     /// conservative and the sentence beside it says the number is an estimate.
-    public var estimatedPeakBytes: Int { downloadBytes + 350_000_000 }
+    public static let headroomBytes = 350_000_000
+    public var estimatedPeakBytes: Int { downloadBytes + PhoneModel.headroomBytes }
 
     public var downloadDescription: String { PhoneModel.megabytes(downloadBytes) }
 
@@ -69,7 +70,15 @@ public struct PhoneModel: Equatable, Sendable, Identifiable {
     /// TAKES THE BUDGET RATHER THAN READING IT. `os_proc_available_memory()` is
     /// the only honest source and it lives in the app; passing the number in
     /// keeps the rule testable.
-    public func fits(budgetBytes: Int) -> Bool { estimatedPeakBytes <= budgetBytes }
+    /// THE BUDGET IS WHAT IS LEFT, NOT WHAT THERE IS.
+    /// `os_proc_available_memory()` returns the dirty-memory limit MINUS what
+    /// this process already uses — so once a model is resident its own weights
+    /// have been subtracted from the number its size is compared against, and
+    /// it reports itself too big to run seconds after answering. Already
+    /// loaded, only the headroom is still to find.
+    public func fits(budgetBytes: Int, alreadyResident: Bool = false) -> Bool {
+        (alreadyResident ? PhoneModel.headroomBytes : estimatedPeakBytes) <= budgetBytes
+    }
 
     /// The measured catalogue. Ordered smallest first, because the smallest one
     /// that works is the right answer on a phone.
@@ -119,6 +128,42 @@ public struct PhoneModel: Equatable, Sendable, Identifiable {
 
     ]
 
+    /// Models that are worth offering and have NOT been run here.
+    ///
+    /// A SEPARATE LIST BECAUSE THE FIRST ONE MAKES A PROMISE. `catalogue`'s
+    /// contract, stated in `PhoneModelSearch.scopeNote`, is that it is the list
+    /// that has been tried; putting an untried repository in it would spend that
+    /// sentence rather than keep it. This one says plainly what it is.
+    ///
+    /// GEMMA 4 IS HERE FOR MEASURED REASONS, NOT CAUTION. It is text-only, so
+    /// nothing downloads and gets discarded; 2,671,102,856 bytes, which is 363
+    /// MB cheaper to fetch and to hold than the Gemma 3 4B it would replace;
+    /// and it carries a clean top-level quantisation key this loader can read.
+    /// What it also carries is a `text_config` that mlx-swift-lm decodes from
+    /// the wrong level — `PhoneModelConfig` corrects that, and this app is the
+    /// first thing anywhere to do so, which is precisely why it has not been
+    /// tried.
+    public static let untried: [PhoneModel] = [
+        .init(repository: "mlx-community/Gemma4-E2B-IT-Text-int4",
+              name: "Gemma 4 E2B", parameters: "2.3B effective", downloadBytes: 2_671_102_856,
+              note: "Newer than everything above and cheaper to hold than the 4B models, but "
+                  + "nobody has run it here. Its config hides the architecture one level down "
+                  + "and this app corrects that on the way in; if it answers oddly, that is the "
+                  + "first thing to suspect. Note that half the download is a per-layer "
+                  + "embedding table which stays resident — the \"2.3B effective\" figure buys "
+                  + "back no memory on a phone."),
+    ]
+
+    /// Everything offerable, for a caller that does not care which list it came
+    /// from — the memory check, for instance, which must cover both.
+    public static var all: [PhoneModel] { catalogue + untried }
+
+    /// What has to be said above the untried list, on the screen.
+    public static let untriedPreamble =
+        "Worth trying, and not tried here. These are picked on measured size and format rather "
+      + "than on how they behave, so treat a strange answer as the model rather than as your "
+      + "sentence."
+
     /// What has to be said above the list.
     public static let preamble =
         "These run on the phone itself: nothing you type leaves it, and they work with no network "
@@ -131,6 +176,24 @@ public struct PhoneModel: Equatable, Sendable, Identifiable {
       + "offering this app about \(megabytes(budgetBytes)). It would be killed part-way through "
       + "an answer. That estimate is a rule of thumb, not a measurement on this phone."
     }
+
+    /// Said when the model is ALREADY LOADED and the budget is short. The
+    /// other sentence claims it "needs N resident", which is false of something
+    /// that is resident.
+    public static func tooBigWhileLoaded(_ name: String, budgetBytes: Int) -> String {
+        "\(name) is loaded, and iOS is offering this app about \(megabytes(budgetBytes)) for "
+      + "the answer itself — not enough room to write one without being killed. That estimate "
+      + "is a rule of thumb, not a measurement on this phone."
+    }
+
+    /// A BUDGET OF ZERO IS NOT A SMALL BUDGET. iOS returns 0 when the process
+    /// is at or over its limit, which is a moment rather than a verdict —
+    /// rendering it as "about 0 MB" would report a transient as a property of
+    /// the phone.
+    public static let budgetUnknown =
+        "iOS will not say how much memory this app may use right now, which happens when it is "
+      + "already at its limit. Nothing here can be sized until that clears — try again in a "
+      + "moment."
 
     /// Why Apple's model is still there, and when to prefer it.
     public static let versusApple =

@@ -193,6 +193,21 @@ public enum PhoneModelSearch {
              + "phone."
     }
 
+    /// AN HTTP FAULT IS NOT A VERDICT ABOUT A REPOSITORY. `vetThenAdd` checked
+    /// no status: Hugging Face answers a missing config with plain-text "Entry
+    /// not found" and a rate limit with a JSON body, neither of which has a
+    /// `quantization` key — so the app stated, definitively, that a perfectly
+    /// good repository was "quantised in a scheme this app's loader cannot
+    /// read". Only a 200 whose body parses may keep that sentence.
+    public static func huggingFaceAnswered(_ status: Int) -> String {
+        "huggingface.co answered \(status), so nothing was learned about that repository. That "
+      + "is the index, not the model — try again in a moment."
+    }
+
+    public static let noConfigJSON =
+        "That repository has no config.json in it. The loader reads that file to know what the "
+      + "weights are, so there is nothing for it to open."
+
     /// Said under the search field.
     /// IT ADMITS THE FILTER IS NOT A GUARANTEE. Restricting to mlx-community
     /// and text-generation removes the obvious mistakes, but not all of them:
@@ -205,5 +220,12 @@ public enum PhoneModelSearch {
       + "can open — a model from anywhere else will download in full and then fail to load, which "
       + "is a slow way to find out. These results are not checked beyond that: an embedding or "
       + "speech model can appear here and will download without being any use for writing a "
-      + "motion. The list above is the one that has been tried."
+      + "motion. The first list above is the one that has been tried."
+}
+
+/// Without this a bare `catch` prints "The operation couldn't be completed.
+/// (StudioKit.PhoneModelSearch.ReadError error 1.)" — the enum's own index, in
+/// front of somebody who asked a question about a model.
+extension PhoneModelSearch.ReadError: LocalizedError {
+    public var errorDescription: String? { message }
 }

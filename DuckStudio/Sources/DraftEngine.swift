@@ -112,12 +112,30 @@ enum DraftEngine {
         guard runtime.isSupported else {
             throw EngineError.appleUnavailable(PhoneModelInstall.simulatorRefusal)
         }
+        // THE THIRD CHECK THE COMMENT ALREADY PROMISED. Without it, after iOS
+        // reclaims Library/Caches, drafting silently re-downloads up to two
+        // gigabytes mid-draft, over cellular, with no progress bar anywhere.
+        guard PhoneModelFiles.bytesOnDisk(endpoint.model) != nil else {
+            throw EngineError.appleUnavailable(PhoneModelInstall.notLoaded)
+        }
+
         // `os_proc_available_memory` is what iOS is offering THIS app right
         // now, which is the only honest budget — the phone's RAM is not it.
+        //
+        // AND ZERO IS NOT A SMALL NUMBER. iOS returns 0 when the process is at
+        // or over its limit, so treating it as a budget prints "about 0 MB"
+        // and calls a working model too big.
         let budget = Int(os_proc_available_memory())
-        if let known = PhoneModel.catalogue.first(where: { $0.repository == endpoint.model }),
-           !known.fits(budgetBytes: budget) {
-            throw EngineError.appleUnavailable(PhoneModel.tooBig(known, budgetBytes: budget))
+        guard budget > 0 else { throw EngineError.appleUnavailable(PhoneModel.budgetUnknown) }
+
+        // BOTH LISTS. `catalogue` is the tried one; a model from `untried` or
+        // from search is exactly as able to exhaust the memory.
+        let resident = runtime.isResident(endpoint.model)
+        if let known = PhoneModel.all.first(where: { $0.repository == endpoint.model }),
+           !known.fits(budgetBytes: budget, alreadyResident: resident) {
+            throw EngineError.appleUnavailable(
+                resident ? PhoneModel.tooBigWhileLoaded(known.name, budgetBytes: budget)
+                         : PhoneModel.tooBig(known, budgetBytes: budget))
         }
         let started = Date()
         let reply = try await runtime.ask(endpoint.model,
@@ -133,8 +151,13 @@ enum DraftEngine {
         request.timeoutInterval = endpoint.timeout
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         sign(&request, with: endpoint)
+        // THE ENDPOINT'S OWN CEILING WHERE IT HAS ONE. Without this the field
+        // exists and is never sent, and a destination whose thinking tokens
+        // come out of the same budget answers with nothing at all — the
+        // failure this app has already measured once.
         request.httpBody = try ChatWire.requestBody(
             model: endpoint.model, instructions: instructions, prompt: prompt,
+            maxTokens: endpoint.maxTokens ?? 900,
             suppressReasoning: endpoint.suppressReasoning)
 
         let started = Date()

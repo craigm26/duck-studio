@@ -24,11 +24,20 @@ struct PhoneModelPickerView: View {
     @State private var searchFailure: String?
 
     @State private var busyWith: String?
-    @State private var progress: (done: Int, total: Int)?
+    /// FRACTION, NOT UNITS. The parent Progress advances in whole files and
+    /// these repositories are one enormous weights file beside a dozen tiny
+    /// JSONs, so a unit count sits frozen at 1% for twenty minutes.
+    @State private var progress: (fraction: Double, total: Int)?
+    /// So leaving can actually stop it, and so cancelling does not print
+    /// "That did not finish. cancelled."
+    @State private var job: Task<Void, Never>?
+    /// Read once per appearance. As a computed property it drifted between
+    /// rows within a single body evaluation.
+    @State private var budgetSnapshot = 0
     @State private var failure: String?
     @State private var installed: [String: Int] = [:]
 
-    private var budget: Int { Int(os_proc_available_memory()) }
+    private var budget: Int { budgetSnapshot }
 
     var body: some View {
         Form {
@@ -98,7 +107,11 @@ struct PhoneModelPickerView: View {
         .toolbar {
             ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
         }
-        .task { refreshInstalled() }
+        .task {
+            budgetSnapshot = Int(os_proc_available_memory())
+            refreshInstalled()
+        }
+        .onDisappear { job?.cancel() }
     }
 
     @ViewBuilder private func row(_ model: PhoneModel) -> some View {
@@ -131,9 +144,12 @@ struct PhoneModelPickerView: View {
 
             // THE STATE LINE, AND EVERY VERSION OF IT IS A TESTED SENTENCE.
             if busyWith == model.repository, let progress {
-                Text(PhoneModelInstall.downloading(completed: progress.done,
-                                                   total: progress.total))
-                    .font(.caption).foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 3) {
+                    ProgressView(value: min(max(progress.fraction, 0), 1))
+                    Text(PhoneModelInstall.downloading(fraction: progress.fraction,
+                                                       totalBytes: progress.total))
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             } else if let bytes {
                 Text(PhoneModelInstall.installed(bytes: bytes))
                     .font(.caption).foregroundStyle(.green)
@@ -163,30 +179,48 @@ struct PhoneModelPickerView: View {
         busyWith = model.repository
         failure = nil
         progress = nil
-        Task { @MainActor in
+        job = Task { @MainActor in
             defer { busyWith = nil; progress = nil; refreshInstalled() }
             do {
                 try await PhoneModelRuntime.shared.load(model.repository) { made in
                     Task { @MainActor in
-                        progress = (Int(made.completedUnitCount), Int(made.totalUnitCount))
+                                progress = (made.fractionCompleted, Int(made.totalUnitCount))
                     }
                 }
                 add(repository: model.repository, named: model.name)
+                // LET GO UNLESS IT IS THE CHOSEN ONE. Loading is what proves
+                // the repository actually opens — which is the whole reason
+                // `downloadedButWouldNotOpen` exists — but holding two
+                // gigabytes resident afterwards flips every other row to "too
+                // big" while the sheet is still open.
+                if store.selected.model != model.repository {
+                    PhoneModelRuntime.shared.unload(ifHolding: model.repository)
+                }
+            } catch is CancellationError {
+                // Leaving the screen is not a failure to report back to it.
             } catch let error as PhoneModelRuntime.Failure {
                 failure = PhoneModelInstall.failed(error.message)
+            } catch let error as URLError where error.code == .cancelled {
             } catch {
                 failure = PhoneModelInstall.failed(error.localizedDescription)
             }
         }
     }
 
+    /// ONE DELETE, NOT TWO. This called `PhoneModelFiles.delete` and then
+    /// `store.delete`, which deletes the weights again — harmless only by
+    /// accident, and exactly the kind of duplication that becomes a bug when
+    /// one of the two grows a side effect.
     private func remove(_ model: PhoneModel) {
-        PhoneModelFiles.delete(model.repository)
-        // And the endpoint that pointed at it, or the list keeps a row whose
-        // weights are gone.
-        for endpoint in store.endpoints
-        where endpoint.kind == .downloadedMLX && endpoint.model == model.repository {
-            store.delete(endpoint)
+        let rows = store.endpoints.filter {
+            $0.kind == .downloadedMLX && $0.model == model.repository
+        }
+        if rows.isEmpty {
+            PhoneModelRuntime.shared.unload(ifHolding: model.repository)
+            PhoneModelFiles.delete(model.repository)
+        } else {
+            // `EndpointStore.delete` frees the weights for this kind.
+            rows.forEach(store.delete)
         }
         refreshInstalled()
     }

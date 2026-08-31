@@ -100,6 +100,39 @@ public struct ModelEndpoint: Equatable, Sendable, Codable, Identifiable {
     /// as nil and costs nobody their list.
     public var relayNote: String?
 
+    /// The ceiling on one answer, when the preset that made this endpoint knew
+    /// the default was wrong for it. nil means the wire's own default.
+    ///
+    /// IT EXISTS BECAUSE THINKING TOKENS COME OUT OF THIS BUDGET. Google's
+    /// pricing page labels the output row "including thinking tokens", and
+    /// Google states plainly that reasoning cannot be turned off for its
+    /// 3-series models — so a 900-token ceiling shared with mandatory thinking
+    /// is the 725-second empty answer this app has already measured once,
+    /// waiting to happen again.
+    ///
+    /// OPTIONAL, like `relayNote`, for the reason its comment gives: a
+    /// non-optional with a default throws `keyNotFound` for every endpoint
+    /// stored by a build that predates it.
+    public var maxTokens: Int?
+
+    /// One more true sentence about this destination, when the preset that made
+    /// the endpoint knew the counterparty's terms. Same discipline as
+    /// `relayNote`: set by a preset, never typed by hand — a sentence typed by
+    /// hand is a guess the privacy note would then state as fact.
+    public var hostNote: String?
+
+    /// Google's own terms for a free key, not a paraphrase of a summary.
+    ///
+    /// THE FREE TIER IS THE WHOLE APPEAL, so the default state of somebody on
+    /// that preset is the trained-on state — and `relay` is false, because
+    /// Google is the destination rather than a forwarder, so `relayNote` cannot
+    /// carry this.
+    public static let googleUnpaidTierNote =
+        "On a free key, Google's terms say it uses what you send and what comes back to improve "
+      + "and develop its products, and that human reviewers may read and annotate it. Google "
+      + "says that stops on a key attached to a billing account. Its terms also say not to send "
+      + "anything sensitive, confidential or personal on a free key."
+
     public init(id: UUID = UUID(), name: String, kind: Kind,
                 baseURL: String = "", model: String = "",
                 apiKey: String? = nil, timeout: Double = 900,
@@ -453,9 +486,16 @@ public struct ModelEndpoint: Equatable, Sendable, Codable, Identifiable {
             if host == "localhost" || host == "127.0.0.1" {
                 return "Goes to another app on this phone. Nothing leaves the device."
             }
-            return ModelEndpoint.isLocalHost(host)
+            let base = ModelEndpoint.isLocalHost(host)
                 ? "Goes to \(host) on your own network. Nothing leaves it."
                 : "Goes to \(host) over the internet."
+            // ONE MORE TRUE SENTENCE, when a preset knew the counterparty's
+            // terms. whitespacesAndNewlines rather than whitespaces, the same
+            // fix `relayNote` already carries: a note of "\n" otherwise
+            // survives the guard and appends a line break as a fact.
+            guard let extra = hostNote?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !extra.isEmpty else { return base }
+            return base + " " + extra
         }
     }
 }
