@@ -228,4 +228,41 @@ extension IntentExportTests {
         XCTAssertEqual(back.variant, .rollers)
         XCTAssertEqual(back.clip.variant, .rollers)
     }
+
+    /// A BENCH RECORDING HAS COMMANDS AND NO ACTIONS, and the reader used to
+    /// throw the commands away because it gated all three channels on the
+    /// length of `actions`. `DuckBench.readRecording` builds exactly this
+    /// shape, so this was every bench run this app has ever exported.
+    func testABenchRecordingKeepsItsCommandsWithNoActions() throws {
+        let frames = [[Double]](repeating: [Double](repeating: 0, count: DuckModel.policyJointCount),
+                                count: 3)
+        let commands = [[Double]](repeating: [0.1, 0, 0], count: 3)
+        let clip = DuckIntentClip(name: "bench run", hz: 50, frames: frames, roots: [],
+                                  netYaw: 0, loops: false, startsFrom: .standing, endsIn: .standing,
+                                  policy: "alpha_walking.onnx", authored: false,
+                                  environment: .bareFloor, credit: nil,
+                                  telemetry: .init(actions: [], commands: commands, twists: []),
+                                  variant: .legs)
+        let back = try IntentExport.decode(IntentExport(clip: clip, policyFingerprint: nil).encoded())
+        XCTAssertEqual(back.telemetry.commands.count, 3, "the commands were in the file and were dropped")
+        XCTAssertEqual(back.telemetry.commands.first ?? [], [0.1, 0, 0])
+        XCTAssertTrue(back.telemetry.actions.isEmpty, "there were none, and none is not zeros")
+        XCTAssertFalse(back.telemetry.isEmpty)
+    }
+
+    /// The other half of the same rule: a channel whose length disagrees with
+    /// the frames is dropped, not padded. Padding would invent per-frame values
+    /// nobody recorded, and a plot drawn from them looks like data.
+    func testAChannelOfTheWrongLengthIsDroppedRatherThanPadded() throws {
+        let frames = [[Double]](repeating: [Double](repeating: 0, count: DuckModel.policyJointCount),
+                                count: 4)
+        let clip = DuckIntentClip(name: "ragged", hz: 50, frames: frames, roots: [],
+                                  netYaw: 0, loops: false, startsFrom: .standing, endsIn: .standing,
+                                  policy: "p.onnx", authored: false, environment: .bareFloor,
+                                  credit: nil,
+                                  telemetry: .init(actions: [], commands: [[1, 2, 3]], twists: []),
+                                  variant: .legs)
+        let back = try IntentExport.decode(IntentExport(clip: clip, policyFingerprint: nil).encoded())
+        XCTAssertTrue(back.telemetry.commands.isEmpty, "one row against four frames is not a recording")
+    }
 }

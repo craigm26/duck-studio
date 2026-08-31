@@ -20,7 +20,26 @@ import DuckKit
 /// Every string here is final. The app target interpolates nothing.
 public struct PolicyReport: Equatable, Sendable {
 
-    /// Whether the robot could actually be driven with this.
+    /// Whether THIS APP can read the file. **Not a verdict about the robot**,
+    /// and it used to be written as one.
+    ///
+    /// DUCK STUDIO'S READER IS MUCH STRICTER THAN THE ROBOT'S, so the two
+    /// answers genuinely differ. `DuckPolicy.load` refuses anything that is not
+    /// exactly the one architecture it supports — nine operations in a fixed
+    /// order at fixed widths, 61 to 512 to 256 to 128 to 14, ELU throughout —
+    /// which is the property the App Review note in `PLAN.md` rests on.
+    /// robotd asks for far less: `duck-control/src/policy.rs`'s `check_width`
+    /// (read at main on 2026-08-30) asserts only the TRAILING dimension of the
+    /// first outlet, saying in its own comment that "the leading dimension is
+    /// the batch and is usually dynamic (-1), so only the last one is checked.
+    /// That is the one that encodes the contract." Loading then warms up with
+    /// one zeroed observation (`open_warm`). Nothing checks a layer type, an
+    /// activation, or a hidden width.
+    ///
+    /// So a network with Relu where this reader wants Elu, or 512-512-128
+    /// where it wants 512-256-128, is refused HERE and would very likely load
+    /// THERE. Saying "will not drive the robot" about such a file was a claim
+    /// this app is in no position to make.
     public enum Outcome: Equatable, Sendable {
         /// It loaded. The policy is attached.
         case runnable
@@ -52,6 +71,22 @@ public struct PolicyReport: Equatable, Sendable {
     public let remedy: String?
     /// The structure, for the table under the sentence.
     public let facts: [Fact]
+
+    /// What a refusal here does and does not settle about the robot.
+    ///
+    /// Shown under a refusal, because the refusal is the moment somebody
+    /// concludes their file is broken — and this app only knows that its own
+    /// reader would not take it.
+    public static let refusalIsAboutThisApp =
+        "This is Duck Studio's answer, not the robot's. This app reads one exact architecture "
+      + "— 61 to 512 to 256 to 128 to 14, ELU throughout — so it refuses networks the robot's "
+      + "runtime would load: robotd checks the observation is 61 wide, the actions are 14 wide, "
+      + "and that one zeroed step runs. It does not look at layers or activations."
+
+    /// The two widths a robot's runtime does check, which this app can check
+    /// too — so a file that fails THESE is one both would turn away.
+    public static let widthsTheRobotChecks =
+        "61 floats in, 14 out. A file that gets those wrong is refused everywhere."
 
     // MARK: - building one
 
@@ -87,14 +122,14 @@ public struct PolicyReport: Equatable, Sendable {
             let (reason, remedy) = explain(error, structure: structure)
             return PolicyReport(
                 outcome: .refused,
-                headline: "\(name) will not drive the robot",
+                headline: "\(name) will not load in Duck Studio",
                 reason: reason,
                 remedy: remedy,
                 facts: facts)
         } catch {
             return PolicyReport(
                 outcome: .refused,
-                headline: "\(name) will not drive the robot",
+                headline: "\(name) will not load in Duck Studio",
                 reason: "\(error)",
                 remedy: nil,
                 facts: facts)

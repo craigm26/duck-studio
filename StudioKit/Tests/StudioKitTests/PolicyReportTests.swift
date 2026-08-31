@@ -155,4 +155,28 @@ final class PolicyReportTests: XCTestCase {
             seen[reason] = file
         }
     }
+
+    /// A REFUSAL HERE IS NOT A VERDICT ABOUT THE ROBOT, and the headline used
+    /// to say it was. Duck Studio's reader takes one exact architecture;
+    /// robotd's `check_width` asserts only the trailing dimension of the first
+    /// outlet plus a zeroed warm-up step, and looks at no layer or activation.
+    /// So a file this app turns away can very well load on the robot, and the
+    /// old "will not drive the robot" was a claim the app could not support.
+    func testARefusalIsAboutThisAppAndNotAboutTheRobot() throws {
+        let r = try report("relu_instead_of_elu.onnx")
+        XCTAssertEqual(r.outcome, .refused)
+        XCTAssertTrue(r.headline.hasSuffix("will not load in Duck Studio"), r.headline)
+        XCTAssertFalse(r.headline.contains("drive the robot"),
+                       "a refusal must not be phrased as the robot's verdict")
+    }
+
+    func testTheCaveatNamesWhatEachReaderActuallyChecks() {
+        let c = PolicyReport.refusalIsAboutThisApp
+        XCTAssertTrue(c.contains("Duck Studio's answer, not the robot's"), c)
+        // The two widths are the part this app CAN check and the robot does too.
+        XCTAssertTrue(c.contains("61"), c)
+        XCTAssertTrue(c.contains("14"), c)
+        XCTAssertTrue(c.contains("does not look at layers or activations"), c)
+        XCTAssertTrue(PolicyReport.widthsTheRobotChecks.contains("refused everywhere"))
+    }
 }

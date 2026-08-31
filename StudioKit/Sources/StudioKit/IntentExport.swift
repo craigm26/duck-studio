@@ -223,12 +223,29 @@ public struct IntentExport: Equatable, Sendable {
                 return raw.count == frames.count ? raw : []
             }(),
             environment: decodeEnvironment(object["environment"] as? [String: Any]),
+            // EACH CHANNEL STANDS OR FALLS ON ITS OWN LENGTH, and gating all
+            // three on `actions` threw away real recordings. A bench run
+            // arrives with commands and NO actions — `DuckBench.readRecording`
+            // builds `.init(actions: [], commands: commands, twists: [])`
+            // because /record answers with what was asked for, not with what
+            // the network emitted. `telemetry.isEmpty` is false, so the writer
+            // put the commands in the file; the reader then saw
+            // `actions.count == 0 != frames.count`, returned `.none`, and
+            // discarded them. Measured before fixing: three commands in, the
+            // `commands` key present in the bytes, zero out.
+            //
+            // A channel of the WRONG length is still dropped rather than
+            // padded, for the reason the roots array is: padding invents
+            // per-frame values nobody recorded, and a plot drawn from them
+            // looks like data.
             telemetry: {
-                let actions = object["actions"] as? [[Double]] ?? []
-                let commands = object["commands"] as? [[Double]] ?? []
-                let twists = object["twists"] as? [[Double]] ?? []
-                guard actions.count == frames.count else { return .none }
-                return .init(actions: actions, commands: commands, twists: twists)
+                func perFrame(_ key: String) -> [[Double]] {
+                    let raw = object[key] as? [[Double]] ?? []
+                    return raw.count == frames.count ? raw : []
+                }
+                return .init(actions: perFrame("actions"),
+                             commands: perFrame("commands"),
+                             twists: perFrame("twists"))
             }(),
             variant: DuckKinematics.Variant(rawValue: object["variant"] as? String ?? "legs") ?? .legs)
     }

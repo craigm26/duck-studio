@@ -203,13 +203,22 @@ struct PolicyDetailView: View {
                 LabeledContent("Arrived", value: entry.origin.label)
             }
 
-            Section(entry.isRunnable ? "Verdict" : "Why it will not run") {
+            Section(entry.isRunnable ? "Verdict" : "Why it will not load here") {
                 Text(entry.report.headline).font(.subheadline.weight(.medium))
                 if !entry.report.reason.isEmpty {
                     Text(entry.report.reason).font(.footnote)
                 }
                 if let remedy = entry.report.remedy {
                     Text(remedy).font(.footnote).foregroundStyle(.secondary)
+                }
+                // WHERE THE REFUSAL STOPS. This app reads one exact
+                // architecture and the robot's runtime reads far less, so a
+                // refusal here is not the robot's answer — and a person looking
+                // at "will not load" is exactly the person about to conclude
+                // their file is broken.
+                if entry.report.outcome == .refused {
+                    Text(PolicyReport.refusalIsAboutThisApp)
+                        .font(.caption).foregroundStyle(.secondary)
                 }
             }
 
