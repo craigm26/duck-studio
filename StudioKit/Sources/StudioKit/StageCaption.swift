@@ -101,6 +101,31 @@ public enum StageCaption {
     /// on the mirrored left/right pitch convention: knees alone sink, a hip fold
     /// with the knees near straight floats. Two measured sweeps disagreed on it,
     /// so the sentence does not say.
+    /// The ground reading when the body has been RESTED on the floor rather
+    /// than pinned at standing height.
+    ///
+    /// IT REPORTS THE DROP, NOT A FLOAT. Under a pinned trunk `sit` reads
+    /// "55 mm above the grid", which looks like a fault in the data and is not:
+    /// it is the amount the real motion lowered the body. Same measurement,
+    /// stated as the fact rather than as the symptom.
+    ///
+    /// AND IT STILL REFUSES TO CLAIM PHYSICS. Resting the feet on the floor
+    /// assumes the duck is standing on it. A motion that would leave the ground
+    /// is drawn as though it had not, and nothing here knows whether the legs
+    /// could hold the weight.
+    public static func restedGround(dropMetres: Double) -> String {
+        let mm = dropMetres * 1000
+        if mm > 5 {
+            return String(format: "Feet on the floor. This pose puts the body %.0f mm below "
+                                + "standing — the legs are folded, not the ground moved.", mm)
+        }
+        if mm < -5 {
+            return String(format: "Feet on the floor. This pose reaches %.0f mm above standing.",
+                          -mm)
+        }
+        return "Feet on the floor, at about standing height."
+    }
+
     public static func pinnedGround(clearanceMetres: Double) -> String {
         let mm = clearanceMetres * 1000
         if mm > 5 {

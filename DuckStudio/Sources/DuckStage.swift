@@ -649,11 +649,24 @@ struct StageLegend: View {
     /// squat reads +39 mm and turns that line orange while the Checks tab says
     /// nothing is wrong.
     var rootIsPinned = false
+    /// TRUE WHEN THE BODY WAS DROPPED ONTO THE FLOOR rather than left at
+    /// standing height. The pose is still authored and the root is still not
+    /// recorded, so `rootIsPinned` stays true beside this — what changes is
+    /// that the drawn duck is standing on the ground and the reading says how
+    /// far below standing the pose puts it, instead of how far its feet float.
+    ///
+    /// The clearance is measured against the pose at STANDING height, which is
+    /// exactly the drop; measuring it at the rested root would read zero by
+    /// construction and blind the guard that caught the build where every clip
+    /// floated at 116 mm.
+    var restedOnFloor = false
     @Binding var orbit: OrbitState
 
     /// Loaded once for the process. Choosing the sample points sorts through
     /// every body, which does not belong on a frame.
-    private static let clearance = try? DuckGroundClearance.bundled()
+    /// Loaded once for the process, and shared with the screens that need to
+    /// PLACE the body as well as report on it.
+    static let clearance = try? DuckGroundClearance.bundled()
 
     /// The gesture line as it is read aloud.
     ///
@@ -690,6 +703,12 @@ struct StageLegend: View {
         // Keeping the reading on a pinned stage is deliberate — it is the guard
         // that would have caught the build where every clip floated at 116 mm —
         // but nothing there is wrong, so nothing there is orange.
+        if restedOnFloor {
+            // `metres` here is the clearance of the pose at standing height,
+            // because that is the pose this legend was handed — so it IS the
+            // drop, and nothing is floating on screen.
+            return (StageCaption.restedGround(dropMetres: metres), false)
+        }
         guard !rootIsPinned else {
             return (StageCaption.pinnedGround(clearanceMetres: metres), false)
         }

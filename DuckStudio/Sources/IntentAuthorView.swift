@@ -108,6 +108,19 @@ struct IntentAuthorView: View {
         draft.pose(at: playhead)
     }
 
+    /// Where the trunk goes so this pose stands on the floor.
+    ///
+    /// The rule and its caveats live in `StageFloor`; the mesh probe is the one
+    /// `StageLegend` already loads once per process, so this costs nothing
+    /// beyond the sampling that screen was doing anyway.
+    private func restingRoot(for angles: [Double]) -> DuckIntentClip.Root {
+        let pinned = StagePose.home.root
+        guard let probe = StageLegend.clearance else { return pinned }
+        return StageFloor.resting(pinned,
+                                  clearanceMetres: probe.clearance(jointAngles: angles,
+                                                                   root: pinned))
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             ZStack(alignment: .bottomLeading) {
@@ -120,7 +133,14 @@ struct IntentAuthorView: View {
                 // one tap away drew all three objects, which is how somebody
                 // learns the app is inconsistent rather than that the feature
                 // is missing.
-                DuckStage(pose: StagePose(jointAngles: shown, root: StagePose.home.root),
+                // DRAWN STANDING ON THE FLOOR, NOT HANGING AT 116 mm. A draft
+                // carries joints and no root, so this stage chose the height —
+                // and pinning it at standing drew `sit` with its feet 54.9 mm
+                // in the air, measured against the real meshes. That looks
+                // exactly like the published data being wrong, and it is not:
+                // every clip sits on the floor at the root physics recorded.
+                // So the body is dropped by the pose's own clearance.
+                DuckStage(pose: StagePose(jointAngles: shown, root: restingRoot(for: shown)),
                           environment: scene?.environment ?? .bareFloor,
                           props: scene?.props ?? [],
                           orbit: $orbit)
@@ -128,10 +148,17 @@ struct IntentAuthorView: View {
                 // the design `IntentDraft`'s header states in capitals. The
                 // legend was built for recorded clips and reads that pin as if
                 // physics had produced it.
+                // THE LEGEND IS HANDED THE STANDING-HEIGHT POSE ON PURPOSE.
+                // Its clearance reading against that pose IS the drop, and it
+                // is the same measurement that used to be printed as a float.
+                // Measuring the rested pose instead would read zero by
+                // construction and blind the check that caught the build where
+                // every clip floated.
                 StageLegend(pose: StagePose(jointAngles: shown, root: StagePose.home.root),
                             environment: scene?.environment ?? .bareFloor,
                             props: scene?.props ?? [],
                             rootIsPinned: true,
+                            restedOnFloor: true,
                             orbit: $orbit)
             }
             .frame(maxHeight: 300)
