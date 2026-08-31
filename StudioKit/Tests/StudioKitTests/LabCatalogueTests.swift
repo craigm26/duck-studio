@@ -43,13 +43,39 @@ final class LabCatalogueTests: XCTestCase {
         }
     }
 
-    /// THE PORT IS DONE, SO NOTHING MAY CLAIM TO BE MID-PORT. `.portingFrom`
-    /// stays in the enum because the next app to fold in will need it, but a
-    /// row still wearing it after the code arrived is a row lying about itself.
-    func testNothingIsStillClaimingToBeBeingPorted() {
+    /// A ROW MAY BE MID-PORT, BUT ONLY ON PURPOSE AND ONLY BY NAME.
+    ///
+    /// This used to forbid `.portingFrom` outright, which was right while every
+    /// planned port was finished and wrong the moment a fourth app — Duck
+    /// Sounds — actually started folding in. The hazard it was written for is
+    /// not the status; it is a row wearing it forever, because "being ported"
+    /// reads as progress and costs nothing to leave in place.
+    ///
+    /// So the list is here rather than in the catalogue. Adding a row that
+    /// claims to be mid-port means editing a test and saying which app, and
+    /// finishing one means deleting a line — a row cannot drift into limbo
+    /// quietly in either direction.
+    func testOnlyTheRowsListedHereMayClaimToBeMidPort() {
+        let expected = ["Duck sounds": "Duck Sounds"]
+        var seen: [String: String] = [:]
         for mode in LabCatalogue.modes {
-            if case .portingFrom(let app) = mode.status {
-                XCTFail("\(mode.name) still says it is being ported from \(app)")
+            if case .portingFrom(let app) = mode.status { seen[mode.name] = app }
+        }
+        XCTAssertEqual(seen, expected,
+                       "either a row started claiming to be mid-port without being listed, or a "
+                     + "listed one finished and this line should go")
+    }
+
+    /// AND A MID-PORT ROW IS NOT REACHABLE. `usable` is what the screen draws
+    /// as tappable, and a row whose code has not arrived must not be in it —
+    /// the whole point of the status is that the screen draws it disabled with
+    /// the reason beside it.
+    func testAModeStillBeingPortedIsNotOfferedAsUsable() {
+        let usable = Set(LabCatalogue.usable.map(\.id))
+        for mode in LabCatalogue.modes {
+            if case .portingFrom = mode.status {
+                XCTAssertFalse(usable.contains(mode.id), "\(mode.name) is tappable too early")
+                XCTAssertNotNil(mode.status.reason, "and it must say why")
             }
         }
     }

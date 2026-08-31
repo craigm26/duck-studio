@@ -120,6 +120,22 @@ public enum LabCatalogue {
                    + "20 mm-thick box at the size and place it was seen. Boxes, not furniture "
                    + "shapes. It does not yet become a scene this app can stand a duck in.",
               status: .here),
+        // THE FOURTH APP TO STOP BEING AN APP. Duck Sounds was a separate iOS
+        // app with its own README, gates and bundle identifier; it becomes a
+        // screen here for the same reason Duck Soccer did.
+        //
+        // MOST OF IT IS ALREADY SHARED. `DuckSound`, `DuckVoice` and
+        // `DuckPerformance` are in DuckKit and tested on a Pi with no phone in
+        // the room — the voice is synthesised rather than recorded, so there
+        // are no audio assets to move. What is missing is the screen and the
+        // step the web version does in duckloop.mjs: turning the performance's
+        // command-and-mouth stream into a duck to look at.
+        .init(id: "sounds", name: "Duck sounds", symbol: "waveform",
+              blurb: "Seven duck calls — the honk, the tilt, the peck, the held joy ride. Each "
+                   + "one is a synthesised voice and a movement of the whole body, not a sound "
+                   + "effect with an animation. Hold coo or wheee and it keeps going until you "
+                   + "let go.",
+              status: .portingFrom("Duck Sounds")),
         .init(id: "trials", name: "Trials", symbol: "chart.dots.scatter",
               blurb: "Place an object at a bearing and a range, run a policy at it a set "
                    + "number of times, and report the fraction that met a stated criterion. "
