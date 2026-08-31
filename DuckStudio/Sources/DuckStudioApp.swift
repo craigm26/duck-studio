@@ -23,6 +23,10 @@ struct DuckStudioApp: App {
     /// Which model writes drafts. One store, shared: the Draft tab uses it and
     /// the Models screen edits it.
     @StateObject private var models = EndpointStore()
+    /// Which benches this phone knows about. One store, shared, for the same
+    /// reason `models` is: three screens send work to a bench, and a bench
+    /// chosen on one of them is the bench the others should use.
+    @StateObject private var benches = BenchStore()
 
     @Environment(\.scenePhase) private var scenePhase
 
@@ -30,9 +34,9 @@ struct DuckStudioApp: App {
         WindowGroup {
             TabView {
                 NavigationStack { PolicyListView(model: model, scenes: scenes, drafts: drafts,
-                                               models: models) }
+                                               models: models, benches: benches) }
                     .tabItem { Label("Policies", systemImage: "cpu") }
-                NavigationStack { IntentListView(models: models, store: scenes, model: model, drafts: drafts) }
+                NavigationStack { IntentListView(models: models, benches: benches, store: scenes, model: model, drafts: drafts) }
                     .tabItem { Label("Intents", systemImage: "figure.walk.motion") }
                 // A THIRD KIND OF THING, and it earned its own tab the moment
                 // the stage started drawing one. A policy is a network, an
@@ -57,7 +61,7 @@ struct DuckStudioApp: App {
                 // code in them at all — a new Microduck owner should not need
                 // four apps to use one robot.
                 NavigationStack {
-                    LabView(scenes: scenes, drafts: drafts, models: models)
+                    LabView(scenes: scenes, drafts: drafts, models: models, benches: benches)
                 }
                     .tabItem { Label("Lab", systemImage: "flask") }
             }

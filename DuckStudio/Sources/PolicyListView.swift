@@ -23,6 +23,7 @@ struct PolicyListView: View {
     /// store in the environment; every one is passed by hand, so a feature that
     /// needs one three screens down has to be threaded through the two between.
     @ObservedObject var models: EndpointStore
+    @ObservedObject var benches: BenchStore
 
     private var released: [PolicyLibrary.Entry] {
         model.library.entries.filter { isReleased(model.standing(for: $0)) }
@@ -69,14 +70,20 @@ struct PolicyListView: View {
                     .foregroundStyle(.secondary)
             }
             ToolbarItem(placement: .topBarTrailing) {
-                NavigationLink { RemoteRunView(scenes: scenes, drafts: drafts, models: models) } label: {
+                NavigationLink { RemoteRunView(scenes: scenes, drafts: drafts, models: models, benches: benches) } label: {
                     Label("Run on your network", systemImage: "wifi")
+                }
+                NavigationLink { BenchSettingsView(store: benches) } label: {
+                    Image(systemName: "server.rack")
+                        // The destination's own title, because an icon-only
+                        // link otherwise announces the SF Symbol's name.
+                        .accessibilityLabel(Text("Benches"))
                 }
                 // ONLY WORTH OFFERING WITH TWO THINGS TO MIX. A blend of one
                 // policy is that policy, which `PolicyBlend` refuses anyway;
                 // showing the door to a refusal is not an affordance.
                 if model.library.runnableCount >= 2 {
-                    NavigationLink { PolicyBlendView(library: model.library) } label: {
+                    NavigationLink { PolicyBlendView(library: model.library, benches: benches) } label: {
                         Image(systemName: "arrow.triangle.merge")
                             .accessibilityLabel(Text("Blend policies"))
                     }

@@ -23,7 +23,10 @@ struct PipelineView: View {
     /// hands it to the editor. Nothing on this screen asks a model anything.
     @ObservedObject var models: EndpointStore
 
-    @AppStorage("duckbench.address") private var addressText = ""
+    /// WHICH SAVED BENCH. This read the one `@AppStorage` address every other
+    /// bench screen used to read, so "has a bench" meant "a string is not
+    /// empty" — true for an address that had never answered anything.
+    @ObservedObject var benches: BenchStore
     @State private var busy = false
     @State private var failure: String?
 
@@ -31,7 +34,7 @@ struct PipelineView: View {
 
     private var pipeline: Pipeline? {
         draft.map {
-            Pipeline.of($0, bench: $0.bench, hasBench: !addressText.isEmpty)
+            Pipeline.of($0, bench: $0.bench, hasBench: benches.selected != nil)
         }
     }
 
@@ -124,9 +127,9 @@ struct PipelineView: View {
 
     @ViewBuilder
     private func physicsControls(_ draft: IntentDraft) -> some View {
-        if addressText.isEmpty {
+        if benches.selected == nil {
             NavigationLink {
-                RemoteRunView(scenes: scenes, drafts: drafts, models: models)
+                BenchSettingsView(store: benches)
             } label: {
                 Label("Point it at a bench", systemImage: "network").font(.footnote)
             }
@@ -154,7 +157,12 @@ struct PipelineView: View {
         busy = true; failure = nil
         defer { busy = false }
         do {
-            let address = try DuckBench.address(addressText)
+            guard let chosen = benches.selected else {
+                failure = "No bench is set up, so there is nothing to run this on."
+                return
+            }
+            let armed = benches.armed(chosen)
+            let address = try armed.resolved()
             let track = draft.benchTrack
             guard track.count >= 2 else {
                 failure = "A motion needs at least two keyframes to run."
@@ -162,7 +170,7 @@ struct PipelineView: View {
             }
             let call = try DuckBench.perform(address, keys: track,
                                              seconds: draft.duration + 0.5, rollouts: 8)
-            var request = DuckBench.urlRequest(for: call)
+            var request = DuckBench.urlRequest(for: call, token: armed.token)
             // Eight rollouts of physics on a small board is not quick.
             request.timeoutInterval = 900
             let (data, _) = try await URLSession.shared.data(for: request)

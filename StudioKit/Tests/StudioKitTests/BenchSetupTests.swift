@@ -139,4 +139,37 @@ final class BenchSetupTests: XCTestCase {
         XCTAssertTrue(copy.detail.contains("works without one"),
                       "and the app is not useless without a bench: \(copy.detail)")
     }
+
+    // MARK: - the presets
+
+    /// EVERY BENCH RUNS THE SAME PROGRAM ON THE SAME PORT. The only thing that
+    /// differs is how the phone reaches it, and there are two answers — so a
+    /// longer menu here would be inventing distinctions to look thorough.
+    func testThereAreExactlyTwoPresetsAndBothUsePortEightSevenSevenZero() {
+        XCTAssertEqual(BenchSetup.presets.count, 2)
+        for preset in BenchSetup.presets {
+            XCTAssertTrue(preset.address.hasSuffix(":8770"), preset.address)
+            XCTAssertFalse(preset.suggestedName.isEmpty)
+            XCTAssertGreaterThan(preset.detail.count, 30, preset.name)
+        }
+    }
+
+    /// The tailnet one comes first because it is the recommendation, and its
+    /// address really is in the tailnet range — a preset that filled in
+    /// something `isTailnet` rejects would teach the wrong shape.
+    func testTheTailnetPresetIsFirstAndIsActuallyATailnetAddress() throws {
+        let first = try XCTUnwrap(BenchSetup.presets.first)
+        XCTAssertTrue(BenchSetup.isTailnet(first.address), first.address)
+        XCTAssertFalse(BenchSetup.isTailnet(BenchSetup.presets[1].address))
+        XCTAssertTrue(BenchSetup.presets[1].detail.contains("stops working"),
+                      "the Wi-Fi preset says what it costs")
+    }
+
+    /// Both fill in something the app will actually dial. A preset that seeded
+    /// an address the parser refuses would open a new entry already broken.
+    func testEveryPresetAddressIsOneTheClientAccepts() {
+        for preset in BenchSetup.presets {
+            XCTAssertNoThrow(try DuckBench.address(preset.address), preset.name)
+        }
+    }
 }

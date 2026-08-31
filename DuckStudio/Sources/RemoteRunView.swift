@@ -17,12 +17,18 @@ struct RemoteRunView: View {
     /// model store or it arrives disabled with advice that cannot be followed
     /// from here.
     @ObservedObject var models: EndpointStore
+    @ObservedObject var benches: BenchStore
 
-    @AppStorage("duckbench.address") private var addressText = ""
-    // THE SAME TOKEN EVERY BENCH SCREEN USES. Each screen kept its own
-    // @State copy, so a token typed to connect was empty again on the next
-    // screen and the bench looked like it had started refusing.
-    @AppStorage("duckbench.token") private var token = ""
+    /// WHICH SAVED BENCH, not a typed address. This was an
+    /// `@AppStorage("duckbench.address")` string, so the app held exactly one
+    /// bench, could not say which, and forgot the last one whenever somebody
+    /// moved between machines. `BenchStore` is the Models tab's shape applied
+    /// to the same problem.
+    private var bench: BenchEndpoint? { benches.selected }
+    /// The token comes off the chosen bench, out of the Keychain, at the
+    /// moment of use. It is not a field on this screen any more: a credential
+    /// belongs to a bench, not to whichever screen last asked for it.
+    private var token: String? { bench.flatMap { benches.armed($0).token } }
     @State private var health: DuckBench.Health?
     @State private var chosen = ""
     @State private var seconds = 6.0
@@ -36,19 +42,36 @@ struct RemoteRunView: View {
     var body: some View {
         List {
             Section {
-                NavigationLink { BenchSetupView() } label: {
-                    Label("Set one up", systemImage: "questionmark.circle")
+                // THE LIST IS THE CONTROL. Picking between saved benches is a
+                // different act from typing one in, and conflating them is
+                // what made the old screen forget the machine you were on
+                // five minutes ago.
+                if benches.benches.isEmpty {
+                    NavigationLink { BenchSettingsView(store: benches) } label: {
+                        Label("Set up a bench", systemImage: "plus.circle")
+                    }
+                } else {
+                    Picker("Bench", selection: Binding(
+                        get: { benches.selectedID },
+                        set: { benches.selectedID = $0 })) {
+                        ForEach(benches.benches) { one in
+                            Text(one.name).tag(UUID?.some(one.id))
+                        }
+                    }
+                    if let bench {
+                        Text(bench.address)
+                            .font(.caption.monospaced()).foregroundStyle(.secondary)
+                    }
+                    NavigationLink { BenchSettingsView(store: benches) } label: {
+                        Label("Manage benches", systemImage: "slider.horizontal.3")
+                    }
+                    Button("Connect") { Task { await connect() } }
+                        .disabled(bench == nil || busy)
                 }
-                TextField("192.168.1.20:8770", text: $addressText)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                SecureField("Token, if the bench wants one", text: $token)
-                Button("Connect") { Task { await connect() } }
-                    .disabled(addressText.isEmpty || busy)
             } header: {
                 Text("Where the physics is")
             } footer: {
-                Text("A machine on your own network running duckbench.mjs from the duck-sounds repository. Plain http, because a Pi on a desk has no certificate — so only a private address or a .local name is accepted.")
+                Text("A machine on your own network running duckbench.mjs. Plain http, because a Pi on a desk has no certificate — so only a private address or a tailnet one is accepted.")
             }
 
             if let health {
@@ -188,6 +211,14 @@ struct RemoteRunView: View {
 
     // MARK: - the network
 
+    /// The chosen bench, or a refusal that says what to do. EVERY CALL GOES
+    /// THROUGH THIS: a screen that builds a request from no bench at all is how
+    /// a button does nothing and says nothing.
+    private func requireBench() throws -> BenchEndpoint {
+        guard let bench else { throw DuckBench.Refusal.empty }
+        return bench
+    }
+
     private func run<T>(_ work: () async throws -> T) async -> T? {
         busy = true; failure = nil
         defer { busy = false }
@@ -201,7 +232,7 @@ struct RemoteRunView: View {
     private func connect() async {
         health = nil; clip = nil; success = nil
         health = await run {
-            let address = try DuckBench.address(addressText)
+            let address = try requireBench().resolved()
             let request = DuckBench.urlRequest(for: DuckBench.health(address), token: token)
             let (data, _) = try await URLSession.shared.data(for: request)
             return try DuckBench.readHealth(data)
@@ -212,7 +243,7 @@ struct RemoteRunView: View {
     private func record() async {
         success = nil
         clip = await run {
-            let address = try DuckBench.address(addressText)
+            let address = try requireBench().resolved()
             let call = try DuckBench.record(address, policy: chosen, seconds: seconds,
                                             schedule: [start, then])
             let (data, _) = try await URLSession.shared.data(
@@ -224,7 +255,7 @@ struct RemoteRunView: View {
     private func measure() async {
         clip = nil
         success = await run {
-            let address = try DuckBench.address(addressText)
+            let address = try requireBench().resolved()
             let call = try DuckBench.measure(address, policy: chosen, seconds: seconds,
                                              rollouts: 8, schedule: [start, then])
             let (data, _) = try await URLSession.shared.data(

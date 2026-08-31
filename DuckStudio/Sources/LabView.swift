@@ -27,6 +27,7 @@ struct LabView: View {
     @ObservedObject var scenes: SceneStore
     @ObservedObject var drafts: DraftStore
     @ObservedObject var models: EndpointStore
+    @ObservedObject var benches: BenchStore
     /// ROOM CAPTURE IS THE ONE ROW HERE THAT NEEDS A CAMERA TO EXIST AT ALL,
     /// so the Lab reads the door too. The ghost duck and soccer are not in this
     /// list on purpose: both open on a rendered venue and offer the camera only
@@ -144,7 +145,7 @@ struct LabView: View {
     @ViewBuilder private func destination(_ mode: LabCatalogue.Mode) -> some View {
         switch mode.id {
         case "bench":
-            RemoteRunView(scenes: scenes, drafts: drafts, models: models)
+            RemoteRunView(scenes: scenes, drafts: drafts, models: models, benches: benches)
         case "ghost":
             // The games hub. Golf, fetch, follow me, the bow bridge, the trick
             // run, the slalom and the flamingo hold are all reached from inside

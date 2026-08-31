@@ -71,6 +71,53 @@ public enum BenchSetup {
     /// rather not use the start script.
     public static let byHand = "node duckbench.mjs"
 
+    /// Said above the list of presets, so the choice between them is informed.
+    public static let preambleForAdding =
+        "Every bench runs the same program on the same port — the only question is how this "
+      + "phone reaches it. A Tailscale address works from anywhere; a Wi-Fi address works only "
+      + "while the phone is on that network."
+
+    /// A starting point for a new bench, so nobody has to invent the shape of
+    /// an address from nothing.
+    ///
+    /// TWO, NOT SIX. The Models tab needs six because the SOFTWARE differs —
+    /// Ollama, LM Studio, llama.cpp and a cloud service want different ports
+    /// and different fields. Every bench runs the same program on the same
+    /// port; the only thing that differs is HOW THE PHONE REACHES IT, and there
+    /// are exactly two answers to that. Offering a longer menu would be
+    /// inventing distinctions to look thorough.
+    public struct Preset: Equatable, Sendable, Identifiable {
+        public var id: String { name }
+        public let name: String
+        public let detail: String
+        public let symbol: String
+        /// The address this fills in — an example, always edited before use.
+        public let address: String
+        public let suggestedName: String
+
+        public init(name: String, detail: String, symbol: String,
+                    address: String, suggestedName: String) {
+            self.name = name; self.detail = detail; self.symbol = symbol
+            self.address = address; self.suggestedName = suggestedName
+        }
+    }
+
+    /// TAILSCALE FIRST, AND THAT ORDER IS THE RECOMMENDATION. A Wi-Fi address
+    /// works right up until the phone prefers cellular or somebody leaves the
+    /// room, and it fails looking exactly like a bench that has gone down.
+    public static let presets: [Preset] = [
+        .init(name: "A machine on my tailnet",
+              detail: "Reaches it from anywhere, including on cellular. The address the start "
+                    + "script prints.",
+              symbol: "point.3.connected.trianglepath.dotted",
+              address: "100.64.0.1:8770", suggestedName: "My bench"),
+        .init(name: "A machine on my Wi-Fi",
+              detail: "Only while this phone is on the same network as it. Simpler to set up, "
+                    + "and it stops working when you walk out.",
+              symbol: "wifi",
+              address: "192.168.1.10:8770", suggestedName: "Bench on the LAN"),
+    ]
+
     // MARK: - what went wrong
 
     /// The state of a connection attempt, and the one thing to do about it.

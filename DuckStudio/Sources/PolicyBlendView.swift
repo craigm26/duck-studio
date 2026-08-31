@@ -23,11 +23,10 @@ import StudioKit
 struct PolicyBlendView: View {
     let library: PolicyLibrary
 
-    @AppStorage("duckbench.address") private var addressText = ""
-    // THE SAME TOKEN EVERY BENCH SCREEN USES. Each screen kept its own
-    // @State copy, so a token typed to connect was empty again on the next
-    // screen and the bench looked like it had started refusing.
-    @AppStorage("duckbench.token") private var token = ""
+    /// THE BENCH IS CHOSEN, NOT TYPED. Every screen that reached a bench used
+    /// to carry its own address box, so the same machine was configured three
+    /// times and a token entered on one was missing on the next.
+    @ObservedObject var benches: BenchStore
     @State private var first: String?
     @State private var second: String?
     @State private var towardSecond = 0.5
@@ -89,13 +88,26 @@ struct PolicyBlendView: View {
                 // the Mac; `swiftc -parse` sees valid syntax here because the
                 // mistake is in overload resolution, not grammar.
                 Section {
-                    TextField("192.168.1.20:8770", text: $addressText)
-                        .textInputAutocapitalization(.never).autocorrectionDisabled()
-                    SecureField("Token, if the bench wants one", text: $token)
-                    Button(busy ? "Running…" : "Send to the bench and measure") {
-                        Task { await measure(blended) }
+                    if benches.benches.isEmpty {
+                        NavigationLink { BenchSettingsView(store: benches) } label: {
+                            Label("Set up a bench", systemImage: "plus.circle")
+                        }
+                        Text("Blending happens on this phone. Finding out whether the result "
+                           + "does anything needs physics, and that lives on another machine.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    } else {
+                        Picker("Bench", selection: Binding(
+                            get: { benches.selectedID },
+                            set: { benches.selectedID = $0 })) {
+                            ForEach(benches.benches) { one in
+                                Text(one.name).tag(UUID?.some(one.id))
+                            }
+                        }
+                        Button(busy ? "Running…" : "Send to the bench and measure") {
+                            Task { await measure(blended) }
+                        }
+                        .disabled(benches.selected == nil || busy)
                     }
-                    .disabled(addressText.isEmpty || busy)
                     if let uploadedAs {
                         Text("The bench called it \(uploadedAs).")
                             .font(.caption).foregroundStyle(.secondary)
@@ -194,10 +206,12 @@ struct PolicyBlendView: View {
         busy = true; failure = nil; verdict = nil
         defer { busy = false }
         do {
-            let address = try DuckBench.address(addressText)
+            guard let chosen = benches.selected else { throw DuckBench.Refusal.empty }
+            let armed = benches.armed(chosen)
+            let address = try armed.resolved()
             func ask(_ call: DuckBench.Call) async throws -> Data {
                 try await URLSession.shared.data(
-                    for: DuckBench.urlRequest(for: call, token: token)).0
+                    for: DuckBench.urlRequest(for: call, token: armed.token)).0
             }
 
             let name = try DuckBench.readUploaded(
@@ -231,6 +245,8 @@ struct PolicyBlendView: View {
                 plant: DuckBench.recordedCredit(plantName: blend.plantName,
                                                 plantDigest: blend.plantDigest)))
         } catch let refusal as DuckBench.Refusal {
+            failure = refusal.message
+        } catch let refusal as BenchEndpoint.Refusal {
             failure = refusal.message
         } catch let error as DuckBench.ReadError {
             failure = error.message

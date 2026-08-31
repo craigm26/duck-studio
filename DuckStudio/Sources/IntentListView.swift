@@ -25,6 +25,7 @@ struct IntentListView: View {
     /// choice — two stores would mean picking Claude in one place and getting
     /// Apple's model in the other.
     @ObservedObject var models: EndpointStore
+    @ObservedObject var benches: BenchStore
 
     @ObservedObject var store: SceneStore
     @ObservedObject var model: LibraryModel
@@ -141,7 +142,7 @@ struct IntentListView: View {
                     ForEach(drafts.drafts) { draft in
                         NavigationLink {
                             PipelineView(draftID: draft.id, drafts: drafts, scenes: store,
-                                         models: models)
+                                         models: models, benches: benches)
                         } label: {
                             let pipeline = Pipeline.of(draft, bench: draft.bench)
                             VStack(alignment: .leading, spacing: 3) {
