@@ -83,7 +83,12 @@ struct PolicyBlendView: View {
                     Button("Save as .onnx") { export(blended) }
                 }
 
-                Section("Run it somewhere with physics") {
+                // A STRING TITLE AND A FOOTER CLOSURE DO NOT COMBINE.
+                // `Section("x") { } footer: { }` is not an initializer that
+                // exists — the header has to become a closure too. Caught by
+                // the Mac; `swiftc -parse` sees valid syntax here because the
+                // mistake is in overload resolution, not grammar.
+                Section {
                     TextField("192.168.1.20:8770", text: $addressText)
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
                     SecureField("Token, if the bench wants one", text: $token)
@@ -95,6 +100,8 @@ struct PolicyBlendView: View {
                         Text("The bench called it \(uploadedAs).")
                             .font(.caption).foregroundStyle(.secondary)
                     }
+                } header: {
+                    Text("Run it somewhere with physics")
                 } footer: {
                     Text("Six seconds, commanded forward at vx 0.5 — below about 0.3 the walking "
                        + "policy simply stands, and two ducks standing still look alike.")

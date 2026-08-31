@@ -74,18 +74,29 @@ def password() -> str:
     return out.stdout.strip()
 
 
+# THIS REPO, NOT WHATEVER DIRECTORY THE SHELL HAPPENED TO BE IN.
+#
+# `git archive HEAD` reads the CWD, so running this by absolute path from
+# another checkout silently tarred THAT repo and shipped it to the Mac to be
+# built as if it were Duck Studio. Caught when the source line read 87384 KB
+# instead of the usual 13 MB and the tarball turned out to hold duck-sounds:
+# scene_full.mjb, mujoco.wasm and no app at all. A gate that builds the wrong
+# repository is worse than one that does not run, because it answers.
+REPO = pathlib.Path(__file__).resolve().parent.parent
+
+
 def tarball(worktree: bool) -> pathlib.Path:
     path = pathlib.Path(tempfile.gettempdir()) / "duck-studio-src.tgz"
     if not worktree:
         with open(path, "wb") as handle:
             git = subprocess.Popen(["git", "archive", "--format=tar", "HEAD"],
-                                   stdout=subprocess.PIPE)
+                                   cwd=REPO, stdout=subprocess.PIPE)
             gzip = subprocess.Popen(["gzip", "-9"], stdin=git.stdout, stdout=handle)
             git.stdout.close()
             gzip.communicate()
         return path
     root = pathlib.Path(
-        subprocess.run(["git", "rev-parse", "--show-toplevel"],
+        subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=REPO,
                        capture_output=True, text=True, check=True).stdout.strip())
     with tarfile.open(path, "w:gz") as archive:
         for item in sorted(root.rglob("*")):

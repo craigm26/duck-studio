@@ -2,3 +2,7 @@
 .swiftpm/
 DerivedData/
 *.xcodeproj
+
+# Python bytecode from scripts/
+__pycache__/
+*.pyc
