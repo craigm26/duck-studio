@@ -33,6 +33,26 @@ public struct TrainingRequest: Equatable, Sendable {
         case ballKick = "microduck_ball_kick_env_cfg.py"
         case rollerCrouch = "microduck_roller_crouch_env_cfg.py"
 
+        /// The module, without the `.py` a filename carries.
+        public var moduleName: String {
+            String(rawValue.dropLast(3))
+        }
+
+        /// THE FACTORY UPSTREAM ACTUALLY DEFINES, WHICH IS NOT WHAT THIS FILE
+        /// USED TO EMIT. The old code built the call by stripping `microduck_`
+        /// off the module name — `microduck_velocity_env_cfg` became
+        /// `make_velocity_env_cfg` — and upstream defines
+        /// `make_microduck_velocity_env_cfg`. Checked against all five modules
+        /// at `pollen-robotics/microduck_rl` main on 2026-08-31: every one is
+        /// `make_` + the module name.
+        ///
+        /// So every config this app has ever written failed on its import line,
+        /// for all five bases, and it failed at the far end where nobody here
+        /// would see it. The whole feature produced a file that could not run.
+        public var factoryName: String {
+            "make_\(moduleName)"
+        }
+
         public var summary: String {
             switch self {
             case .groundPick:
@@ -105,6 +125,105 @@ public struct TrainingRequest: Equatable, Sendable {
         "body_upright_gaussian": "rewards being upright",
         "self_collision_cost": "punishes hitting itself",
     ]
+
+    /// Which way a term's weight has to point.
+    ///
+    /// THIS IS THE ONE MISTAKE THAT TRAINS THE DUCK TO DO THE WRONG THING ON
+    /// PURPOSE, and until now this app let a person make it in one keystroke.
+    /// `microduck_rl/CLAUDE.md` states the failure exactly: "A negative weight
+    /// on a self-negating penalty double-negates into a reward for the
+    /// violation, and the policy will farm it (butt-hopping, crash-sits)."
+    ///
+    /// AND THE NAME DOES NOT TELL YOU. `fallen_state_penalty` returns
+    /// `fallen.float()` — non-negative, so it wants a NEGATIVE weight — while
+    /// `pose_l1_penalty` returns `-torch.abs(...)`, self-negating, and wants a
+    /// POSITIVE one. Both end in `_penalty`. Read from
+    /// `src/mjlab_microduck/tasks/mdp.py` and the four shipped env configs at
+    /// `pollen-robotics/microduck_rl` main on 2026-08-31, function by function;
+    /// the configs are the check, because they carry the weights upstream
+    /// actually trains with (`feet_flat` -2.0, `feet_grounded` +3.0,
+    /// `self_collisions` -1.0, and `posture_height_l1` **+6.0** — the
+    /// self-negating one taking a positive weight).
+    public enum WeightSign: String, Equatable, Sendable {
+        /// A cost. Non-negative from the function, so the weight is negative.
+        case negative
+        /// A reward, or a self-negating penalty. The weight is positive.
+        case positive
+
+        public var sentence: String {
+            self == .negative
+                ? "wants a NEGATIVE weight — it returns a cost, and a positive weight pays the "
+                + "policy for doing the thing"
+                : "wants a POSITIVE weight — it returns a reward or already carries its own "
+                + "minus sign, and a negative weight pays the policy for breaking it"
+        }
+    }
+
+    /// The sign each vocabulary term's weight must carry.
+    public static let weightSigns: [String: WeightSign] = [
+        "mouth_ground_proximity": .positive,
+        "mouth_perpendicular_to_ground": .positive,
+        "pose_target_match": .positive,
+        "pose_l1_penalty": .positive,          // returns -abs(...)
+        "height_target_gaussian": .positive,
+        "height_l1_penalty": .positive,        // returns -abs(...)
+        "forward_speed_reward": .positive,
+        "wheel_glide_reward": .positive,
+        "feet_grounded_reward": .positive,
+        "feet_flat_penalty": .negative,        // returns per_foot.sum(), upstream -2.0
+        "body_impact_cost": .negative,
+        "joint_torques_l2": .negative,         // upstream -0.005
+        "joint_torque_rate_l2": .negative,
+        "neck_joint_pos_l2": .negative,
+        "joint_deviation_l1": .negative,       // returns sum(abs(err))
+        "leg_action_rate_l2": .negative,
+        "neck_action_rate_l2": .negative,      // upstream -1.0
+        "fallen_state_penalty": .negative,     // returns fallen.float()
+        "is_alive": .positive,
+        "upright_progress": .positive,
+        "body_upright_gaussian": .positive,
+        "self_collision_cost": .negative,      // upstream -1.0
+    ]
+
+    /// Which python module a reward function is actually in.
+    ///
+    /// NOT ALL OF THEM ARE MICRODUCK'S, AND ONE WAS EMITTED WRONG. This file
+    /// qualified every function with `microduck_mdp`, but
+    /// `grep -c self_collision_cost mdp.py` in
+    /// `pollen-robotics/microduck_rl` returns 0 — it is
+    /// `mjlab/tasks/velocity/mdp/rewards.py:162`, in mjlab. So that one term
+    /// emitted an AttributeError at config time, and the brief underneath
+    /// asserted that every function named "exists in mjlab_microduck/tasks/mdp.py".
+    static func moduleFor(_ function: String) -> String {
+        function == "self_collision_cost" ? "mjlab_mdp" : "microduck_mdp"
+    }
+
+    /// The sentence the brief carries when a weight points the wrong way.
+    var signWarning: String {
+        let wrong = wrongSigns
+        guard !wrong.isEmpty else { return "" }
+        return "\n\n**Check these signs before training.** "
+             + "microduck_rl's own playbook: a negative weight on a self-negating penalty "
+             + "\"double-negates into a reward for the violation, and the policy will farm it "
+             + "(butt-hopping, crash-sits)\".\n\n"
+             + wrong.map { "- \($0)" }.joined(separator: "\n")
+    }
+
+    /// Terms whose weight points the wrong way, with the sentence for each.
+    ///
+    /// A LIST RATHER THAN A REFUSAL, because a person may know something this
+    /// table does not and the app is in no position to forbid a number. It is
+    /// loud, it is beside the weight, and it says what will happen — which is
+    /// what the rest of this app does with a thing it believes is wrong.
+    public var wrongSigns: [String] {
+        rewards.compactMap { reward in
+            guard let want = Self.weightSigns[reward.function], reward.weight != 0 else { return nil }
+            let isNegative = reward.weight < 0
+            guard isNegative == (want == .positive) else { return nil }
+            return "`\(reward.function)` \(want.sentence). It is set to "
+                 + "\(String(format: "%g", reward.weight))."
+        }
+    }
 
     public var name: String
     public var summary: String
@@ -259,7 +378,7 @@ extension TrainingRequest {
             """
                 # \(reward.reason)
                 cfg.rewards["\(reward.function)"] = RewardTermCfg(
-                    func=microduck_mdp.\(reward.function),
+                    func=\(Self.moduleFor(reward.function)).\(reward.function),
                     weight=\(String(format: "%g", reward.weight)),
                     params={},
                 )
@@ -306,9 +425,10 @@ extension TrainingRequest {
         from mjlab.utils.spec_config import ContactSensorCfg
 
         from mjlab_microduck.tasks import mdp as microduck_mdp
-        from mjlab_microduck.tasks.\(base.rawValue.replacingOccurrences(of: ".py", with: "")) \\
-            import make_\(base.rawValue.replacingOccurrences(of: "microduck_", with: "")
-                              .replacingOccurrences(of: "_env_cfg.py", with: ""))_env_cfg
+        # self_collision_cost is mjlab's, not microduck's — this app used to
+        # emit microduck_mdp.self_collision_cost, which is an AttributeError.
+        from mjlab.tasks.velocity import mdp as mjlab_mdp
+        from mjlab_microduck.tasks.\(base.moduleName) import \(base.factoryName)
 
 
         EPISODE_SECONDS = \(String(format: "%g", episodeSeconds))
@@ -316,8 +436,7 @@ extension TrainingRequest {
 
         def make_\(slug)_env_cfg(play: bool = False):
             \"\"\"\(summary)\"\"\"
-            cfg = deepcopy(make_\(base.rawValue.replacingOccurrences(of: "microduck_", with: "")
-                                      .replacingOccurrences(of: "_env_cfg.py", with: ""))_env_cfg(play=play))
+            cfg = deepcopy(\(base.factoryName)(play=play))
             cfg.episode_length_s = EPISODE_SECONDS
 
             # Start from the parent's rewards and add this task's on top. Removing
@@ -370,7 +489,11 @@ extension TrainingRequest {
         |---|---|---|
         \(rewardLines)
 
-        Every function named above exists in `mjlab_microduck/tasks/mdp.py`.
+        Every function named above exists upstream, but not all in one module:
+        `self_collision_cost` is mjlab's — `mjlab.tasks.velocity.mdp` — and the
+        rest are `mjlab_microduck/tasks/mdp.py`. Checked against
+        pollen-robotics/microduck_rl and mujocolab/mjlab on 2026-08-31.
+        \(signWarning)
 
         ## Episode and success
 

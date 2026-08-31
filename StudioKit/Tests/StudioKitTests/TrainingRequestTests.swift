@@ -184,4 +184,79 @@ extension TrainingRequestTests {
         XCTAssertFalse(request.isTrainable)
         XCTAssertEqual(request.refusals.first, .unknownReward("reward_towing"))
     }
+
+    // MARK: - the config has to import, and it did not
+
+    /// EVERY CONFIG THIS APP EVER WROTE FAILED ON ITS IMPORT LINE. The emitter
+    /// stripped `microduck_` off the module name to build the factory call, so
+    /// `microduck_velocity_env_cfg` became `make_velocity_env_cfg`. Upstream
+    /// defines `make_microduck_velocity_env_cfg` — checked against all five
+    /// modules at pollen-robotics/microduck_rl main on 2026-08-31.
+    func testTheFactoryNameIsTheOneUpstreamActuallyDefines() {
+        for base in TrainingRequest.Base.allCases {
+            XCTAssertEqual(base.factoryName, "make_\(base.moduleName)")
+            XCTAssertTrue(base.factoryName.hasPrefix("make_microduck_"),
+                          "\(base.factoryName) is not a name upstream defines")
+            XCTAssertFalse(base.moduleName.hasSuffix(".py"))
+        }
+        XCTAssertEqual(TrainingRequest.Base.velocity.factoryName,
+                       "make_microduck_velocity_env_cfg")
+    }
+
+    /// `self_collision_cost` is mjlab's, not microduck's, and was emitted with
+    /// the wrong qualifier — an AttributeError at config time.
+    func testTheOneFunctionThatIsNotMicroducksIsQualifiedAsMjlabs() {
+        XCTAssertEqual(TrainingRequest.moduleFor("self_collision_cost"), "mjlab_mdp")
+        XCTAssertEqual(TrainingRequest.moduleFor("fallen_state_penalty"), "microduck_mdp")
+    }
+
+    // MARK: - the sign that trains the duck to fall over
+
+    /// THE NAME DOES NOT TELL YOU THE SIGN, which is why this table exists.
+    /// Both of these end in `_penalty` and want opposite weights:
+    /// `fallen_state_penalty` returns `fallen.float()` (non-negative),
+    /// `pose_l1_penalty` returns `-torch.abs(...)`.
+    func testTwoPenaltiesWithTheSameSuffixWantOppositeSigns() {
+        XCTAssertEqual(TrainingRequest.weightSigns["fallen_state_penalty"], .negative)
+        XCTAssertEqual(TrainingRequest.weightSigns["pose_l1_penalty"], .positive)
+    }
+
+    /// Every function the app offers has a sign, or the warning silently skips it.
+    func testEveryVocabularyTermKnowsWhichWayItsWeightPoints() {
+        for name in TrainingRequest.vocabulary.keys {
+            XCTAssertNotNil(TrainingRequest.weightSigns[name],
+                            "\(name) is offered with no sign, so a wrong weight passes unremarked")
+        }
+    }
+
+    /// A weight pointing the wrong way is named, with what it will cause.
+    func testAWeightPointingTheWrongWayIsCalledOut() {
+        let bad = TrainingRequest(
+            name: "farm the fall", summary: "s", base: .velocity, episodeSeconds: 5,
+            rewards: [.init(function: "fallen_state_penalty", weight: 2.0, reason: "r")],
+            prop: nil, successCriterion: "c", openQuestions: [])
+        XCTAssertEqual(bad.wrongSigns.count, 1)
+        XCTAssertTrue(bad.wrongSigns[0].contains("NEGATIVE weight"), bad.wrongSigns[0])
+        XCTAssertTrue(bad.brief().contains("butt-hopping, crash-sits"),
+                      "the brief must carry upstream's own words for what this causes")
+
+        let good = TrainingRequest(
+            name: "fine", summary: "s", base: .velocity, episodeSeconds: 5,
+            rewards: [.init(function: "fallen_state_penalty", weight: -2.0, reason: "r"),
+                      .init(function: "pose_l1_penalty", weight: 1.0, reason: "r")],
+            prop: nil, successCriterion: "c", openQuestions: [])
+        XCTAssertTrue(good.wrongSigns.isEmpty)
+        XCTAssertFalse(good.brief().contains("Check these signs"))
+    }
+
+    /// And the brief no longer claims every function is in one module.
+    func testTheBriefNoLongerClaimsEveryFunctionIsInMicroducksModule() {
+        let r = TrainingRequest(
+            name: "n", summary: "s", base: .velocity, episodeSeconds: 5,
+            rewards: [.init(function: "self_collision_cost", weight: -1, reason: "r")],
+            prop: nil, successCriterion: "c", openQuestions: [])
+        XCTAssertFalse(r.brief().contains("Every function named above exists in `mjlab_microduck/tasks/mdp.py`."))
+        XCTAssertTrue(r.brief().contains("not all in one module"))
+        XCTAssertTrue(r.envConfig().contains("mjlab_mdp.self_collision_cost"))
+    }
 }
