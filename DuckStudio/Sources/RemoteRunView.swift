@@ -41,6 +41,16 @@ struct RemoteRunView: View {
 
     var body: some View {
         List {
+            // THE FACT, NOT THE LAB'S SENTENCE. This screen has two entrances
+            // now — the Lab's bench row and the Policies menu — and the honesty
+            // line lived only on the Lab container. `LabCatalogue.preamble`
+            // cannot be reused here: it asserts "Nothing in the Lab is talking
+            // to a robot", which names a place the reader may not be in.
+            Section {
+                Text(LabCatalogue.noRobotYet)
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+
             Section {
                 // THE LIST IS THE CONTROL. Picking between saved benches is a
                 // different act from typing one in, and conflating them is

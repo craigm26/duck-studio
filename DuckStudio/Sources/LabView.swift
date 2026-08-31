@@ -63,6 +63,16 @@ struct LabView: View {
         }
         .refreshingCameraDoor($door)
         .navigationTitle("Lab")
+        // ONE GEAR, SAME PLACE, SAME WORD, ON ALL FIVE TAB ROOTS.
+        // Configuration was scattered across three tabs and nothing was called
+        // "Settings", which is the first word anybody looks for.
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink { SettingsView(models: models, benches: benches) } label: {
+                    Image(systemName: "gear").accessibilityLabel(Text("Settings"))
+                }
+            }
+        }
     }
 
     /// Why a row that IS built still cannot be opened right now.

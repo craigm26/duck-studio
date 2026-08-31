@@ -31,6 +31,7 @@ struct AutomationChatView: View {
     /// another app on this phone — the draft lands in the same checker either
     /// way, so this is a choice about privacy and speed, not about trust.
     @ObservedObject var models: EndpointStore
+    @ObservedObject var benches: BenchStore
 
     @State private var typed = ""
     /// WHAT THE ROUTER LAST DECIDED, not what somebody picked in advance.
@@ -361,6 +362,14 @@ struct AutomationChatView: View {
         .navigationTitle("Draft with words")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            // ONE GEAR, SAME PLACE, SAME WORD, ON ALL FIVE TAB ROOTS.
+            // Configuration was scattered across three tabs and nothing was
+            // called "Settings", which is the first word anybody looks for.
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink { SettingsView(models: models, benches: benches) } label: {
+                    Image(systemName: "gear").accessibilityLabel(Text("Settings"))
+                }
+            }
             // The keyboard's own Done key. Drag-down on the list works too;
             // both exist because a trapped keyboard was this screen's first
             // shipped bug.
@@ -380,6 +389,21 @@ struct AutomationChatView: View {
                             drafts.delete(doomed)
                         })
                         .onDisappear { drafts.flush() }
+                } else {
+                    // A SHEET A PERSON CANNOT LEAVE IS THE WORST STATE THIS APP
+                    // CAN REACH, and this had the same missing `else` that
+                    // IntentListView documented and fixed. Chat cards are never
+                    // pruned, so a card keeps its draft id after the draft is
+                    // deleted and "Preview again" presented a blank rectangle:
+                    // no title, no Cancel, no Done.
+                    ContentUnavailableView {
+                        Label("That motion is not here", systemImage: "questionmark.square.dashed")
+                    } description: {
+                        Text("It was written from this conversation and has since been deleted "
+                           + "from your drafts. The conversation above is unchanged.")
+                    } actions: {
+                        Button("Close") { previewing = nil }
+                    }
                 }
             }
         }

@@ -19,6 +19,27 @@ import FoundationNetworking   // URLRequest lives here on Linux, where these tes
 /// address and every byte of every file first.
 public enum HuggingFacePublish {
 
+    // MARK: - what a screen holding the token may say about it
+
+    /// THE TOKEN HAD NO OWNING SCREEN UNTIL NOW. It was pasted four taps deep
+    /// inside one motion's publish sheet, and `TokenStore.clear()` had no
+    /// caller anywhere in the app — so a write token that can create and delete
+    /// repositories under somebody's name could be saved and never removed.
+    /// These are the sentences the screen that owns it is allowed to say.
+    public static let tokenHeldNote =
+        "A Hugging Face write token is saved in this device's Keychain. It is attached to one "
+      + "kind of request only — publishing a motion — and to no other host."
+
+    public static let tokenAbsentNote =
+        "No token is saved. Publishing a motion asks for one; nothing else in this app uses it."
+
+    /// REMOVING IS NOT REVOKING, and a Remove button that does not say so
+    /// teaches a false safety: the credential still works everywhere it worked
+    /// a minute ago, on every other device it was ever pasted into.
+    public static let tokenRemovedNote =
+        "Removed from this device. That does not revoke it — revoke it at "
+      + "huggingface.co/settings/tokens."
+
     public static let host = "huggingface.co"
 
     /// One request, credential-free.

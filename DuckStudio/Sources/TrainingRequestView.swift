@@ -132,6 +132,14 @@ struct TrainingRequestView: View {
                 }
                 .navigationTitle(request.fileName)
                 .navigationBarTitleDisplayMode(.inline)
+                // The only read-only text sheet in the app without a way out.
+                // A drag-down still works, but a sheet whose only exit is an
+                // undiscoverable gesture is one people get stuck in.
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { showingConfig = false }
+                    }
+                }
             }
         }
         .sheet(item: $outgoing) { out in

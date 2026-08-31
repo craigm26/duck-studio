@@ -44,10 +44,10 @@ struct DuckStudioApp: App {
                 // steps, the wall a motion is judged against. Folding places
                 // into the motion that happened to be recorded in one is what
                 // made every clip play in a void.
-                NavigationStack { SceneListView(store: scenes) }
+                NavigationStack { SceneListView(store: scenes, models: models, benches: benches) }
                     .tabItem { Label("Scenes", systemImage: "square.3.layers.3d") }
                 NavigationStack {
-                    AutomationChatView(drafts: drafts, scenes: scenes, models: models)
+                    AutomationChatView(drafts: drafts, scenes: scenes, models: models, benches: benches)
                 }
                     .tabItem { Label("Draft", systemImage: "wand.and.stars") }
                 // THE FIFTH AND LAST TAB, AND THAT IS A HARD CEILING. iPhone

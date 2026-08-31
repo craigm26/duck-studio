@@ -28,7 +28,6 @@ import DuckEvidence
 struct DuckSoccerView: View {
 
     @StateObject private var referee = SoccerReferee()
-    @ObservedObject private var celebrations = CelebrationStore.shared
     /// The setup dialog fronts every match — venue, theme, gear, half length,
     /// celebration — and the game only starts when it says so.
     @State private var showingSetup = true
@@ -56,7 +55,7 @@ struct DuckSoccerView: View {
             }
         }
         .sheet(isPresented: $showingSetup) {
-            SoccerSetupSheet(referee: referee, celebrations: celebrations) {
+            SoccerSetupSheet(referee: referee) {
                 showingSetup = false
                 referee.status = referee.venue == .ar
                     ? "Point at the floor and tap to lay out the pitch."
@@ -68,25 +67,16 @@ struct DuckSoccerView: View {
         .navigationTitle("Duck soccer")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    // THE PIPELINE'S LAST STEP: a motion posed keyframe by
-                    // keyframe in Duck Studio, exported as .duckmove, opened
-                    // in this app — and performed by your duck when it scores.
-                    Picker("Goal celebration", selection: Binding(
-                        get: { celebrations.chosenName },
-                        set: { celebrations.chosenName = $0 })) {
-                        Text("Forward roll — Pollen's roulade")
-                            .tag(String?.none)
-                        ForEach(celebrations.imported) { move in
-                            Text(move.name).tag(String?.some(move.name))
-                        }
-                    }
-                    if celebrations.imported.isEmpty {
-                        Text("Author a motion in Duck Studio and open the .duckmove here to celebrate with it.")
-                    }
-                } label: { Image(systemName: "party.popper") }
-            }
+            // NO GOAL-CELEBRATION PICKER. It offered one option and told
+            // people to "author a motion in Duck Studio and open the .duckmove
+            // here to celebrate with it" — which this build cannot do:
+            // `CelebrationStore.importFile(at:)` has no caller anywhere, no
+            // .duckmove is bundled, and `LibraryModel` routes that extension to
+            // drafts. So `imported` is permanently empty and the sentence was
+            // instructions for a door that does not exist. A setting that
+            // cannot be set is not a placement problem; it comes out until the
+            // import is real. `CelebrationStore` stays: its readers are correct
+            // code with a nil input, and the roulade still plays.
         }
         .alert("Not exportable", isPresented: $referee.showingRefusal) {
             Button("I see", role: .cancel) {}
@@ -186,7 +176,6 @@ struct DuckSoccerView: View {
 /// place, before a single entity exists.
 private struct SoccerSetupSheet: View {
     @ObservedObject var referee: SoccerReferee
-    @ObservedObject var celebrations: CelebrationStore
     let onStart: () -> Void
     /// Soccer's venue switch is its own control rather than `VenuePicker` — it
     /// says "Stadium" where the games say "Stage" — so it carries its own copy
@@ -244,19 +233,6 @@ private struct SoccerSetupSheet: View {
                         Text("5 min").tag(300.0)
                     }
                     .pickerStyle(.segmented)
-                }
-
-                Section("Goal celebration") {
-                    Picker("Celebration", selection: Binding(
-                        get: { celebrations.chosenName },
-                        set: { celebrations.chosenName = $0 })) {
-                        Text("Roulade (Pollen's)").tag(String?.none)
-                        ForEach(celebrations.imported) { move in
-                            Text(move.name).tag(String?.some(move.name))
-                        }
-                    }
-                    Text("Anything you author in Duck Studio and open here joins this list.")
-                        .font(.caption).foregroundStyle(.secondary)
                 }
 
                 if GamepadInput.shared.isConnected {

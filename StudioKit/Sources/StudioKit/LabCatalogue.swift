@@ -70,9 +70,19 @@ public enum LabCatalogue {
     }
 
     /// The sentence that has to appear above any list of these.
+    /// The bare fact, with no claim about the Lab in it.
+    ///
+    /// SPLIT OUT SO OTHER SCREENS CAN SAY IT. `RemoteRunView` needs this fact
+    /// and must not be handed `preamble`, which asserts "Nothing in the Lab is
+    /// talking to a robot" — a true sentence about a place the reader is not
+    /// in, since the bench is reachable from the Policies tab too. A screen
+    /// naming the wrong container is a screen making a claim it cannot support.
+    public static let noRobotYet =
+        "No Microduck exists yet — Pollen's first deliveries are around Christmas 2026."
+
     public static let preamble =
-        "No Microduck exists yet — Pollen's first deliveries are around Christmas 2026. "
-      + "Nothing in the Lab is talking to a robot. What runs here is a trained policy on "
+        noRobotYet
+      + " Nothing in the Lab is talking to a robot. What runs here is a trained policy on "
       + "this phone, a physics bench on your own network, or a recorded motion."
 
     /// Why the Lab is one tab rather than three apps.

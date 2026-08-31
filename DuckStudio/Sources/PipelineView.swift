@@ -71,15 +71,17 @@ struct PipelineView: View {
                         if stage.name == "Run in physics" {
                             physicsControls(draft)
                         }
-                        if stage.name == "Attested", draft.bench != nil {
-                            NavigationLink {
-                                ShareDestinationsView(title: draft.name,
-                                                      file: nil, message: draft.name)
-                            } label: {
-                                Label("Share it with its result", systemImage: "square.and.arrow.up")
-                                    .font(.footnote)
-                            }
-                        }
+                        // NO SHARE LINK ON THE ATTESTED STAGE, DELIBERATELY.
+                        // It passed `file: nil` and `message: draft.name`, so
+                        // "Copy the message" copied the words "My bow" — under
+                        // a footer promising "the fingerprint is the part a
+                        // recipient can verify without trusting you", with no
+                        // fingerprint, no file and no result in it. The obvious
+                        // repair is worse: `CommunityShare.message(forDraft:)`
+                        // embeds `IntentDraft.disclaimer` — "no physics ran" —
+                        // on the one draft where physics did run. It comes back
+                        // when the kit can compose a message that carries which
+                        // bench, which policy, and the count.
                     }
                 }
 
@@ -150,6 +152,17 @@ struct PipelineView: View {
             }
             Text("Eight rollouts at different drop heights, because one that stays up proves very little — the four authored stair motions in this app get up their flight 0 times in 16.")
                 .font(.caption2).foregroundStyle(.secondary)
+            // WHICH BENCH THIS IS ABOUT, AND A WAY TO CHANGE IT. This screen
+            // offered a route to bench settings only while no bench existed,
+            // so the Intents tab contained no way to reach them at all once one
+            // did — and no way to see which machine a result came off.
+            if let chosen = benches.selected {
+                Text("On \(chosen.name) — \(chosen.address)")
+                    .font(.caption2.monospaced()).foregroundStyle(.secondary)
+            }
+            NavigationLink { BenchSettingsView(store: benches) } label: {
+                Label("Manage benches", systemImage: "slider.horizontal.3").font(.caption2)
+            }
         }
     }
 

@@ -26,6 +26,21 @@ import DuckEvidence
 /// request and shows what comes back.
 public enum PolicyCatalogue {
 
+    /// What the catalogue screens may say about tokens.
+    ///
+    /// THE OLD SENTENCE WAS ALREADY FALSE AND WAS ABOUT TO GET FALSER. It read
+    /// "This app holds no account and there is nowhere to paste a token" —
+    /// `PublishMotionView` has had a token field for as long as it has existed,
+    /// and a Settings screen makes the second clause plainly untrue. What is
+    /// actually true, and is the thing a person needs, is narrower: no token
+    /// goes out from THESE screens. `GATES.md` pre-registers that the write
+    /// token travels on exactly one path, publishing, and this sentence keeps
+    /// that document true rather than working around it.
+    public static let tokenNote =
+        "Public repositories only. Nothing on this screen sends a token — not even a write "
+      + "token you have saved for publishing — so a private repository answers a plain 401, "
+      + "and the way round it is to download the file in a browser and open it here."
+
     /// A place Pollen publish from.
     public struct Source: Hashable, Sendable, Identifiable {
         public let id: String

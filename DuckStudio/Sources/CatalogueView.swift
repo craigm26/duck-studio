@@ -40,7 +40,7 @@ struct CatalogueView: View {
             } header: {
                 Text("Where to look")
             } footer: {
-                Text("Public repositories only. This app holds no account and there is nowhere to paste a token — a private repository fails with a plain 401, and the way round it is to download the file in a browser and open it here.")
+                Text(PolicyCatalogue.tokenNote)
             }
 
             Section {

@@ -107,6 +107,14 @@ struct PolicyBlendView: View {
                             Task { await measure(blended) }
                         }
                         .disabled(benches.selected == nil || busy)
+                        // ALWAYS REACHABLE, NOT ONLY WHEN EMPTY. Every one of
+                        // these screens used to offer a route to bench settings
+                        // right up until a bench existed, and then hide it —
+                        // so the moment you had two machines was the moment you
+                        // could no longer switch between them from here.
+                        NavigationLink { BenchSettingsView(store: benches) } label: {
+                            Label("Manage benches", systemImage: "slider.horizontal.3")
+                        }
                     }
                     if let uploadedAs {
                         Text("The bench called it \(uploadedAs).")

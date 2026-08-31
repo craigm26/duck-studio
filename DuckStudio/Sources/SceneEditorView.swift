@@ -5,6 +5,10 @@ import StudioKit
 /// The places you can put the robot.
 struct SceneListView: View {
     @ObservedObject var store: SceneStore
+    /// Held only to hand to Settings from this tab's gear. Passing stores by
+    /// hand is the house style here.
+    @ObservedObject var models: EndpointStore
+    @ObservedObject var benches: BenchStore
     /// On an id, not a copy — see `DraftID`. Holding the scene meant the sheet
     /// carried a value that went stale on the first slider tick.
     @State private var editing: SceneID?
@@ -45,11 +49,33 @@ struct SceneListView: View {
             }
         }
         .navigationTitle("Scenes")
+        // ONE GEAR, SAME PLACE, SAME WORD, ON ALL FIVE TAB ROOTS.
+        // Configuration was scattered across three tabs and nothing was called
+        // "Settings", which is the first word anybody looks for.
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink { SettingsView(models: models, benches: benches) } label: {
+                    Image(systemName: "gear").accessibilityLabel(Text("Settings"))
+                }
+            }
+        }
         .sheet(item: $editing) { wrapper in
             NavigationStack {
                 if let current = store.scenes.first(where: { $0.id == wrapper.id }) {
                     SceneEditorView(scene: current) { store.update($0) }
                         .onDisappear { store.flush() }
+                } else {
+                    // Same missing `else` as the chat's preview sheet: a scene
+                    // deleted while its editor was opening left a blank sheet
+                    // with nothing to tap.
+                    ContentUnavailableView {
+                        Label("That scene is not here", systemImage: "questionmark.square.dashed")
+                    } description: {
+                        Text("It was being opened and is no longer in your scenes. Nothing that "
+                           + "was saved has been lost.")
+                    } actions: {
+                        Button("Close") { editing = nil }
+                    }
                 }
             }
         }

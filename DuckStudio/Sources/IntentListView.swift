@@ -227,6 +227,14 @@ struct IntentListView: View {
         }
         .navigationTitle("Intents")
         .toolbar {
+            // ONE GEAR, SAME PLACE, SAME WORD, ON ALL FIVE TAB ROOTS.
+            // Configuration was scattered across three tabs and nothing was
+            // called "Settings", which is the first word anybody looks for.
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink { SettingsView(models: models, benches: benches) } label: {
+                    Image(systemName: "gear").accessibilityLabel(Text("Settings"))
+                }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button { picking = true } label: { Image(systemName: "square.and.arrow.down") }
                     // The door every shared motion and every policy file comes

@@ -53,7 +53,6 @@ struct GhostDuckView: View {
         var title: String { self == .trickRun ? "Trick run" : "Flamingo hold" }
     }
     @State private var driving: Driving?
-    @ObservedObject private var celebrations = CelebrationStore.shared
     /// FOLLOW ME IS REACHED FROM HERE AND FROM NOWHERE ELSE, so this hub is
     /// where its door is shut. Every other row in the grid below runs on a
     /// stage and does not care whether there is a camera.
@@ -121,26 +120,12 @@ struct GhostDuckView: View {
                     // Only a turn has a meaningful mirror: mirroring a straight
                     // walk gives back a straight walk, so offering the control
                     // there would be a button that visibly does nothing.
-                    .disabled(ghost.clip != .turnLeft || ghost.studioMove != nil)
+                    .disabled(ghost.clip != .turnLeft)
 
-                    // ANYTHING FROM DUCK STUDIO. Every .duckmove on this phone
-                    // — authored in the editor, opened here — plays on the
-                    // ghost, standing in place: an authored move carries no
-                    // root motion because no physics produced any, and the
-                    // ghost does not invent one.
-                    if !celebrations.imported.isEmpty {
-                        Menu {
-                            Button("Recorded gaits") { ghost.studioMove = nil }
-                            ForEach(celebrations.imported) { move in
-                                Button(move.name) { ghost.studioMove = move }
-                            }
-                        } label: {
-                            Label(ghost.studioMove?.name ?? "Your Duck Studio motions",
-                                  systemImage: "figure.dance")
-                                .font(.footnote)
-                        }
-                        .buttonStyle(.bordered)
-                    }
+                    // NO "YOUR DUCK STUDIO MOTIONS" MENU. It was already
+                    // invisible — guarded by `!celebrations.imported.isEmpty`,
+                    // and that list can never fill in this build — so it was
+                    // dead code that read like a live feature.
                 }
             }
             .padding(.bottom, 24)
@@ -352,7 +337,6 @@ final class GhostDuckModel: ObservableObject {
     /// A motion from Duck Studio, chosen instead of a gait. The ghost stands
     /// in place and performs it on a loop — an authored move carries no root
     /// motion because no physics produced any.
-    @Published var studioMove: CelebrationStore.Celebration?
 
     /// A trick being performed right now, and when it started. It outranks the
     /// gait picker and the Duck Studio motion for as long as it runs, then
@@ -598,16 +582,9 @@ final class GhostDuckCoordinator: NSObject {
                 return
             }
         }
-        // A Duck Studio motion outranks the gait picker while chosen: the
-        // ghost performs it in place on a loop, through DuckMove.pose(at:) —
-        // the same smoothstep the editor previews and the pitch celebration
-        // plays.
-        if let move = model?.studioMove?.move {
-            let elapsed = (CACurrentMediaTime() - clipStart)
-                .truncatingRemainder(dividingBy: max(move.duration + 0.6, 0.7))
-            ghost.apply(jointAngles: move.pose(at: elapsed))
-            return
-        }
+        // The branch that played a chosen Duck Studio motion in place is gone
+        // with the menu that chose it — `studioMove` could only ever be nil,
+        // because nothing in this build can put a .duckmove in that list.
         guard let trajectory, let model else { return }
         let pose = trajectory.pose(at: CACurrentMediaTime() - clipStart)
         if ghost.variant == .rollers {

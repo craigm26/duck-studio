@@ -58,6 +58,14 @@ struct PolicyListView: View {
             if model.library.entries.isEmpty {
                 Section {
                     Text("No policies yet. Send one to Duck Studio from Files, Mail or AirDrop.")
+                    // THE PERSON WHO MOST NEEDS THIS ROUTE. The sentence above
+                    // offers Files, Mail and AirDrop and no way to reach the
+                    // policies Pollen publishes — which is where somebody with
+                    // an empty library actually has to go.
+                    NavigationLink { CatalogueView(model: model) } label: {
+                        Label("Get more from Pollen Robotics",
+                              systemImage: "antenna.radiowaves.left.and.right")
+                    }
                         .foregroundStyle(.secondary)
                 }
             }
@@ -69,33 +77,42 @@ struct PolicyListView: View {
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
+            // ONE MENU OF WORDS, NOT FOUR BARE GLYPHS. This carried four
+            // icon-only links, one of which appeared only once the library had
+            // two runnable policies — so the row shifted under the thumb as
+            // policies were added, and "antenna radiowaves left and right" was
+            // the only name three of them had. A menu of text rows is the
+            // pattern `IntentAuthorView` already uses.
             ToolbarItem(placement: .topBarTrailing) {
-                NavigationLink { RemoteRunView(scenes: scenes, drafts: drafts, models: models, benches: benches) } label: {
-                    Label("Run on your network", systemImage: "wifi")
-                }
-                NavigationLink { BenchSettingsView(store: benches) } label: {
-                    Image(systemName: "server.rack")
-                        // The destination's own title, because an icon-only
-                        // link otherwise announces the SF Symbol's name.
-                        .accessibilityLabel(Text("Benches"))
-                }
-                // ONLY WORTH OFFERING WITH TWO THINGS TO MIX. A blend of one
-                // policy is that policy, which `PolicyBlend` refuses anyway;
-                // showing the door to a refusal is not an affordance.
-                if model.library.runnableCount >= 2 {
-                    NavigationLink { PolicyBlendView(library: model.library, benches: benches) } label: {
-                        Image(systemName: "arrow.triangle.merge")
-                            .accessibilityLabel(Text("Blend policies"))
+                Menu {
+                    NavigationLink { RemoteRunView(scenes: scenes, drafts: drafts,
+                                                   models: models, benches: benches) } label: {
+                        Label("Run on your network", systemImage: "wifi")
                     }
+                    // ONLY WORTH OFFERING WITH TWO THINGS TO MIX. A blend of
+                    // one policy is that policy, which `PolicyBlend` refuses
+                    // anyway; showing the door to a refusal is not an
+                    // affordance. In a menu this no longer moves anything.
+                    if model.library.runnableCount >= 2 {
+                        NavigationLink { PolicyBlendView(library: model.library,
+                                                         benches: benches) } label: {
+                            Label("Blend two policies", systemImage: "arrow.triangle.merge")
+                        }
+                    }
+                    NavigationLink { CatalogueView(model: model) } label: {
+                        Label("Pollen Robotics",
+                              systemImage: "antenna.radiowaves.left.and.right")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .accessibilityLabel(Text("More"))
                 }
-                NavigationLink { CatalogueView(model: model) } label: {
-                    Image(systemName: "antenna.radiowaves.left.and.right")
-                        // The destination's own title. An icon-only link
-                        // announces the SF Symbol's name or nothing at all —
-                        // "antenna radiowaves left and right" is not where
-                        // anybody is trying to go, and the screen this opens is
-                        // called Pollen Robotics.
-                        .accessibilityLabel(Text("Pollen Robotics"))
+            }
+            // The Benches link is gone from here: it is Settings → Benches now,
+            // and still two taps from the four screens that actually run things.
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink { SettingsView(models: models, benches: benches) } label: {
+                    Image(systemName: "gear").accessibilityLabel(Text("Settings"))
                 }
             }
         }

@@ -197,7 +197,10 @@ struct BenchView: View {
                 }
             }
         }
-        .navigationTitle("Bench")
+        // "Bench" was one tap from a screen called "Benches" and meant
+        // something else entirely — this probes a policy's own arithmetic on
+        // this phone. The row that pushes it already says these words.
+        .navigationTitle("Probe this network")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear(perform: load)
         .onChange(of: preset) { _, _ in run() }

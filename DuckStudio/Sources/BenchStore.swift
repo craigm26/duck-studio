@@ -14,8 +14,9 @@ import StudioKit
 /// `@AppStorage("duckbench.address")` string, so anybody who had set one up had
 /// exactly one and it had no name. Shipping a list without bringing that across
 /// would silently empty a working setup on upgrade — which reads, from the other
-/// side, as the app having forgotten. It becomes a bench called "My bench" and
-/// the old keys are left alone.
+/// side, as the app having forgotten. It becomes a bench called "My bench", and
+/// the old keys are then REMOVED — including the cleartext token, which this
+/// first left sitting in the plist it had just been moved out of.
 @MainActor
 final class BenchStore: ObservableObject {
     @Published private(set) var benches: [BenchEndpoint] = []
@@ -73,11 +74,31 @@ final class BenchStore: ObservableObject {
         let token = UserDefaults.standard.string(forKey: Self.oldTokenKey) ?? ""
         var moved = BenchEndpoint(name: "My bench", address: address,
                                   hasToken: !token.isEmpty)
-        if !token.isEmpty { BenchKeyStore.save(token, for: moved.id) }
         moved.token = nil
         benches.append(moved)
         selectedID = moved.id
         flush()
+
+        // MOVED, NOT COPIED. This wrote the token into the Keychain and left
+        // the cleartext original in `UserDefaults` — in the exact place the
+        // Keychain exists to keep it out of, since a device backup copies the
+        // plist. A migration that leaves the credential where it found it has
+        // not migrated anything.
+        //
+        // THE READ-BACK IS WHAT MAKES DELETING SAFE. `migratedKey` is already
+        // set above, so this runs once and never again; if the Keychain write
+        // silently failed, deleting the plist copy would lose the token for
+        // good. So the old keys go only after the new home answers with the
+        // same value.
+        guard !token.isEmpty else {
+            UserDefaults.standard.removeObject(forKey: Self.oldAddressKey)
+            return
+        }
+        BenchKeyStore.save(token, for: moved.id)
+        if BenchKeyStore.load(for: moved.id) == token {
+            UserDefaults.standard.removeObject(forKey: Self.oldTokenKey)
+            UserDefaults.standard.removeObject(forKey: Self.oldAddressKey)
+        }
     }
 
     private static func pendingNote() -> String? {

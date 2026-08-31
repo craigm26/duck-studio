@@ -417,7 +417,13 @@ struct IntentAuthorView: View {
             if models.selected.kind == .openAICompatible {
                 Text("\(models.selected.name) is asked for a list of changes to THIS motion, not for a new one. Anything it does not mention is left exactly as it is. \(models.selected.privacyNote)")
             } else {
-                Text("\(models.selected.name) hands back a whole motion as a typed value, which is the shape it guarantees and the reason drafting works on it. There is no typed shape here for a list of edits, so this app does not ask it for one. ADD a server under Draft → Models rather than picking a different model there: any OpenAI-compatible address will do, and a small local one is plenty, because every angle it asks for is checked and clamped here afterwards.")
+                // A DOOR, NOT DIRECTIONS. This told people to walk to another
+                // tab; `ModelSettingsView` is reachable from here because all
+                // three presenters of this view wrap it in a NavigationStack.
+                NavigationLink { ModelSettingsView(store: models) } label: {
+                    Label("Models", systemImage: "brain")
+                }
+                Text("\(models.selected.name) hands back a whole motion as a typed value, which is the shape it guarantees and the reason drafting works on it. There is no typed shape here for a list of edits, so this app does not ask it for one. Add a server here rather than picking a different model: any OpenAI-compatible address will do, and a small local one is plenty, because every angle it asks for is checked and clamped here afterwards.")
             }
         }
 
