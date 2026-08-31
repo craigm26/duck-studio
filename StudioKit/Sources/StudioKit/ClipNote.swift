@@ -27,6 +27,16 @@ public enum ClipNote {
     /// a policy this project holds the training config for.
     public static func provenance(for clip: DuckIntentClip) -> String? {
         guard let credit = clip.credit else { return nil }
+        // A CREDIT IS NOT A CONTRIBUTION. This fired on ANY non-nil credit and
+        // called the clip "Contributed", with a paragraph about not being able
+        // to see the owner's simulator. That was true of the one case it was
+        // written for — a motion somebody else trained and sent — and became
+        // false the moment `DuckBench.recordedCredit` started stamping the
+        // plant onto clips recorded on the person's OWN bench. A recording
+        // made here, in a world this app can name and digest, is the opposite
+        // of unverifiable, and captioning it "This project did not train it"
+        // is a sentence about somebody who does not exist.
+        guard !DuckBench.wasRecordedHere(credit) else { return credit }
         return "Contributed — \(credit). This project did not train it and cannot see the "
              + "simulator it was trained in, so what you are watching is our replay of the "
              + "network, not a reproduction of what its owner saw. The pose its actions are "

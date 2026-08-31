@@ -1,14 +1,22 @@
 import Foundation
 import DuckKit
 
-/// A trained policy, described the way quackd needs it to register as one more verb.
+/// A trained policy, described the way quackd's `learned_verbs:` block asks for it.
 ///
-/// WHAT A LEARNED VERB IS. quackd's LLM picks verbs — `kick`, `walk_to`, `stop`. A learned
-/// verb is an ONNX policy that registers alongside them, so the model can call `moonwalk`
-/// exactly as it calls `kick` and the vocabulary grows without the loop changing. quackd
-/// ships the shape and no runner: `docs/learned-verbs.md` calls it a reserved extension
-/// point, and `_no_runner` fails cleanly saying so. This type builds the description; it
-/// does not claim anything executes.
+/// WHAT A LEARNED VERB WOULD BE. quackd's LLM picks verbs — `kick`, `walk_to`, `stop`. A
+/// learned verb is an ONNX policy that registers alongside them, so the model could call
+/// `moonwalk` exactly as it calls `kick` and the vocabulary would grow without the loop
+/// changing.
+///
+/// AND NOTHING ON THE OTHER END RUNS IT, IN QUACKD'S OWN WORDS. `quackd/verbs/learned.py`
+/// says of itself that it ships no policy, no training, and no ONNX runtime.
+/// `docs/learned-verbs.md` opens "Learned verbs (v2) — this is the shape; nothing here
+/// runs yet". And the note beside the runner says that on hardware this would ship the
+/// ONNX to robotd's policy slot — an upstream feature that does not exist yet, because
+/// robotd's `[policy]` paths are static today. So writing this block into a `.duck`
+/// describes a policy to quackd and puts nothing on a robot. This type builds the
+/// description; it does not claim anything executes, and the exported metadata says so
+/// too, because the person reading a `.duck` is the one who has to know.
 ///
 /// The fields mirror `quackd.verbs.learned.LearnedVerbSpec` (repository `rokbenko/quackd`,
 /// commit 56d752a, 2026-08-28), including the defaults, so that what this exports can be
@@ -189,6 +197,16 @@ public struct LearnedVerbSpec: Equatable, Sendable {
             "command_at_call_time": .string(
                 "none — register_learned_verb binds NoParams, so the LLM calls this verb "
               + "with no arguments"),
+            // WHAT THE OTHER END ACTUALLY DOES WITH THIS, written into the file and not
+            // only into a comment nobody downstream reads. A `.duck` author is deciding
+            // whether to ALLOW a verb, and "allow" reads like "deploy" unless the file
+            // says otherwise. It does not deploy: quackd executes nothing here.
+            "quackd_runner": .string(
+                "none — quackd ships no ONNX runtime, by its own learned-verb module's "
+              + "account, and its note on the runner says shipping the ONNX to robotd's "
+              + "policy slot is an upstream feature that does not exist yet, because "
+              + "robotd's policy paths are static today. Declaring this verb describes "
+              + "the policy to quackd; it does not put it on a robot."),
         ]
         if let kind = manifest.kind { metadata["policy_kind"] = .string(kind) }
         if let pose = manifest.entryPose { metadata["entry_pose"] = .string(pose) }

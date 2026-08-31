@@ -81,10 +81,22 @@ public enum Reachability {
         public var status: Int?
         /// The first of the body, for quoting back. nil when there was none.
         public var body: String?
-        /// How many models the body listed, or nil when the body was not a
-        /// model list. THE TWO ARE NOT THE SAME: zero means an empty list from
-        /// a real API, nil means whatever came back was not one.
+        /// How many models the body listed BY NAME, or nil when the body was
+        /// not a model list. THE TWO ARE NOT THE SAME: zero means a real API
+        /// that named no models, nil means whatever came back was not a list.
         public var modelsFound: Int?
+        /// How many entries that list held, whatever shape they were in — nil
+        /// when the body was not a model list.
+        ///
+        /// IT IS NOT THE SAME NUMBER AS `modelsFound` AND THE GAP IS A REAL
+        /// FAILURE. A server that answers 200 with three entries that carry no
+        /// readable id has models on it; counting only the names it could read
+        /// made that three-entry list indistinguishable from an empty one, and
+        /// the person was told "the shelf is empty — load a model on that
+        /// machine" about a machine with models already loaded. Both counts are
+        /// observed, so the verdict can tell an empty shelf from a shelf it
+        /// cannot read.
+        public var listedEntries: Int?
         /// `(error as NSError).code`, when the request threw.
         public var urlErrorCode: Int?
         /// `error.localizedDescription`, for the case nothing else explains.
@@ -94,6 +106,7 @@ public enum Reachability {
                     path: String = "/v1/models",
                     seconds: Double = 0, allowance: Double = 15,
                     status: Int? = nil, body: String? = nil, modelsFound: Int? = nil,
+                    listedEntries: Int? = nil,
                     urlErrorCode: Int? = nil, systemText: String? = nil) {
             self.host = host
             self.port = port
@@ -104,6 +117,7 @@ public enum Reachability {
             self.status = status
             self.body = body
             self.modelsFound = modelsFound
+            self.listedEntries = listedEntries
             self.urlErrorCode = urlErrorCode
             self.systemText = systemText
         }
@@ -123,6 +137,8 @@ public enum Reachability {
         case answeredSlowly
         /// A real API with an empty shelf.
         case noModelsLoaded
+        /// A real API whose list has things in it and no names on any of them.
+        case modelNamesUnreadable
         /// It answered, and would not let the request in.
         case notAuthorised
         /// Something is listening; nothing serves that route.
@@ -160,7 +176,7 @@ public enum Reachability {
         /// The endpoint spoke the API. Drafting can be tried.
         public var foundAnAPI: Bool {
             switch cause {
-            case .answered, .answeredSlowly, .noModelsLoaded: return true
+            case .answered, .answeredSlowly, .noModelsLoaded, .modelNamesUnreadable: return true
             default: return false
             }
         }
@@ -214,7 +230,14 @@ public enum Reachability {
             // A 200 whose body is not a model list is a server that speaks
             // something else on that route.
             guard let found = seen.modelsFound else { return .notAnAPI }
-            if found == 0 { return .noModelsLoaded }
+            if found == 0 {
+                // AN EMPTY SHELF AND AN UNREADABLE ONE ARE DIFFERENT ROOMS. A
+                // list holding entries with no readable id is a machine with
+                // models on it that this app cannot name; telling that person
+                // to "load a model on that machine" sends them to solve a
+                // problem they do not have.
+                return (seen.listedEntries ?? 0) > 0 ? .modelNamesUnreadable : .noModelsLoaded
+            }
             return seen.seconds > slowAfter ? .answeredSlowly : .answered
         }
         guard let code = seen.urlErrorCode else { return .unknown }
@@ -268,6 +291,19 @@ public enum Reachability {
             return "\(place) answered as an OpenAI-compatible API and listed no models at all. "
                  + "The address is right and the shelf is empty — load a model on that machine, "
                  + "then ask for the list again."
+
+        case .modelNamesUnreadable:
+            // WHAT WAS MEASURED IS THE ARRAY, NOT THE SHELF. This used to end
+            // "That is not an empty shelf — something is on it", and what was
+            // actually observed is that the `data` array held N JSON objects,
+            // none carrying a String `id`. That N entries means N models is an
+            // inference about a server this app could not parse — a small one,
+            // and still the kind of step from observation to conclusion that
+            // put six other untrue sentences into this app.
+            return "\(place) answered as an OpenAI-compatible API and its list held "
+                 + "\(entries(seen)) with no readable name between them. So the list is not "
+                 + "empty, but this app cannot tell you what is on it. Type the model name that "
+                 + "machine uses into Model, and Try a draft will say whether it took it."
 
         case .notAuthorised:
             return "\(place) answered \(status), which is a refusal to let the request in rather "
@@ -386,6 +422,12 @@ public enum Reachability {
     static func models(_ seen: Observation) -> String {
         let found = seen.modelsFound ?? 0
         return found == 1 ? "1 model" : "\(found) models"
+    }
+
+    /// The other count: what was in the list, rather than what could be named.
+    static func entries(_ seen: Observation) -> String {
+        let listed = seen.listedEntries ?? 0
+        return listed == 1 ? "1 entry" : "\(listed) entries"
     }
 
     /// One decimal place. A probe that took 0.3 s should say so rather than

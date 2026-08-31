@@ -52,12 +52,28 @@ final class DuckSceneTests: XCTestCase {
     func testASceneLiftedFromARecordingKeepsItsProps() throws {
         let clips = try DuckIntentClip.bundled()
         let withProps = try XCTUnwrap(clips.values.first { $0.environment.hasProps })
-        let scene = DuckScene(name: withProps.name, recorded: withProps.environment)
+        // The scene is deliberately called something the clip is not, because
+        // conflating the two names is the defect the initializer's second
+        // argument exists to prevent.
+        let scene = DuckScene(name: "Somewhere else", liftedFrom: withProps.name,
+                              recorded: withProps.environment)
         XCTAssertEqual(scene.steps.count, withProps.environment.steps.count)
         XCTAssertEqual(scene.walls.count, withProps.environment.walls.count)
         XCTAssertEqual(scene.environment.steps.first?.top,
                        withProps.environment.steps.first?.top)
-        XCTAssertTrue(scene.provenance.contains("Lifted"))
+        XCTAssertEqual(scene.provenance, "Lifted from the recording of \(withProps.name)")
+    }
+
+    /// THE SENTENCE NAMES THE RECORDING, NEVER THE SCENE. A scene can be
+    /// renamed the moment after it is lifted; the recording it came off cannot,
+    /// so a provenance line built from the scene's name would go on to name a
+    /// recording nobody ever made.
+    func testALiftedScenesProvenanceNamesTheRecordingAndNotTheScene() {
+        let scene = DuckScene(name: "Back porch", liftedFrom: "step_up_0003",
+                              recorded: .bareFloor)
+        XCTAssertEqual(scene.provenance, "Lifted from the recording of step_up_0003")
+        XCTAssertFalse(scene.provenance.contains("Back porch"))
+        XCTAssertEqual(scene.name, "Back porch")
     }
 
     func testAScenePersistsThroughJSON() throws {

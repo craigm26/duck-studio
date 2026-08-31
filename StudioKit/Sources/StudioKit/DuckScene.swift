@@ -166,7 +166,15 @@ public struct DuckScene: Codable, Hashable, Identifiable, Sendable {
 
     /// Lift a scene out of a recording, so the world a motion was performed
     /// against becomes something you can pick up and change.
-    public init(name: String, recorded environment: DuckIntentClip.Environment) {
+    ///
+    /// THE CLIP'S NAME AND THE SCENE'S NAME ARE TWO NAMES. The signature this
+    /// replaces took one string and wrote it into both, so the provenance line
+    /// followed the SCENE's name — and the moment somebody renamed the scene,
+    /// that line named a recording nothing was ever called. The scene is free
+    /// to be renamed afterwards; the recording it was lifted off is not, and
+    /// only `clipName` is allowed into the sentence about it.
+    public init(name: String, liftedFrom clipName: String,
+                recorded environment: DuckIntentClip.Environment) {
         self.init(name: name,
                   ground: environment.ground,
                   steps: environment.steps.map {
@@ -177,7 +185,7 @@ public struct DuckScene: Codable, Hashable, Identifiable, Sendable {
                       Wall(x: $0.x, y: $0.y, halfThickness: $0.halfThickness,
                            height: $0.height, halfLength: $0.halfLength)
                   },
-                  provenance: "Lifted from the recording of \(name)")
+                  provenance: "Lifted from the recording of \(clipName)")
     }
 
     /// The form a renderer draws. `yaw` is zero because a scene is authored in

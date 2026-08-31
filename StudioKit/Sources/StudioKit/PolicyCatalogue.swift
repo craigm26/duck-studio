@@ -95,6 +95,13 @@ public enum PolicyCatalogue {
             self.declaresPolicyTag = declaresPolicyTag
         }
 
+        /// NO `datasets/` PREFIX, BECAUSE THESE ARE MODELS. `communityListing`
+        /// asks the models index and nothing else, so every entry here is a
+        /// model repository and the bare address is the right one. If this
+        /// type ever carries a dataset it needs the prefix — see
+        /// `HuggingFacePublish.Repository.Kind.webPrefix`, whose whole point is
+        /// that a dataset address without it does not 404, it quietly opens the
+        /// MODEL of the same name.
         public var webURL: String { "https://huggingface.co/\(id)" }
         public var name: String {
             let bare = id.split(separator: "/").last.map(String.init) ?? id
@@ -102,7 +109,16 @@ public enum PolicyCatalogue {
         }
     }
 
-    /// Everything on Hugging Face tagged `microduck`.
+    /// Every MODEL repository on Hugging Face tagged `microduck`.
+    ///
+    /// MODELS ONLY, AND THE ENDPOINT IS THE REASON. Hugging Face keeps models,
+    /// datasets and Spaces in three separate indexes; `/api/models` answers
+    /// with the first and never the other two. A dataset tagged `microduck`
+    /// exists as far as the Hub is concerned and does not appear here, and
+    /// that is correct for this screen — this screen imports networks, and a
+    /// dataset has none. It is stated out loud because "everything tagged
+    /// microduck" is what this comment used to claim, and it was a claim the
+    /// query could not support.
     ///
     /// THE BROAD TAG, NOT THE NARROW ONE. `microduck-policy` is what Pollen's
     /// sharing format asks authors to use, and on 2026-08-29 exactly one
@@ -150,6 +166,11 @@ public enum PolicyCatalogue {
         case notHuggingFace(String)
         case insecure(String)
         case malformed(String)
+        /// A `huggingface.co/datasets/…` address. Named as its own refusal
+        /// because it is the one wrong paste that used to succeed silently.
+        case isADataset(String)
+        /// A `huggingface.co/spaces/…` address — the same trap, third index.
+        case isASpace(String)
 
         public var message: String {
             switch self {
@@ -163,6 +184,15 @@ public enum PolicyCatalogue {
             case .malformed(let text):
                 return "\"\(text)\" is not a Hugging Face repository — it should look like "
                      + "owner/name."
+            case .isADataset(let repository):
+                return "\(repository) is a dataset, not a model. A dataset holds files — "
+                     + "recordings, vectors, notes — and this screen imports a trained "
+                     + "network, so there is nothing in it to load here. If the author "
+                     + "published the network too, paste that repository instead."
+            case .isASpace(let repository):
+                return "\(repository) is a Space, not a model. A Space is a web app hosted "
+                     + "on Hugging Face; the network it runs, if it has one, lives in a "
+                     + "separate repository, and that is the address this screen wants."
             }
         }
     }
@@ -194,6 +224,21 @@ public enum PolicyCatalogue {
         // "api/models/" prefixes the API form of the same address — people
         // paste that too, having found the repository through a search.
         if parts.first == "api" { parts.removeFirst() }
+        // THE HUB HAS THREE KINDS OF REPOSITORY AND THIS SCREEN WANTS ONE.
+        // `datasets/` and `spaces/` are path segments, not owners, so without
+        // this the split read `datasets/craigm26/thing` as the repository
+        // "datasets/craigm26" and went on to build a resolve URL under an
+        // owner that does not exist — a fetch that could only ever 404, with
+        // an ONNX parse error as its symptom. A wrong paste now says what was
+        // pasted, in the one place where the difference between the three is
+        // visible: the address itself.
+        if let section = parts.first, section == "datasets" || section == "spaces" {
+            parts.removeFirst()
+            guard parts.count >= 2 else { throw ReferenceError.malformed(trimmed) }
+            let named = "\(parts[0])/\(parts[1])"
+            if section == "datasets" { throw ReferenceError.isADataset(named) }
+            throw ReferenceError.isASpace(named)
+        }
         if parts.first == "models" { parts.removeFirst() }
         guard parts.count >= 2 else { throw ReferenceError.malformed(trimmed) }
         let repository = "\(parts[0])/\(parts[1])"

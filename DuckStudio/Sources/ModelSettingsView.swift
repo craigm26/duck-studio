@@ -20,13 +20,20 @@ struct ModelSettingsView: View {
         List {
             // A ROW THAT IS USUALLY NOT THERE, and the whole point of it is the
             // day it is: something a person configured could not be read back,
-            // and this is their only notice before the next save writes the
-            // list without it. It sits above "Draft with" rather than in a
-            // footer because a footer under a list is where notices go to die.
+            // and this is their only notice. It sits above "Draft with" rather
+            // than in a footer because a footer under a list is where notices
+            // go to die.
+            //
+            // IT STAYS UNTIL IT IS TAPPED. The store keeps it across launches,
+            // so a notice raised on a launch where nobody opened this screen is
+            // still here on the one where they do; "Got it" is the only thing
+            // that ends it. A notice that quietly expires is the silent failure
+            // wearing the costume of a fix.
             if let note = store.unreadableNote {
                 Section {
                     Label(note, systemImage: "exclamationmark.triangle")
                         .font(.footnote).foregroundStyle(Color.orange)
+                    Button("Got it") { store.dismissUnreadableNote() }
                 }
             }
 
@@ -114,6 +121,17 @@ struct ModelSettingsView: View {
                        ModelEndpoint(name: "LM Studio", kind: .openAICompatible,
                                      baseURL: "http://192.168.1.10:1234/v1", model: "")
                    },
+            // llama.cpp's own server, on the port its README documents as the
+            // default. THE 192.168 SHAPE IS NOT AN ACCIDENT: 8080 is also what
+            // "A model on this phone" fills in, and the two would read as the
+            // same address if this one said localhost. One is another app on
+            // the phone, this one is a machine you can walk over to.
+            Preset(name: "llama.cpp on my network",
+                   detail: "llama-server on a machine of yours, default port 8080",
+                   symbol: "server.rack") {
+                       ModelEndpoint(name: "llama.cpp", kind: .openAICompatible,
+                                     baseURL: "http://192.168.1.10:8080/v1", model: "")
+                   },
             Preset(name: "A model on this phone",
                    detail: "Another app serving a model on localhost",
                    symbol: "iphone") {
@@ -123,9 +141,15 @@ struct ModelSettingsView: View {
             Preset(name: "Claude, through my subscription",
                    detail: "A machine on your network running claudebridge.mjs",
                    symbol: "sparkles") {
+                       // THE ONLY PLACE A RELAY DESTINATION IS NAMED, and it is
+                       // named here because this preset is the one thing in the
+                       // app that knows what claudebridge.mjs forwards to. A
+                       // relay ticked by hand on any other endpoint stays
+                       // unnamed, and its privacy note says so rather than
+                       // naming a company nobody told the app about.
                        ModelEndpoint(name: "Claude", kind: .openAICompatible,
                                      baseURL: "http://192.168.1.10:8780/v1", model: "sonnet",
-                                     timeout: 300, relay: true)
+                                     timeout: 300, relay: true, relayNote: "Anthropic")
                    },
             Preset(name: "A service over the internet",
                    detail: "Any OpenAI-compatible endpoint, with a key",
@@ -337,7 +361,16 @@ struct EndpointEditor: View {
         defer { busy = false }
         do {
             available = try await DraftEngine.models(at: endpoint)
-            if available.isEmpty { failure = "It answered, but listed no models." }
+            // NOT "IT LISTED NO MODELS", WHICH THIS CANNOT KNOW. The list comes
+            // back as the names that could be read, so an empty one means
+            // either an empty shelf or a reply this app could not read names
+            // out of — and it cannot tell which from here. Check this address
+            // can, because it keeps both counts.
+            if available.isEmpty {
+                failure = "It answered, and no model names could be read out of the reply. "
+                        + "Check this address says which of the two that was. Either way you "
+                        + "can type the name that machine uses into Model."
+            }
             else if endpoint.model.isEmpty { endpoint.model = available[0] }
         } catch let refusal as ModelEndpoint.Refusal {
             failure = refusal.message
@@ -396,9 +429,18 @@ struct EndpointEditor: View {
             // character still quotes; a nil here would read as "no body at all".
             seen.body = String(decoding: data.prefix(400), as: UTF8.self)
             // nil and 0 MEAN DIFFERENT THINGS DOWNSTREAM: nil is "that was not
-            // a model list", 0 is "a model list with nothing in it".
+            // a model list", 0 is "a model list that named nothing".
+            //
+            // AND TWO COUNTS, NOT ONE, BECAUSE ONE OF THEM OVERCLAIMED. Only
+            // the names this app can read were counted, so a 200 carrying three
+            // entries with no String id read as zero — and the person was told
+            // "the shelf is empty, load a model on that machine" about a
+            // machine that had three. The entry count is what tells an empty
+            // shelf from a list this app cannot read; StudioKit decides which
+            // it was.
             if let top = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let listed = top["data"] as? [[String: Any]] {
+                seen.listedEntries = listed.count
                 seen.modelsFound = listed.compactMap { $0["id"] as? String }.count
             }
         } catch {

@@ -103,13 +103,22 @@ public enum LabCatalogue {
         // WHAT IT WRITES IS AN MJCF FILE, NOT A SCENE, and the blurb used to say
         // otherwise. `RoomCaptureView.emit()` sets `mjcf` text and shows it in a
         // read-only sheet; it never touches `SceneStore`, so nothing else in
-        // the app can stand a duck in the room you captured. The geometry is
-        // real — LiDAR planes reduced to boxes — which is exactly why the
-        // sentence has to be precise about where it stops.
+        // the app can stand a duck in the room you captured.
+        //
+        // AND WHAT IT MEASURES IS FLAT SURFACES, NOT FURNITURE. "Real boxes at
+        // real dimensions" was still rounder than the code: `RoomCaptureView`
+        // runs ARKit plane detection — deliberately NOT the LiDAR mesh, so it
+        // works on every ARKit device — and `DuckRoomReduction.reduce` takes the
+        // lowest large-enough horizontal plane as the floor and gives every
+        // other plane `planeThickness` = 20 mm. So a table arrives as a slab at
+        // table height, not as a table, and the blurb now says so: somebody
+        // training against this scene has to know a chair is a rectangle.
         .init(id: "room", name: "Room capture", symbol: "square.split.bottomrightquarter",
-              blurb: "Measures the room around you and writes it out as MuJoCo scene geometry "
-                   + "— real boxes at real dimensions, for a simulator elsewhere. It does not "
-                   + "yet become a scene this app can stand a duck in.",
+              blurb: "Measures the flat surfaces ARKit finds around you and writes them out as "
+                   + "MuJoCo scene geometry for a simulator elsewhere: the lowest big-enough "
+                   + "horizontal surface becomes the floor, and every other surface becomes a "
+                   + "20 mm-thick box at the size and place it was seen. Boxes, not furniture "
+                   + "shapes. It does not yet become a scene this app can stand a duck in.",
               status: .here),
         .init(id: "trials", name: "Trials", symbol: "chart.dots.scatter",
               blurb: "Place an object at a bearing and a range, run a policy at it a set "

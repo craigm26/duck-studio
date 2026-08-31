@@ -71,10 +71,31 @@ public struct ModelEndpoint: Equatable, Sendable, Codable, Identifiable {
     /// the preset that creates one sets it.
     public var relay: Bool
 
+    /// What it forwards to, named — when the preset that made this endpoint
+    /// knew. nil otherwise, and nil is the ordinary case.
+    ///
+    /// NAMING A DESTINATION THE APP CANNOT SEE WAS THE BUG. Every relay used to
+    /// be told it forwards to Anthropic, because a Claude bridge was the only
+    /// bridge that existed when that sentence was written — so somebody running
+    /// a LiteLLM proxy on their own Pi in front of some other service read a
+    /// privacy note naming a company their words never reach. The flag above
+    /// says THAT it forwards, which the app is told; this says WHERE, which the
+    /// app cannot learn by looking at an address. There is deliberately no
+    /// field for typing one: a name typed by hand is a guess, and the note
+    /// would then state that guess as fact.
+    ///
+    /// OPTIONAL, AND IT HAS TO BE. A non-optional with a default throws
+    /// `DecodingError.keyNotFound` for every endpoint already stored by a build
+    /// that predates this field — which, one bad row at a time, is exactly the
+    /// silent total loss `decodeList` below exists to end. An Optional decodes
+    /// as nil and costs nobody their list.
+    public var relayNote: String?
+
     public init(id: UUID = UUID(), name: String, kind: Kind,
                 baseURL: String = "", model: String = "",
                 apiKey: String? = nil, timeout: Double = 900,
-                suppressReasoning: Bool = true, relay: Bool = false) {
+                suppressReasoning: Bool = true, relay: Bool = false,
+                relayNote: String? = nil) {
         self.id = id
         self.name = name
         self.kind = kind
@@ -84,6 +105,7 @@ public struct ModelEndpoint: Equatable, Sendable, Codable, Identifiable {
         self.timeout = timeout
         self.suppressReasoning = suppressReasoning
         self.relay = relay
+        self.relayNote = relayNote
     }
 
     /// Apple's, which needs nothing configured.
@@ -211,21 +233,31 @@ public struct ModelEndpoint: Equatable, Sendable, Codable, Identifiable {
         }
 
         /// The line for the Models screen, or nil when everything was read.
+        ///
+        /// PAST TENSE, BECAUSE THE READER MAY BE SEEING THIS LONG AFTERWARDS.
+        /// The count is persisted so the notice survives a person who never
+        /// opens the Models screen — which was the point of storing it — and
+        /// the salvaged list is flushed back over the stored one on the next
+        /// save. So by the time these words are read the list is readable
+        /// again, and a sentence in the present tense ("could not be read...
+        /// this has started again") describes a state that no longer holds. It
+        /// would be a small lie, told by the one feature here whose whole
+        /// purpose is not losing things quietly.
         public var note: String? {
             guard let unreadable else {
-                return "The saved list of models could not be read at all, so this has started "
-                     + "again with Apple's on-device model. Add your own addresses back and they "
+                return "The saved list of models could not be read, and this list was started "
+                     + "again from Apple's on-device model. Add your own addresses back and they "
                      + "will save as before."
             }
             switch unreadable {
             case 0:
                 return nil
             case 1:
-                return "1 saved model could not be read and has been left out of this list. "
+                return "1 saved model could not be read and was left out of this list. "
                      + "Everything else survived — add it again with the address and model name "
                      + "that server uses."
             default:
-                return "\(unreadable) saved models could not be read and have been left out of "
+                return "\(unreadable) saved models could not be read and were left out of "
                      + "this list. Everything else survived — add them again with the addresses "
                      + "and model names those servers use."
             }
@@ -312,9 +344,28 @@ public struct ModelEndpoint: Equatable, Sendable, Codable, Identifiable {
         case .openAICompatible:
             let host = URL(string: baseURL)?.host ?? baseURL
             if relay {
-                return "Goes to \(host) on your own network, which forwards it to Anthropic. "
-                     + "The words leave your network; no key of yours is involved, and it is "
-                     + "billed to whatever account that machine is signed in as."
+                // WHAT THIS SAYS DEPENDS ON WHAT THE APP WAS TOLD, and the
+                // difference is the whole point of `relayNote`. Named, it names
+                // the destination. Unnamed, it says the one true thing left:
+                // that the words go somewhere this app cannot see. It says
+                // nothing either way about keys or billing — the stored copy of
+                // an endpoint has its key stripped to the Keychain, so a
+                // sentence about whether a key travels would be composed from a
+                // field that is nil whether or not one exists.
+                // whitespacesAndNewlines, NOT whitespaces. `CharacterSet
+                // .whitespaces` excludes newlines, so a relayNote of "\n"
+                // survived the guard and produced "…forwards it to \n." — a
+                // sentence naming a destination that is a line break.
+                let forwards = relayNote?
+                    .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                guard !forwards.isEmpty else {
+                    return "Goes to \(host) on your own network, which forwards it somewhere "
+                         + "else. The words leave your network, and this app cannot see where "
+                         + "they land."
+                }
+                return "Goes to \(host) on your own network, which forwards it to \(forwards). "
+                     + "The words leave your network, and this app cannot see what happens to "
+                     + "them there."
             }
             if host == "localhost" || host == "127.0.0.1" {
                 return "Goes to another app on this phone. Nothing leaves the device."

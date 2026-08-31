@@ -74,6 +74,24 @@ final class LabCatalogueTests: XCTestCase {
         XCTAssertEqual(LabCatalogue.usable.map(\.id), ["bench", "ghost", "soccer", "room"])
     }
 
+    /// ROOM CAPTURE IS THE ROW MOST ABLE TO OVERCLAIM, because what it produces
+    /// looks like a room and is a handful of rectangles. It once said it turned
+    /// the room into a scene, which it does not; then it said "real boxes at
+    /// real dimensions", which is true of the numbers and silent about the
+    /// shapes. This pins the whole sentence, because every clause in it is a
+    /// claim about `DuckRoomReduction`: the floor is the lowest large-enough
+    /// horizontal plane, everything else is a 20 mm slab, and `emit()` never
+    /// reaches `SceneStore`.
+    func testRoomCaptureSaysWhatTheGeometryActuallyIs() throws {
+        let room = try XCTUnwrap(LabCatalogue.modes.first { $0.id == "room" })
+        XCTAssertEqual(room.blurb,
+            "Measures the flat surfaces ARKit finds around you and writes them out as "
+            + "MuJoCo scene geometry for a simulator elsewhere: the lowest big-enough "
+            + "horizontal surface becomes the floor, and every other surface becomes a "
+            + "20 mm-thick box at the size and place it was seen. Boxes, not furniture "
+            + "shapes. It does not yet become a scene this app can stand a duck in.")
+    }
+
     func testTheRationaleNamesTheAppsThatFoldedIn() {
         let r = LabCatalogue.rationale
         for app in ["Duck Soccer", "Duckboard", "Duck Diary"] {

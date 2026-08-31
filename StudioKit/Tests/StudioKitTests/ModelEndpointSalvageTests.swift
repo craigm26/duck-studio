@@ -54,7 +54,7 @@ final class ModelEndpointSalvageTests: XCTestCase {
         XCTAssertEqual(salvage.endpoints, [ollama, bridge])
         XCTAssertEqual(salvage.unreadable, 1)
         XCTAssertEqual(salvage.note,
-            "1 saved model could not be read and has been left out of this list. Everything else "
+            "1 saved model could not be read and was left out of this list. Everything else "
             + "survived — add it again with the address and model name that server uses.")
     }
 
@@ -77,7 +77,7 @@ final class ModelEndpointSalvageTests: XCTestCase {
         XCTAssertEqual(salvage.endpoints, [ollama])
         XCTAssertEqual(salvage.unreadable, 2)
         XCTAssertEqual(salvage.note,
-            "2 saved models could not be read and have been left out of this list. Everything "
+            "2 saved models could not be read and were left out of this list. Everything "
             + "else survived — add them again with the addresses and model names those servers "
             + "use.")
     }
@@ -91,7 +91,7 @@ final class ModelEndpointSalvageTests: XCTestCase {
         XCTAssertEqual(salvage.endpoints, [])
         XCTAssertNil(salvage.unreadable)
         XCTAssertEqual(salvage.note,
-            "The saved list of models could not be read at all, so this has started again with "
+            "The saved list of models could not be read, and this list was started again from "
             + "Apple's on-device model. Add your own addresses back and they will save as before.")
     }
 

@@ -353,8 +353,43 @@ public enum DuckBench {
             netYaw: 0, loops: false, startsFrom: .standing, endsIn: ends,
             policy: root["policy"] as? String ?? "unknown",
             authored: false, environment: .bareFloor,
-            credit: "Recorded on a bench on your network",
+            credit: recordedCredit(plantName: root["plantName"] as? String,
+                                   plantDigest: root["plantDigest"] as? String),
             telemetry: .init(actions: [], commands: commands, twists: []))
+    }
+
+    /// What a bench recording says about itself, WITH THE WORLD IT WAS MADE IN.
+    ///
+    /// WHY THE WORLD RIDES IN THE CREDIT LINE. `DuckIntentClip` is DuckKit's
+    /// and has no field for a plant, so a recording used to arrive here, be
+    /// filed as "Recorded on a bench on your network", and lose the two keys
+    /// `/record` sends — the same attribution hole that `/perform` results had
+    /// until `plantSaid` closed it. The credit is the one line that travels
+    /// with a clip off this phone: `IntentExport` writes it out as the file's
+    /// `note` and reads it back, so a recording shared with somebody else
+    /// still names the world it came from.
+    ///
+    /// It has no case of its own for a missing world. `plantSaid` already has
+    /// all three, and a second set of sentences here would be the duplicate
+    /// that let a placeholder ship the first time.
+    public static func recordedCredit(plantName: String?, plantDigest: String?) -> String {
+        recordedHerePrefix + plantSaid(name: plantName, digest: plantDigest)
+    }
+
+    /// The opening of every credit this app writes for a clip recorded on a
+    /// bench the person owns.
+    static let recordedHerePrefix = "Recorded on a bench on your network. "
+
+    /// Whether a credit line is one THIS app wrote, rather than one that
+    /// arrived with somebody else's motion.
+    ///
+    /// IT EXISTS BECAUSE A CREDIT USED TO MEAN ONE THING AND NOW MEANS TWO.
+    /// `ClipNote.provenance` captioned anything with a credit as "Contributed",
+    /// which was right while the only credited clips came from strangers. Once
+    /// a bench recording started carrying the world it ran in, that caption
+    /// began telling people their own recording was somebody else's.
+    public static func wasRecordedHere(_ credit: String) -> Bool {
+        credit.hasPrefix(recordedHerePrefix)
     }
 
     public static func readSuccess(_ data: Data) throws -> Success {

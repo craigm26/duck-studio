@@ -87,6 +87,43 @@ final class ReachabilityTests: XCTestCase {
         XCTAssertFalse(verdict.isReady)
     }
 
+    /// An empty list and a list this app cannot read are DIFFERENT ROOMS, and
+    /// conflating them told somebody with three models loaded to go and load a
+    /// model. The count of names read is zero either way; the count of entries
+    /// is what tells them apart.
+    func testAListWithEntriesAndNoNamesIsNotAnEmptyShelf() {
+        let verdict = explain(pi {
+            $0.status = 200; $0.modelsFound = 0; $0.listedEntries = 3; $0.seconds = 0.3
+        })
+        XCTAssertEqual(verdict.cause, .modelNamesUnreadable)
+        XCTAssertEqual(verdict.sentence,
+            "192.168.1.10 port 11434 answered as an OpenAI-compatible API and its list held 3 "
+            + "entries with no readable name between them. So the list is not empty, but this "
+            + "app cannot tell you what is on it. Type the model name that machine uses into "
+            + "Model, and Try a draft will say whether it took it.")
+        // WHAT WAS MEASURED IS THE ARRAY, NOT THE SHELF. Three JSON objects
+        // with no String `id` is an observation; "something is on it" is an
+        // inference about a server this app could not parse.
+        XCTAssertFalse(verdict.sentence.contains("something is on it"))
+        XCTAssertFalse(verdict.sentence.contains("load a model on that machine"),
+                       "the empty-shelf remedy would send them to fix a problem they do not have")
+        XCTAssertTrue(verdict.foundAnAPI)
+        XCTAssertFalse(verdict.isReady)
+    }
+
+    func testASingleUnreadableEntryIsCountedInTheSingular() {
+        let verdict = explain(pi { $0.status = 200; $0.modelsFound = 0; $0.listedEntries = 1 })
+        XCTAssertEqual(verdict.cause, .modelNamesUnreadable)
+        XCTAssertTrue(verdict.sentence.contains("its list held 1 entry with no readable name"))
+    }
+
+    /// And a list that really is empty holds no entries either, so it keeps the
+    /// sentence it had.
+    func testAnEmptyListStillReadsAsAnEmptyShelf() {
+        XCTAssertEqual(explain(pi { $0.status = 200; $0.modelsFound = 0; $0.listedEntries = 0 })
+                        .cause, .noModelsLoaded)
+    }
+
     // MARK: - it answered, and said no
 
     func testAnUnauthorisedAnswerIsAKeyQuestionRatherThanAnAddressQuestion() {
@@ -371,6 +408,7 @@ final class ReachabilityTests: XCTestCase {
             pi { $0.status = 200; $0.modelsFound = 2 },
             pi { $0.status = 200; $0.modelsFound = 2; $0.seconds = 60 },
             pi { $0.status = 200; $0.modelsFound = 0 },
+            pi { $0.status = 200; $0.modelsFound = 0; $0.listedEntries = 2 },
             pi { $0.status = 401 },
             pi { $0.status = 404 },
             pi { $0.status = 200; $0.body = "<html>" },

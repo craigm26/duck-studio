@@ -12,7 +12,7 @@ Not Collected** and the Privacy Manifest declares an empty
 `NSPrivacyCollectedDataTypes`. This is easier to mean here than anywhere else in
 the family: the app has no account and no server of its own. What it used to
 claim beside that — "exactly one outbound request in the whole binary" — stopped
-being true and is corrected here rather than left standing. There are four kinds
+being true and is corrected here rather than left standing. There are five kinds
 of outbound request, and the property that matters is not that there is one, it
 is that **every one of them goes to an address the person typed or a service
 they signed into, and none of them is ours**:
@@ -20,7 +20,20 @@ they signed into, and none of them is ours**:
 - a language model endpoint, at a URL the person entered (on-device and
   local-network models make no request leave the house at all),
 - a policy `.onnx`, at a URL the person entered,
-- Hugging Face, with the person's own token, when they search the hub or publish,
+- Hugging Face — **unauthenticated** when the hub is searched or a community
+  policy or manifest is fetched: `CommunityPoliciesView` and `CatalogueView` set
+  no `Authorization` header on any of those requests, which is why a private
+  repository fails there with a plain 401 (checked 2026-08-30: an unauthenticated
+  GET of a repository this account cannot see answers 401, not 404 — the hub does
+  not leak existence). The person's own **write token** is
+  attached on exactly one path, publishing, by
+  `HuggingFacePublish.urlRequest(for:token:)`. This line used to say the token
+  went out on search as well; it does not,
+- GitHub, unauthenticated, when the scan button is pressed: `api.github.com` for
+  the catalogue listing and `raw.githubusercontent.com` for a file it offers.
+  This line was missing while the paragraph above claimed to enumerate
+  everything, and two hosts absent from a list of hosts is the kind of omission
+  this document exists to not make,
 - a physics bench on the local network, at an address the person entered, which
   `DuckBench.Address` refuses to send anywhere that is not obviously local.
 
@@ -119,9 +132,15 @@ Pre-registered so the decision is not made under deadline pressure:
   sensitivity heat map becomes on-demand (tap to compute) rather than live under
   a moving finger, and that is a documented downgrade rather than a bug.
 - **Forward pass agreement with onnxruntime stays within 1e-4** on the golden
-  vectors, per component, on every one of the seven policies. This is DuckKit's
-  existing test and it is a shipping gate here too: the tolerance is printed on
-  the policy card in the app, so it has to be true.
+  vectors, per component. **What that covers today, exactly:** DuckKit's fixture
+  `golden_policies.json` holds cases for two files — `alpha_walking.onnx` and
+  `ball_kick_left.onnx` — and `DuckPolicyTests` reads one of them, asserting the
+  four `alpha_walking` cases per component at `accuracy: 1e-4`. This line used to
+  say "on every one of the seven policies", and no such test exists; it also said
+  the tolerance is printed on the policy card in the app, and it is printed
+  nowhere in the app. One network's evidence is what this gate has, and it is
+  named as one network's evidence. Widening the fixture to the rest of the nine
+  bundled files is the work the gate is actually asking for.
 - **App Review 2.5.2 fallback.** If the URL loader is rejected as executing
   downloaded code and the written argument (see `PLAN.md`) is not accepted,
   ship Files-app-only import within **7 days**. Do not argue it twice.

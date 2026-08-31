@@ -173,16 +173,18 @@ final class DuckBenchTests: XCTestCase {
 
     // MARK: - captured off a live bench, not written by hand
 
-    /// THESE TWO BODIES CAME OFF A SOCKET, AND THAT IS THE POINT. Every other
+    /// THESE THREE BODIES CAME OFF A SOCKET, AND THAT IS THE POINT. Every other
     /// bench fixture in this file is JSON somebody typed, and a hand-written
     /// fixture is exactly the evidence that let the placeholder "the bench's
     /// own plant" ship in the first place: it agreed with the reader because
-    /// the same person wrote both. `Fixtures/bench/health.json` and
-    /// `Fixtures/bench/perform.json` were captured on 2026-08-30 by running
-    /// `node duckbench.mjs` on this machine and calling it over HTTP — the
-    /// perform body from a real two-rollout run of BEST_alpha_stand against a
-    /// two-keyframe track, with its frames/roots/commands trimmed to three rows
-    /// so the file stays readable.
+    /// the same person wrote both. `Fixtures/bench/health.json`,
+    /// `Fixtures/bench/perform.json` and `Fixtures/bench/record.json` were
+    /// captured on 2026-08-30 by running `node duckbench.mjs` on this machine
+    /// and calling it over HTTP — the perform body from a real two-rollout run
+    /// of BEST_alpha_stand against a two-keyframe track, the record body from a
+    /// real half-second recording of the same policy under a neutral command,
+    /// each with its frames/roots/commands trimmed to three rows so the file
+    /// stays readable.
     private func captured(_ name: String) throws -> Data {
         let url = try XCTUnwrap(Bundle.module.url(forResource: "Fixtures/bench/\(name)",
                                                   withExtension: "json"),
@@ -218,5 +220,86 @@ final class DuckBenchTests: XCTestCase {
         XCTAssertEqual(outcome.criterion,
                        "stayed upright to the end, over drop heights 0.120-0.130 m")
         XCTAssertFalse(outcome.told.contains("the bench's own plant"))
+    }
+
+    /// A recording is kept and shared like any other clip, so it has to say
+    /// which world it was made in — the same hole `/perform` had.
+    func testALiveRecordingCarriesTheWorldItWasMadeIn() throws {
+        let clip = try DuckBench.readClip(captured("record"), named: "standing on the bench")
+        XCTAssertEqual(clip.policy, "BEST_alpha_stand.onnx")
+        XCTAssertEqual(clip.frames.count, 3)
+        XCTAssertEqual(clip.credit,
+                       "Recorded on a bench on your network. On scene.mjb, sha256 3f8c9ab9b409.")
+    }
+
+    /// A bench too old to name its world leaves a clip that cannot be compared
+    /// with anyone else's, and the credit says that rather than implying a
+    /// world nobody recorded.
+    func testARecordingFromABenchThatNamesNoWorldSaysSoInItsCredit() throws {
+        let payload: [String: Any] = ["hz": 50, "policy": "BEST_alpha_stand.onnx",
+                                      "frames": [Array(repeating: 0.0, count: 14)],
+                                      "roots": [[0.0, 0, 0.12, 1, 0, 0, 0]],
+                                      "endsUpright": true]
+        let clip = try DuckBench.readClip(try JSONSerialization.data(withJSONObject: payload),
+                                          named: "x")
+        XCTAssertEqual(clip.credit,
+                       "Recorded on a bench on your network. Nothing recorded which world this "
+                     + "ran in, so nothing here can tell you. A result with no world beside it "
+                     + "cannot be compared with one that has another.")
+    }
+
+    /// A name with no digest: runnable, not comparable, and said in the one
+    /// place the sentence lives.
+    func testARecordingFromABenchThatWillNotDigestItsWorldSaysThatToo() throws {
+        let payload: [String: Any] = ["hz": 50, "policy": "BEST_alpha_stand.onnx",
+                                      "plantName": "scene.mjb",
+                                      "frames": [Array(repeating: 0.0, count: 14)],
+                                      "roots": [[0.0, 0, 0.12, 1, 0, 0, 0]],
+                                      "endsUpright": true]
+        let clip = try DuckBench.readClip(try JSONSerialization.data(withJSONObject: payload),
+                                          named: "x")
+        XCTAssertEqual(clip.credit,
+                       "Recorded on a bench on your network. On scene.mjb. This bench will not "
+                     + "say which bytes that was, and two benches can call different worlds by "
+                     + "that name — so a result from this one cannot be matched to a result "
+                     + "from another.")
+    }
+
+    /// YOUR OWN RECORDING IS NOT A CONTRIBUTION. `ClipNote.provenance` captions
+    /// any credited clip "Contributed — … This project did not train it and
+    /// cannot see the simulator it was trained in", which was true while the
+    /// only credited clips came from strangers. Stamping the plant onto bench
+    /// recordings made it false about the person's own machine.
+    func testAClipRecordedHereIsNotCaptionedAsSomebodyElses() {
+        let credit = DuckBench.recordedCredit(plantName: "scene.mjb",
+                                              plantDigest: "3f8c9ab9b409ba74c73c30179d5f7c12b0")
+        XCTAssertTrue(DuckBench.wasRecordedHere(credit))
+        let clip = DuckIntentClip(name: "run", hz: 50,
+                                  frames: [[Double](repeating: 0, count: DuckModel.policyJointCount)],
+                                  roots: [], netYaw: 0, loops: false,
+                                  startsFrom: .standing, endsIn: .standing,
+                                  policy: "alpha_walking.onnx", authored: false,
+                                  environment: .bareFloor, credit: credit,
+                                  telemetry: .none, variant: .legs)
+        let note = try? XCTUnwrap(ClipNote.provenance(for: clip))
+        XCTAssertEqual(note, credit, "it shows the credit, not a paragraph about a contributor")
+        XCTAssertFalse(note?.contains("Contributed") ?? true)
+        XCTAssertFalse(note?.contains("did not train it") ?? true)
+        // And it still names the world, which is the whole reason the credit
+        // carries the plant.
+        XCTAssertTrue(note?.contains("scene.mjb") ?? false)
+    }
+
+    /// The case the caption WAS written for still reads as it did.
+    func testAClipFromSomebodyElseIsStillCalledContributed() throws {
+        let clip = DuckIntentClip(name: "headspin", hz: 50,
+                                  frames: [[Double](repeating: 0, count: DuckModel.policyJointCount)],
+                                  roots: [], netYaw: 0, loops: false,
+                                  startsFrom: .standing, endsIn: .standing,
+                                  policy: "headspin.onnx", authored: false,
+                                  environment: .bareFloor, credit: "trained by a stranger",
+                                  telemetry: .none, variant: .legs)
+        let note = try XCTUnwrap(ClipNote.provenance(for: clip))
+        XCTAssertTrue(note.hasPrefix("Contributed — trained by a stranger."), note)
     }
 }

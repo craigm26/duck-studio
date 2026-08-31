@@ -24,6 +24,8 @@ struct DuckStudioApp: App {
     /// the Models screen edits it.
     @StateObject private var models = EndpointStore()
 
+    @Environment(\.scenePhase) private var scenePhase
+
     var body: some Scene {
         WindowGroup {
             TabView {
@@ -63,6 +65,18 @@ struct DuckStudioApp: App {
             // Declared in Info.plist as an IMPORTED type — ONNX is not this
             // app's format to own.
             .onOpenURL { model.open($0, into: drafts) }
+            // THE 0.4 s SETTLE IS THE POINT AND ALSO THE HOLE. Both stores
+            // batch writes so that a finger on a slider does not encode the
+            // whole library sixty times a second — and a rename is a single
+            // keystroke that lands inside that window. Every other way out of
+            // an editor already flushes; being swiped away from the app
+            // switcher is the one that did not, and it is the only remaining
+            // path by which an edit can be genuinely lost rather than merely
+            // look lost. `EndpointStore` is deliberately absent: its `flush` is
+            // private, and adding a caller is not this change.
+            .onChange(of: scenePhase) { _, phase in
+                if phase != .active { scenes.flush(); drafts.flush() }
+            }
         }
     }
 }

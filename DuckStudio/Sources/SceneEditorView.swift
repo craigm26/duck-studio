@@ -93,11 +93,35 @@ struct SceneEditorView: View {
     @State var scene: DuckScene
     let onChange: (DuckScene) -> Void
 
+    /// AN EXPLICIT INIT, BECAUSE THE NAME FIELD HAS TO BE SEEDED BEFORE THE
+    /// FIRST BODY PASS. `.onAppear` runs after it, so seeding there put the
+    /// "a scene with no name" refusal under a blank field for one frame every
+    /// time this sheet opened — a warning about a state the person had not
+    /// caused. Seeding both `@State`s here means the first thing drawn is the
+    /// scene as it is.
+    init(scene: DuckScene, onChange: @escaping (DuckScene) -> Void) {
+        _scene = State(initialValue: scene)
+        _typed = State(initialValue: scene.name)
+        self.onChange = onChange
+    }
+
     @Environment(\.dismiss) private var dismiss
     @State private var orbit = OrbitState()
     @State private var original: DuckScene?
     @State private var confirmingDiscard = false
     @State private var stance: Stance = .standing
+    /// WHAT IS IN THE FIELD, WHICH IS NOT ALWAYS WHAT THE SCENE IS CALLED. The
+    /// field used to bind straight to `scene.name`, so deleting the last
+    /// character left the store holding a scene called "" — a blank, unpickable
+    /// row in four separate menus. Buffering it here means an empty field is a
+    /// state of the keyboard rather than a state of the library: nothing
+    /// reaches the store until `SceneName` allows it.
+    /// SEEDED FROM THE SCENE, NOT FROM EMPTY. `.onAppear` runs AFTER the first
+    /// body pass, so an empty seed put the "a scene with no name" refusal on
+    /// screen under a blank field for one frame every time the editor opened —
+    /// a warning about a state the person had not caused and could not see the
+    /// cause of. The initial value is the name the sheet was opened on.
+    @State private var typed: String
 
     /// Where to stand the robot while the scene is being built.
     private enum Stance: Hashable { case standing, onTopStep }
@@ -130,7 +154,10 @@ struct SceneEditorView: View {
                 }
 
                 Section("Scene") {
-                    TextField("Name", text: $scene.name)
+                    TextField("Name", text: $typed)
+                    if let refusal = SceneName.refusal(typed, keeping: scene.name) {
+                        Text(refusal).font(.caption).foregroundStyle(.orange)
+                    }
                     Toggle("Floor", isOn: $scene.ground)
                     Text(scene.provenance).font(.caption).foregroundStyle(.secondary)
                 }
@@ -193,7 +220,14 @@ struct SceneEditorView: View {
                 }
             }
         }
-        .navigationTitle("Edit scene")
+        // THE LIVE NAME, NOT "EDIT SCENE". This is the screen a rename happens
+        // on, and a constant title is a screen that cannot answer "did that
+        // take?" — the question the whole store-write path exists to answer.
+        // A `String` variable, so it is drawn verbatim rather than looked up as
+        // a localization key. No empty branch: `SceneName` keeps the name from
+        // ever being blank, so a fallback here would be dead code claiming
+        // otherwise.
+        .navigationTitle(scene.name)
         .navigationBarTitleDisplayMode(.inline)
         // TWO WAYS OUT, BOTH ALWAYS PRESENT — and Done only dismisses, because
         // every change is already written. Publishing to the store and
@@ -213,12 +247,23 @@ struct SceneEditorView: View {
         .confirmationDialog("Throw away these changes?", isPresented: $confirmingDiscard,
                             titleVisibility: .visible) {
             Button("Throw them away", role: .destructive) {
-                if let original { scene = original; onChange(original) }
+                // The field is put back too, not only the scene: it is a
+                // separate piece of state now, and leaving it holding a
+                // discarded name would be the screen showing an edit that no
+                // longer exists.
+                if let original { scene = original; typed = original.name; onChange(original) }
                 dismiss()
             }
             Button("Keep editing", role: .cancel) {}
         }
         .onAppear { if original == nil { original = scene } }
+        // Committed per keystroke, exactly as the field did when it bound
+        // straight to the scene — the 0.4 s settle in the store is what keeps
+        // that cheap. The only difference is the gate: a name the kit refuses
+        // stays in the field and never becomes the scene's.
+        .onChange(of: typed) { _, new in
+            if SceneName.refusal(new, keeping: scene.name) == nil { scene.name = new }
+        }
         .onChange(of: scene) { _, new in onChange(new) }
     }
 

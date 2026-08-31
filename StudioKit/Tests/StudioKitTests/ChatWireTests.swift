@@ -282,13 +282,53 @@ extension ChatWireTests {
     func testABridgeSaysTheWordsLeaveYourNetwork() {
         let bridge = ModelEndpoint(name: "Claude", kind: .openAICompatible,
                                    baseURL: "http://100.122.199.6:8780/v1", model: "sonnet",
-                                   relay: true)
+                                   relay: true, relayNote: "Anthropic")
         XCTAssertNoThrow(try bridge.validate(), "http to your own Pi is still fine")
-        let note = bridge.privacyNote
-        XCTAssertTrue(note.contains("forwards it to Anthropic"))
-        XCTAssertTrue(note.contains("leave your network"))
-        XCTAssertFalse(note.contains("Nothing leaves it"),
+        XCTAssertEqual(bridge.privacyNote,
+            "Goes to 100.122.199.6 on your own network, which forwards it to Anthropic. The "
+            + "words leave your network, and this app cannot see what happens to them there.")
+        XCTAssertFalse(bridge.privacyNote.contains("Nothing leaves it"),
                        "the plain local sentence would be a lie here")
+    }
+
+    /// THE SENTENCE THIS FILE USED TO PIN WAS FALSE FOR EVERY BRIDGE BUT ONE.
+    /// A relay is a flag on any endpoint — a proxy on somebody's own Pi in
+    /// front of any service at all — and it was told, every time, that its
+    /// words go to Anthropic. Only a preset that knows the bridge it made can
+    /// name a destination; without one the note says the true thing, which is
+    /// that the app does not know.
+    func testARelayThisAppCannotNameSaysSoRatherThanNamingACompany() {
+        let proxy = ModelEndpoint(name: "My proxy", kind: .openAICompatible,
+                                  baseURL: "http://192.168.1.10:4000/v1", model: "gpt-4o-mini",
+                                  relay: true)
+        XCTAssertNil(proxy.relayNote)
+        XCTAssertEqual(proxy.privacyNote,
+            "Goes to 192.168.1.10 on your own network, which forwards it somewhere else. The "
+            + "words leave your network, and this app cannot see where they land.")
+        XCTAssertFalse(proxy.privacyNote.contains("Anthropic"),
+                       "naming a company this app never saw is the claim being removed")
+    }
+
+    /// A name of nothing but spaces is no name, and must not leave a sentence
+    /// reading "forwards it to  ."
+    func testABlankRelayNameIsTreatedAsNoNameAtAll() {
+        let proxy = ModelEndpoint(name: "My proxy", kind: .openAICompatible,
+                                  baseURL: "http://192.168.1.10:4000/v1", model: "m",
+                                  relay: true, relayNote: "   ")
+        XCTAssertTrue(proxy.privacyNote.contains("forwards it somewhere else"))
+    }
+
+    /// A relay name written by an older build is absent from stored JSON, and
+    /// an endpoint that cannot be decoded is an endpoint a person loses.
+    func testAStoredEndpointFromABuildWithoutARelayNameStillDecodes() {
+        let stored = Data("""
+        {"id":"7B7B0F52-0000-4000-8000-00000000ABCD","name":"Claude",\
+        "kind":"openAICompatible","baseURL":"http://192.168.1.10:8780/v1","model":"sonnet",\
+        "timeout":300,"suppressReasoning":true,"relay":true}
+        """.utf8)
+        let endpoint = try? JSONDecoder().decode(ModelEndpoint.self, from: stored)
+        XCTAssertNotNil(endpoint)
+        XCTAssertNil(endpoint?.relayNote)
     }
 
     /// And the same host without the flag keeps the honest local note.

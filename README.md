@@ -114,9 +114,11 @@ refusals knows more about this robot than somebody who watched a demo work.
 
 **Scenes.** The world a motion is judged against: the floor, a flight of steps,
 a corridor, props the duck could take hold of. Build one here and play any intent
-in it rather than only where it was recorded. The staircase starts at the step
-height the robot has actually been measured to clear, and the editor says so when
-you raise it past that.
+in it rather than only where it was recorded. The staircase starts at the tallest
+step an authored move has actually cleared in this app's own search over staged
+steps, and the editor says so when you raise it past that. That ceiling is a
+simulation result, not a robot's — nobody has put a Microduck on a step, because
+none has shipped.
 
 **Draft.** Say what you want in a sentence and watch what your words became.
 Four modes — **Motion**, **Rule**, **Fetch**, **Train** — all going through the
@@ -387,9 +389,12 @@ started, to a host you chose:
 - A run on a bench at a private address on your own network.
 
 `GATES.md`'s hard rule — no in-app analytics, Data Not Collected — still holds
-exactly. Its supporting sentence "exactly one outbound request in the whole
-binary" predates the catalogue, publish, bench and drafting screens, and the list
-above is the current answer.
+exactly. The sentence that used to sit beside it, "exactly one outbound request in
+the whole binary", predated the catalogue, publish, bench and drafting screens;
+`GATES.md` has since withdrawn it and now enumerates the same requests this
+section does. The property that survives is not the count. It is that every one of
+them goes to an address you entered or a service you signed into, and none of them
+is ours.
 
 Which means there is still no way to watch this app work from the inside, on
 purpose. Every success metric in `GATES.md` is a $0 side channel measured outside

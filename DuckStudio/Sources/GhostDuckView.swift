@@ -49,6 +49,16 @@ struct GhostDuckView: View {
     /// stage and does not care whether there is a camera.
     @State private var door = CameraDoor.availability
 
+    /// The background behind anything on this screen that holds a SENTENCE.
+    ///
+    /// NOT A CAPSULE, AND THAT IS THE POINT. A Capsule's corners are half its
+    /// height, so the moment the text inside it wraps to three lines the ends
+    /// become half-circles that eat the first and last words. The status line
+    /// here is not always short: `ensure(venue:)` below writes a whole camera
+    /// refusal into it, which is four lines on a phone. A fixed radius looks
+    /// the same as a capsule on one line and survives five.
+    private static let panel = RoundedRectangle(cornerRadius: 14, style: .continuous)
+
     var body: some View {
         ZStack(alignment: .bottom) {
             GhostDuckContainer(model: ghost)
@@ -57,12 +67,33 @@ struct GhostDuckView: View {
             VStack(spacing: 12) {
                 Text(ghost.status)
                     .font(.footnote)
-                    .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(.ultraThinMaterial, in: Capsule())
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: 340)
+                    .padding(.horizontal, 14).padding(.vertical, 8)
+                    .background(.ultraThinMaterial, in: Self.panel)
 
-                VenuePicker(venue: $ghost.venue)
-                    .padding(.horizontal, 8).padding(.vertical, 5)
-                    .background(.ultraThinMaterial, in: Capsule())
+                // ONE REFUSAL ON THIS SCREEN, NOT TWO. `VenuePicker` prints its
+                // own reason when the camera door is shut, and the Follow me
+                // reason is printed under the grid below. Both come from the
+                // same `CameraAvailability` blocker, so with the door shut this
+                // hub — the only screen in the Lab that draws both — showed the
+                // same cause and the same remedy twice, ninety-odd words of
+                // caption2 stacked over a seven-cell grid.
+                //
+                // THE ONE THAT SURVIVES IS FOLLOW ME'S, because it is the one
+                // that costs something: the venue sentence's own words are that
+                // the mode "plays in its own rendered world instead — which is
+                // where it starts anyway", while Follow me is off entirely. So
+                // the switch is drawn only while it can be used. With the door
+                // shut it has one legal value — `standDownFromAR()` below is
+                // what holds it there — and what is left on screen is a dead
+                // control repeating a reason that is already below it.
+                if door.canOfferAR {
+                    VenuePicker(venue: $ghost.venue)
+                        .padding(.horizontal, 8).padding(.vertical, 5)
+                        .background(.ultraThinMaterial, in: Capsule())
+                }
 
                 if ghost.isPlaced {
                     Picker("Gait", selection: $ghost.clip) {
@@ -106,8 +137,8 @@ struct GhostDuckView: View {
         }
         .safeAreaInset(edge: .bottom) {
             if ghost.isPlaced {
-                // Six modes no longer fit across a phone in one row, so they
-                // wrap. The grid is three wide because that is what keeps
+                // Seven modes no longer fit across a phone in one row, so
+                // they wrap. The grid is three wide because that is what keeps
                 // "Bow Bridge" on one line at caption2.
                 VStack(spacing: 8) {
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10),
@@ -210,6 +241,12 @@ struct GhostDuckView: View {
                             // of its own label; announcing it twice makes the
                             // grid harder to get through, not clearer.
                             .accessibilityHidden(true)
+                            .padding(.horizontal, 12).padding(.vertical, 8)
+                            // Four lines of caption2 over a camera feed, so it
+                            // gets the same height-independent panel the status
+                            // line has rather than sitting on whatever the
+                            // camera happens to be pointing at.
+                            .background(.ultraThinMaterial, in: Self.panel)
                             .padding(.horizontal)
                     }
                 }
@@ -217,8 +254,22 @@ struct GhostDuckView: View {
             }
         }
         .refreshingCameraDoor($door)
+        // STANDING DOWN FROM AR IS THIS SCREEN'S JOB WHILE THE SWITCH IS GONE.
+        // `VenuePicker` coerces the venue back to `.stage` when the door shuts,
+        // and it can only do that while it is on screen — so the one case it
+        // exists for, a person who picks "Your floor" and then turns the camera
+        // off in Settings, would otherwise come back to a hub stuck on a venue
+        // that cannot be built and no control to leave it with. The coordinator
+        // below refuses to run an AR session either way; this is what puts the
+        // duck back on the stage.
+        .onAppear { standDownFromAR() }
+        .onChange(of: door) { _, _ in standDownFromAR() }
         .navigationTitle("Ghost duck")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func standDownFromAR() {
+        if !door.canOfferAR && ghost.venue != .stage { ghost.venue = .stage }
     }
 
     private func label(for clip: DuckTrajectory.Clip) -> String {
@@ -374,8 +425,9 @@ final class GhostDuckCoordinator: NSObject {
     func ensure(venue: LabVenue) {
         guard built != venue, let view, let model else { return }
         // THE SECOND LOCK, AND THE ONE THAT MATTERS: it is the line above
-        // `session.run`. `VenuePicker` already disables "Your floor" and prints
-        // the reason when the camera cannot be opened, so this is unreachable
+        // `session.run`. The hub above does not offer "Your floor" at all when
+        // the camera cannot be opened, and stands the venue back down if the
+        // door shuts while it is on screen, so this is unreachable
         // through the UI — which is exactly why it is here. Build 27 shipped
         // with `session.run` called against a plist that did not permit it and
         // iOS killed the app; a guard that only lives in a picker is a guard
@@ -383,8 +435,9 @@ final class GhostDuckCoordinator: NSObject {
         //
         // It refuses BEFORE `built` is updated and before the stage comes down,
         // so a refusal leaves the world that was already standing rather than
-        // tearing it down for one that never arrives. The sentence is on screen
-        // under the venue picker, which is the only route to `.ar`.
+        // tearing it down for one that never arrives. The sentence goes into
+        // the status line, which this screen draws whatever else is on it —
+        // the venue picker is not there to sit under while the door is shut.
         if venue == .ar, let refusal = CameraDoor.availability.refusal(for: .venue) {
             model.status = refusal
             return
