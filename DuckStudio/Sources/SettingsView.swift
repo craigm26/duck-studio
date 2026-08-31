@@ -58,9 +58,13 @@ struct SettingsView: View {
                     Label("Models", systemImage: "brain")
                 }
             } footer: {
+                // THREE, NOT TWO. A downloaded model is neither Apple's nor
+                // something speaking HTTP, and this list is the app telling
+                // somebody what their options are.
                 Text("What writes a draft when you describe a motion in words. Apple's "
-                   + "on-device model needs no setup; anything speaking the OpenAI chat API "
-                   + "works too, including one running on your own machine.")
+                   + "on-device model needs no setup; a model downloaded onto this phone runs "
+                   + "with nothing leaving it; and anything on your network speaking the "
+                   + "OpenAI chat API works too.")
             }
 
             Section {

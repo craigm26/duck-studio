@@ -74,12 +74,31 @@ final class DraftRoutingTests: XCTestCase {
         }
     }
 
-    /// The sentence a person gets instead names what they can do about it.
-    func testTheNoModelSentenceSaysWhatWouldFixIt() {
+    /// The sentence a person gets instead names what they can do about it —
+    /// and names ALL THREE routes.
+    ///
+    /// IT USED TO NAME TWO, and one of them ambiguously: "anything speaking the
+    /// OpenAI chat API will do, including one running on this phone" meant the
+    /// localhost preset, where another app serves a model. Once a model can be
+    /// downloaded into THIS app, that clause reads as the new kind and is wrong
+    /// about it — a downloaded model speaks no HTTP at all.
+    func testTheNoModelSentenceNamesEveryRouteThereIs() {
         let s = DraftRouting.needsAModel
-        XCTAssertTrue(s.contains("Models"), s)
+        XCTAssertTrue(s.contains("Settings"), s)
+        XCTAssertTrue(s.contains("Apple's on-device model"), s)
+        XCTAssertTrue(s.contains("downloaded onto this phone"), s)
         XCTAssertTrue(s.contains("OpenAI chat API"), s)
-        XCTAssertTrue(s.contains("running on this phone"), s)
+    }
+
+    /// AND THE APPLE REFUSALS NAME IT TOO. Somebody on a device without Apple
+    /// Intelligence is exactly who a downloaded model is for, and it was the
+    /// one option those two sentences did not mention.
+    func testTheAppleRefusalsOfferTheDownloadedModel() {
+        for sentence in [DraftRouting.appleUnavailable, DraftRouting.appleTooOld] {
+            XCTAssertTrue(sentence.contains("download a model onto this phone"), sentence)
+            XCTAssertTrue(sentence.contains("on your network"), sentence)
+            XCTAssertTrue(sentence.contains("Settings"), sentence)
+        }
     }
 
     // MARK: - what the model is told

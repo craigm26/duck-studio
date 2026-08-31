@@ -115,6 +115,84 @@ public enum PhoneModelSearch {
                     .reduce(0, +)
     }
 
+    /// What a repository's tree says about whether it can be used at all.
+    ///
+    /// TWO MEASURED TRAPS IN THE LIVE INDEX, both of which end in the failure
+    /// this file exists to prevent — several gigabytes fetched and then
+    /// useless — and one of which ends in it after fetching 1,519 bytes.
+    public struct Shape: Equatable, Sendable {
+        public let bytes: Int
+        public let hasWeights: Bool
+
+        public init(bytes: Int, hasWeights: Bool) {
+            self.bytes = bytes; self.hasWeights = hasWeights
+        }
+    }
+
+    /// TRAP ONE: A REPOSITORY WITH NO WEIGHTS IN IT. Four Gemma 4 repositories
+    /// in mlx-community contain nothing but a 1,519-byte `.gitattributes` —
+    /// `gemma-4-E2B-it-qat-mxfp4`, `-nvfp4`, `gemma-4-e4b-mxfp4`, `-nvfp4`. A
+    /// picker that sorts by size surfaces those at the top as tiny, perfect
+    /// phone models.
+    public static func readTreeShape(_ data: Data) throws -> Shape {
+        guard let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            throw ReadError.notJSON
+        }
+        let files = array.filter { ($0["type"] as? String) == "file" }
+        return Shape(bytes: files.compactMap { $0["size"] as? Int }.reduce(0, +),
+                     hasWeights: files.contains {
+                         ($0["path"] as? String)?.hasSuffix(".safetensors") == true
+                     })
+    }
+
+    public static let noWeights =
+        "That repository has no weights in it — only a placeholder file. Some conversions are "
+      + "published empty; there is nothing to download."
+
+    /// Where a repository's config lives, for trap two.
+    public static func configURL(for repository: String) -> URL {
+        URL(string: "https://huggingface.co/\(repository)/resolve/main/config.json")!
+    }
+
+    /// TRAP TWO: A QUANTISATION THIS LOADER CANNOT READ. mlx-swift-lm decodes
+    /// quantisation from the top-level `"quantization"` key alone
+    /// (`BaseConfiguration.CodingKeys.quantizationContainer`), skips quantising
+    /// entirely when it is absent, and then verifies with `verify: [.all]` — so
+    /// Google's own `quantization_config` / `quant_method: "gemma"` repositories
+    /// download in full and fail on a shape mismatch.
+    /// `gemma-4-E2B-it-qat-mobile` is the smallest-looking Gemma 4 in the
+    /// organisation, has five figures of monthly downloads, and is exactly this.
+    public static func canLoadQuantisation(_ configData: Data) -> Bool {
+        guard let config = try? JSONSerialization.jsonObject(with: configData)
+                as? [String: Any] else { return false }
+        return config["quantization"] != nil
+    }
+
+    public static let unreadableQuantisation =
+        "That repository is quantised in a scheme this app's loader cannot read — it would "
+      + "download in full and then fail to open. The models in the list above use the scheme it "
+      + "can."
+
+    /// Whether a searched repository is worth starting, and what to say if not.
+    ///
+    /// THE ARITHMETIC LIVES HERE, NOT IN THE VIEW. The picker had
+    /// `shape.bytes + 350_000_000` in it — the app computing, which
+    /// `check_no_studio_math.sh` exists to stop — and reached for
+    /// `PhoneModel.megabytes`, which is internal. A sentence about whether
+    /// three gigabytes will fit belongs where a test can hold it either way.
+    ///
+    /// The headroom is the same rule of thumb `PhoneModel.estimatedPeakBytes`
+    /// uses, and it is a rule of thumb: nothing here has been measured on a
+    /// phone, and the sentence says so.
+    public static func doesNotFit(_ name: String, bytes: Int, budgetBytes: Int) -> String? {
+        let peak = bytes + 350_000_000
+        guard peak > budgetBytes else { return nil }
+        return "\(name) needs roughly \(PhoneModel.megabytes(peak)) resident and iOS is offering "
+             + "this app about \(PhoneModel.megabytes(budgetBytes)). It would be killed part-way "
+             + "through an answer. That estimate is a rule of thumb, not a measurement on this "
+             + "phone."
+    }
+
     /// Said under the search field.
     /// IT ADMITS THE FILTER IS NOT A GUARANTEE. Restricting to mlx-community
     /// and text-generation removes the obvious mistakes, but not all of them:

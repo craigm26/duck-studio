@@ -58,6 +58,8 @@ enum DraftEngine {
             return try await askApple(instructions: instructions, prompt: prompt)
         case .openAICompatible:
             return try await askServer(endpoint, instructions: instructions, prompt: prompt)
+        case .downloadedMLX:
+            return try await askPhone(endpoint, instructions: instructions, prompt: prompt)
         }
     }
 
@@ -80,9 +82,7 @@ enum DraftEngine {
         #if canImport(FoundationModels)
         if #available(iOS 26.0, *) {
             guard case .available = SystemLanguageModel.default.availability else {
-                throw EngineError.appleUnavailable(
-                    "Apple Intelligence is not available on this device. Add a local or remote "
-                    + "model instead — anything that speaks the OpenAI chat API will do.")
+                throw EngineError.appleUnavailable(DraftRouting.appleUnavailable)
             }
             let started = Date()
             let session = LanguageModelSession(instructions: instructions)
@@ -91,8 +91,39 @@ enum DraftEngine {
                           seconds: Date().timeIntervalSince(started), tokens: nil)
         }
         #endif
-        throw EngineError.appleUnavailable(
-            "This version of iOS has no on-device model. Add a local or remote one instead.")
+        throw EngineError.appleUnavailable(DraftRouting.appleTooOld)
+    }
+
+    /// A model whose weights are on this phone, run in this process.
+    ///
+    /// SHAPED LIKE `askApple`, WHICH IS THE TEMPLATE FOR A KIND WITH NO
+    /// ADDRESS: check it can actually run before starting, time it, and read
+    /// the reply with the SAME `ChatWire.firstJSONObject` every other kind
+    /// uses — a downloaded model returns JSON in prose exactly as an HTTP
+    /// server does, so it must not get its own reader to drift against.
+    ///
+    /// THREE CHECKS BEFORE IT RUNS, in the order that costs least. Whether MLX
+    /// is here at all, then whether iOS is offering enough memory. Loading
+    /// several gigabytes to discover the second is how an app gets killed
+    /// rather than refusing.
+    private static func askPhone(_ endpoint: ModelEndpoint,
+                                 instructions: String, prompt: String) async throws -> Answer {
+        let runtime = PhoneModelRuntime.shared
+        guard runtime.isSupported else {
+            throw EngineError.appleUnavailable(PhoneModelInstall.simulatorRefusal)
+        }
+        // `os_proc_available_memory` is what iOS is offering THIS app right
+        // now, which is the only honest budget — the phone's RAM is not it.
+        let budget = Int(os_proc_available_memory())
+        if let known = PhoneModel.catalogue.first(where: { $0.repository == endpoint.model }),
+           !known.fits(budgetBytes: budget) {
+            throw EngineError.appleUnavailable(PhoneModel.tooBig(known, budgetBytes: budget))
+        }
+        let started = Date()
+        let reply = try await runtime.ask(endpoint.model,
+                                          instructions: instructions, prompt: prompt)
+        return Answer(json: try ChatWire.firstJSONObject(in: reply),
+                      seconds: Date().timeIntervalSince(started), tokens: nil)
     }
 
     private static func askServer(_ endpoint: ModelEndpoint,

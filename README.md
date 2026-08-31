@@ -256,10 +256,18 @@ accepted, because a Pi on a desk has no certificate.
 
 ## Where a draft comes from
 
-Apple's on-device model, a box on your own network, or another app on this
-phone — anything speaking `/v1/chat/completions` (Ollama, LM Studio,
-llama.cpp's server, vLLM, an OpenAI-compatible proxy). `tools/claudebridge.mjs`
-puts a Claude Code subscription behind that same interface in forty lines.
+Apple's on-device model; a model downloaded onto the phone and run there; a box
+on your own network; or another app on this phone — the last two being anything
+speaking `/v1/chat/completions` (Ollama, LM Studio, llama.cpp's server, vLLM, an
+OpenAI-compatible proxy). `tools/claudebridge.mjs` puts a Claude Code
+subscription behind that same interface in forty lines.
+
+A downloaded model runs inside this app through MLX, on the phone's GPU. The
+list it offers is six models with **measured** download sizes, from 351 MB to
+3.0 GB, and it refuses to start one that will not fit the memory iOS is offering
+— on a phone that is a budget you get killed for exceeding, not a slow patch.
+Anything else in `mlx-community` can be searched for, with the caveat that those
+results are not ones we have tried.
 
 Every endpoint carries a one-sentence note saying *where what you type will end
 up*, shown before you type it, because "drafted by AI" says nothing about whether
@@ -385,7 +393,10 @@ started, to a host you chose:
   screen shows which account, which address and every file with its size before
   anything is sent. The default is a private repository.
 - A draft request to whichever model you chose — Apple's on-device model makes no
-  request at all; anything else goes where its privacy note says it goes.
+  request at all, and neither does a downloaded one once its weights are here;
+  anything else goes where its privacy note says it goes.
+- The weights of a model you asked to download, from huggingface.co,
+  unauthenticated. Up to three gigabytes, and the screen says the size first.
 - A run on a bench at a private address on your own network.
 
 `GATES.md`'s hard rule — no in-app analytics, Data Not Collected — still holds

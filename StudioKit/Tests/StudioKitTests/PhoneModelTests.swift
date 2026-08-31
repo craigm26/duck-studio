@@ -39,6 +39,19 @@ final class PhoneModelTests: XCTestCase {
     /// THE POINT OF THE WHOLE TYPE. iOS gives an app a budget and kills it for
     /// exceeding one, so a 2.3 GB model on a phone offering 1.4 GB is not
     /// "slow" — it is an app that dies part-way through an answer.
+    /// EVERY ENTRY IS TEXT-ONLY. A multimodal repository's download includes
+    /// vision and audio towers this app's text path loads and discards, so its
+    /// size buys weights that never run and the resident estimate built from
+    /// that size is wrong.
+    func testNoCataloguedModelIsMultimodal() {
+        for model in PhoneModel.catalogue {
+            XCTAssertFalse(model.repository.contains("gemma-3-4b"),
+                           "\(model.repository) ships a vision tower the text path throws away")
+        }
+        XCTAssertLessThanOrEqual(PhoneModel.catalogue.last!.downloadBytes, 2_500_000_000,
+                                 "the largest entry should be the text-only 4B")
+    }
+
     func testABigModelDoesNotFitASmallBudget() {
         let big = PhoneModel.catalogue.last!
         XCTAssertFalse(big.fits(budgetBytes: 1_400_000_000))
@@ -139,5 +152,42 @@ final class PhoneModelTests: XCTestCase {
     func testTheScopeNoteWarnsBeforeTheDownloadRatherThanAfter() {
         XCTAssertTrue(PhoneModelSearch.scopeNote.contains("slow way to find out"),
                       PhoneModelSearch.scopeNote)
+    }
+
+    // MARK: - the two traps the Gemma 4 survey found in the live index
+
+    /// FOUR GEMMA 4 REPOSITORIES CONTAIN ONLY A 1,519-BYTE .gitattributes.
+    /// A picker sorted by size puts those first, looking like the perfect
+    /// phone model.
+    func testARepositoryWithNoWeightsIsRecognisedAsEmpty() throws {
+        let empty = """
+        [{"type":"file","path":".gitattributes","size":1519}]
+        """.data(using: .utf8)!
+        let shape = try PhoneModelSearch.readTreeShape(empty)
+        XCTAssertEqual(shape.bytes, 1519)
+        XCTAssertFalse(shape.hasWeights)
+
+        let real = """
+        [{"type":"file","path":"model.safetensors","size":900},
+         {"type":"file","path":"config.json","size":100}]
+        """.data(using: .utf8)!
+        let ok = try PhoneModelSearch.readTreeShape(real)
+        XCTAssertEqual(ok.bytes, 1000)
+        XCTAssertTrue(ok.hasWeights)
+        XCTAssertTrue(PhoneModelSearch.noWeights.contains("nothing to download"))
+    }
+
+    /// THE LOADER READS ONE KEY. mlx-swift-lm decodes quantisation from the
+    /// top-level "quantization" and nothing else, so Google's own
+    /// quantization_config repositories download in full and fail to open.
+    func testAQuantisationTheLoaderCannotReadIsRefusedBeforeDownloading() {
+        let mlx = #"{"model_type":"gemma4_text","quantization":{"group_size":64,"bits":4}}"#
+        XCTAssertTrue(PhoneModelSearch.canLoadQuantisation(mlx.data(using: .utf8)!))
+
+        let google = #"{"quantization_config":{"quant_method":"gemma","num_bits":4}}"#
+        XCTAssertFalse(PhoneModelSearch.canLoadQuantisation(google.data(using: .utf8)!))
+
+        XCTAssertFalse(PhoneModelSearch.canLoadQuantisation(Data("{".utf8)))
+        XCTAssertTrue(PhoneModelSearch.unreadableQuantisation.contains("download in full"))
     }
 }

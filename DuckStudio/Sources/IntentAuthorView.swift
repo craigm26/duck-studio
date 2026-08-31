@@ -441,7 +441,10 @@ struct IntentAuthorView: View {
             // exactly the same dead button and the same sentence. What is
             // needed is a DIFFERENT KIND of model, not a different selection,
             // and the sentence now says which kind and why.
-            if models.selected.kind == .openAICompatible {
+            // A DOWNLOADED MODEL CAN DO THIS TOO. It returns JSON in prose
+            // exactly as a server does; it is Apple's typed-value path that
+            // cannot express a list of edits.
+            if models.selected.kind != .appleOnDevice {
                 Text("\(models.selected.name) is asked for a list of changes to THIS motion, not for a new one. Anything it does not mention is left exactly as it is. \(models.selected.privacyNote)")
             } else {
                 // A DOOR, NOT DIRECTIONS. This told people to walk to another

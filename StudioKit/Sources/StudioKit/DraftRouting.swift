@@ -150,9 +150,29 @@ public enum DraftRouting {
     }
 
     /// What to say when there is no model and the sentence is not a fetch.
+    /// What to say when Apple's model is not there.
+    ///
+    /// LIFTED OUT OF THE APP because these are sentences and sentences are
+    /// tested here — and because both named exactly two remedies, "a local or
+    /// remote model", written when there were two. A person on a device without
+    /// Apple Intelligence is precisely the person a downloaded model is for,
+    /// and it was the one option they were not told about.
+    public static let appleUnavailable =
+        "Apple Intelligence is not available on this device. In Settings you can download a "
+      + "model onto this phone, or point this app at one on your network."
+
+    public static let appleTooOld =
+        "This version of iOS has no on-device model. In Settings you can download a model onto "
+      + "this phone, or point this app at one on your network."
+
+    /// NAMES THREE ROUTES, NOT TWO. It used to end "anything speaking the
+    /// OpenAI chat API will do, including one running on this phone", which
+    /// meant the localhost preset — another app serving a model — and now reads
+    /// as the downloaded kind, which speaks no HTTP at all. Both exist, so both
+    /// are named.
     public static let needsAModel =
         "Without a model this app can only work out one kind of request on its own — fetching "
       + "something, because that is measured rather than written. For a motion, a rule or a "
-      + "training brief, add a model under Models: anything speaking the OpenAI chat API will "
-      + "do, including one running on this phone."
+      + "training brief, add one in Settings: Apple's on-device model, a model downloaded onto "
+      + "this phone, or anything on your network speaking the OpenAI chat API."
 }

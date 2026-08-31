@@ -12,13 +12,20 @@ Not Collected** and the Privacy Manifest declares an empty
 `NSPrivacyCollectedDataTypes`. This is easier to mean here than anywhere else in
 the family: the app has no account and no server of its own. What it used to
 claim beside that — "exactly one outbound request in the whole binary" — stopped
-being true and is corrected here rather than left standing. There are five kinds
-of outbound request, and the property that matters is not that there is one, it
-is that **every one of them goes to an address the person typed or a service
-they signed into, and none of them is ours**:
+being true and is corrected here rather than left standing. There are **six**
+kinds of outbound request, and the property that matters is not that there is
+one, it is that **every one of them goes to an address the person typed or a
+service they signed into, and none of them is ours**:
 
-- a language model endpoint, at a URL the person entered (on-device and
-  local-network models make no request leave the house at all),
+- a language model endpoint, at a URL the person entered (Apple's on-device
+  model makes no request at all),
+- **the weights of a model being downloaded onto the phone**, from
+  huggingface.co, unauthenticated like the other hub reads. This is the sixth,
+  added when a model could first be run inside this app. Note what it costs the
+  sentence above: a downloaded model sends nothing while it drafts, but it is
+  only true that it "makes no request leave the house" *after* a request of up
+  to three gigabytes has left it. The screen that starts that download says the
+  size before it begins,
 - a policy `.onnx`, at a URL the person entered,
 - Hugging Face — **unauthenticated** when the hub is searched or a community
   policy or manifest is fetched: `CommunityPoliciesView` and `CatalogueView` set

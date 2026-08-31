@@ -16,6 +16,18 @@ struct ModelSettingsView: View {
     @ObservedObject var store: EndpointStore
     @State private var editing: ModelEndpoint?
 
+    private func subtitle(for endpoint: ModelEndpoint) -> String {
+        switch endpoint.kind {
+        case .appleOnDevice:
+            return "On this phone, no setup"
+        case .downloadedMLX:
+            return "\(endpoint.model) · on this phone"
+        case .openAICompatible:
+            return "\(endpoint.model) · "
+                 + "\(URL(string: endpoint.baseURL)?.host ?? endpoint.baseURL)"
+        }
+    }
+
     var body: some View {
         List {
             // A ROW THAT IS USUALLY NOT THERE, and the whole point of it is the
@@ -40,18 +52,29 @@ struct ModelSettingsView: View {
             Section {
                 ForEach(store.endpoints) { endpoint in
                     Button {
-                        if endpoint.kind == .appleOnDevice {
+                        // A DOWNLOADED MODEL MUST NOT OPEN THE HTTP EDITOR.
+                        // That form has an address, a `/v1` check, a bearer
+                        // token, a timeout — all inert here — and a RELAY
+                        // TOGGLE, which is the one control that could make this
+                        // kind's privacy note lie in the most alarming
+                        // direction available. Selecting is all a row of this
+                        // kind does; managing it happens where it was
+                        // downloaded.
+                        switch endpoint.kind {
+                        case .appleOnDevice, .downloadedMLX:
                             store.selectedID = endpoint.id
-                        } else {
+                        case .openAICompatible:
                             editing = store.armed(endpoint)
                         }
                     } label: {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(endpoint.name).foregroundStyle(.primary)
-                                Text(endpoint.kind == .appleOnDevice
-                                     ? "On this phone, no setup"
-                                     : "\(endpoint.model) · \(URL(string: endpoint.baseURL)?.host ?? endpoint.baseURL)")
+                                // A KIND WITH NO ADDRESS NEEDS ITS OWN
+                                // SUBTITLE: the host branch renders
+                                // "Qwen3-0.6B-4bit · " with nothing after the
+                                // separator when baseURL is empty.
+                                Text(subtitle(for: endpoint))
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer()
@@ -78,6 +101,18 @@ struct ModelSettingsView: View {
             }
 
             Section {
+                // ABOVE THE PRESETS, because it is a different act: a preset
+                // fills in a form, this downloads two gigabytes and has to say
+                // what fits first.
+                NavigationLink { PhoneModelPickerView(store: store) } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Label("Download a model to this phone", systemImage: "arrow.down.circle")
+                        Text("Runs on the phone itself, with nothing you type leaving it. "
+                           + "Needs the space — the smallest is 351 MB.")
+                            .font(.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
                 ForEach(Preset.all, id: \.name) { preset in
                     Button {
                         editing = preset.endpoint()

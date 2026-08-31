@@ -73,6 +73,26 @@ public struct PhoneModel: Equatable, Sendable, Identifiable {
 
     /// The measured catalogue. Ordered smallest first, because the smallest one
     /// that works is the right answer on a phone.
+    ///
+    /// EVERY ENTRY IS TEXT-ONLY, AND THAT IS A REQUIREMENT RATHER THAN A
+    /// COINCIDENCE. A multimodal repository ships vision and audio towers that
+    /// this app's text path loads and throws away — `MLXLLM/Models/Gemma4.swift`
+    /// skips every `vision_tower`, `audio_tower` and `multi_modal_projector`
+    /// key — so its download size is money spent on weights that never run, and
+    /// `estimatedPeakBytes` computed from that size is wrong. `gemma-3-4b-it-qat-4bit`
+    /// was here and came out for exactly that: 3.0 GB, part of it a vision
+    /// tower, where `Qwen3-4B` covers the same size point at 2.28 GB with all
+    /// of it doing work.
+    ///
+    /// THERE IS NO GEMMA 4 ROW YET, AND ITS ABSENCE IS MEASURED TOO. Gemma 4
+    /// has no 1B tier; its smallest loadable artifact is 2.67 GB, 3.5× the
+    /// Gemma 3 1B here. Half of an E2B download — 1,321,205,760 of 2,634,394,182
+    /// tensor bytes — is the Per-Layer Embedding table, which Google's card
+    /// calls "only used for quick lookups" and which this stack builds as a
+    /// plain resident `Embedding` and materialises with `eval(model)`. So the
+    /// "2.3B effective" framing buys back no memory here, and a Gemma 4 row
+    /// would need a device run before this list, whose contract is that it has
+    /// been tried, could honestly carry it.
     public static let catalogue: [PhoneModel] = [
         .init(repository: "mlx-community/Qwen3-0.6B-4bit",
               name: "Qwen3 0.6B", parameters: "0.6B", downloadBytes: 351_000_000,
@@ -96,11 +116,7 @@ public struct PhoneModel: Equatable, Sendable, Identifiable {
               name: "Qwen3 4B", parameters: "4B", downloadBytes: 2_279_000_000,
               note: "The best of these at reading a whole paragraph, and the first that will not "
                   + "fit on a 4 GB phone. Download it on Wi-Fi."),
-        .init(repository: "mlx-community/gemma-3-4b-it-qat-4bit",
-              name: "Gemma 3 4B", parameters: "4B", downloadBytes: 3_035_000_000,
-              note: "Three gigabytes. Only worth it on a phone with 8 GB, and only if a smaller "
-                  + "one has actually let you down — bigger is not automatically better at "
-                  + "returning a short structured answer."),
+
     ]
 
     /// What has to be said above the list.

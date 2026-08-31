@@ -448,7 +448,12 @@ struct AutomationChatView: View {
     private var availability: Availability {
         // A configured server outranks Apple's model: somebody who has pointed
         // this at their own Pi has said which model they want.
-        if models.selected.kind == .openAICompatible {
+        // A DOWNLOADED MODEL IS USABLE TOO. This read `== .openAICompatible`,
+        // so a phone holding weights somebody had just spent two gigabytes on
+        // fell into Apple's branch and was told "this device does not have
+        // Apple Intelligence" — the one sentence guaranteed to make them think
+        // the download was wasted.
+        if models.selected.kind == .openAICompatible || models.selected.kind == .downloadedMLX {
             let endpoint = models.selected
             return Availability(isUsable: !endpoint.model.isEmpty, explanation:
                 "Drafted by \(endpoint.model) on \(endpoint.name). \(endpoint.privacyNote) "
@@ -543,7 +548,9 @@ struct AutomationChatView: View {
         // model keeps its own, because @Generable guarantees the shape and
         // guessing at JSON when the platform will hand over a typed value
         // would be throwing away the better answer.
-        if models.selected.kind == .openAICompatible {
+        // Both non-Apple kinds go through DraftEngine, which switches on kind
+        // itself; only Apple's needs the typed-value path below.
+        if models.selected.kind != .appleOnDevice {
             await draftOnServer(asked)
             return
         }

@@ -17,11 +17,20 @@ import Foundation
 /// rather than a curiosity.
 public struct ModelEndpoint: Equatable, Sendable, Codable, Identifiable {
 
-    public enum Kind: String, Sendable, Codable {
+    public enum Kind: String, Sendable, Codable, CaseIterable {
         /// Apple Intelligence. No URL, no network, no configuration.
         case appleOnDevice
         /// Anything with an OpenAI-compatible chat endpoint.
         case openAICompatible
+        /// Weights downloaded from Hugging Face and run in this process by MLX.
+        ///
+        /// THE RAW VALUE IS PERSISTED AND THEREFORE PERMANENT — a stored
+        /// endpoint carries `"kind":"downloadedMLX"` — so it is named for the
+        /// FORMAT rather than for "on this phone". Two of the three kinds are
+        /// on this phone: Apple's model, and the `localhost:8080` preset where
+        /// another app is serving one. A name that said "onPhone" would be the
+        /// least distinguishing thing it could be called.
+        case downloadedMLX
     }
 
     public var id: UUID
@@ -120,6 +129,10 @@ public struct ModelEndpoint: Equatable, Sendable, Codable, Identifiable {
         case missingVersionPath(String)
         case plaintextToThePublicInternet(host: String)
         case emptyModel
+        /// A downloaded model names a Hugging Face repository, not an address.
+        case notARepository(String)
+        case relayOnADownloadedModel
+        case notAnAddress(String)
 
         public var message: String {
             switch self {
@@ -136,6 +149,18 @@ public struct ModelEndpoint: Equatable, Sendable, Codable, Identifiable {
                      + "the internet in the clear. Use https for anything off your LAN. A local "
                      + "address — localhost, 192.168.x, 10.x, a .local name, or a Tailscale "
                      + "100.x — is fine over http, because it never leaves your network."
+            case .notAnAddress(let kind):
+                return "A \(kind) model has no address to call. Something asked this app for one, "
+                     + "which is a bug in this build rather than anything you did."
+            case .relayOnADownloadedModel:
+                return "A model running on this phone cannot forward anything anywhere, so it "
+                     + "cannot be a relay. Untick that."
+            case .notARepository(let text):
+                return text.trimmingCharacters(in: .whitespaces).isEmpty
+                    ? "Name the model to download, as \"namespace/repository\" — for example "
+                    + "mlx-community/Qwen3-1.7B-4bit."
+                    : "\"\(text)\" is not a Hugging Face repository. It should be "
+                    + "\"namespace/repository\", like mlx-community/Qwen3-1.7B-4bit."
             case .emptyModel:
                 return "Name the model as the server names it. Ask the server for its list — "
                      + "/v1/models — if you are not sure."
@@ -180,13 +205,35 @@ public struct ModelEndpoint: Equatable, Sendable, Codable, Identifiable {
         }
     }
 
+    /// SWITCHED, NOT GUARDED. Both of these read
+    /// `guard kind == .openAICompatible else { return }`, which passed every
+    /// other kind through with NO checks at all — so a third kind would have
+    /// been accepted with an empty repository id and then failed at load, far
+    /// from the screen that could have said why. An exhaustive switch makes a
+    /// fourth kind a compile error here instead.
     public func validate() throws {
         guard !name.trimmingCharacters(in: .whitespaces).isEmpty else { throw Refusal.emptyName }
-        guard kind == .openAICompatible else { return }
-        // The model is checked BEFORE the address, and the order is pinned by
-        // test: an endpoint with neither is missing a model name first.
-        guard !model.trimmingCharacters(in: .whitespaces).isEmpty else { throw Refusal.emptyModel }
-        try validateAddress()
+        switch kind {
+        case .appleOnDevice:
+            return
+        case .downloadedMLX:
+            let repository = model.trimmingCharacters(in: .whitespaces)
+            let halves = repository.split(separator: "/", omittingEmptySubsequences: false)
+            guard halves.count == 2, !halves[0].isEmpty, !halves[1].isEmpty else {
+                throw Refusal.notARepository(model)
+            }
+            // A DOWNLOADED MODEL CANNOT FORWARD ANYWHERE, and `privacyNote`'s
+            // relay branch is the most alarming sentence in this app to have
+            // fire falsely.
+            guard !relay else { throw Refusal.relayOnADownloadedModel }
+        case .openAICompatible:
+            // The model is checked BEFORE the address, and the order is pinned
+            // by test: an endpoint with neither is missing a model name first.
+            guard !model.trimmingCharacters(in: .whitespaces).isEmpty else {
+                throw Refusal.emptyModel
+            }
+            try validateAddress()
+        }
     }
 
     /// Everything the ADDRESS has to satisfy, with nothing in it about the name
@@ -207,7 +254,10 @@ public struct ModelEndpoint: Equatable, Sendable, Codable, Identifiable {
     /// rule that must hold for every request this app makes, including a
     /// check, so it has to live on the address side of the split.
     public func validateAddress() throws {
-        guard kind == .openAICompatible else { return }
+        switch kind {
+        case .appleOnDevice, .downloadedMLX: return
+        case .openAICompatible: break
+        }
         let trimmed = baseURL.trimmingCharacters(in: .whitespaces)
         guard let url = URL(string: trimmed), let host = url.host, !host.isEmpty,
               let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else {
@@ -327,6 +377,11 @@ public struct ModelEndpoint: Equatable, Sendable, Codable, Identifiable {
     /// Where the chat request goes.
     public func chatURL() throws -> URL {
         try validate()
+        // A KIND WITH NO ADDRESS MUST FAIL LOUDLY HERE. `validate()` now
+        // returns cleanly for a downloaded model, so without this the empty
+        // baseURL would produce the relative URL "/chat/completions" and the
+        // mistake would surface as a network error somewhere else entirely.
+        guard kind == .openAICompatible else { throw Refusal.notAnAddress(kind.rawValue) }
         let trimmed = baseURL.trimmingCharacters(in: .whitespaces)
             .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         guard let url = URL(string: trimmed + "/chat/completions") else {
@@ -342,6 +397,11 @@ public struct ModelEndpoint: Equatable, Sendable, Codable, Identifiable {
     /// been named — see the note on `validateAddress()`.
     public func modelsURL() throws -> URL {
         try validateAddress()
+        // A KIND WITH NO ADDRESS MUST FAIL LOUDLY HERE. `validate()` now
+        // returns cleanly for a downloaded model, so without this the empty
+        // baseURL would produce the relative URL "/chat/completions" and the
+        // mistake would surface as a network error somewhere else entirely.
+        guard kind == .openAICompatible else { throw Refusal.notAnAddress(kind.rawValue) }
         let trimmed = baseURL.trimmingCharacters(in: .whitespaces)
             .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         guard let url = URL(string: trimmed + "/models") else { throw Refusal.notAURL(baseURL) }
@@ -356,6 +416,14 @@ public struct ModelEndpoint: Equatable, Sendable, Codable, Identifiable {
         switch kind {
         case .appleOnDevice:
             return "Nothing you type leaves this phone."
+        case .downloadedMLX:
+            // NOT APPLE'S SENTENCE, THOUGH IT NEARLY IS. The difference worth
+            // stating is that this one arrived over the network: the weights
+            // were fetched once, and a person who has just spent two gigabytes
+            // of their data allowance deserves that acknowledged rather than
+            // being told, flatly, that nothing leaves the phone.
+            return "Runs on this phone. Nothing you type leaves it — the weights were "
+                 + "downloaded from Hugging Face once, and nothing is sent while it drafts."
         case .openAICompatible:
             let host = URL(string: baseURL)?.host ?? baseURL
             if relay {

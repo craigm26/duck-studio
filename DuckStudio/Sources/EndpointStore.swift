@@ -121,8 +121,19 @@ final class EndpointStore: ObservableObject {
         flush()
     }
 
+    /// Remove an endpoint — and, for a downloaded model, the weights with it.
+    ///
+    /// THE ROW IS NOT THE ONLY THING THAT TAKES SPACE. This removed the Keychain
+    /// item and the list entry and nothing else, which is right for an address
+    /// and wrong for three gigabytes of weights: the list would say the model
+    /// was gone while the phone was still full of it, and nothing in the app
+    /// would offer to free it. A person who deletes something expects the space
+    /// back.
     func delete(_ endpoint: ModelEndpoint) {
         guard endpoint.kind != .appleOnDevice else { return }
+        if endpoint.kind == .downloadedMLX {
+            PhoneModelFiles.delete(endpoint.model)
+        }
         EndpointKeyStore.clear(for: endpoint.id)
         endpoints.removeAll { $0.id == endpoint.id }
         if selectedID == endpoint.id { selectedID = endpoints.first?.id }
