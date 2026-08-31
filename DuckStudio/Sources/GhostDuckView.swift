@@ -43,6 +43,16 @@ import StudioKit
 struct GhostDuckView: View {
 
     @StateObject private var ghost = GhostDuckModel()
+
+    /// The two modes that drive the duck on THIS screen rather than building
+    /// one of their own, and so have to be shown over it instead of instead
+    /// of it. See the comment on the Trick run button.
+    private enum Driving: String, Identifiable {
+        case trickRun, flamingo
+        var id: String { rawValue }
+        var title: String { self == .trickRun ? "Trick run" : "Flamingo hold" }
+    }
+    @State private var driving: Driving?
     @ObservedObject private var celebrations = CelebrationStore.shared
     /// FOLLOW ME IS REACHED FROM HERE AND FROM NOWHERE ELSE, so this hub is
     /// where its door is shut. Every other row in the grid below runs on a
@@ -135,6 +145,29 @@ struct GhostDuckView: View {
             }
             .padding(.bottom, 24)
         }
+        // OVER THE STAGE, NOT INSTEAD OF IT. `.medium` leaves the duck
+        // visible above the sheet and `presentationBackgroundInteraction`
+        // leaves it draggable, so a run can be watched and orbited while its
+        // own controls are on screen.
+        .sheet(item: $driving) { which in
+            NavigationStack {
+                Group {
+                    switch which {
+                    case .trickRun: TrickRunView(model: ghost)
+                    case .flamingo: FlamingoHoldView(model: ghost)
+                    }
+                }
+                .navigationTitle(which.title)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { driving = nil }
+                    }
+                }
+            }
+            .presentationDetents([.medium, .large])
+            .presentationBackgroundInteraction(.enabled(upThrough: .medium))
+        }
         .safeAreaInset(edge: .bottom) {
             if ghost.isPlaced {
                 // Seven modes no longer fit across a phone in one row, so
@@ -143,9 +176,21 @@ struct GhostDuckView: View {
                 VStack(spacing: 8) {
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10),
                                              count: 3), spacing: 10) {
-                        NavigationLink {
-                            TrickRunView(model: ghost)
-                        } label: {
+                        // A SHEET, NOT A PUSH, AND THE REASON IS THE DUCK.
+                        // Trick run and Flamingo are the only two modes here
+                        // with no stage of their own: their bodies are lists,
+                        // and the thing they animate is `ghost` — the duck on
+                        // THIS screen. Pushing them therefore started a run and
+                        // then navigated away from the only place it could be
+                        // watched, which is exactly how it was reported: "it
+                        // seems to start the run and we only see the
+                        // instruction set and not the actual sim screen."
+                        //
+                        // A medium detent keeps the stage above the sheet, and
+                        // background interaction stays on so the duck can still
+                        // be orbited while the run plays. The other five modes
+                        // build their own stages and are still pushed.
+                        Button { driving = .trickRun } label: {
                             Label("Trick run", systemImage: "figure.gymnastics")
                                 .padding(.vertical, 10).frame(maxWidth: .infinity)
                                 .background(.thinMaterial, in: Capsule())
@@ -157,9 +202,7 @@ struct GhostDuckView: View {
                                 .padding(.vertical, 10).frame(maxWidth: .infinity)
                                 .background(.thinMaterial, in: Capsule())
                         }
-                        NavigationLink {
-                            FlamingoHoldView(model: ghost)
-                        } label: {
+                        Button { driving = .flamingo } label: {
                             Label("Flamingo", systemImage: "figure.stand")
                                 .padding(.vertical, 10).frame(maxWidth: .infinity)
                                 .background(.thinMaterial, in: Capsule())

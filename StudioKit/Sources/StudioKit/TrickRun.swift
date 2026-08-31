@@ -135,6 +135,28 @@ public struct TrickRun: Equatable, Sendable {
         guard let best else { return headline + "." }
         return headline + ", best was \(best.trick.name) for \(best.scored)."
     }
+
+    /// What a trick run is made of, and where to go to change any of it.
+    ///
+    /// THE MODES READ AS EDITABLE AND ARE NOT, WHICH IS WHY THIS EXISTS. A
+    /// person meeting Trick run sees named moves with scores and reasonably
+    /// assumes the moves are theirs to tune — the operator's words were that
+    /// "how to actually modify these, which seem to be policies and intents,
+    /// is hard to decipher". Nothing on the screen said what the parts were.
+    ///
+    /// The parts are: a bundled RECORDING per move, a measured success rate
+    /// from sixteen randomised rollouts that fixes the score, and no editable
+    /// state at all. The two places a person can actually act are elsewhere in
+    /// the app, so the sentence names them rather than implying a dial that is
+    /// not there.
+    public static let whatThisIsMadeOf =
+        "Nothing on this card can be edited here, and that is the honest shape of it rather "
+      + "than a missing screen. Each move is one recording that already exists, and its score "
+      + "is fixed by how often that move actually landed — sixteen rollouts, measured, not "
+      + "tuned. To change what a move DOES, open it in Intents and remix it into a motion of "
+      + "your own: the remix is yours to edit, and it carries none of the recording's evidence, "
+      + "so it starts with no odds at all. To change what DRIVES one, the network behind it is "
+      + "in Policies."
 }
 
 /// A small seeded generator, so a run is reproducible and testable.
@@ -155,4 +177,5 @@ struct SplitMix64: Equatable, Sendable {
         z = z ^ (z >> 31)
         return Double(z >> 11) * (1.0 / 9007199254740992.0)
     }
+
 }

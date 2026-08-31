@@ -101,4 +101,18 @@ final class TrickRunTests: XCTestCase {
         XCTAssertTrue(run.summary.contains("of 6 landed"), run.summary)
         XCTAssertTrue(run.summary.contains("Roulade"), run.summary)
     }
+
+    /// The screen has to say what it is made of, because the modes read as
+    /// editable and are not.
+    func testTheCardSaysWhereItsPartsCanActuallyBeChanged() {
+        let s = TrickRun.whatThisIsMadeOf
+        XCTAssertTrue(s.contains("Nothing on this card can be edited here"), s)
+        // It names both destinations rather than leaving "somewhere else".
+        XCTAssertTrue(s.contains("Intents"), s)
+        XCTAssertTrue(s.contains("Policies"), s)
+        // And it keeps the remix caveat the draft path already makes: a remix
+        // carries none of the recording's evidence.
+        XCTAssertTrue(s.contains("carries none of the recording's evidence"), s)
+        XCTAssertTrue(s.hasSuffix("."))
+    }
 }

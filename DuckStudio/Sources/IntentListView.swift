@@ -300,6 +300,29 @@ struct IntentListView: View {
                         // definitely current, whether they tapped Done or
                         // swiped the sheet away.
                         .onDisappear { drafts.flush() }
+                } else {
+                    // THE `else` THIS FILE'S OWN COMMENT ASKED FOR, AND IT IS
+                    // HERE BECAUSE THE TRAP IT DESCRIBES WAS REPORTED FROM A
+                    // DEVICE. The comment eight lines up has said for two
+                    // versions that a failed lookup "presents an empty
+                    // NavigationStack — no title, no Cancel, no Done… a real
+                    // permanent trap", and then left the `if let` without an
+                    // else, so the trap stayed one tap away the whole time.
+                    //
+                    // A sheet a person cannot leave is the worst state this app
+                    // can reach: every other refusal here still has a way out.
+                    // So whatever went wrong upstream — a draft deleted while
+                    // its editor was opening, a stand-in cleared by a trailing
+                    // onDismiss — it ends in a sentence and a button rather
+                    // than a blank rectangle.
+                    ContentUnavailableView {
+                        Label("That motion is not here", systemImage: "questionmark.square.dashed")
+                    } description: {
+                        Text("It was being opened and is no longer in your drafts. Nothing has been lost that was saved — a motion you had already written into is in the list behind this. If this keeps happening, it is a bug in this build and not something you did.")
+                    } actions: {
+                        Button("Close") { editing = nil }
+                            .buttonStyle(.borderedProminent)
+                    }
                 }
             }
         }
