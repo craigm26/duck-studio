@@ -147,6 +147,98 @@ public enum DuckBench {
                     body: try JSONSerialization.data(withJSONObject: body))
     }
 
+    /// Put a policy this phone made ONTO the bench.
+    ///
+    /// THE MISSING HALF OF A BENCH. Every other call here names a policy the
+    /// bench already had, which meant a network blended or edited on the phone
+    /// could be written to a file and never run by anything — the app could
+    /// produce a policy and could not find out a single thing about it. This is
+    /// the door.
+    ///
+    /// Base64 rather than multipart because the whole client is one
+    /// `JSONSerialization` call and a bench is a thing on your desk, not an
+    /// upload service. It costs a third more bytes on a LAN.
+    public static func upload(_ address: Address, onnx: Data) throws -> Call {
+        let body: [String: Any] = ["onnx": onnx.base64EncodedString()]
+        return Call(method: "POST", url: URL(string: "\(address.base)/upload")!,
+                    body: try JSONSerialization.data(withJSONObject: body))
+    }
+
+    /// What the bench called the file it just took.
+    public static func readUploaded(_ data: Data) throws -> String {
+        guard let top = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw ReadError.notJSON
+        }
+        if let error = top["error"] as? String { throw ReadError.bench(error) }
+        guard let name = top["policy"] as? String, !name.isEmpty else { throw ReadError.empty }
+        return name
+    }
+
+    /// How far the duck actually got, out of a `/record` answer.
+    ///
+    /// WHY THIS EXISTS ALONGSIDE A SUCCESS RATE. The bench's criterion is "ends
+    /// standing, trunk at least 100 mm up", and a duck that stands still passes
+    /// it perfectly. Measured on this bench: `alpha_walking` averaged 75/25 with
+    /// `BEST_alpha_stand` scores 16 of 16 while travelling two millimetres,
+    /// where the walking policy it came from covers 1.207 m. Without a distance
+    /// beside it, that rate reports a collapse as a triumph.
+    ///
+    /// BOTH NUMBERS, BECAUSE THE GAP BETWEEN THEM IS ALSO A FACT. `travelled`
+    /// is start to finish; `path` is every step added up. A duck that thrashes
+    /// in place has a long path and no travel, and a duck that topples has some
+    /// of both — the pair tells them apart where either alone does not.
+    public static func readTravel(_ data: Data) throws -> Travel {
+        guard let top = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw ReadError.notJSON
+        }
+        if let error = top["error"] as? String { throw ReadError.bench(error) }
+        guard let roots = top["roots"] as? [[Double]], let first = roots.first,
+              let last = roots.last, first.count >= 3, last.count >= 3 else {
+            throw ReadError.empty
+        }
+        var path = 0.0
+        for i in 1..<max(roots.count, 1) where roots[i].count >= 2 && roots[i - 1].count >= 2 {
+            path += hypot(roots[i][0] - roots[i - 1][0], roots[i][1] - roots[i - 1][1])
+        }
+        return Travel(travelled: hypot(last[0] - first[0], last[1] - first[1]),
+                      path: path, endHeight: last[2],
+                      endsUpright: top["endsUpright"] as? Bool ?? false,
+                      plantName: top["plantName"] as? String,
+                      plantDigest: top["plantDigest"] as? String)
+    }
+
+    public struct Travel: Equatable, Sendable {
+        public let travelled: Double
+        public let path: Double
+        public let endHeight: Double
+        public let endsUpright: Bool
+        public let plantName: String?
+        public let plantDigest: String?
+
+        public init(travelled: Double, path: Double, endHeight: Double, endsUpright: Bool,
+                    plantName: String?, plantDigest: String?) {
+            self.travelled = travelled; self.path = path; self.endHeight = endHeight
+            self.endsUpright = endsUpright
+            self.plantName = plantName; self.plantDigest = plantDigest
+        }
+    }
+
+    /// A command that makes a walking policy actually walk.
+    ///
+    /// MEASURED, NOT CHOSEN. `alpha_walking` on this bench travels 7 mm in six
+    /// seconds at vx = 0.15 — below the gait's threshold, so it just stands,
+    /// which looks exactly like a broken policy and is not one. At 0.3 it
+    /// covers 0.681 m and at 0.5, 1.207 m. Anything comparing two policies by
+    /// distance has to command them past that threshold or it is comparing two
+    /// ducks standing still.
+    ///
+    /// The half-second of nothing at the start is the settle: the bench drops
+    /// the duck from about 123 mm and the bounce has to die before a command
+    /// means anything.
+    public static let walkingCommand: [Step] = [
+        Step(at: 0), Step(at: 0.5, vx: 0.5),
+    ]
+
     /// A `/perform` answer, as something a draft can keep.
     ///
     /// THE PLANT COMES OUT OF THE ANSWER AND NOWHERE ELSE. This used to take a

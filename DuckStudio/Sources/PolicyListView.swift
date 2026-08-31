@@ -72,6 +72,15 @@ struct PolicyListView: View {
                 NavigationLink { RemoteRunView(scenes: scenes, drafts: drafts, models: models) } label: {
                     Label("Run on your network", systemImage: "wifi")
                 }
+                // ONLY WORTH OFFERING WITH TWO THINGS TO MIX. A blend of one
+                // policy is that policy, which `PolicyBlend` refuses anyway;
+                // showing the door to a refusal is not an affordance.
+                if model.library.runnableCount >= 2 {
+                    NavigationLink { PolicyBlendView(library: model.library) } label: {
+                        Image(systemName: "arrow.triangle.merge")
+                            .accessibilityLabel(Text("Blend policies"))
+                    }
+                }
                 NavigationLink { CatalogueView(model: model) } label: {
                     Image(systemName: "antenna.radiowaves.left.and.right")
                         // The destination's own title. An icon-only link
