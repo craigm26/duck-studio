@@ -1,576 +1,576 @@
 {
- "slots": [
-  {
-   "index": 0,
-   "block": "base_ang_vel",
-   "label": "gyro X \u2014 trunk roll rate",
-   "unit": "rad/s",
-   "lower": -10,
-   "upper": 10,
-   "alwaysZero": false
-  },
-  {
-   "index": 1,
-   "block": "base_ang_vel",
-   "label": "gyro Y \u2014 trunk pitch rate",
-   "unit": "rad/s",
-   "lower": -10,
-   "upper": 10,
-   "alwaysZero": false
-  },
-  {
-   "index": 2,
-   "block": "base_ang_vel",
-   "label": "gyro Z \u2014 trunk yaw rate",
-   "unit": "rad/s",
-   "lower": -10,
-   "upper": 10,
-   "alwaysZero": false
-  },
-  {
-   "index": 3,
-   "block": "projected_gravity",
-   "label": "gravity X in trunk frame",
-   "unit": "dimensionless",
-   "lower": -1,
-   "upper": 1,
-   "alwaysZero": false
-  },
-  {
-   "index": 4,
-   "block": "projected_gravity",
-   "label": "gravity Y in trunk frame",
-   "unit": "dimensionless",
-   "lower": -1,
-   "upper": 1,
-   "alwaysZero": false
-  },
-  {
-   "index": 5,
-   "block": "projected_gravity",
-   "label": "gravity Z in trunk frame (\u22121 when upright)",
-   "unit": "dimensionless",
-   "lower": -1,
-   "upper": 1,
-   "alwaysZero": false
-  },
-  {
-   "index": 6,
-   "block": "joint_pos",
-   "label": "left hip yaw position (rel. home)",
-   "unit": "rad",
-   "lower": -0.4363,
-   "upper": 0.5236,
-   "alwaysZero": false
-  },
-  {
-   "index": 7,
-   "block": "joint_pos",
-   "label": "left hip roll position (rel. home)",
-   "unit": "rad",
-   "lower": -0.2967,
-   "upper": 0.4713,
-   "alwaysZero": false
-  },
-  {
-   "index": 8,
-   "block": "joint_pos",
-   "label": "left hip pitch position (rel. home)",
-   "unit": "rad",
-   "lower": -1.1129,
-   "upper": 2.0287,
-   "alwaysZero": false
-  },
-  {
-   "index": 9,
-   "block": "joint_pos",
-   "label": "left knee position (rel. home)",
-   "unit": "rad",
-   "lower": -1.5659,
-   "upper": 1.5757,
-   "alwaysZero": false
-  },
-  {
-   "index": 10,
-   "block": "joint_pos",
-   "label": "left ankle position (rel. home)",
-   "unit": "rad",
-   "lower": -2.0238,
-   "upper": 1.1178,
-   "alwaysZero": false
-  },
-  {
-   "index": 11,
-   "block": "joint_pos",
-   "label": "neck pitch position (rel. home)",
-   "unit": "rad",
-   "lower": -1.9199,
-   "upper": 0.6981,
-   "alwaysZero": false
-  },
-  {
-   "index": 12,
-   "block": "joint_pos",
-   "label": "head pitch position (rel. home)",
-   "unit": "rad",
-   "lower": -1.9199,
-   "upper": 1.2217,
-   "alwaysZero": false
-  },
-  {
-   "index": 13,
-   "block": "joint_pos",
-   "label": "head yaw position (rel. home)",
-   "unit": "rad",
-   "lower": -2.9671,
-   "upper": 2.9671,
-   "alwaysZero": false
-  },
-  {
-   "index": 14,
-   "block": "joint_pos",
-   "label": "head roll position (rel. home)",
-   "unit": "rad",
-   "lower": -0.4363,
-   "upper": 0.4363,
-   "alwaysZero": false
-  },
-  {
-   "index": 15,
-   "block": "joint_pos",
-   "label": "right hip yaw position (rel. home)",
-   "unit": "rad",
-   "lower": -0.5236,
-   "upper": 0.4363,
-   "alwaysZero": false
-  },
-  {
-   "index": 16,
-   "block": "joint_pos",
-   "label": "right hip roll position (rel. home)",
-   "unit": "rad",
-   "lower": -0.4713,
-   "upper": 0.2967,
-   "alwaysZero": false
-  },
-  {
-   "index": 17,
-   "block": "joint_pos",
-   "label": "right hip pitch position (rel. home)",
-   "unit": "rad",
-   "lower": -2.0287,
-   "upper": 1.1129,
-   "alwaysZero": false
-  },
-  {
-   "index": 18,
-   "block": "joint_pos",
-   "label": "right knee position (rel. home)",
-   "unit": "rad",
-   "lower": -1.5757,
-   "upper": 1.5659,
-   "alwaysZero": false
-  },
-  {
-   "index": 19,
-   "block": "joint_pos",
-   "label": "right ankle position (rel. home)",
-   "unit": "rad",
-   "lower": -1.1178,
-   "upper": 2.0238,
-   "alwaysZero": false
-  },
-  {
-   "index": 20,
-   "block": "joint_vel",
-   "label": "left hip yaw velocity",
-   "unit": "rad/s",
-   "lower": -5,
-   "upper": 5,
-   "alwaysZero": false
-  },
-  {
-   "index": 21,
-   "block": "joint_vel",
-   "label": "left hip roll velocity",
-   "unit": "rad/s",
-   "lower": -5,
-   "upper": 5,
-   "alwaysZero": false
-  },
-  {
-   "index": 22,
-   "block": "joint_vel",
-   "label": "left hip pitch velocity",
-   "unit": "rad/s",
-   "lower": -5,
-   "upper": 5,
-   "alwaysZero": false
-  },
-  {
-   "index": 23,
-   "block": "joint_vel",
-   "label": "left knee velocity",
-   "unit": "rad/s",
-   "lower": -5,
-   "upper": 5,
-   "alwaysZero": false
-  },
-  {
-   "index": 24,
-   "block": "joint_vel",
-   "label": "left ankle velocity",
-   "unit": "rad/s",
-   "lower": -5,
-   "upper": 5,
-   "alwaysZero": false
-  },
-  {
-   "index": 25,
-   "block": "joint_vel",
-   "label": "neck pitch velocity",
-   "unit": "rad/s",
-   "lower": -5,
-   "upper": 5,
-   "alwaysZero": false
-  },
-  {
-   "index": 26,
-   "block": "joint_vel",
-   "label": "head pitch velocity",
-   "unit": "rad/s",
-   "lower": -5,
-   "upper": 5,
-   "alwaysZero": false
-  },
-  {
-   "index": 27,
-   "block": "joint_vel",
-   "label": "head yaw velocity",
-   "unit": "rad/s",
-   "lower": -5,
-   "upper": 5,
-   "alwaysZero": false
-  },
-  {
-   "index": 28,
-   "block": "joint_vel",
-   "label": "head roll velocity",
-   "unit": "rad/s",
-   "lower": -5,
-   "upper": 5,
-   "alwaysZero": false
-  },
-  {
-   "index": 29,
-   "block": "joint_vel",
-   "label": "right hip yaw velocity",
-   "unit": "rad/s",
-   "lower": -5,
-   "upper": 5,
-   "alwaysZero": false
-  },
-  {
-   "index": 30,
-   "block": "joint_vel",
-   "label": "right hip roll velocity",
-   "unit": "rad/s",
-   "lower": -5,
-   "upper": 5,
-   "alwaysZero": false
-  },
-  {
-   "index": 31,
-   "block": "joint_vel",
-   "label": "right hip pitch velocity",
-   "unit": "rad/s",
-   "lower": -5,
-   "upper": 5,
-   "alwaysZero": false
-  },
-  {
-   "index": 32,
-   "block": "joint_vel",
-   "label": "right knee velocity",
-   "unit": "rad/s",
-   "lower": -5,
-   "upper": 5,
-   "alwaysZero": false
-  },
-  {
-   "index": 33,
-   "block": "joint_vel",
-   "label": "right ankle velocity",
-   "unit": "rad/s",
-   "lower": -5,
-   "upper": 5,
-   "alwaysZero": false
-  },
-  {
-   "index": 34,
-   "block": "actions",
-   "label": "previous action \u2014 left hip yaw",
-   "unit": "dimensionless",
-   "lower": -3,
-   "upper": 3,
-   "alwaysZero": false
-  },
-  {
-   "index": 35,
-   "block": "actions",
-   "label": "previous action \u2014 left hip roll",
-   "unit": "dimensionless",
-   "lower": -3,
-   "upper": 3,
-   "alwaysZero": false
-  },
-  {
-   "index": 36,
-   "block": "actions",
-   "label": "previous action \u2014 left hip pitch",
-   "unit": "dimensionless",
-   "lower": -3,
-   "upper": 3,
-   "alwaysZero": false
-  },
-  {
-   "index": 37,
-   "block": "actions",
-   "label": "previous action \u2014 left knee",
-   "unit": "dimensionless",
-   "lower": -3,
-   "upper": 3,
-   "alwaysZero": false
-  },
-  {
-   "index": 38,
-   "block": "actions",
-   "label": "previous action \u2014 left ankle",
-   "unit": "dimensionless",
-   "lower": -3,
-   "upper": 3,
-   "alwaysZero": false
-  },
-  {
-   "index": 39,
-   "block": "actions",
-   "label": "previous action \u2014 neck pitch",
-   "unit": "dimensionless",
-   "lower": -3,
-   "upper": 3,
-   "alwaysZero": false
-  },
-  {
-   "index": 40,
-   "block": "actions",
-   "label": "previous action \u2014 head pitch",
-   "unit": "dimensionless",
-   "lower": -3,
-   "upper": 3,
-   "alwaysZero": false
-  },
-  {
-   "index": 41,
-   "block": "actions",
-   "label": "previous action \u2014 head yaw",
-   "unit": "dimensionless",
-   "lower": -3,
-   "upper": 3,
-   "alwaysZero": false
-  },
-  {
-   "index": 42,
-   "block": "actions",
-   "label": "previous action \u2014 head roll",
-   "unit": "dimensionless",
-   "lower": -3,
-   "upper": 3,
-   "alwaysZero": false
-  },
-  {
-   "index": 43,
-   "block": "actions",
-   "label": "previous action \u2014 right hip yaw",
-   "unit": "dimensionless",
-   "lower": -3,
-   "upper": 3,
-   "alwaysZero": false
-  },
-  {
-   "index": 44,
-   "block": "actions",
-   "label": "previous action \u2014 right hip roll",
-   "unit": "dimensionless",
-   "lower": -3,
-   "upper": 3,
-   "alwaysZero": false
-  },
-  {
-   "index": 45,
-   "block": "actions",
-   "label": "previous action \u2014 right hip pitch",
-   "unit": "dimensionless",
-   "lower": -3,
-   "upper": 3,
-   "alwaysZero": false
-  },
-  {
-   "index": 46,
-   "block": "actions",
-   "label": "previous action \u2014 right knee",
-   "unit": "dimensionless",
-   "lower": -3,
-   "upper": 3,
-   "alwaysZero": false
-  },
-  {
-   "index": 47,
-   "block": "actions",
-   "label": "previous action \u2014 right ankle",
-   "unit": "dimensionless",
-   "lower": -3,
-   "upper": 3,
-   "alwaysZero": false
-  },
-  {
-   "index": 48,
-   "block": "twist_command",
-   "label": "commanded forward velocity (vx)",
-   "unit": "m/s",
-   "lower": -0.4,
-   "upper": 0.4,
-   "alwaysZero": false
-  },
-  {
-   "index": 49,
-   "block": "twist_command",
-   "label": "commanded lateral velocity (vy)",
-   "unit": "m/s",
-   "lower": -0.3,
-   "upper": 0.3,
-   "alwaysZero": false
-  },
-  {
-   "index": 50,
-   "block": "twist_command",
-   "label": "commanded yaw rate (vyaw)",
-   "unit": "rad/s",
-   "lower": -1,
-   "upper": 1,
-   "alwaysZero": false
-  },
-  {
-   "index": 51,
-   "block": "head_command",
-   "label": "commanded neck pitch delta",
-   "unit": "rad",
-   "lower": -1.1,
-   "upper": 1.1,
-   "alwaysZero": false
-  },
-  {
-   "index": 52,
-   "block": "head_command",
-   "label": "commanded head pitch delta",
-   "unit": "rad",
-   "lower": -1.1,
-   "upper": 1.1,
-   "alwaysZero": false
-  },
-  {
-   "index": 53,
-   "block": "head_command",
-   "label": "commanded head yaw delta",
-   "unit": "rad",
-   "lower": -1.4,
-   "upper": 1.4,
-   "alwaysZero": false
-  },
-  {
-   "index": 54,
-   "block": "head_command",
-   "label": "commanded head roll delta",
-   "unit": "rad",
-   "lower": -0.31,
-   "upper": 0.31,
-   "alwaysZero": false
-  },
-  {
-   "index": 55,
-   "block": "body_command",
-   "label": "commanded body X delta \u2014 never emitted by DuckKit",
-   "unit": "m",
-   "lower": 0,
-   "upper": 0,
-   "alwaysZero": true
-  },
-  {
-   "index": 56,
-   "block": "body_command",
-   "label": "commanded body Y delta \u2014 never emitted by DuckKit",
-   "unit": "m",
-   "lower": 0,
-   "upper": 0,
-   "alwaysZero": true
-  },
-  {
-   "index": 57,
-   "block": "body_command",
-   "label": "commanded body Z delta (crouch \u2212/extend +)",
-   "unit": "m",
-   "lower": -0.04,
-   "upper": 0.03,
-   "alwaysZero": false
-  },
-  {
-   "index": 58,
-   "block": "body_command",
-   "label": "commanded body roll delta",
-   "unit": "rad",
-   "lower": -0.2618,
-   "upper": 0.2618,
-   "alwaysZero": false
-  },
-  {
-   "index": 59,
-   "block": "body_command",
-   "label": "commanded body pitch delta",
-   "unit": "rad",
-   "lower": -0.2618,
-   "upper": 0.2618,
-   "alwaysZero": false
-  },
-  {
-   "index": 60,
-   "block": "body_command",
-   "label": "commanded body yaw delta \u2014 never emitted by DuckKit",
-   "unit": "rad",
-   "lower": 0,
-   "upper": 0,
-   "alwaysZero": true
-  }
- ],
- "contradictions": [
-  "SLOTS 55/56/60 \u2014 DuckObservation.swift:23,25 calls body x/y/yaw 'ALWAYS ZERO, unbound in training'. The training configs bound them: microduck_velocity_env_cfg.py:682-687 samples all six body axes U(-0.005,0.005) m / U(-0.05,0.05) rad, and standup.py:632-637 keeps x/y at +/-0.005 m and yaw at +/-0.05 rad as deliberate untracked 'alive noise'. They are structurally exactly 0.0 only in sitstand/ground_pick/ball_kick/roulade, which pad the whole body block with mdp.zero_command_padding. AUTHORITATIVE FOR THIS TABLE: DuckKit. DuckObservation.build appends literal 0.0 at those three indices (lines 95, 96, 100) and DuckCommand has no x/y/yaw field at all, so no caller and no slider can move them for ANY policy. DuckKit's word 'unbound' is wrong, but its behaviour is safe: 0.0 is the distribution centre in walk/standup and the exact trained constant everywhere else.",
-  "SLOT 53 head_yaw travel \u2014 microduck_velocity_env_cfg.py:663 justifies the +/-1.40 rad cap as 'limit +/-pi/2 with HOME=0'. Both copies of robot_walk.xml declare head_yaw range=-2.967059728390 2.967059728390 (+/-170 deg): microduck_rl-develop/src/mjlab_microduck/robot/microduck/robot_walk.xml:203 and duckkit/Tests/DuckKitTests/Fixtures/duck/robot_walk.xml:58. AUTHORITATIVE: the XML \u2014 it is the model MuJoCo actually loads, and DuckModel.jointRanges:59 agrees with it to 1e-13. The shipped +/-1.40 command cap is unaffected and is more conservative than the comment implies (47% of real travel, not 89% of pi/2).",
-  "SLOT 51 neck_pitch reachability \u2014 microduck_velocity_env_cfg.py:660-662 claims the per-joint final caps are 'XML limits minus HOME offset, with ~10% safety margin', giving neck_pitch +/-1.10. neck_pitch's XML range is ASYMMETRIC, (-1.5707963267948966, +1.0471975511965976) (robot_walk.xml:181; DuckModel.jointRanges:57), and HOME is +0.3491 (DuckModel.homePose:44), so the reachable delta is (-1.9199, +0.6981). A +1.10 command is 0.40 rad past the mechanical stop. AUTHORITATIVE: the XML. Editor consequence: slot 51's slider is honest as a *training range* but everything above +0.70 is trained-but-unreachable and will clamp at the joint limit. Slot 52 (head_pitch, symmetric +/-pi/2, reachable +1.2217) has no such problem.",
-  "SLOT 54 head_roll travel \u2014 microduck_velocity_env_cfg.py:664 says 'head_roll: +/-0.31 rad (limit +/-20 deg)'. The XML limit is +/-0.4363 rad = +/-25 deg (robot_walk.xml:216; DuckModel.jointRanges:60). AUTHORITATIVE: the XML. The +/-0.31 cap is conservative under either reading, so only the comment is wrong.",
-  "ACTION SCALE \u2014 DuckModel.swift:88 sets actionScale = 0.9 for every policy except .stand. Training sets joint_pos_action.scale = 1.0 (microduck_velocity_env_cfg.py:273, overriding the mjlab base 0.5), and infer_policy.py's --action-scale default is 1.0. AUTHORITATIVE: the training config \u2014 the servo target formula must match what the policy was optimised against. Not an observation slot, but it means DuckKit drives every non-standing policy at 90% of trained joint amplitude. DuckModel.standingActionScale = 1.0 is correct.",
-  "ACTION FILTERING \u2014 DuckModel.swift:96-100 declares headLowpass 0.5 / legsLowpass 0.7 as 'coefficients the alpha policies were *trained with* \u2014 they must match or sim-to-real transfer degrades'. microduck_rl AGENTS.md:67 states the exact opposite as a repo invariant: 'Policies are UNFILTERED (no action low-pass in training). Don't add EMA filtering without a matched runtime flag and a transfer test'. Grepping infer_policy.py for alpha/lowpass/filter/ema finds only ch.isalpha(). AUTHORITATIVE ON THE MJLAB SIDE: AGENTS.md \u2014 no filter exists anywhere in the training or rehearsal path. UNRESOLVED, NOT SETTLED: DuckKit cites a different upstream (pollen-robotics/microduck, robotd/src/control.rs), which may filter in the servo layer *below* the policy, where it would not contradict the training invariant. That repo is not on this machine.",
-  "JOINT COUNT \u2014 DuckModel.jointNames:21-25 declares 15 joints with 'mouth' at index 9; both robot_walk.xml files declare exactly 14 hinge joints and no mouth. NOT A REAL CONFLICT: DuckModel.swift:50 is explicit that 'the fourteen policy joints carry the MuJoCo model's ranges; the mouth carries the runtime's -5..+30 deg', and DuckObservation.policyJoints drops index 9 via jointOfPolicySlot before the vector is built. The surviving 14 match robot_walk.xml declaration order (left leg 5, head chain 4, right leg 5) exactly, and DuckModel.homePose minus the mouth is byte-identical to infer_policy.py's DEFAULT_POSE. Both sources authoritative in their own domain.",
-  "symmetry.py:30-31 justifies the pitch-chain sign flips with 'left_hip_pitch = +0.6, right_hip_pitch = -0.6'. Actual HOME is left -0.4579 / right +0.4579 \u2014 opposite signs AND a different magnitude. AUTHORITATIVE: microduck_constants.py:84-85 and DuckModel.homePose:43-45, which agree with each other exactly. The mirroring logic symmetry.py describes is still correct; only its illustrative numbers are stale.",
-  "SLOT 50 yaw-rate range \u2014 infer_policy.py:964-969 caps the keyboard yaw command at +/-1.5 rad/s; training range is ang_vel_z (-1.0, 1.0) (microduck_velocity_env_cfg.py:650) with no widening curriculum (:890 deletes it). AUTHORITATIVE FOR A SLIDER: the training range. The runtime cap runs 1.5x out of distribution and nothing in the obs pipeline clips it.",
-  "SLOTS 51-54 runtime head cap \u2014 infer_policy.py:357-359 applies one uniform +/-1.4 rad cap to all four head slots. Training caps are per-joint: 1.10 / 1.10 / 1.40 / 0.31 (microduck_velocity_env_cfg.py:826). AUTHORITATIVE: the per-joint training caps. The uniform runtime cap lets head_roll be driven 4.5x past anything it saw in training, which is why slot 54's slider must stay at +/-0.31.",
-  "BODY SUB-BLOCK ORDER \u2014 infer_policy.py:389-391 says 'body_cmd[0..2] currently mean (dz, dpitch, droll)'. DuckObservation.swift:24 explicitly contradicts it: 'body z, roll, pitch \u2014 in that order, not z, pitch, roll'. AUTHORITATIVE: DuckKit, corroborated twice \u2014 symmetry.py:18 gives [55:61] as (x, y, z, roll, pitch, yaw), and standup.py:632-637 lists roll before pitch. The infer_policy docstring describes only the dead legacy 51-D path; DuckKit is right and slots 58/59 are roll then pitch."
- ],
- "unknowns": [
-  "No training bound exists for base_ang_vel (slots 0-2). Every ObservationTermCfg in the env leaves clip=None and scale=None, so the gyro enters the net raw and unclipped; the only number attached to it is the Unoise +/-0.03 rad/s corruption. The +/-10 rad/s slider is an EDITOR CONVENTION, grounded only in DuckModel.rouladeDuration = 1.0 s for one full forward roll (2*pi rad/s \u2248 6.3 rad/s pitch rate, so +/-10 comfortably encloses the most violent shipped behaviour). It is not a trained range and must not be quoted as one.",
-  "No training bound and no actuator velocity limit exists for joint_vel (slots 20-33). microduck_constants.py's _BAM_ACTUATOR_KWARGS (lines 120-132) specifies only motor_name, model, target regex, kp_fw, vin_range, vin_drop_gain_range, vin_min and delay lags \u2014 there is no velocity_limit, effort_limit or speed field anywhere. The +/-5 rad/s slider is an EDITOR CONVENTION sized to enclose XL330 servo top speed at the 6.5-8.2 V bus range; it was NOT established from the repos. The one hard fact available is the corruption magnitude, Unoise +/-0.25 rad/s.",
-  "No bound exists for last_action (slots 34-47). The value is the raw pre-scale ONNX output, unclipped in training (no clip on the term) and unclipped in infer_policy (no clip_actions configured). The +/-3.0 slider is DERIVED, not read: the largest reachable joint delta from home is 2.0287 rad (left_hip_pitch), so at scale 1.0 an action of 2.03 already saturates the widest joint and +/-3.0 leaves headroom. Treat it as a display convention.",
-  "Which training env produced each of the seven ONNX files DuckKit ships (DuckPolicyKind, DuckModel.swift:147-155). This determines the alwaysZero answer for slots 57/58/59: the body block is structurally exact 0.0 in sitstand/ground_pick/ball_kick/roulade (zero_command_padding), sampled-but-reward-weight-0.0 in the velocity env, and genuinely live only in standup (axis_weights (0,0,1,1,1,0)). No checkpoint-to-env manifest was found on this machine, so slots 57-59 are marked non-zero on the strength of the standup env alone. If alpha_stand did not come from standup.py, those three are dead too.",
-  "The PPO iteration count of each shipped checkpoint. The head-command training sigma differs by ~25x between curriculum stage 0 (neck/head pitch 0.0289) and the final stage 2000 (0.635), so slots 51-54 cannot be sensitivity-ranked or normalised without knowing which stage a checkpoint stopped at. The slider bounds above assume the FINAL stage; an earlier checkpoint would make the head slots as degenerate as the body slots.",
-  "rsl_rl's EmpiricalNormalization epsilon. Normalisation is baked inside the ONNX (export.py emits actor(normalizer(obs))), and rsl_rl is not vendored on this machine, so the effective divisor for the near-degenerate body slots \u2014 and therefore how far a small body command blows up after normalisation \u2014 cannot be quoted.",
-  "Whether pollen-robotics/microduck's robotd/src/control.rs applies the 0.5 / 0.7 low-pass that DuckModel.swift:99-100 claims. That repo is not present here, so the filtering contradiction above cannot be closed in either direction.",
-  "The mouth joint (DuckModel index 9, travel -5 deg to +30 deg) has NO observation slot. It is absent from both robot_walk.xml files and dropped by DuckObservation.policyJoints, so it cannot appear in a 61-slot editor at all. Any mouth control must be driven outside the policy contract."
- ]
+  "slots": [
+    {
+      "index": 0,
+      "block": "base_ang_vel",
+      "label": "gyro X — trunk roll rate",
+      "unit": "rad/s",
+      "lower": -10,
+      "upper": 10,
+      "alwaysZero": false
+    },
+    {
+      "index": 1,
+      "block": "base_ang_vel",
+      "label": "gyro Y — trunk pitch rate",
+      "unit": "rad/s",
+      "lower": -10,
+      "upper": 10,
+      "alwaysZero": false
+    },
+    {
+      "index": 2,
+      "block": "base_ang_vel",
+      "label": "gyro Z — trunk yaw rate",
+      "unit": "rad/s",
+      "lower": -10,
+      "upper": 10,
+      "alwaysZero": false
+    },
+    {
+      "index": 3,
+      "block": "projected_gravity",
+      "label": "gravity X in trunk frame",
+      "unit": "dimensionless",
+      "lower": -1,
+      "upper": 1,
+      "alwaysZero": false
+    },
+    {
+      "index": 4,
+      "block": "projected_gravity",
+      "label": "gravity Y in trunk frame",
+      "unit": "dimensionless",
+      "lower": -1,
+      "upper": 1,
+      "alwaysZero": false
+    },
+    {
+      "index": 5,
+      "block": "projected_gravity",
+      "label": "gravity Z in trunk frame (−1 when upright)",
+      "unit": "dimensionless",
+      "lower": -1,
+      "upper": 1,
+      "alwaysZero": false
+    },
+    {
+      "index": 6,
+      "block": "joint_pos",
+      "label": "left hip yaw position (rel. home)",
+      "unit": "rad",
+      "lower": -0.4363,
+      "upper": 0.5236,
+      "alwaysZero": false
+    },
+    {
+      "index": 7,
+      "block": "joint_pos",
+      "label": "left hip roll position (rel. home)",
+      "unit": "rad",
+      "lower": -0.2967,
+      "upper": 0.4713,
+      "alwaysZero": false
+    },
+    {
+      "index": 8,
+      "block": "joint_pos",
+      "label": "left hip pitch position (rel. home)",
+      "unit": "rad",
+      "lower": -1.1129,
+      "upper": 2.0287,
+      "alwaysZero": false
+    },
+    {
+      "index": 9,
+      "block": "joint_pos",
+      "label": "left knee position (rel. home)",
+      "unit": "rad",
+      "lower": -1.5659,
+      "upper": 1.5757,
+      "alwaysZero": false
+    },
+    {
+      "index": 10,
+      "block": "joint_pos",
+      "label": "left ankle position (rel. home)",
+      "unit": "rad",
+      "lower": -2.0238,
+      "upper": 1.1178,
+      "alwaysZero": false
+    },
+    {
+      "index": 11,
+      "block": "joint_pos",
+      "label": "neck pitch position (rel. home)",
+      "unit": "rad",
+      "lower": -1.9199,
+      "upper": 0.6981,
+      "alwaysZero": false
+    },
+    {
+      "index": 12,
+      "block": "joint_pos",
+      "label": "head pitch position (rel. home)",
+      "unit": "rad",
+      "lower": -1.9199,
+      "upper": 1.2217,
+      "alwaysZero": false
+    },
+    {
+      "index": 13,
+      "block": "joint_pos",
+      "label": "head yaw position (rel. home)",
+      "unit": "rad",
+      "lower": -2.9671,
+      "upper": 2.9671,
+      "alwaysZero": false
+    },
+    {
+      "index": 14,
+      "block": "joint_pos",
+      "label": "head roll position (rel. home)",
+      "unit": "rad",
+      "lower": -0.4363,
+      "upper": 0.4363,
+      "alwaysZero": false
+    },
+    {
+      "index": 15,
+      "block": "joint_pos",
+      "label": "right hip yaw position (rel. home)",
+      "unit": "rad",
+      "lower": -0.5236,
+      "upper": 0.4363,
+      "alwaysZero": false
+    },
+    {
+      "index": 16,
+      "block": "joint_pos",
+      "label": "right hip roll position (rel. home)",
+      "unit": "rad",
+      "lower": -0.4713,
+      "upper": 0.2967,
+      "alwaysZero": false
+    },
+    {
+      "index": 17,
+      "block": "joint_pos",
+      "label": "right hip pitch position (rel. home)",
+      "unit": "rad",
+      "lower": -2.0287,
+      "upper": 1.1129,
+      "alwaysZero": false
+    },
+    {
+      "index": 18,
+      "block": "joint_pos",
+      "label": "right knee position (rel. home)",
+      "unit": "rad",
+      "lower": -1.5757,
+      "upper": 1.5659,
+      "alwaysZero": false
+    },
+    {
+      "index": 19,
+      "block": "joint_pos",
+      "label": "right ankle position (rel. home)",
+      "unit": "rad",
+      "lower": -1.1178,
+      "upper": 2.0238,
+      "alwaysZero": false
+    },
+    {
+      "index": 20,
+      "block": "joint_vel",
+      "label": "left hip yaw velocity",
+      "unit": "rad/s",
+      "lower": -5,
+      "upper": 5,
+      "alwaysZero": false
+    },
+    {
+      "index": 21,
+      "block": "joint_vel",
+      "label": "left hip roll velocity",
+      "unit": "rad/s",
+      "lower": -5,
+      "upper": 5,
+      "alwaysZero": false
+    },
+    {
+      "index": 22,
+      "block": "joint_vel",
+      "label": "left hip pitch velocity",
+      "unit": "rad/s",
+      "lower": -5,
+      "upper": 5,
+      "alwaysZero": false
+    },
+    {
+      "index": 23,
+      "block": "joint_vel",
+      "label": "left knee velocity",
+      "unit": "rad/s",
+      "lower": -5,
+      "upper": 5,
+      "alwaysZero": false
+    },
+    {
+      "index": 24,
+      "block": "joint_vel",
+      "label": "left ankle velocity",
+      "unit": "rad/s",
+      "lower": -5,
+      "upper": 5,
+      "alwaysZero": false
+    },
+    {
+      "index": 25,
+      "block": "joint_vel",
+      "label": "neck pitch velocity",
+      "unit": "rad/s",
+      "lower": -5,
+      "upper": 5,
+      "alwaysZero": false
+    },
+    {
+      "index": 26,
+      "block": "joint_vel",
+      "label": "head pitch velocity",
+      "unit": "rad/s",
+      "lower": -5,
+      "upper": 5,
+      "alwaysZero": false
+    },
+    {
+      "index": 27,
+      "block": "joint_vel",
+      "label": "head yaw velocity",
+      "unit": "rad/s",
+      "lower": -5,
+      "upper": 5,
+      "alwaysZero": false
+    },
+    {
+      "index": 28,
+      "block": "joint_vel",
+      "label": "head roll velocity",
+      "unit": "rad/s",
+      "lower": -5,
+      "upper": 5,
+      "alwaysZero": false
+    },
+    {
+      "index": 29,
+      "block": "joint_vel",
+      "label": "right hip yaw velocity",
+      "unit": "rad/s",
+      "lower": -5,
+      "upper": 5,
+      "alwaysZero": false
+    },
+    {
+      "index": 30,
+      "block": "joint_vel",
+      "label": "right hip roll velocity",
+      "unit": "rad/s",
+      "lower": -5,
+      "upper": 5,
+      "alwaysZero": false
+    },
+    {
+      "index": 31,
+      "block": "joint_vel",
+      "label": "right hip pitch velocity",
+      "unit": "rad/s",
+      "lower": -5,
+      "upper": 5,
+      "alwaysZero": false
+    },
+    {
+      "index": 32,
+      "block": "joint_vel",
+      "label": "right knee velocity",
+      "unit": "rad/s",
+      "lower": -5,
+      "upper": 5,
+      "alwaysZero": false
+    },
+    {
+      "index": 33,
+      "block": "joint_vel",
+      "label": "right ankle velocity",
+      "unit": "rad/s",
+      "lower": -5,
+      "upper": 5,
+      "alwaysZero": false
+    },
+    {
+      "index": 34,
+      "block": "actions",
+      "label": "previous action — left hip yaw",
+      "unit": "dimensionless",
+      "lower": -3,
+      "upper": 3,
+      "alwaysZero": false
+    },
+    {
+      "index": 35,
+      "block": "actions",
+      "label": "previous action — left hip roll",
+      "unit": "dimensionless",
+      "lower": -3,
+      "upper": 3,
+      "alwaysZero": false
+    },
+    {
+      "index": 36,
+      "block": "actions",
+      "label": "previous action — left hip pitch",
+      "unit": "dimensionless",
+      "lower": -3,
+      "upper": 3,
+      "alwaysZero": false
+    },
+    {
+      "index": 37,
+      "block": "actions",
+      "label": "previous action — left knee",
+      "unit": "dimensionless",
+      "lower": -3,
+      "upper": 3,
+      "alwaysZero": false
+    },
+    {
+      "index": 38,
+      "block": "actions",
+      "label": "previous action — left ankle",
+      "unit": "dimensionless",
+      "lower": -3,
+      "upper": 3,
+      "alwaysZero": false
+    },
+    {
+      "index": 39,
+      "block": "actions",
+      "label": "previous action — neck pitch",
+      "unit": "dimensionless",
+      "lower": -3,
+      "upper": 3,
+      "alwaysZero": false
+    },
+    {
+      "index": 40,
+      "block": "actions",
+      "label": "previous action — head pitch",
+      "unit": "dimensionless",
+      "lower": -3,
+      "upper": 3,
+      "alwaysZero": false
+    },
+    {
+      "index": 41,
+      "block": "actions",
+      "label": "previous action — head yaw",
+      "unit": "dimensionless",
+      "lower": -3,
+      "upper": 3,
+      "alwaysZero": false
+    },
+    {
+      "index": 42,
+      "block": "actions",
+      "label": "previous action — head roll",
+      "unit": "dimensionless",
+      "lower": -3,
+      "upper": 3,
+      "alwaysZero": false
+    },
+    {
+      "index": 43,
+      "block": "actions",
+      "label": "previous action — right hip yaw",
+      "unit": "dimensionless",
+      "lower": -3,
+      "upper": 3,
+      "alwaysZero": false
+    },
+    {
+      "index": 44,
+      "block": "actions",
+      "label": "previous action — right hip roll",
+      "unit": "dimensionless",
+      "lower": -3,
+      "upper": 3,
+      "alwaysZero": false
+    },
+    {
+      "index": 45,
+      "block": "actions",
+      "label": "previous action — right hip pitch",
+      "unit": "dimensionless",
+      "lower": -3,
+      "upper": 3,
+      "alwaysZero": false
+    },
+    {
+      "index": 46,
+      "block": "actions",
+      "label": "previous action — right knee",
+      "unit": "dimensionless",
+      "lower": -3,
+      "upper": 3,
+      "alwaysZero": false
+    },
+    {
+      "index": 47,
+      "block": "actions",
+      "label": "previous action — right ankle",
+      "unit": "dimensionless",
+      "lower": -3,
+      "upper": 3,
+      "alwaysZero": false
+    },
+    {
+      "index": 48,
+      "block": "twist_command",
+      "label": "commanded forward velocity (vx)",
+      "unit": "m/s",
+      "lower": -0.4,
+      "upper": 0.4,
+      "alwaysZero": false
+    },
+    {
+      "index": 49,
+      "block": "twist_command",
+      "label": "commanded lateral velocity (vy)",
+      "unit": "m/s",
+      "lower": -0.3,
+      "upper": 0.3,
+      "alwaysZero": false
+    },
+    {
+      "index": 50,
+      "block": "twist_command",
+      "label": "commanded yaw rate (vyaw)",
+      "unit": "rad/s",
+      "lower": -1,
+      "upper": 1,
+      "alwaysZero": false
+    },
+    {
+      "index": 51,
+      "block": "head_command",
+      "label": "commanded neck pitch delta",
+      "unit": "rad",
+      "lower": -1.1,
+      "upper": 1.1,
+      "alwaysZero": false
+    },
+    {
+      "index": 52,
+      "block": "head_command",
+      "label": "commanded head pitch delta",
+      "unit": "rad",
+      "lower": -1.1,
+      "upper": 1.1,
+      "alwaysZero": false
+    },
+    {
+      "index": 53,
+      "block": "head_command",
+      "label": "commanded head yaw delta",
+      "unit": "rad",
+      "lower": -1.4,
+      "upper": 1.4,
+      "alwaysZero": false
+    },
+    {
+      "index": 54,
+      "block": "head_command",
+      "label": "commanded head roll delta",
+      "unit": "rad",
+      "lower": -0.31,
+      "upper": 0.31,
+      "alwaysZero": false
+    },
+    {
+      "index": 55,
+      "block": "body_command",
+      "label": "commanded body X delta — never emitted by DuckKit",
+      "unit": "m",
+      "lower": 0,
+      "upper": 0,
+      "alwaysZero": true
+    },
+    {
+      "index": 56,
+      "block": "body_command",
+      "label": "commanded body Y delta — never emitted by DuckKit",
+      "unit": "m",
+      "lower": 0,
+      "upper": 0,
+      "alwaysZero": true
+    },
+    {
+      "index": 57,
+      "block": "body_command",
+      "label": "commanded body Z delta (crouch −/extend +)",
+      "unit": "m",
+      "lower": -0.04,
+      "upper": 0.03,
+      "alwaysZero": false
+    },
+    {
+      "index": 58,
+      "block": "body_command",
+      "label": "commanded body roll delta",
+      "unit": "rad",
+      "lower": -0.2618,
+      "upper": 0.2618,
+      "alwaysZero": false
+    },
+    {
+      "index": 59,
+      "block": "body_command",
+      "label": "commanded body pitch delta",
+      "unit": "rad",
+      "lower": -0.2618,
+      "upper": 0.2618,
+      "alwaysZero": false
+    },
+    {
+      "index": 60,
+      "block": "body_command",
+      "label": "commanded body yaw delta — never emitted by DuckKit",
+      "unit": "rad",
+      "lower": 0,
+      "upper": 0,
+      "alwaysZero": true
+    }
+  ],
+  "contradictions": [
+    "SLOTS 55/56/60 — DuckObservation.swift:23,25 calls body x/y/yaw 'ALWAYS ZERO, unbound in training'. The training configs bound them: microduck_velocity_env_cfg.py:682-687 samples all six body axes U(-0.005,0.005) m / U(-0.05,0.05) rad, and standup.py:632-637 keeps x/y at +/-0.005 m and yaw at +/-0.05 rad as deliberate untracked 'alive noise'. They are structurally exactly 0.0 only in sitstand/ground_pick/ball_kick/roulade, which pad the whole body block with mdp.zero_command_padding. AUTHORITATIVE FOR THIS TABLE: DuckKit. DuckObservation.build appends literal 0.0 at those three indices (lines 95, 96, 100) and DuckCommand has no x/y/yaw field at all, so no caller and no slider can move them for ANY policy. DuckKit's word 'unbound' is wrong, but its behaviour is safe: 0.0 is the distribution centre in walk/standup and the exact trained constant everywhere else.",
+    "SLOT 53 head_yaw travel — microduck_velocity_env_cfg.py:663 justifies the +/-1.40 rad cap as 'limit +/-pi/2 with HOME=0'. Both copies of robot_walk.xml declare head_yaw range=-2.967059728390 2.967059728390 (+/-170 deg): microduck_rl-develop/src/mjlab_microduck/robot/microduck/robot_walk.xml:203 and duckkit/Tests/DuckKitTests/Fixtures/duck/robot_walk.xml:58. AUTHORITATIVE: the XML — it is the model MuJoCo actually loads, and DuckModel.jointRanges:59 agrees with it to 1e-13. The shipped +/-1.40 command cap is unaffected and is more conservative than the comment implies (47% of real travel, not 89% of pi/2).",
+    "SLOT 51 neck_pitch reachability — microduck_velocity_env_cfg.py:660-662 claims the per-joint final caps are 'XML limits minus HOME offset, with ~10% safety margin', giving neck_pitch +/-1.10. neck_pitch's XML range is ASYMMETRIC, (-1.5707963267948966, +1.0471975511965976) (robot_walk.xml:181; DuckModel.jointRanges:57), and HOME is +0.3491 (DuckModel.homePose:44), so the reachable delta is (-1.9199, +0.6981). A +1.10 command is 0.40 rad past the mechanical stop. AUTHORITATIVE: the XML. Editor consequence: slot 51's slider is honest as a *training range* but everything above +0.70 is trained-but-unreachable and will clamp at the joint limit. Slot 52 (head_pitch, symmetric +/-pi/2, reachable +1.2217) has no such problem.",
+    "SLOT 54 head_roll travel — microduck_velocity_env_cfg.py:664 says 'head_roll: +/-0.31 rad (limit +/-20 deg)'. The XML limit is +/-0.4363 rad = +/-25 deg (robot_walk.xml:216; DuckModel.jointRanges:60). AUTHORITATIVE: the XML. The +/-0.31 cap is conservative under either reading, so only the comment is wrong.",
+    "ACTION SCALE — DuckModel.swift:88 sets actionScale = 0.9 for every policy except .stand. Training sets joint_pos_action.scale = 1.0 (microduck_velocity_env_cfg.py:273, overriding the mjlab base 0.5), and infer_policy.py's --action-scale default is 1.0. AUTHORITATIVE: the training config — the servo target formula must match what the policy was optimised against. Not an observation slot, but it means DuckKit drives every non-standing policy at 90% of trained joint amplitude. DuckModel.standingActionScale = 1.0 is correct.",
+    "ACTION FILTERING — RESOLVED 2026-08-30, and DuckKit is right. Fetched directly: pollen-robotics/microduck robotd/src/control.rs:68-81 declares head_lowpass: Option<f64> defaulting to Some(0.5) and legs_lowpass Some(0.7), applied at :439 and :444; deploy/robotd.toml:137-138 carries them commented out, so the defaults are what runs. SO THE ROBOT DOES FILTER. What is wrong is robotd's stated REASON: control.rs:498-505 labels them 'trained with ACTION_LOW_PASS_HEAD_ALPHA' / 'ACTION_LOW_PASS_LEG_ALPHA', and pollen-robotics/microduck_rl CLAUDE.md:67 states the opposite as a repo invariant — 'Policies are UNFILTERED (no action low-pass in training). Don't add EMA filtering without a matched runtime flag and a transfer test'. microduck_rl scripts/infer_policy.py:792-794 agrees: target_positions = default_pose + action * action_scale, no filter, only an optional delayed_action for latency. DuckModel.swift:110-129 already says exactly this and its rule — apply when modelling what robotd sends to servos, NEVER in a replay of what a policy did in simulation — is correct. NOTE the cited file moved: microduck_rl/AGENTS.md is now CLAUDE.md and 404s at main.",
+    "JOINT COUNT — DuckModel.jointNames:21-25 declares 15 joints with 'mouth' at index 9; both robot_walk.xml files declare exactly 14 hinge joints and no mouth. NOT A REAL CONFLICT: DuckModel.swift:50 is explicit that 'the fourteen policy joints carry the MuJoCo model's ranges; the mouth carries the runtime's -5..+30 deg', and DuckObservation.policyJoints drops index 9 via jointOfPolicySlot before the vector is built. The surviving 14 match robot_walk.xml declaration order (left leg 5, head chain 4, right leg 5) exactly, and DuckModel.homePose minus the mouth is byte-identical to infer_policy.py's DEFAULT_POSE. Both sources authoritative in their own domain.",
+    "symmetry.py:30-31 justifies the pitch-chain sign flips with 'left_hip_pitch = +0.6, right_hip_pitch = -0.6'. Actual HOME is left -0.4579 / right +0.4579 — opposite signs AND a different magnitude. AUTHORITATIVE: microduck_constants.py:84-85 and DuckModel.homePose:43-45, which agree with each other exactly. The mirroring logic symmetry.py describes is still correct; only its illustrative numbers are stale.",
+    "SLOT 50 yaw-rate range — infer_policy.py:964-969 caps the keyboard yaw command at +/-1.5 rad/s; training range is ang_vel_z (-1.0, 1.0) (microduck_velocity_env_cfg.py:650) with no widening curriculum (:890 deletes it). AUTHORITATIVE FOR A SLIDER: the training range. The runtime cap runs 1.5x out of distribution and nothing in the obs pipeline clips it.",
+    "SLOTS 51-54 runtime head cap — infer_policy.py:357-359 applies one uniform +/-1.4 rad cap to all four head slots. Training caps are per-joint: 1.10 / 1.10 / 1.40 / 0.31 (microduck_velocity_env_cfg.py:826). AUTHORITATIVE: the per-joint training caps. The uniform runtime cap lets head_roll be driven 4.5x past anything it saw in training, which is why slot 54's slider must stay at +/-0.31.",
+    "BODY SUB-BLOCK ORDER — infer_policy.py:389-391 says 'body_cmd[0..2] currently mean (dz, dpitch, droll)'. DuckObservation.swift:24 explicitly contradicts it: 'body z, roll, pitch — in that order, not z, pitch, roll'. AUTHORITATIVE: DuckKit, corroborated twice — symmetry.py:18 gives [55:61] as (x, y, z, roll, pitch, yaw), and standup.py:632-637 lists roll before pitch. The infer_policy docstring describes only the dead legacy 51-D path; DuckKit is right and slots 58/59 are roll then pitch."
+  ],
+  "unknowns": [
+    "No training bound exists for base_ang_vel (slots 0-2). Every ObservationTermCfg in the env leaves clip=None and scale=None, so the gyro enters the net raw and unclipped; the only number attached to it is the Unoise +/-0.03 rad/s corruption. The +/-10 rad/s slider is an EDITOR CONVENTION, grounded only in DuckModel.rouladeDuration = 1.0 s for one full forward roll (2*pi rad/s ≈ 6.3 rad/s pitch rate, so +/-10 comfortably encloses the most violent shipped behaviour). It is not a trained range and must not be quoted as one.",
+    "No training bound and no actuator velocity limit exists for joint_vel (slots 20-33). microduck_constants.py's _BAM_ACTUATOR_KWARGS (lines 120-132) specifies only motor_name, model, target regex, kp_fw, vin_range, vin_drop_gain_range, vin_min and delay lags — there is no velocity_limit, effort_limit or speed field anywhere. The +/-5 rad/s slider is an EDITOR CONVENTION sized to enclose XL330 servo top speed at the 6.5-8.2 V bus range; it was NOT established from the repos. The one hard fact available is the corruption magnitude, Unoise +/-0.25 rad/s.",
+    "No bound exists for last_action (slots 34-47). The value is the raw pre-scale ONNX output, unclipped in training (no clip on the term) and unclipped in infer_policy (no clip_actions configured). The +/-3.0 slider is DERIVED, not read: the largest reachable joint delta from home is 2.0287 rad (left_hip_pitch), so at scale 1.0 an action of 2.03 already saturates the widest joint and +/-3.0 leaves headroom. Treat it as a display convention.",
+    "Which training env produced each of the seven ONNX files DuckKit ships (DuckPolicyKind, DuckModel.swift:147-155). This determines the alwaysZero answer for slots 57/58/59: the body block is structurally exact 0.0 in sitstand/ground_pick/ball_kick/roulade (zero_command_padding), sampled-but-reward-weight-0.0 in the velocity env, and genuinely live only in standup (axis_weights (0,0,1,1,1,0)). No checkpoint-to-env manifest was found on this machine, so slots 57-59 are marked non-zero on the strength of the standup env alone. If alpha_stand did not come from standup.py, those three are dead too.",
+    "The PPO iteration count of each shipped checkpoint. The head-command training sigma differs by ~25x between curriculum stage 0 (neck/head pitch 0.0289) and the final stage 2000 (0.635), so slots 51-54 cannot be sensitivity-ranked or normalised without knowing which stage a checkpoint stopped at. The slider bounds above assume the FINAL stage; an earlier checkpoint would make the head slots as degenerate as the body slots.",
+    "rsl_rl's EmpiricalNormalization epsilon. Normalisation is baked inside the ONNX (export.py emits actor(normalizer(obs))), and rsl_rl is not vendored on this machine, so the effective divisor for the near-degenerate body slots — and therefore how far a small body command blows up after normalisation — cannot be quoted.",
+    "The mouth joint (DuckModel index 9, travel -5 deg to +30 deg) has NO observation slot. It is absent from both robot_walk.xml files and dropped by DuckObservation.policyJoints, so it cannot appear in a 61-slot editor at all. Any mouth control must be driven outside the policy contract.",
+    "A SECOND, DIFFERENT FILTER EXISTS UPSTREAM AND THIS PACKAGE DOES NOT MODEL IT. deploy/robotd.toml:36-41 documents a per-tick EMA on INCOMING COMMANDS — `cmd += alpha * (target - cmd)`, with cmd_alpha and head_alpha both 0.2, described as turning 'a stick snap into a ramp the gait can follow'. That is upstream of the policy, on the twist and head command, and is not the same thing as the action low-pass applied downstream of it. Nothing in DuckKit or StudioKit smooths a command, so a preview that steps a command instantly is unlike the robot in a way nobody here has measured. Found 2026-08-30 while closing the action-filter contradiction; not yet chased."
+  ]
 }

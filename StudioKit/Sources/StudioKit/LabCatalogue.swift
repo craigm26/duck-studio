@@ -100,9 +100,16 @@ public enum LabCatalogue {
                    + "signed on the device; practice matches are refused for export on "
                    + "purpose.",
               status: .here),
+        // WHAT IT WRITES IS AN MJCF FILE, NOT A SCENE, and the blurb used to say
+        // otherwise. `RoomCaptureView.emit()` sets `mjcf` text and shows it in a
+        // read-only sheet; it never touches `SceneStore`, so nothing else in
+        // the app can stand a duck in the room you captured. The geometry is
+        // real — LiDAR planes reduced to boxes — which is exactly why the
+        // sentence has to be precise about where it stops.
         .init(id: "room", name: "Room capture", symbol: "square.split.bottomrightquarter",
-              blurb: "Turns the room around you into a scene with real dimensions, so a "
-                   + "policy meets your furniture before a robot does.",
+              blurb: "Measures the room around you and writes it out as MuJoCo scene geometry "
+                   + "— real boxes at real dimensions, for a simulator elsewhere. It does not "
+                   + "yet become a scene this app can stand a duck in.",
               status: .here),
         .init(id: "trials", name: "Trials", symbol: "chart.dots.scatter",
               blurb: "Place an object at a bearing and a range, run a policy at it a set "

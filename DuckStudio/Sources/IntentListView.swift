@@ -417,7 +417,16 @@ struct IntentPlayerView: View {
     @State private var isRunning = true
     @State private var orbit = OrbitState()
     @State private var showProps = true
-    @State private var elsewhere: DuckScene?
+    /// The scene this clip is being replayed in, BY IDENTITY. Holding the
+    /// `DuckScene` value froze it: rename or move a prop while this was set and
+    /// the banner went on naming the old name and the stage went on drawing the
+    /// old props, silently. See the same note in `BenchView`.
+    @State private var elsewhereID: UUID?
+
+    private var elsewhere: DuckScene? {
+        guard let elsewhereID else { return nil }
+        return store?.scenes.first { $0.id == elsewhereID }
+    }
     @State private var outgoing: Outgoing?
     @State private var shareFailure: String?
     @State private var panel: Panel = .story
@@ -507,7 +516,7 @@ struct IntentPlayerView: View {
                         Label("Playing in \(elsewhere.name), not where it was recorded.",
                               systemImage: "arrow.triangle.branch")
                             .font(.footnote).foregroundStyle(.orange)
-                        Button("Back to the recorded world") { self.elsewhere = nil }
+                        Button("Back to the recorded world") { elsewhereID = nil }
                     }
                 }
 
@@ -531,7 +540,7 @@ struct IntentPlayerView: View {
                     if let store, !store.scenes.isEmpty {
                         Menu("Play somewhere else") {
                             ForEach(store.scenes) { scene in
-                                Button(scene.name) { elsewhere = scene; playhead = 0 }
+                                Button(scene.name) { elsewhereID = scene.id; playhead = 0 }
                             }
                         }
                     }

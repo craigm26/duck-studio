@@ -36,7 +36,21 @@ struct BenchView: View {
     /// A place to stand the pose in. A network has no world of its own — but
     /// looking at a crouch beside a step is how you find out whether the crouch
     /// clears it, and a bench floating in a void cannot answer that.
-    @State private var scene: DuckScene?
+    /// BY IDENTITY, NEVER BY VALUE. Holding the `DuckScene` itself made this
+    /// screen go stale the instant anybody edited that scene — including a
+    /// rename, which is just a modification. `DuckScene` is `Hashable`, the
+    /// Picker below tagged rows by the whole value, so one edited character
+    /// made the held copy unequal to every tag: the Picker then matched
+    /// nothing and the stage kept drawing the pre-edit geometry, with no way
+    /// to tell from the screen that it had come adrift. `IntentAuthorView`
+    /// already does it this way and does not have the bug.
+    @State private var sceneID: UUID?
+
+    /// Looked up fresh every time it is drawn, which is the whole point.
+    private var scene: DuckScene? {
+        guard let sceneID else { return nil }
+        return store?.scenes.first { $0.id == sceneID }
+    }
 
     enum Tab: String, CaseIterable, Identifiable {
         case inputs = "Inputs", actions = "Actions", sensitivity = "Sensitivity"
@@ -81,10 +95,10 @@ struct BenchView: View {
                 case .inputs:
                     if let store, !store.scenes.isEmpty {
                         Section {
-                            Picker("Stand it in", selection: $scene) {
-                                Text("Bare floor").tag(DuckScene?.none)
+                            Picker("Stand it in", selection: $sceneID) {
+                                Text("Bare floor").tag(UUID?.none)
                                 ForEach(store.scenes) { s in
-                                    Text(s.name).tag(DuckScene?.some(s))
+                                    Text(s.name).tag(UUID?.some(s.id))
                                 }
                             }
                             .pickerStyle(.menu)
