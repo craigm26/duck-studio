@@ -395,8 +395,16 @@ struct IntentListView: View {
 struct IntentPlayerView: View {
     let clip: DuckIntentClip
     /// Scenes this phone holds, so a motion can be played somewhere other than
-    /// where it was recorded. Optional because the bench opens this view too.
-    var store: SceneStore?
+    /// where it was recorded.
+    ///
+    /// OBSERVED, AND NOT OPTIONAL. The old comment said "optional because the
+    /// bench opens this view too" and that was simply false — `grep` finds no
+    /// `IntentPlayerView(` in BenchView, and all five construction sites pass a
+    /// real store. Meanwhile the optionality had already cost this file one
+    /// documented bug, where a nil store quietly gave the remix editor a
+    /// different set of scenes from the rest of the app. Without the wrapper
+    /// the id resolution below is correct but its redraw is unspecified.
+    @ObservedObject var store: SceneStore
     var drafts: DraftStore?
     /// Passed through to the editor a remix opens, so a tweak asked for there
     /// reaches the same model as everywhere else.
@@ -425,7 +433,7 @@ struct IntentPlayerView: View {
 
     private var elsewhere: DuckScene? {
         guard let elsewhereID else { return nil }
-        return store?.scenes.first { $0.id == elsewhereID }
+        return store.scenes.first { $0.id == elsewhereID }
     }
     @State private var outgoing: Outgoing?
     @State private var shareFailure: String?
@@ -518,6 +526,19 @@ struct IntentPlayerView: View {
                             .font(.footnote).foregroundStyle(.orange)
                         Button("Back to the recorded world") { elsewhereID = nil }
                     }
+                } else if elsewhereID != nil {
+                    // DELETED WHILE IT WAS BEING PLAYED IN. The banner above is
+                    // gated on resolving the scene, so without this branch the
+                    // whole notice disappeared along with the scene and the
+                    // motion quietly went back to its recorded world with
+                    // nothing said. Note the fallback is NOT a bare floor here,
+                    // which is why the sentence is per-use.
+                    Section {
+                        Label(StageCaption.sceneDeleted(.playedIn),
+                              systemImage: "exclamationmark.triangle")
+                            .font(.footnote).foregroundStyle(.orange)
+                        Button("Fine, keep the recorded world") { elsewhereID = nil }
+                    }
                 }
 
                 switch panel {
@@ -537,7 +558,7 @@ struct IntentPlayerView: View {
                     Button { share() } label: {
                         Label("Share this motion", systemImage: "square.and.arrow.up")
                     }
-                    if let store, !store.scenes.isEmpty {
+                    if !store.scenes.isEmpty {
                         Menu("Play somewhere else") {
                             ForEach(store.scenes) { scene in
                                 Button(scene.name) { elsewhereID = scene.id; playhead = 0 }
@@ -595,7 +616,7 @@ struct IntentPlayerView: View {
                 // SceneStore on every render, which is what the first version
                 // did and which quietly gave the remix editor a different set
                 // of scenes from the rest of the app.
-                if let store, let drafts,
+                if let drafts,
                    let current = drafts.drafts.first(where: { $0.id == wrapper.id }) {
                     IntentAuthorView(
                         draft: current, scenes: store, models: models,

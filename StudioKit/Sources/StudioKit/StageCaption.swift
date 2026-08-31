@@ -107,7 +107,43 @@ public enum StageCaption {
     /// swiped away, and the menu carried no selection — so a stair motion
     /// reopened on an empty floor with the same caption a never-scened draft
     /// gets, and nothing on screen could tell the two apart.
-    public static let sceneDeleted =
-        "The scene this motion was written against has been deleted, so it is being posed on a "
-      + "bare floor. Pick another one, or write it against the floor on purpose."
+    /// What a screen was using a scene FOR, when the scene turns out to be gone.
+    ///
+    /// THREE USES, THREE FALLBACKS, AND THE FALLBACK IS THE HALF THAT MATTERS.
+    /// A person who deletes a scene needs to know what they are now looking at,
+    /// and the honest answer differs: the editor and the bench drop to a bare
+    /// floor, while the player goes back to the world the clip was recorded in.
+    /// A single sentence saying "deleted" for all three would leave two of them
+    /// guessing at what replaced it.
+    public enum SceneUse: Equatable, Sendable {
+        /// The motion editor, which poses a draft against a chosen scene.
+        case authoredAgainst
+        /// The bench, which stands a single pose in one.
+        case stoodIn
+        /// The player, replaying a recording somewhere other than where it was
+        /// recorded.
+        case playedIn
+    }
+
+    /// The scene a screen was pointing at is gone. Say so, and say what is
+    /// there instead.
+    ///
+    /// THIS IS THE LAST SILENT FAILURE OF THE SCENE-IDENTITY CLASS. Two screens
+    /// resolved a scene by id and then drew `?? .bareFloor` with no caption, so
+    /// deleting a scene changed the world under a motion and the screen said
+    /// nothing about it — the same shape as the stale-copy bug, one step later.
+    public static func sceneDeleted(_ use: SceneUse) -> String {
+        switch use {
+        case .authoredAgainst:
+            return "The scene this motion was written against has been deleted, so it is being "
+                 + "posed on a bare floor. Pick another one, or write it against the floor on "
+                 + "purpose."
+        case .stoodIn:
+            return "The scene this pose was being stood in has been deleted, so it is standing "
+                 + "on a bare floor. Pick another one, or leave it on the floor."
+        case .playedIn:
+            return "The scene this motion was being played in has been deleted, so it is back "
+                 + "in the world it was recorded in."
+        }
+    }
 }

@@ -137,7 +137,7 @@ struct IntentAuthorView: View {
             // tab vanishes while the misleading floor stays on screen.
             if draft.sceneID != nil, scene == nil {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Label(StageCaption.sceneDeleted, systemImage: "exclamationmark.triangle")
+                    Label(StageCaption.sceneDeleted(.authoredAgainst), systemImage: "exclamationmark.triangle")
                         .font(.caption).foregroundStyle(.orange)
                     Spacer(minLength: 8)
                     Button("Bare floor") { draft.sceneID = nil }

@@ -21,7 +21,14 @@ import StudioKit
 /// physics nobody ran.
 struct BenchView: View {
     let entry: PolicyLibrary.Entry
-    var store: SceneStore?
+    /// OBSERVED, AND NOT OPTIONAL. Resolving the scene by id is only half the
+    /// fix: without a property wrapper this view never subscribes to the
+    /// store's `objectWillChange`, so whether the resolution is redrawn is left
+    /// to parent invalidation that nothing here specifies. And the optionality
+    /// bought nothing — the single construction site (PolicyListView) has
+    /// always passed a real store. A default that silently removes a feature is
+    /// a default that will be taken.
+    @ObservedObject var store: SceneStore
 
     @State private var policy: DuckPolicy?
     @State private var observation = DuckObservation.zeroed
@@ -49,7 +56,7 @@ struct BenchView: View {
     /// Looked up fresh every time it is drawn, which is the whole point.
     private var scene: DuckScene? {
         guard let sceneID else { return nil }
-        return store?.scenes.first { $0.id == sceneID }
+        return store.scenes.first { $0.id == sceneID }
     }
 
     enum Tab: String, CaseIterable, Identifiable {
@@ -87,13 +94,29 @@ struct BenchView: View {
                 if let failure {
                     Section { Text(failure).font(.footnote).foregroundStyle(.orange) }
                 }
+                // THE SCENE WAS PICKED AND IS NOW GONE. Without this the stage
+                // silently drops to a bare floor and the pose is judged against
+                // a world nobody chose — the same class of silence the stale
+                // copy caused, one step later in its life.
+                if sceneID != nil, scene == nil {
+                    Section {
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Label(StageCaption.sceneDeleted(.stoodIn),
+                                  systemImage: "exclamationmark.triangle")
+                                .font(.caption).foregroundStyle(.orange)
+                            Spacer(minLength: 8)
+                            Button("Bare floor") { sceneID = nil }
+                                .buttonStyle(.bordered).controlSize(.small)
+                        }
+                    }
+                }
                 if let strip, tab != .actions {
                     Section { Text(strip.summary).font(.footnote) }
                 }
 
                 switch tab {
                 case .inputs:
-                    if let store, !store.scenes.isEmpty {
+                    if !store.scenes.isEmpty {
                         Section {
                             Picker("Stand it in", selection: $sceneID) {
                                 Text("Bare floor").tag(UUID?.none)

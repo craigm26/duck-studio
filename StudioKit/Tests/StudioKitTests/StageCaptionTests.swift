@@ -106,8 +106,22 @@ final class StageCaptionTests: XCTestCase {
     // MARK: - a scene that is not there any more
 
     func testTheDeletedSceneSentenceSaysWhatIsBeingDrawnInstead() {
-        XCTAssertTrue(StageCaption.sceneDeleted.contains("has been deleted"))
-        XCTAssertTrue(StageCaption.sceneDeleted.contains("bare floor"))
+        XCTAssertTrue(StageCaption.sceneDeleted(.authoredAgainst).contains("has been deleted"))
+        XCTAssertTrue(StageCaption.sceneDeleted(.authoredAgainst).contains("bare floor"))
+        // EVERY USE SAYS WHAT REPLACED THE SCENE, not just that one is gone. A
+        // person who deletes a scene is looking at a different world a moment
+        // later and needs to know which one.
+        for use in [StageCaption.SceneUse.authoredAgainst, .stoodIn, .playedIn] {
+            let s = StageCaption.sceneDeleted(use)
+            XCTAssertTrue(s.contains("has been deleted"), s)
+            XCTAssertTrue(s.hasSuffix("."), s)
+        }
+        XCTAssertTrue(StageCaption.sceneDeleted(.stoodIn).contains("standing on a bare floor"))
+        // The player does NOT fall back to a bare floor — it falls back to the
+        // world the clip was recorded in, and saying "bare floor" there would
+        // be a second wrong answer.
+        XCTAssertTrue(StageCaption.sceneDeleted(.playedIn).contains("recorded in"))
+        XCTAssertFalse(StageCaption.sceneDeleted(.playedIn).contains("bare floor"))
     }
 }
 
