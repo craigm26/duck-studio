@@ -121,3 +121,20 @@ final class DuckDriveTests: XCTestCase {
         XCTAssertEqual(call.url.path, "/intent")
     }
 }
+
+extension DuckDriveTests {
+
+    /// THIS SENTENCE WENT STALE AND THE SCREEN KEPT PRINTING IT. It said "this
+    /// app cannot reach a robot at all: … there is no network endpoint for a
+    /// phone to open". The first half is still true of `robotd`'s own socket;
+    /// the conclusion was not — `mediad` is the remote gateway and Pollen have
+    /// had its WebRTC path working on hardware since 2026-08-25. An app whose
+    /// product is honest refusals must not be wrong in the confident direction.
+    func testTheDriveScreenDoesNotDenyATransportThatExists() {
+        XCTAssertFalse(DuckDrive.thisIsNotARobot.contains("cannot reach a robot at all"))
+        XCTAssertFalse(DuckDrive.thisIsNotARobot.contains("no network endpoint"))
+        // What replaced it has to still be honest about what HAS happened.
+        XCTAssertTrue(DuckDrive.thisIsNotARobot.contains("has not driven a robot"))
+        XCTAssertTrue(DuckDrive.thisIsNotARobot.contains("came out of a simulator"))
+    }
+}

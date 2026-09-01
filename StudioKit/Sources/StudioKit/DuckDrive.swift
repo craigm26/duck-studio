@@ -229,9 +229,39 @@ public enum DuckDrive {
 
     // MARK: - the calls
 
+    /// Why a call could not be built.
+    public enum Refusal: Error, Equatable {
+        /// A hold that is not a number at all.
+        case holdIsNotASecond(Double)
+
+        public var message: String {
+            switch self {
+            case .holdIsNotASecond:
+                return "That hold is not a number of seconds. A duration divided by zero, or a "
+                     + "frame interval taken before the first frame, arrives here as NaN."
+            }
+        }
+    }
+
     /// Hold a command for a moment and let physics run under it.
+    ///
+    /// THE CLAMP DOES NOT CATCH A NaN, WHICH IS THE WHOLE REASON FOR THE GUARD.
+    /// `min(max(hold, 0.02), 2)` looks total and is not: `0.02 >= .nan` is
+    /// false, so `max` returns the NaN, and `min` returns it again for the same
+    /// reason. The NaN then reaches `JSONSerialization`, which on Darwin
+    /// **raises an Objective-C exception Swift cannot catch** — so the failure
+    /// is a dead app rather than a thrown error, and it arrives from a hold
+    /// computed by dividing by a frame count that was zero on the first frame.
+    /// Refusing here rather than at each caller's door is what makes the whole
+    /// package safe instead of one path through it.
     public static func intent(_ address: DuckBench.Address, _ twist: Twist,
                               hold: Double = holdSeconds) throws -> DuckBench.Call {
+        // NaN ONLY, NOT `!isFinite`. An infinity clamps correctly —
+        // `min(max(.infinity, 0.02), 2)` is 2 — and the bench is happy to be
+        // told a thousand and bound it. Refusing everything out of range would
+        // refuse what the bench itself accepts; refusing a NaN refuses the one
+        // value the clamp lets through.
+        guard !hold.isNaN else { throw Refusal.holdIsNotASecond(hold) }
         let body: [String: Any] = ["vx": twist.vx, "vy": twist.vy, "vyaw": twist.vyaw,
                                    "hold": min(max(hold, 0.02), 2)]
         return DuckBench.Call(method: "POST",
@@ -369,10 +399,12 @@ public enum DuckDrive {
       + "look, stop, enable. Driving sends the first."
 
     public static let thisIsNotARobot =
-        "You are driving MuJoCo on your bench, not a Microduck. This app cannot reach a robot at "
-      + "all: robotd speaks JSON-RPC over a Unix socket on the robot itself, and there is no "
-      + "network endpoint for a phone to open. The duck above is physics on another machine on "
-      + "your network, running the same policy a real one would run.\n\n"
+        "You are driving MuJoCo on your bench, not a Microduck. The duck above is physics on "
+      + "another machine on your network, running the same policy a real one would run.\n\n"
+      + "This app has not driven a robot. It can find one over Bluetooth and ask it what it is, "
+      + "and Pollen have a WebRTC path working on their own hardware that would carry these same "
+      + "commands — but nothing here has spoken to a duck, and until something has, every number "
+      + "on this screen came out of a simulator.\n\n"
       + "The commands are the real ones. Pollen\'s robot.move takes vx, vy and vyaw in the trunk "
       + "frame, and the speeds these sticks reach are padd\'s own defaults — 0.3 m/s and "
       + "1.5 rad/s — so a stick pushed half way here asks for what it would ask for there.\n\n"
