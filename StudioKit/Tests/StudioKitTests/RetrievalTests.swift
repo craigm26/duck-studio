@@ -115,30 +115,18 @@ final class RetrievalTests: XCTestCase {
         XCTAssertEqual(Retrieval.Step.approach(metres: 1).policy, "alpha_walking")
         XCTAssertEqual(Retrieval.Step.reachDown.policy, "alpha_ground_pick")
     }
+
+    // FOUR TESTS ABOUT THE `.duck` EXPORT CAME OUT WITH IT. They asserted that
+    // quackd's task file carried the battery floor, the repeat-failure stop and
+    // a refusal — real properties of a format this app no longer writes. The
+    // constraints they were protecting are still measured and still shown; what
+    // is gone is the claim that they travel inside somebody else's schema.
+    // `DuckPlanFileTests` covers the format that replaced it.
+
 }
 
 extension RetrievalTests {
 
-    /// A task that travels without its constraints is a task somebody runs
-    /// against a carrot, so the body carries them.
-    func testTheExportedTaskCarriesTheConstraints() throws {
-        let plan = Retrieval.plan(for: .init(grams: 25, thicknessMillimetres: 22, metresAway: 0.8))
-        let task = try plan.duckTask(named: "Fetch the dowel")
-        XCTAssertEqual(task.name, "fetch-the-dowel", "a typed title is slugged, not refused")
-        XCTAssertTrue(task.verbs.allow.contains("ground_pick"))
-        XCTAssertTrue(task.verbs.allow.contains("mouth"))
-        for fact in ["20 mm above the floor", "10–40 g", "cannot pivot", "phase 0.7", "1.16 s"] {
-            XCTAssertTrue(task.body.contains(fact), "the body should say: \(fact)")
-        }
-        // And it survives a round trip through the format.
-        XCTAssertEqual(try DuckTask.decode(task.encode()), task)
-    }
-
-    func testARefusedPlanSaysSoInTheTask() throws {
-        let plan = Retrieval.plan(for: .init(grams: 25, thicknessMillimetres: 5, metresAway: 0.5))
-        let task = try plan.duckTask(named: "Fetch the chopstick")
-        XCTAssertTrue(task.body.contains("REFUSED:"))
-    }
 }
 
 // MARK: - the half of the file a machine acts on
@@ -153,146 +141,6 @@ extension RetrievalTests {
         Retrieval.plan(for: .init(grams: 25, thicknessMillimetres: 22, metresAway: 0.8))
     }
 
-    /// The two phrasings quackd's executor greps for, derived back out of the
-    /// file by the same reader that reports the split.
-    func testTheExportedTaskCarriesTheTwoStopsAMachineEnforces() throws {
-        let task = try fetchablePlan().duckTask(named: "Fetch the dowel")
-        XCTAssertEqual(task.batteryAbortPercent, 15)
-        XCTAssertEqual(task.repeatFailureAbort, 3)
-        XCTAssertEqual(task.abortWhen.first, "Battery below 15%")
-        XCTAssertEqual(task.abortWhen[1], "Same verb fails 3 times in a row")
-    }
-
-    /// And they survive the format, which is the only test that proves a runner
-    /// will ever see them.
-    func testTheEnforcedStopsSurviveTheRoundTrip() throws {
-        let task = try fetchablePlan().duckTask(named: "Fetch the dowel")
-        let reread = try DuckTask.decode(task.encode())
-        XCTAssertEqual(reread, task)
-        XCTAssertEqual(reread.batteryAbortPercent, 15)
-        XCTAssertEqual(reread.repeatFailureAbort, 3)
-    }
-
-    /// The rest is prose handed to the LLM, and it has to be THIS plan's
-    /// numbers rather than a generic warning.
-    func testTheAdvisoryAbortsCarryThisPlansEnvelopes() throws {
-        let task = try fetchablePlan().duckTask(named: "Fetch the dowel")
-        let advisory = task.advisoryAbortConditions.joined(separator: "\n")
-        XCTAssertTrue(advisory.contains("thinner than 20 mm"), advisory)
-        XCTAssertTrue(advisory.contains("heavier than 40 g"), advisory)
-        XCTAssertTrue(advisory.contains("10–40 g"), advisory)
-        XCTAssertTrue(advisory.contains("between 0.76 s and 1.50 s"), advisory)
-        XCTAssertTrue(advisory.contains("lowest at 1.16 s"), advisory)
-        // The old three are still there — they were never wrong, only alone.
-        XCTAssertTrue(task.abortWhen.contains("the duck falls"))
-        XCTAssertTrue(task.abortWhen.contains("the lift leaves the mouth empty"))
-    }
-
-    /// The reach band only matters when something is being taken off the floor,
-    /// so it only travels when the plan has a grip height at all.
-    func testTheReachBandTravelsOnlyWithSomethingHeldUp() throws {
-        let flat = try fetchablePlan().duckTask(named: "Fetch the dowel")
-        XCTAssertFalse(flat.abortWhen.contains { $0.contains("35–184 mm band") })
-
-        let standing = Retrieval.plan(for: .init(grams: 25, thicknessMillimetres: 25,
-                                                 metresAway: 1, graspHeightMillimetres: 150))
-        let task = try standing.duckTask(named: "Fetch the broom")
-        XCTAssertTrue(task.abortWhen.contains { $0.contains("35–184 mm band") },
-                      "\(task.abortWhen)")
-    }
-
-    /// A drag plan carries the ceiling that stops it, and says nobody has
-    /// measured it.
-    func testADragPlanCarriesThePullCeiling() throws {
-        let (_, plan) = Retrieval.plan(for: "drag the carrot 1 m away")
-        let task = try plan.duckTask(named: "Drag the carrot")
-        guard let line = task.abortWhen.first(where: { $0.contains("pull needed") }) else {
-            return XCTFail("no pull ceiling in \(task.abortWhen)")
-        }
-        XCTAssertTrue(line.contains("5.1 N"), line)
-        XCTAssertTrue(line.contains("its feet slide before it pulls harder"), line)
-        XCTAssertTrue(line.contains("nothing has ever measured this duck towing anything"), line)
-        // And a carry plan does not claim a ceiling it never approaches.
-        XCTAssertFalse(try fetchablePlan().duckTask(named: "Fetch the dowel")
-            .abortWhen.contains { $0.contains("pull needed") })
-    }
-
-    /// A DRAG PLAN NEVER STANDS THE LOAD UP, so it must not carry the lift's
-    /// payload abort: a 600 g broom being towed is not a payload violation, and
-    /// a file that says to abort over it says to abort over the job.
-    func testADragPlanDoesNotCarryTheLiftsPayloadAbort() throws {
-        let (_, drag) = Retrieval.plan(for: "drag the broom")
-        XCTAssertFalse(drag.steps.contains(.lift))
-        let task = try drag.duckTask(named: "Drag the broom")
-        XCTAssertFalse(task.abortWhen.contains { $0.contains("heavier than 40 g") },
-                       "\(task.abortWhen)")
-        XCTAssertTrue(try fetchablePlan().duckTask(named: "Fetch the dowel")
-            .abortWhen.contains { $0.contains("heavier than 40 g") },
-            "a plan that does lift still carries it")
-    }
-
-    /// A REFUSED PLAN STILL WRITES A FILE — that is a decided, tested design —
-    /// but it must not write one a machine cannot tell apart from a fine one.
-    /// `verbs.confirm` is the only frontmatter field that changes what a runner
-    /// does with an otherwise legal file, so a refused task needs a human yes
-    /// for every verb it has.
-    func testARefusedPlanNeedsAHumanYesForEveryVerb() throws {
-        let refused = Retrieval.plan(for: .init(grams: 25, thicknessMillimetres: 5,
-                                                metresAway: 0.5))
-        XCTAssertFalse(refused.isPossible)
-        let task = try refused.duckTask(named: "Fetch the chopstick")
-        XCTAssertEqual(task.verbs.confirm, task.verbs.allow)
-        XCTAssertEqual(try DuckTask.decode(task.encode()), task)
-
-        let fine = try fetchablePlan().duckTask(named: "Fetch the dowel")
-        XCTAssertTrue(fine.verbs.confirm.isEmpty, "a plan inside every envelope just runs")
-    }
-
-    /// The refusal reaches `abort_when` too, phrased as something true the
-    /// instant the run starts — the executor's own check catches it before the
-    /// first verb rather than after forty steps.
-    func testTheRefusalReachesTheMachineHalfAndNotOnlyTheBody() throws {
-        let refused = Retrieval.plan(for: .init(grams: 25, thicknessMillimetres: 5,
-                                                metresAway: 0.5))
-        let task = try refused.duckTask(named: "Fetch the chopstick")
-        guard let line = task.abortWhen.first(where: { $0.contains("REFUSED") }) else {
-            return XCTFail("the refusal never left the body: \(task.abortWhen)")
-        }
-        XCTAssertTrue(line.hasPrefix("the run has started at all"), line)
-        XCTAssertTrue(line.contains("passes under the bite"), line)
-        // A fine plan says nothing of the kind.
-        XCTAssertFalse(try fetchablePlan().duckTask(named: "Fetch the dowel")
-            .abortWhen.contains { $0.contains("REFUSED") })
-    }
-
-    /// THE TIME BUDGET CAN ONLY EVER LOOSEN. quackd's default is 5 minutes and a
-    /// long walk would abort itself halfway home; a short plan keeps the default
-    /// so nothing this app writes is tighter than the format's own files.
-    func testTheTimeBudgetOnlyEverLoosens() throws {
-        let near = try fetchablePlan().duckTask(named: "Fetch the dowel")
-        XCTAssertEqual(near.budgets.maxMinutes, 5.0,
-                       "a 23 s plan must not tighten quackd's default")
-
-        // 20 m each way at 0.106 m/s is 6.3 minutes of walking alone.
-        let far = Retrieval.plan(for: .init(grams: 25, thicknessMillimetres: 22, metresAway: 20))
-        XCTAssertGreaterThan(far.seconds / 60, near.budgets.maxMinutes,
-                             "the old fixed budget really did cut this plan short")
-        let task = try far.duckTask(named: "Fetch the dowel")
-        XCTAssertGreaterThan(task.budgets.maxMinutes, far.seconds / 60)
-        XCTAssertLessThanOrEqual(task.budgets.maxMinutes, 180)
-        XCTAssertEqual(try DuckTask.decode(task.encode()), task)
-    }
-
-    /// And it stays inside the schema at any distance somebody can type.
-    func testTheTimeBudgetStaysInsideTheSchema() throws {
-        for metres in [0.1, 1, 50, 500, 5000] as [Double] {
-            let plan = Retrieval.plan(for: .init(grams: 25, thicknessMillimetres: 22,
-                                                 metresAway: metres))
-            let task = try plan.duckTask(named: "Fetch it")
-            XCTAssertGreaterThan(task.budgets.maxMinutes, 0)
-            XCTAssertLessThanOrEqual(task.budgets.maxMinutes, 180)
-        }
-    }
 }
 
 // MARK: - whether the sentence was understood at all

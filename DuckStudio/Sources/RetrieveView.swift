@@ -25,12 +25,6 @@ struct RetrieveView: View {
     var opening: DuckPlanFile?
 
     @State private var sentence = "fetch the stick 1 m away"
-    /// PRESENTED ON THE FILE ITSELF, NOT ON A FLAG BESIDE IT. The pair this
-    /// replaced — a `Bool` and a `URL?` — let `.sheet` reach a state where it
-    /// was open and the file was not there, which renders as a blank card with
-    /// nothing on it and no way out. `ExportedFile` makes that state
-    /// unrepresentable.
-    @State private var outgoing: ExportedFile?
     /// Why the file could not be written. This screen refused things for a
     /// living and then had nothing to say when it was the one that failed.
     @State private var failure: String?
@@ -244,11 +238,6 @@ struct RetrieveView: View {
                 } label: {
                     Label("Keep this plan", systemImage: "tray.and.arrow.down")
                 }
-                Button {
-                    save()
-                } label: {
-                    Label("Export as a .duck task", systemImage: "square.and.arrow.up")
-                }
                 // DISABLED RATHER THAN ENABLED AND REFUSING, because a control
                 // that cannot work says so before it is pressed. The reason is in
                 // the footer below it; the full explanation is the paragraph
@@ -270,12 +259,7 @@ struct RetrieveView: View {
         }
         .navigationTitle("Fetch something")
         .navigationBarTitleDisplayMode(.inline)
-        // The house pattern, which the three export screens that always worked
-        // were already using: present on the value, and put the sheet down
-        // again when UIKit says the share is over.
-        .sheet(item: $outgoing) { out in
-            ShareSheet(items: [out.url]) { outgoing = nil }
-        }
+        .task { restoreIfOpening() }
         .alert("That did not save",
                isPresented: .constant(failure != nil),
                presenting: failure) { _ in
@@ -291,47 +275,4 @@ struct RetrieveView: View {
         }
     }
 
-    /// EVERY EXIT SAYS SOMETHING. The first version had two that did not: a
-    /// `try?` that dropped a `DuckTask.ReadError` carrying a written-out
-    /// message, and a `nil` from the writer that left the button looking
-    /// pressed and inert. Both are the failure this app exists to explain.
-    private func save() {
-        // REFUSE THE EXPORT RATHER THAN LABEL THE FILE, and the choice is
-        // forced by what the file is. A `.duck` is not a screenshot: the
-        // frontmatter a runner acts on carries this plan's verbs and budgets,
-        // and the body asserts "20 g, 20 mm thick, 1.00 m away" as facts about
-        // the object under "## This object". Those numbers came out of
-        // `assumedGrams`/`assumedThicknessMillimetres`, not out of anybody's
-        // sentence, so the file would state a measurement nobody took — and the
-        // footer directly above this button promises the file carries its
-        // constraints in its own body. A warning line in the body does not fix
-        // it either: quackd's executor reads the body, but the machine half
-        // would still say fetch, and the constraint text would still be about
-        // an invented object. There is nothing here to write a true file about.
-        //
-        // The button is `.disabled` in this state, so this is a second lock
-        // rather than the visible refusal — it is the one that holds if a caller
-        // ever reaches `save()` some other way. `failure` raises the alert, so
-        // it is not a silent exit; the words are the same StudioKit sentence the
-        // screen is already showing.
-        guard reading.confidence != .notUnderstood else {
-            failure = reading.sentence
-            return
-        }
-        // THE `?? "Fetch it"` FALLBACK IS LIVE, NOT DEAD, and the guard above
-        // does not cover it: "fetch the thing 25 mm thick 2 m away" gives a
-        // thickness outright, so it is understood, and still names no object.
-        let title = reading.object.map { "Fetch the \($0)" } ?? "Fetch it"
-        do {
-            let task = try plan.duckTask(named: title)
-            outgoing = ExportedFile(url: try ExportFile.write(task.encode(),
-                                                              named: "\(task.name).duck"))
-        } catch let error as DuckTask.ReadError {
-            failure = error.message
-        } catch let error as ExportFile.Failure {
-            failure = error.message
-        } catch {
-            failure = "\(error)"
-        }
-    }
 }

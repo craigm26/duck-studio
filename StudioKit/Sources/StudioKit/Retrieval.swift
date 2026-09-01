@@ -672,153 +672,20 @@ extension Retrieval.Plan {
         return slug.isEmpty ? "retrieval" : slug
     }
 
-    public func duckTask(named name: String, author: String? = nil) throws -> DuckTask {
-        let mm = Retrieval.closedTipHeight * 1000
-        let slug = Retrieval.Plan.slug(name)
-        let body = """
-        # \(name)
+    // THE `.duck` EXPORT IS GONE, AND WITH IT THE ONLY THING IN THIS APP THAT
+    // SPOKE ANOTHER PROJECT'S SCHEMA. `duckTask(named:author:)` built quackd's
+    // task file — frontmatter, verbs, budgets, abort patterns — pinned to a
+    // commit of a repository nobody here controls, and this app could not read
+    // its own output back. A plan is now kept as `DuckPlanFile`, which is ours
+    // and round-trips. What a real Microduck runs is an ONNX policy in robotd's
+    // policy slot; nothing about that needed quackd either.
 
-        Fetch it and bring it back. Composed out of policies that already
-        exist — there is no new network here, and none is needed.
-
-        ## The order
-
-        \(schedule.map { entry in
-            String(format: "%.2f s  %@%@", entry.start, entry.step.label,
-                   entry.step.policy.map { " (\($0))" } ?? " (servo 9, no policy)")
-        }.joined(separator: "\n"))
-
-        ## What decides whether this works
-
-        - **The jaw closes \(String(format: "%.0f", mm)) mm above the floor.** The ground-pick
-          policy is rewarded for reaching down and penalised for touching, so it
-          never gets lower. Anything thinner passes under the bite.
-        - **The grasp has to land between \(String(format: "%.2f", Retrieval.graspWindow.lowerBound)) s
-          and \(String(format: "%.2f", Retrieval.graspWindow.upperBound)) s** after the pick starts,
-          lowest at \(String(format: "%.2f", Retrieval.graspInstant)) s. This is measured from the
-          policy, and it is EARLIER than the training config's nominal hold —
-          closing on the config's window closes on the way up.
-        - **10–40 g.** That is the payload the lift was trained against.
-        - **It cannot pivot.** Every approach is an arc; standing still to turn
-          saturates at about 14 degrees and stops.
-        - **The pick is cut at phase 0.7**, so the rise does not quite finish.
-          Let it settle before walking off.
-
-        ## This object
-
-        \(String(format: "%.0f g, %.0f mm thick, %.2f m away.",
-                 stick.grams, stick.thicknessMillimetres, stick.metresAway))
-        \(refusals.isEmpty ? "Inside every envelope."
-                           : refusals.map { ($0.isFatal ? "REFUSED: " : "Warning: ") + $0.message }
-                             .joined(separator: "\n"))
-        """
-        let allow = ["walk_to", "ground_pick", "mouth", "stand"]
-        let fatal = refusals.filter(\.isFatal)
-        return try DuckTask(
-            name: slug,
-            summary: "Pick something light off the floor and bring it back.",
-            author: author,
-            // A FATALLY REFUSED PLAN STILL WRITES A FILE, AND STILL HAS TO SAY
-            // SO WHERE A MACHINE LOOKS. `verbs.confirm` is the only frontmatter
-            // field that changes what a runner does with an otherwise legal
-            // file, so a refused task ships with EVERY verb needing a human yes
-            // — the run cannot start by itself. It is not a lock; it is the
-            // strongest thing the format has. (An empty `verbs.allow` would be
-            // the obvious way to say "do not run this" and is illegal:
-            // `ReadError.noAllowedVerbs`. Refusing to write the file at all was
-            // the other candidate and is a deliberate NO — a file that says it
-            // was refused travels and can be read, and
-            // `testARefusedPlanSaysSoInTheTask` pins that decision.)
-            verbs: .init(allow: allow, confirm: fatal.isEmpty ? [] : allow),
-            // THE ONE HARD STOP THIS PLAN CAN HONESTLY TIGHTEN, AND IT ONLY
-            // EVER LOOSENS. quackd's own default is 5 minutes, and a fetch from
-            // 20 m away is 6.3 minutes of walking before anything goes wrong —
-            // so today's file guarantees its own abort halfway home. The
-            // headroom multiplier is a CHOICE, not a measurement: the schedule
-            // is one clean pass and an LLM executor retries, so it gets three
-            // passes' worth. Floored at quackd's default so this can never cut
-            // a run short that the old file would have finished, and capped at
-            // the schema's 180.
-            budgets: .init(maxMinutes: min(180, max(DuckTask.Budgets.quackdDefaults.maxMinutes,
-                                                    (seconds * 3 / 60).rounded(.up)))),
-            success: ["the object is back where the duck started",
-                      "the duck is standing"],
-            abortWhen: abortConditions(fatal: fatal),
-            learnedVerbs: [],
-            body: body)
-    }
-
-    /// What has to stop the run, in the order a machine reads it.
-    ///
-    /// THE FIRST TWO LINES ARE THE ONLY ONES quackd's EXECUTOR ENFORCES, and
-    /// they were missing from every file this app has ever written. `abort_when`
-    /// is greppped for exactly two phrasings — `DuckAbortPatterns.battery` and
-    /// `.repeats` — and everything else is prose handed to the LLM. Before this,
-    /// all three of our entries were prose, so an exported task travelled with
-    /// no battery floor and no repeat-failure stop while the export screen's
-    /// footer claimed the file "carries the constraints in its own body".
-    ///
-    /// THE 15% AND THE 3 ARE NOT MEASUREMENTS OF THIS DUCK. They are the
-    /// convention both starter ducks in the quackd repository ship with, copied
-    /// so that a file this app writes stops where a file quackd ships stops.
-    /// Their EXACT WORDING is load-bearing and must not be prettied up: "Stop if
-    /// the battery goes below 15% please" does not match, because the words
-    /// between "battery" and "below" defeat the pattern, and "Battery below 15
-    /// percent" does not match either, because it has no `%`. Check any edit
-    /// against `DuckTask.batteryAbortPercent` and `.repeatFailureAbort`, which
-    /// exist precisely to report whether the machine can see a line.
-    ///
-    /// EVERYTHING AFTER THEM IS PROSE ON PURPOSE. The envelopes below are this
-    /// plan's own numbers — the bite height, the trained payload, the measured
-    /// grasp window, the reach band, the pull ceiling — written where an LLM
-    /// reading the file can act on them, because a task that travels without its
-    /// constraints is a task somebody runs against a carrot.
-    private func abortConditions(fatal: [Retrieval.Refusal]) -> [String] {
-        var out = ["Battery below 15%", "Same verb fails 3 times in a row"]
-
-        // A refusal the app already made, phrased as a condition that is true
-        // the instant the run starts — so the runner's own abort check catches
-        // it before the first verb rather than after forty steps.
-        out += fatal.map { "the run has started at all — this task was REFUSED before it was "
-                         + "written and must not be attempted: \($0.message)" }
-
-        out.append(String(format: "what the mouth closed on is thinner than %.0f mm — the jaw "
-            + "closes that far above the floor and anything thinner passes under the bite",
-            Retrieval.closedTipHeight * 1000))
-        // ONLY WHEN THIS PLAN ACTUALLY LIFTS. A drag plan never stands the load
-        // up, so a 600 g broom being towed is not a payload violation and a
-        // file telling the runner to abort over it would be telling it to abort
-        // over the thing it was sent to do. The drag's own ceiling is below.
-        if steps.contains(.lift) {
-            out.append(String(format: "what it picked up is heavier than %.0f g — the lift was "
-                + "trained against %.0f–%.0f g at the mouth and nothing above that was ever "
-                + "carried", Retrieval.payloadRange.upperBound * 1000,
-                Retrieval.payloadRange.lowerBound * 1000,
-                Retrieval.payloadRange.upperBound * 1000))
-        }
-        out.append(String(format: "the jaw did not shut between %.2f s and %.2f s after the "
-            + "ground pick started — the mouth is lowest at %.2f s and closing after that "
-            + "window closes on the way up",
-            Retrieval.graspWindow.lowerBound, Retrieval.graspWindow.upperBound,
-            Retrieval.graspInstant))
-        if stick.graspHeightMillimetres != nil {
-            out.append(String(format: "the grip point is outside the %.0f–%.0f mm band the "
-                + "mouth sweeps through on the way down — the arc reaches nothing above or "
-                + "below that",
-                Retrieval.Reach.lowestDuringPick * 1000, Retrieval.Reach.highestDuringPick * 1000))
-        }
-        if steps.contains(where: { if case .dragBack = $0 { return true }; return false }) {
-            let (ceiling, limit) = Retrieval.Drag.ceiling(
-                footFriction: Retrieval.Drag.footFriction.lowerBound)
-            out.append(String(format: "the pull needed passes about %.1f N — %@, and nothing "
-                + "has ever measured this duck towing anything", ceiling, limit))
-        }
-
-        out += ["the object is not where it was expected",
-                "the duck falls",
-                "the lift leaves the mouth empty"]
-        return out
-    }
+    // `abortConditions(fatal:)` WENT WITH THE EXPORT. It composed the
+    // `abort_when` block of a quackd task — a battery floor and a
+    // repeat-failure stop in exact phrasings that another project's executor
+    // greps for — and had no other caller. The envelopes it listed are not
+    // lost: they are `Retrieval`'s own measured numbers and they are what the
+    // plan on screen is built from.
 }
 
 // MARK: - taking hold of something that is not on the floor, and pulling it

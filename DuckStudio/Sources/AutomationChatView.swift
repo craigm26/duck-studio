@@ -32,6 +32,7 @@ struct AutomationChatView: View {
     /// way, so this is a choice about privacy and speed, not about trust.
     @ObservedObject var models: EndpointStore
     @ObservedObject var benches: BenchStore
+    @ObservedObject var plans: PlanStore
 
     @State private var typed = ""
     /// WHAT THE ROUTER LAST DECIDED, not what somebody picked in advance.
@@ -63,6 +64,8 @@ struct AutomationChatView: View {
     /// Why a task could not be written. This screen refuses things for a
     /// living; it does not get to fail quietly when it is the one that failed.
     @State private var exportFailure: String?
+    /// Named once a plan has been kept, so the card can say so.
+    @State private var kept: String?
     /// How many tries the model gets, how long it gets, and when to stop
     /// asking it. Every one of those decisions lives in StudioKit where a test
     /// drives it; this screen only calls it and shows what it says.
@@ -260,8 +263,8 @@ struct AutomationChatView: View {
                             Button {
                                 save(plan, named: entry.asked)
                             } label: {
-                                Label("Save this plan as a .duck task",
-                                      systemImage: "square.and.arrow.up")
+                                Label("Keep this plan",
+                                      systemImage: "tray.and.arrow.down")
                                     .font(.footnote)
                             }
                             // REFUSED FOR THE SAME REASON `RetrieveView` refuses
@@ -722,29 +725,23 @@ struct AutomationChatView: View {
 
     /// Write the plan a card is showing, titled with the sentence that made it.
     ///
-    /// THE TITLE IS THE PERSON'S OWN WORDS, not a phrase composed here. The kit
-    /// slugs it (`Retrieval.Plan.slug`), so "fetch the carrot" becomes
-    /// `fetch-the-carrot.duck` and the file that lands in Messages is named
-    /// after the thing that was asked for. Nothing about the object, the
-    /// refusals or the schedule is re-derived on this side — `plan` is the one
-    /// the card already printed.
+    /// Keep a plan drafted in this conversation, in this app's own format.
     ///
-    /// EVERY EXIT SAYS SOMETHING, which is the same three-rung ladder
-    /// `RetrieveView.save()` and `IntentAuthorView.share()` use. A `try?` here
-    /// would be a button that looks pressed and does nothing — the failure this
-    /// app exists to explain.
+    /// IT USED TO EXPORT A `.duck` — quackd's task file — which this app could
+    /// not read back, so a fetch worked out here left as a file that returned
+    /// "nothing was added" if anyone tried to bring it home. `DuckPlanFile` is
+    /// ours and round-trips, and a kept plan appears in the Intents tab beside
+    /// the motions.
+    ///
+    /// THE TITLE IS THE PERSON'S OWN WORDS, not a phrase composed here.
     private func save(_ plan: Retrieval.Plan, named title: String) {
-        do {
-            let task = try plan.duckTask(named: title)
-            outgoing = ExportedFile(url: try ExportFile.write(task.encode(),
-                                                              named: "\(task.name).duck"))
-        } catch let error as DuckTask.ReadError {
-            exportFailure = error.message
-        } catch let error as ExportFile.Failure {
-            exportFailure = error.message
-        } catch {
-            exportFailure = "\(error)"
+        let file = DuckPlanFile(name: title, stick: plan.stick, asked: title,
+                                provenance: models.selected.name)
+        guard plans.save(file) else {
+            exportFailure = "That plan could not be kept on this phone."
+            return
         }
+        kept = title
     }
 
     /// Everything in every scene the duck could take hold of.

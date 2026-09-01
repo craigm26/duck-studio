@@ -48,7 +48,7 @@ struct DuckStudioApp: App {
                 NavigationStack { SceneListView(store: scenes, models: models, benches: benches) }
                     .tabItem { Label("Scenes", systemImage: "square.3.layers.3d") }
                 NavigationStack {
-                    AutomationChatView(drafts: drafts, scenes: scenes, models: models, benches: benches)
+                    AutomationChatView(drafts: drafts, scenes: scenes, models: models, benches: benches, plans: plans)
                 }
                     .tabItem { Label("Draft", systemImage: "wand.and.stars") }
                 // THE FIFTH AND LAST TAB, AND THAT IS A HARD CEILING. iPhone

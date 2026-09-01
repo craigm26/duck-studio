@@ -102,15 +102,13 @@ final class LibraryModel: ObservableObject {
         case "duckplan":
             acceptPlan(data, named: name, into: plans)
         case "duck":
-            // A `.duck` IS SOMEBODY ELSE'S FORMAT, AND NOW THERE IS OURS.
-            // quackd's task file is still what this app exports for anyone
-            // driving quackd with it, but a plan meant to come back here leaves
-            // as a `.duckplan`, which this app reads. Saying that is more use
-            // than the old sentence, which told somebody their file was
-            // useless and stopped.
-            lastImport = "\(name) is a quackd task file, which this app writes for other "
-                       + "software to run and does not read back. Save the plan again as a "
-                       + ".duckplan and it will open here."
+            // THIS APP NO LONGER WRITES ONE EITHER. The branch stays because
+            // somebody may still have a `.duck` an older build exported, and
+            // being told which of your files this app reads is more use than
+            // the default's "not a policy".
+            lastImport = "\(name) is a task file for other robot software. Duck Studio keeps "
+                       + "plans in its own format now — a `.duckplan` — and does not read this "
+                       + "one."
         case "onnx":
             accept(data, named: name, origin: nil)
         default:

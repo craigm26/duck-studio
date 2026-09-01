@@ -285,7 +285,7 @@ after a test run.
 |---|---|---|
 | `.duckintent` | A recorded or shared motion. Exported type, `com.duckstudio.intent`. | Yes — the app opens these. |
 | `.duckmove` | A motion you authored here. Exported type, `com.duckstudio.move`, with a document type row. | Yes — `LibraryModel.open` decodes it and files it in your drafts. The row went in with the branch that files the draft, which is the order that matters: a door has to lead somewhere before iOS is told it exists. |
-| `.duck` | A task brief for quackd (`rokbenko/quackd`, spec `duck: 0`). Imported type — this app implements the spec, it does not own it. | No, on purpose. There is no task store and no task screen, so a decode whose success showed up in no list would be a false "Added" banner. |
+| `.duckplan` | A fetch plan: the measured object, and what was asked for. Ours. The steps are derived on read, so a plan cannot go stale and disagree with the app that opens it. | Yes — it lands in Intents, under Plans. |
 | `.onnx` | The policy file itself, handed on with a message that leads with the digest. | Yes — this is the import path. |
 
 ## Not built yet
@@ -419,7 +419,8 @@ The nine policies, the observation layout, the control constants and the MuJoCo
 model are from `pollen-robotics/microduck` and `pollen-robotics/microduck_rl`,
 Apache-2.0. Every number Duck Studio displays about the robot is upstream's
 number, and the Policies screen says of each file whether it is one of Pollen's
-releases. The `.duck` task format is `rokbenko/quackd`'s.
+releases. Every file format this app writes is its own; nothing here implements
+another project's schema.
 
 A top-level `NOTICE` file carrying the Apache-2.0 attribution is still owed and
 is not in the tree; it is required before the first App Store submission.
