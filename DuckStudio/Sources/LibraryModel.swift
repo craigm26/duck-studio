@@ -61,7 +61,7 @@ final class LibraryModel: ObservableObject {
     /// arriving here is REFUSED BY NAME rather than filed somewhere it is not,
     /// because an import that lands in a list nobody is watching is the same
     /// silent failure in a new costume.
-    func open(_ url: URL, into drafts: DraftStore) {
+    func open(_ url: URL, into drafts: DraftStore, plans: PlanStore) {
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
         guard let data = try? Data(contentsOf: url) else {
@@ -99,17 +99,18 @@ final class LibraryModel: ObservableObject {
             acceptIntent(data, named: name)
         case "duckmove":
             acceptMove(data, named: name, into: drafts)
+        case "duckplan":
+            acceptPlan(data, named: name, into: plans)
         case "duck":
-            // NO READER, AND SAYING SO IS THE HONEST ANSWER. `DuckTask.decode`
-            // exists in StudioKit and works, but nothing in this target has a
-            // place to put a task: there is no task store and no task screen,
-            // and a decode whose success shows up in no list would be the
-            // "Added" banner all over again. A `.duck` is written here to be
-            // run by quackd elsewhere, so it arrives only through the Intents
-            // tab's wildcard picker — which is exactly why this branch exists
-            // rather than being left to the default.
-            lastImport = "\(name) is a task file. Duck Studio writes these for quackd to run "
-                       + "somewhere else and has no reader for one, so nothing was added."
+            // A `.duck` IS SOMEBODY ELSE'S FORMAT, AND NOW THERE IS OURS.
+            // quackd's task file is still what this app exports for anyone
+            // driving quackd with it, but a plan meant to come back here leaves
+            // as a `.duckplan`, which this app reads. Saying that is more use
+            // than the old sentence, which told somebody their file was
+            // useless and stopped.
+            lastImport = "\(name) is a quackd task file, which this app writes for other "
+                       + "software to run and does not read back. Save the plan again as a "
+                       + ".duckplan and it will open here."
         case "onnx":
             accept(data, named: name, origin: nil)
         default:
@@ -182,6 +183,22 @@ final class LibraryModel: ObservableObject {
     /// alone — which compiled everywhere and filed a motion nowhere, turning a
     /// finished import path into a door that opens onto a refusal. A parameter
     /// that can be omitted is a parameter that will be.
+    /// A plan written by this app, coming home.
+    func acceptPlan(_ data: Data, named name: String, into plans: PlanStore) {
+        do {
+            let plan = try DuckPlanFile.read(data)
+            guard plans.save(plan) else {
+                lastImport = "\(plan.name) could not be written to this phone."
+                return
+            }
+            lastImport = "\(plan.name) is in your Intents, under Plans."
+        } catch let error as DuckPlanFile.ReadError {
+            lastImport = error.message
+        } catch {
+            lastImport = error.localizedDescription
+        }
+    }
+
     func acceptMove(_ data: Data, named name: String, into drafts: DraftStore) {
         do {
             let draft = try IntentDraft.decode(data)

@@ -26,6 +26,7 @@ struct IntentListView: View {
     /// Apple's model in the other.
     @ObservedObject var models: EndpointStore
     @ObservedObject var benches: BenchStore
+    @ObservedObject var plans: PlanStore
 
     @ObservedObject var store: SceneStore
     @ObservedObject var model: LibraryModel
@@ -73,6 +74,20 @@ struct IntentListView: View {
     /// one can never stand in for a row that means something else.
     private func standIn(for id: UUID) -> IntentDraft? {
         unwritten?.id == id ? unwritten : nil
+    }
+
+    /// What a saved plan says in one line: the object, and the verdict.
+    ///
+    /// THE VERDICT IS RECOMPUTED, not stored — see `DuckPlanFile`. So this line
+    /// is about the app's current measurements rather than about whatever was
+    /// true when the file was written.
+    private func planSummary(_ file: DuckPlanFile) -> String {
+        let plan = file.plan
+        let object = String(format: "%.0f g, %.0f mm thick, %.1f m away",
+                            file.stick.grams, file.stick.thicknessMillimetres,
+                            file.stick.metresAway)
+        return plan.isPossible ? "\(object) · it can do this"
+                               : "\(object) · refused"
     }
 
     var body: some View {
@@ -127,7 +142,7 @@ struct IntentListView: View {
                     editing = DraftID(id: fresh.id, isNew: true)
                 } label: { Label("Write a new motion", systemImage: "plus") }
                 NavigationLink {
-                    RetrieveView()
+                    RetrieveView(plans: plans)
                 } label: {
                     Label("Fetch something", systemImage: "arrow.down.to.line")
                 }
@@ -135,6 +150,35 @@ struct IntentListView: View {
                 Text("Written here")
             } footer: {
                 Text("Poses and times, interpolated. A phone has no physics engine, so this is what you asked the robot for — not what it would do. Every authored move already in this app was written the same way, and all four stair ones get up their flight 0 times in 16.\n\nFetch something is different: it writes no poses at all. Retrieval composes policies the robot already has — walk, ground pick, and the one servo no network drives — so a sentence there becomes a plan, not a keyframe track.")
+            }
+
+            // PLANS ARE KEPT NOW, NOT JUST EXPORTED. A fetch used to leave as a
+            // quackd task file this app could not read back, so the only record
+            // of a plan was a file in Files that returned "nothing was added".
+            if !plans.plans.isEmpty {
+                Section {
+                    ForEach(plans.plans, id: \.name) { plan in
+                        NavigationLink {
+                            RetrieveView(plans: plans, opening: plan)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(plan.name).font(.subheadline)
+                                Text(planSummary(plan))
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .onDelete { indexes in
+                        indexes.map { plans.plans[$0] }.forEach(plans.delete)
+                    }
+                } header: {
+                    Text("Plans")
+                } footer: {
+                    Text("A fetch, kept on this phone in this app's own format. The steps are "
+                       + "worked out again each time it is opened, against the measurements "
+                       + "this app holds — so a plan cannot go stale and argue with the app "
+                       + "that opened it.")
+                }
             }
 
             if !drafts.drafts.isEmpty {
@@ -251,7 +295,7 @@ struct IntentListView: View {
             // AirDropped end up in the same place having had the same checks.
             switch result {
             case .success(let urls):
-                if let url = urls.first { model.open(url, into: drafts) }
+                if let url = urls.first { model.open(url, into: drafts, plans: plans) }
             case .failure(let error):
                 // THE PICKER CAN FAIL AND USED TO DO IT IN SILENCE. `if case
                 // .success` dropped the other half on the floor, so a file the

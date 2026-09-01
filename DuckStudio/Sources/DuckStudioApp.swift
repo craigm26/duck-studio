@@ -20,6 +20,7 @@ struct DuckStudioApp: App {
     @StateObject private var model = LibraryModel()
     @StateObject private var scenes = SceneStore()
     @StateObject private var drafts = DraftStore()
+    @StateObject private var plans = PlanStore()
     /// Which model writes drafts. One store, shared: the Draft tab uses it and
     /// the Models screen edits it.
     @StateObject private var models = EndpointStore()
@@ -36,7 +37,7 @@ struct DuckStudioApp: App {
                 NavigationStack { PolicyListView(model: model, scenes: scenes, drafts: drafts,
                                                models: models, benches: benches) }
                     .tabItem { Label("Policies", systemImage: "cpu") }
-                NavigationStack { IntentListView(models: models, benches: benches, store: scenes, model: model, drafts: drafts) }
+                NavigationStack { IntentListView(models: models, benches: benches, plans: plans, store: scenes, model: model, drafts: drafts) }
                     .tabItem { Label("Intents", systemImage: "figure.walk.motion") }
                 // A THIRD KIND OF THING, and it earned its own tab the moment
                 // the stage started drawing one. A policy is a network, an
@@ -68,7 +69,7 @@ struct DuckStudioApp: App {
             // A policy handed over from Files, Mail, AirDrop or another app.
             // Declared in Info.plist as an IMPORTED type — ONNX is not this
             // app's format to own.
-            .onOpenURL { model.open($0, into: drafts) }
+            .onOpenURL { model.open($0, into: drafts, plans: plans) }
             // THE 0.4 s SETTLE IS THE POINT AND ALSO THE HOLE. Both stores
             // batch writes so that a finger on a slider does not encode the
             // whole library sixty times a second — and a rename is a single

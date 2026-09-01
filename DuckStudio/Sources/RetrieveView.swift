@@ -18,6 +18,12 @@ import StudioKit
 /// Somebody who reads two refusals knows more about this robot than somebody
 /// who watched a demo work.
 struct RetrieveView: View {
+    /// Where a plan is kept when it is saved into the app rather than exported.
+    @ObservedObject var plans: PlanStore
+    /// A plan being reopened from the Intents list, if this screen was pushed
+    /// from one. The sentence it was written from comes back with it.
+    var opening: DuckPlanFile?
+
     @State private var sentence = "fetch the stick 1 m away"
     /// PRESENTED ON THE FILE ITSELF, NOT ON A FLAG BESIDE IT. The pair this
     /// replaced — a `Bool` and a `URL?` — let `.sheet` reach a state where it
@@ -28,6 +34,8 @@ struct RetrieveView: View {
     /// Why the file could not be written. This screen refused things for a
     /// living and then had nothing to say when it was the one that failed.
     @State private var failure: String?
+    /// Named after it is kept, so the screen can say so rather than going quiet.
+    @State private var kept: String?
 
     /// The header over the unread verdict, named because the Save footer points
     /// the reader at it BY NAME. Two literals would be one rename away from a
@@ -36,6 +44,38 @@ struct RetrieveView: View {
 
     private var reading: Retrieval.Reading { Retrieval.read(sentence) }
     private var plan: Retrieval.Plan { Retrieval.plan(for: reading.stick) }
+
+    /// Keep the plan in this app, in this app's own format.
+    private func keep() {
+        failure = nil
+        let reading = Retrieval.plan(for: sentence)
+        // THE SAME NAME THE EXPORT USES, so a plan kept here and a plan
+        // exported are recognisably the same thing.
+        let title = reading.reading.object.map { "Fetch the \($0)" } ?? "Fetch it"
+        // KEPT EVEN WHEN THE DUCK CANNOT DO IT. A refusal is a result — it is
+        // the measured reason a fetch will not work — and somebody who wants to
+        // come back and change the object should not have to retype it.
+        let file = DuckPlanFile(name: title,
+                                stick: reading.plan.stick,
+                                asked: sentence,
+                                provenance: "Written here")
+        guard plans.save(file) else {
+            failure = "That plan could not be written to this phone."
+            return
+        }
+        kept = file.name
+    }
+
+    /// Restore the sentence a reopened plan was written from, once.
+    ///
+    /// THE SENTENCE, NOT THE PLAN. `DuckPlanFile` stores the measurement and
+    /// derives the plan; this screen derives it from a sentence. Putting the
+    /// words back is what makes the two agree, and it is also the thing
+    /// somebody wants to edit.
+    private func restoreIfOpening() {
+        guard let opening, let asked = opening.asked, !asked.isEmpty else { return }
+        sentence = asked
+    }
 
     var body: some View {
         List {
@@ -194,10 +234,20 @@ struct RetrieveView: View {
             }
 
             Section {
+                // KEEPING IT COMES FIRST, EXPORTING SECOND. This screen used to
+                // offer only the export — a quackd task file this app cannot
+                // read back — so a plan somebody worked out here could not be
+                // returned to, and re-importing one was answered with "nothing
+                // was added". A plan is now a thing the app holds.
+                Button {
+                    keep()
+                } label: {
+                    Label("Keep this plan", systemImage: "tray.and.arrow.down")
+                }
                 Button {
                     save()
                 } label: {
-                    Label("Save as a .duck task", systemImage: "square.and.arrow.up")
+                    Label("Export as a .duck task", systemImage: "square.and.arrow.up")
                 }
                 // DISABLED RATHER THAN ENABLED AND REFUSING, because a control
                 // that cannot work says so before it is pressed. The reason is in
