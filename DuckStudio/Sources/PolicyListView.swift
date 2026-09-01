@@ -125,7 +125,8 @@ struct PolicyListView: View {
 
     private func row(_ entry: PolicyLibrary.Entry) -> some View {
         NavigationLink {
-            PolicyDetailView(entry: entry, library: model.library, benches: benches,
+            PolicyDetailView(entry: entry, model: model,
+                             library: model.library, benches: benches,
                              standing: model.standing(for: entry),
                              scenes: scenes, drafts: drafts, models: models)
         } label: {
@@ -159,6 +160,11 @@ struct PolicyListView: View {
 /// One policy: what it is, where it came from, and what is inside it.
 struct PolicyDetailView: View {
     let entry: PolicyLibrary.Entry
+    /// For the "Run it on a bench" link. THE COMMENT BELOW PROMISED TWO THINGS
+    /// AND ONE WAS BUILT: remix reached this screen and run did not, so the
+    /// only route to a bench stayed the menu two taps back that cannot know
+    /// which policy you have open — the exact complaint the comment makes.
+    @ObservedObject var model: LibraryModel
     /// So this policy can be remixed and run from its own screen, rather than
     /// only from a menu two taps away that does not know which one you are
     /// looking at.
@@ -279,6 +285,11 @@ struct PolicyDetailView: View {
                                                          starting: entry) } label: {
                             Label("Remix it with another", systemImage: "arrow.triangle.merge")
                         }
+                    }
+                    NavigationLink { RemoteRunView(model: model, scenes: scenes,
+                                                   drafts: drafts, models: models,
+                                                   benches: benches) } label: {
+                        Label("Run it on a bench", systemImage: "wifi")
                     }
                 } footer: {
                     Text("Hand it an observation and see the fourteen numbers it answers with, and the robot they command. A network has no time axis — nothing plays here. To watch it move, run it on a bench and keep the recording — it lands in the Intents tab, under \"Brought in\", not on this screen.")

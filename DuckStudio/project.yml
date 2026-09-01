@@ -127,34 +127,34 @@ targets:
             UTTypeTagSpecification:
               public.filename-extension:
                 - onnx
-          # The third format this app WRITES — and the same rule applies to it
-          # as to ONNX, for the same reason. A `.duck` is quackd's
-          # (rokbenko/quackd, spec `duck: 0`); StudioKit's DuckTask says it in
-          # capitals — this implements it, it does not define it. So the
-          # identifier sits under the repository that owns the spec rather than
-          # under com.duckstudio, which would claim a format somebody else
-          # defined and collide the day quackd declares its own.
+          # A FORMAT THIS APP NO LONGER WRITES OR READS, AND THE DECLARATION
+          # STAYS ANYWAY. `.duck` is quackd's (rokbenko/quackd, spec `duck: 0`).
+          # An older build of this app exported one; `DuckTask` and the export
+          # that used it are both gone, so nothing here writes a `.duck` and
+          # nothing reads one. Every sentence that used to justify this block
+          # cited that deleted type.
           #
-          # WHAT THIS DECLARATION BUYS, STATED SO NOBODY EXPECTS MORE. Without
-          # it a `.duck` resolves to a dynamic type conforming to public.data:
-          # a blank icon, no type name in the share preview, and no place in
-          # any activity that filters on a declared type. The declaration fixes
-          # exactly those three things on the way OUT.
+          # WHAT IT BUYS NOW, WHICH IS ONE THING. Somebody who used an older
+          # build still has these files. Without the declaration a `.duck`
+          # resolves to a dynamic type conforming to public.data — a blank icon
+          # and no type name anywhere in Files. With it, a leftover file at
+          # least looks like something and says what it is.
           #
-          # WHAT IT DELIBERATELY DOES NOT DO IS OPEN A DOOR. There is no
-          # CFBundleDocumentTypes row for it below, and that omission is the
-          # whole design: a document type is what makes iOS hand the file to
-          # this app, and this app has no reader for a task — `DuckTask.decode`
-          # exists in StudioKit but nothing in the target has anywhere to put
-          # the result. Declaring the row would make Duck Studio the thing that
-          # opens a `.duck` and then refuses it, which is worse than not being
-          # offered. THE ROW GOES IN THE DAY A TASK SCREEN DOES, and then as
-          # Viewer/Alternate like ONNX, because quackd runs these and this app
-          # would only be reading them.
+          # THE IDENTIFIER STAYS UNDER QUACKD'S REPOSITORY, not under
+          # com.duckstudio, for the reason that has not changed: this app never
+          # defined the format and claiming it would collide the day quackd
+          # declares its own.
           #
-          # public.plain-text, not public.json like the two exported types:
-          # DuckTask.encode() writes `---` YAML frontmatter and a Markdown body,
-          # so a JSON conformance would be a false claim about the bytes.
+          # NO CFBundleDocumentTypes ROW, AND THAT IS STILL DELIBERATE. A
+          # document type is what makes iOS hand a file to this app, and there
+          # is now no reader at all. `LibraryModel.open` names a stray `.duck`
+          # rather than defaulting to "not a policy" — see the branch there —
+          # so somebody who AirDrops one gets told what it is instead of being
+          # told their network will not load.
+          #
+          # public.plain-text because that is what those older files are: `---`
+          # frontmatter and a Markdown body. public.json would be a false claim
+          # about the bytes.
           - UTTypeIdentifier: io.github.rokbenko.quackd.duck
             UTTypeDescription: Microduck task
             UTTypeConformsTo:
@@ -229,13 +229,25 @@ targets:
         # missing from this list is missing on purpose.
         #
         # `.duck` has no row, for the reason written out beside its imported
-        # declaration above: there is no reader. A document type is what makes
-        # iOS hand a file over, so declaring one for a format this target cannot
-        # put anywhere would make Duck Studio the app that offers to open a task
-        # and then turns it away — an enabled, inert door, which is the thing
-        # this app is built not to be. The row goes in the day a task screen
-        # does, and then as Viewer/Alternate: quackd runs these, this app would
-        # only be reading them.
+        # declaration above: quackd is gone and there is no reader at all. A
+        # document type is what makes iOS hand a file over, so declaring one for
+        # a format this target cannot put anywhere would make Microduck Studio
+        # the app that offers to open a task and then turns it away — an
+        # enabled, inert door, which is the thing this app is built not to be.
+        # `LibraryModel.open` still NAMES a stray `.duck` rather than calling it
+        # a broken network, which is the whole of what is owed to somebody
+        # holding one.
+        #
+        # `.duckplan` has no row either, and that is a REAL GAP rather than a
+        # design. It is the format this app now writes and reads —
+        # `LibraryModel.open` has a "duckplan" branch and `acceptPlan` files it
+        # — but no type is declared and nothing exports one, so no `.duckplan`
+        # can be handed to this app and none can leave it. Both paths are
+        # currently unreachable. They are kept because the day a plan can
+        # travel between two phones, it must land in Plans rather than in the
+        # Policies tab as a network that will not load. Wiring that door is
+        # declaring the type, adding the row, and adding a share path — all
+        # three, or none.
         CFBundleDocumentTypes:
           - CFBundleTypeName: Microduck intent
             LSItemContentTypes:

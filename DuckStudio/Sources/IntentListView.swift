@@ -76,31 +76,13 @@ struct IntentListView: View {
         unwritten?.id == id ? unwritten : nil
     }
 
-    /// What a saved plan says in one line: the object, and the verdict.
+    /// What a saved plan says in one line.
     ///
-    /// THE VERDICT IS RECOMPUTED, not stored — see `DuckPlanFile`. So this line
-    /// is about the app's current measurements rather than about whatever was
-    /// true when the file was written.
-    private func planSummary(_ file: DuckPlanFile) -> String {
-        let plan = file.plan
-        let object = String(format: "%.0f g, %.0f mm thick, %.1f m away",
-                            file.stick.grams, file.stick.thicknessMillimetres,
-                            file.stick.metresAway)
-        // "IT CAN DO THIS" IS NOT `isPossible` ON ITS OWN. `isPossible` is
-        // "no FATAL refusal", and two refusals are non-fatal by design:
-        // `.tooHeavyToLift` — past the trained lift but the floor can take the
-        // drag — and `.tooFar`. A 600 g broom at friction 0.4 needs ~2.35 N
-        // against a ~5.06 N slip ceiling, so it lands here carrying
-        // `Drag.untestedNote` ("nothing has trained or measured a duck towing
-        // anything") and this row used to print an unqualified yes over it.
-        // The refusals are the product; a summary that drops them sells the
-        // opposite of what the screen below it says.
-        if !plan.isPossible { return "\(object) · refused" }
-        let caveats = plan.refusals.count
-        if caveats == 0 { return "\(object) · it can do this" }
-        return "\(object) · it can do this, with "
-             + (caveats == 1 ? "one caveat" : "\(caveats) caveats")
-    }
+    /// STUDIOKIT'S SENTENCE, NOT THIS FILE'S. It asserts what the robot can do
+    /// with somebody's object, which is the one class of claim that is not a
+    /// view's to compose — see `Retrieval.Plan.oneLine`, and the tests that
+    /// pin it.
+    private func planSummary(_ file: DuckPlanFile) -> String { file.plan.oneLine }
 
     var body: some View {
         List {

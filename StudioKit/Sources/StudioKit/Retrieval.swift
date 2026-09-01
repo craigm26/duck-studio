@@ -120,6 +120,35 @@ public enum Retrieval {
         public var isLiftable: Bool { grams <= Retrieval.payloadRange.upperBound * 1000 }
     }
 
+    /// Whether a screen showing a REOPENED plan should still be using the
+    /// measurement that plan was kept with, given the words now in its field.
+    ///
+    /// THIS EXISTS BECAUSE THE OBVIOUS VERSION IS WRONG IN A WAY NOTHING
+    /// CATCHES. `RetrieveView` restores a reopened plan from `.task` — after
+    /// the first body pass — by writing the stored stick and then the stored
+    /// sentence. A plain `.onChange(of: sentence) { restored = nil }` has by
+    /// then latched the field's literal default as its baseline, so writing
+    /// the stored sentence IS a change, the hook runs on the next update, and
+    /// the measurement is thrown away one update after it was put back. Every
+    /// symptom the restore was written to cure comes back — a plan measured
+    /// against an 800 g scene prop reopens showing the catalogue's 600 g, over
+    /// "Guessed" rows, sometimes in `.notUnderstood` with its own text calling
+    /// those numbers invented — and the section that would have shown the
+    /// stored measurement is simply unreachable. Nothing about that is visible
+    /// in the source: both halves read correctly on their own.
+    ///
+    /// - Parameter sentence: What is in the field now.
+    /// - Parameter asked: The sentence the plan was kept with, if it had one.
+    public static func shouldKeepStoredMeasurement(sentence: String,
+                                                   asked: String?) -> Bool {
+        // A PLAN KEPT WITHOUT A SENTENCE KEEPS ITS MEASUREMENT UNTIL SOMETHING
+        // IS TYPED. `restoreIfOpening` does not touch the field in that case,
+        // so the field still holds its own default and no change ever fires;
+        // if one does, the person typed it and the words are now in charge.
+        guard let asked, !asked.isEmpty else { return false }
+        return sentence == asked
+    }
+
     /// Why a retrieval will not work. Each one names a measurement.
     public enum Refusal: Equatable, Sendable {
         /// Past the lift, but the floor can take the weight.
@@ -651,25 +680,38 @@ extension Retrieval {
 
 extension Retrieval.Plan {
 
-    /// The plan as a `.duck` task, so it can be saved, read, shared and run by
-    /// something other than this screen.
+    /// What this plan says in one line, for a row that has no room for the
+    /// refusals themselves.
     ///
-    /// THE BODY IS THE INTERESTING PART. A task file carries prose an agent
-    /// reads, and what it needs to be told here is not "fetch the stick" — it
-    /// is the four facts that decide whether fetching works at all. They are
-    /// written into the body rather than left in this app, because a task that
-    /// travels without its constraints is a task that gets run against a
-    /// carrot.
-    /// `.duck` names are slugs, so a title typed by a person is slugged here
-    /// rather than thrown back at them — "Fetch the dowel" is a reasonable
-    /// thing to type and `fetch-the-dowel` is what the format wants.
-    public static func slug(_ title: String) -> String {
-        let mapped = title.lowercased().map { character -> Character in
-            character.isLetter || character.isNumber ? character : "-"
+    /// `isPossible` ALONE IS NOT "IT CAN DO THIS". It means "no FATAL
+    /// refusal", and two refusals are non-fatal by design: `.tooFar`, which
+    /// only costs time, and `.tooHeavyToLift`, which is past the trained lift
+    /// but inside what the floor can take. Those are not the same news. A
+    /// 600 g broom at friction 0.4 needs ~2.35 N against a ~5.06 N foot-slip
+    /// ceiling, so it lands here carrying `Drag.untestedNote` — "nothing has
+    /// trained or measured a duck towing anything" — and a row printing an
+    /// unqualified yes over that sells the exact manoeuvre the screen it opens
+    /// says nobody has ever performed. So the caveat is NAMED, not counted: a
+    /// count cannot tell an untested drag from a longer walk.
+    ///
+    /// IT LIVES HERE RATHER THAN IN THE ROW THAT DRAWS IT. This is a sentence
+    /// about what the robot can do, which is the class of claim this package
+    /// exists to own and pin by test — `Reading.sentence` is the precedent. It
+    /// was composed in a view, asserted "it can do this", and no test anywhere
+    /// mentioned the string.
+    public var oneLine: String {
+        let object = String(format: "%.0f g, %.0f mm thick, %.1f m away",
+                            stick.grams, stick.thicknessMillimetres, stick.metresAway)
+        guard isPossible else { return "\(object) · refused" }
+        if refusals.contains(where: { if case .tooHeavyToLift = $0 { return true }
+                                      return false }) {
+            return "\(object) · only by dragging, which nothing has measured"
         }
-        let parts = String(mapped).split(separator: "-", omittingEmptySubsequences: true)
-        let slug = parts.joined(separator: "-")
-        return slug.isEmpty ? "retrieval" : slug
+        if refusals.contains(where: { if case .tooFar = $0 { return true }
+                                      return false }) {
+            return "\(object) · it can do this, slowly"
+        }
+        return "\(object) · it can do this"
     }
 
     // THE `.duck` EXPORT IS GONE, AND WITH IT THE ONLY THING IN THIS APP THAT

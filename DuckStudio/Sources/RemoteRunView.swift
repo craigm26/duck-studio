@@ -47,6 +47,17 @@ struct RemoteRunView: View {
     /// clip.name` was still true — the button read "Kept — it is in your
     /// Intents" and sat disabled over a recording nobody had saved.
     @State private var kept: String?
+    /// The name THIS recording would be kept under, minted when it arrived.
+    ///
+    /// IT CANNOT BE COMPUTED IN THE LABEL. The button compares against it on
+    /// every body pass, so anything that distinguishes two otherwise identical
+    /// recordings — and the twist fields exist precisely to make two runs of
+    /// one policy at one duration different — has to be captured once, when
+    /// the clip lands. Named from the policy, the duration and the tick count
+    /// alone, two runs that differ only in their twists share a name, and
+    /// `acceptIntent` writes `intents/<name>.duckintent` keyed by name: the
+    /// second keep destroys the first while reporting "Added the motion …".
+    @State private var recordedName: String?
 
     var body: some View {
         List {
@@ -194,11 +205,11 @@ struct RemoteRunView: View {
                     Button {
                         keepRecording(clip)
                     } label: {
-                        Label(kept == Self.keepName(clip) ? "Kept — it is in your Intents"
+                        Label(kept != nil && kept == recordedName ? "Kept — it is in your Intents"
                                                 : "Keep this recording",
-                              systemImage: kept == Self.keepName(clip) ? "checkmark.circle" : "tray.and.arrow.down")
+                              systemImage: kept != nil && kept == recordedName ? "checkmark.circle" : "tray.and.arrow.down")
                     }
-                    .disabled(kept == Self.keepName(clip))
+                    .disabled(kept != nil && kept == recordedName)
                 } header: {
                     Text("Recorded")
                 } footer: {
@@ -279,7 +290,9 @@ struct RemoteRunView: View {
         let note = clip.credit
             ?? DuckBench.recordedCredit(plantName: health?.plantName,
                                         plantDigest: health?.plantDigest)
-        let title = Self.keepName(clip)
+        // THE NAME MINTED WHEN THE RECORDING ARRIVED, not one composed now:
+        // recomposing here would put a second clock reading on it.
+        let title = recordedName ?? Self.keepName(clip, at: Date())
         do {
             let export = IntentExport(clip: clip, policyFingerprint: nil,
                                       note: note, named: title)
@@ -304,10 +317,12 @@ struct RemoteRunView: View {
     /// `intent-success.json` — so a fresh recording made on somebody's own
     /// bench came up carrying a measured success rate that had been measured
     /// about something else.
-    private static func keepName(_ clip: DuckIntentClip) -> String {
+    private static func keepName(_ clip: DuckIntentClip, at when: Date) -> String {
         let seconds = clip.hz > 0 ? Double(clip.frames.count) / clip.hz : 0
-        return String(format: "%@ — bench, %.1f s, %d ticks",
-                      clip.name, seconds, clip.frames.count)
+        let clock = DateFormatter()
+        clock.dateFormat = "HH:mm:ss"
+        return String(format: "%@ — bench %@, %.1f s, %d ticks",
+                      clip.name, clock.string(from: when), seconds, clip.frames.count)
     }
 
     @MainActor private func run<T>(_ work: () async throws -> T) async -> T? {
@@ -321,7 +336,7 @@ struct RemoteRunView: View {
     }
 
     @MainActor private func connect() async {
-        health = nil; clip = nil; success = nil; kept = nil
+        health = nil; clip = nil; success = nil; kept = nil; recordedName = nil
         health = await run {
             let address = try requireBench().resolved()
             let request = DuckBench.urlRequest(for: DuckBench.health(address), token: token)
@@ -332,7 +347,7 @@ struct RemoteRunView: View {
     }
 
     @MainActor private func record() async {
-        success = nil; kept = nil
+        success = nil; kept = nil; recordedName = nil
         clip = await run {
             let address = try requireBench().resolved()
             let call = try DuckBench.record(address, policy: chosen, seconds: seconds,
@@ -341,10 +356,12 @@ struct RemoteRunView: View {
                 for: DuckBench.urlRequest(for: call, token: token))
             return try DuckBench.readClip(data, named: chosen)
         }
+        // MINTED ONCE, HERE. See `recordedName`.
+        if let clip { recordedName = Self.keepName(clip, at: Date()) }
     }
 
     @MainActor private func measure() async {
-        clip = nil; kept = nil
+        clip = nil; kept = nil; recordedName = nil
         success = await run {
             let address = try requireBench().resolved()
             let call = try DuckBench.measure(address, policy: chosen, seconds: seconds,

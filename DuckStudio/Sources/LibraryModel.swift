@@ -100,6 +100,14 @@ final class LibraryModel: ObservableObject {
         case "duckmove":
             acceptMove(data, named: name, into: drafts)
         case "duckplan":
+            // NOTHING CAN REACH THIS YET, AND THE BRANCH STAYS. `.duckplan` is
+            // undeclared — no UTType, no CFBundleDocumentTypes row — and no
+            // screen exports one, so iOS will not hand this app a plan and no
+            // plan can leave it. Both halves are in `project.yml`'s comment,
+            // written down rather than left for somebody to rediscover. It is
+            // here so that the day a plan CAN travel between two phones, it
+            // lands in Plans instead of in the Policies tab as a network that
+            // will not load — which is what the default branch would call it.
             acceptPlan(data, named: name, into: plans)
         case "duck":
             // THIS APP NO LONGER WRITES ONE EITHER. The branch stays because

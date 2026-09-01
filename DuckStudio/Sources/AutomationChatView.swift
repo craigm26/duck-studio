@@ -269,9 +269,12 @@ struct AutomationChatView: View {
                             // above and written below. Nothing re-reads the
                             // sentence and nothing can disagree.
                             //
-                            // The detail screen is still worth opening, but it
-                            // cannot be given this plan until `RetrieveView`
-                            // takes a sentence and the props that resolved it.
+                            // THAT LIMITATION IS LIFTED. `RetrieveView` now
+                            // takes an `opening: DuckPlanFile` and restores the
+                            // measurement it was kept with, so a plan kept here
+                            // opens there showing these numbers rather than
+                            // whatever the sentence-only reader makes of the
+                            // words a second time.
                             Button {
                                 save(plan, named: entry.asked, by: entry.drafter)
                             } label: {
@@ -280,14 +283,13 @@ struct AutomationChatView: View {
                                     .font(.footnote)
                             }
                             // REFUSED FOR THE SAME REASON `RetrieveView` refuses
-                            // it: the body of a task file states its object's
-                            // weight and thickness as facts, and for a sentence
-                            // nothing was read out of, those numbers are this
-                            // app's invention. The footer under that button
-                            // promises the file carries its constraints in its
-                            // own body; a file whose constraints describe an
-                            // object nobody mentioned is the file that promise
-                            // exists to rule out.
+                            // it: a kept plan states its object's weight and
+                            // thickness as facts — they are the whole file, and
+                            // the schedule is derived from them every time it is
+                            // opened — and for a sentence nothing was read out
+                            // of, those numbers are this app's invented 20 g /
+                            // 20 mm dowel. Writing them down makes an invention
+                            // into a measurement somebody comes back to.
                             .disabled(entry.planConfidence == .notUnderstood)
                             // WRITTEN AND RENDERED NOWHERE, for one revision.
                             // `kept` was set on success and read in no `body`,

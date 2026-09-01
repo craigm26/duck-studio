@@ -1,5 +1,4 @@
 import SwiftUI
-import DuckKit
 import StudioKit
 
 /// Say what you want fetched; find out whether the duck can fetch it.
@@ -18,7 +17,7 @@ import StudioKit
 /// Somebody who reads two refusals knows more about this robot than somebody
 /// who watched a demo work.
 struct RetrieveView: View {
-    /// Where a plan is kept when it is saved into the app rather than exported.
+    /// Where a plan is kept on this phone.
     @ObservedObject var plans: PlanStore
     /// A plan being reopened from the Intents list, if this screen was pushed
     /// from one. The sentence it was written from comes back with it.
@@ -73,9 +72,12 @@ struct RetrieveView: View {
     /// Keep the plan in this app, in this app's own format.
     private func keep() {
         failure = nil
+        // THE SECOND LOCK, WHICH THE DELETED EXPORT DOCUMENTED AS LOAD-BEARING.
+        // `.disabled` is a statement about a control; this is a statement about
+        // the file. Writing a plan whose object nobody read means writing this
+        // app's invented 20 g / 20 mm dowel down as somebody's measurement.
+        guard confidence != .notUnderstood else { return }
         let reading = Retrieval.plan(for: sentence)
-        // THE SAME NAME THE EXPORT USES, so a plan kept here and a plan
-        // exported are recognisably the same thing.
         let noun = reading.reading.object ?? "it"
         // THE MEASUREMENT IS IN THE NAME, because `PlanStore.save` is keyed by
         // name and justifies that on "two plans with the same name are the same
@@ -84,7 +86,12 @@ struct RetrieveView: View {
         // "fetch the pencil 4 m away, 30 mm thick" were both "Fetch the pencil"
         // and the second silently destroyed the first — everything that made
         // them different plans lived in the numbers this now prints.
-        let title = "Fetch the \(noun) · " + Self.measured(stick)
+        let composed = "Fetch the \(noun) · " + Self.measured(stick)
+        // A REOPENED, UNEDITED PLAN IS THE SAME PLAN. `AutomationChatView`
+        // titles a plan with the person's own sentence and this screen composes
+        // noun plus measurement, so recomposing on the way back in files a
+        // SECOND copy of a plan already in the list, under a name nobody chose.
+        let title = restored != nil ? (opening?.name ?? composed) : composed
         // KEPT EVEN WHEN THE DUCK CANNOT DO IT. A refusal is a result — it is
         // the measured reason a fetch will not work — and somebody who wants to
         // come back and change the object should not have to retype it.
@@ -313,11 +320,11 @@ struct RetrieveView: View {
             }
 
             Section {
-                // KEEPING IT COMES FIRST, EXPORTING SECOND. This screen used to
-                // offer only the export — a quackd task file this app cannot
-                // read back — so a plan somebody worked out here could not be
-                // returned to, and re-importing one was answered with "nothing
-                // was added". A plan is now a thing the app holds.
+                // THERE IS ONE BUTTON NOW. This screen used to offer only an
+                // export — a quackd task file this app could not read back — so
+                // a plan worked out here could not be returned to, and
+                // re-importing one was answered with "nothing was added". A plan
+                // is a thing the app holds; the export is gone with quackd.
                 Button {
                     keep()
                 } label: {
@@ -343,7 +350,13 @@ struct RetrieveView: View {
                     // says why the button is off and where to read the rest.
                     Text("Nothing to write down: no thing to fetch was read out of your sentence. See \"\(Self.unreadHeader)\" above.")
                 } else {
-                    Text("A task file carries the constraints in its own body, so it can be read and run somewhere this app is not — a task that travels without them is one somebody runs against a carrot.")
+                    // WHAT THE BUTTON ACTUALLY DOES. This sentence outlived the
+                    // control it described: it promised a task file that travels
+                    // and gets "run somewhere this app is not", one line under a
+                    // confirmation saying the plan is in your Intents. The only
+                    // control here writes a `.duckplan` into Application Support.
+                    // Nothing leaves the phone.
+                    Text("This plan is kept on this phone, in this app's own format, and it appears in your Intents under Plans. The file holds the MEASUREMENT, not the steps — the schedule above is worked out again from those numbers every time the plan is opened, so a kept plan cannot go stale and start disagreeing with the app that opens it.")
                 }
             }
         }
@@ -352,11 +365,21 @@ struct RetrieveView: View {
         .task { restoreIfOpening() }
         // A CONFIRMATION IS ABOUT WHAT WAS ON SCREEN WHEN IT WAS PRESSED. Leave
         // "Kept as …" standing over an edited sentence and it claims a plan
-        // nobody wrote; leave `restored` standing and the stored measurement
-        // outlives the words it belonged to.
-        .onChange(of: sentence) { _, _ in
+        // nobody wrote.
+        .onChange(of: sentence) { _, now in
             kept = nil
-            restored = nil
+            // NOT ON THE RESTORE ITSELF, and the reason is subtle enough that
+            // the decision lives in StudioKit under test rather than here:
+            // `restoreIfOpening` runs from `.task`, so putting the stored
+            // sentence back IS a change to this hook, and clearing `restored`
+            // unconditionally threw the measurement away one update after
+            // putting it there — leaving the screen re-deriving from the
+            // sentence exactly as before, with the section that shows the
+            // stored measurement unreachable.
+            if !Retrieval.shouldKeepStoredMeasurement(sentence: now,
+                                                      asked: opening?.asked) {
+                restored = nil
+            }
         }
         .alert("That did not save",
                isPresented: .constant(failure != nil),

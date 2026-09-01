@@ -43,8 +43,8 @@ struct ShareSheet: UIViewControllerRepresentable {
 /// `EmptyView`, in a sheet, with no way out. Presenting on the value itself
 /// means there is no state in which a sheet exists and the file does not.
 ///
-/// It carries no message, unlike `Outgoing`. That is deliberate: a `.duck` task
-/// and a training brief have no drafted share prose behind them, and inventing
+/// It carries no message, unlike `Outgoing`. That is deliberate: a training
+/// brief has no drafted share prose behind it, and inventing
 /// one in a view is where the sentences this app is careful about would start
 /// being written somewhere nothing tests them.
 struct ExportedFile: Identifiable {

@@ -10,10 +10,10 @@ import Foundation
 /// writes these for quackd to run somewhere else and has no reader for one, so
 /// nothing was added."
 ///
-/// AND IT DEPENDS ON NOBODY. `duck-plan/1` is ours. A `.duck` export stays
-/// available for anyone who wants to drive quackd with it, but it is no longer
-/// the only thing a plan can become, and nothing about keeping a plan in this
-/// app now hinges on another project's schema.
+/// AND IT DEPENDS ON NOBODY. `duck-plan/1` is ours. There is no `.duck` export
+/// any more — it went with quackd, along with the only thing in this app that
+/// spoke another project's schema — so nothing about keeping a plan here
+/// hinges on a format pinned to a repository nobody in this project controls.
 ///
 /// IT STORES THE MEASUREMENT, NOT THE STEPS. `Retrieval.plan(for:)` derives the
 /// steps, the refusals and the timing from the object's mass, thickness,

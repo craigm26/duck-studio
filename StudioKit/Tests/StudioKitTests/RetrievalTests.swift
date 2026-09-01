@@ -390,3 +390,60 @@ extension RetrievalTests {
     }
 }
 
+
+extension RetrievalTests {
+
+    /// The restore survives being restored — see
+    /// `Retrieval.shouldKeepStoredMeasurement`.
+    func testTheStoredMeasurementSurvivesTheSentenceBeingPutBack() {
+        // The exact sequence `RetrieveView` performs: the field holds its
+        // literal default, then `.task` writes the plan's own sentence.
+        XCTAssertTrue(Retrieval.shouldKeepStoredMeasurement(
+            sentence: "fetch the broom leaning in the corner",
+            asked: "fetch the broom leaning in the corner"))
+    }
+
+    func testEditingTheSentencePutsTheSentenceBackInCharge() {
+        XCTAssertFalse(Retrieval.shouldKeepStoredMeasurement(
+            sentence: "fetch the broom leaning in the corner, 2 m away",
+            asked: "fetch the broom leaning in the corner"))
+    }
+
+    /// A plan kept with no sentence never had words to disagree with, so the
+    /// first thing typed is the person's and takes over.
+    func testAPlanWithNoSentenceYieldsToWhateverIsTyped() {
+        XCTAssertFalse(Retrieval.shouldKeepStoredMeasurement(
+            sentence: "fetch the stick 1 m away", asked: nil))
+        XCTAssertFalse(Retrieval.shouldKeepStoredMeasurement(
+            sentence: "fetch the stick 1 m away", asked: ""))
+    }
+}
+
+extension RetrievalTests {
+
+    /// The Plans row's verdict. A count of caveats cannot tell an untested
+    /// drag from a longer walk, and the untested drag is the one that matters.
+    func testAFatalRefusalReadsAsRefused() {
+        let plan = Retrieval.plan(for: .init(grams: 20, thicknessMillimetres: 7,
+                                             metresAway: 1))
+        XCTAssertTrue(plan.oneLine.hasSuffix("· refused"), plan.oneLine)
+    }
+
+    func testAPlanInsideEveryEnvelopeSaysSoWithoutQualification() {
+        let plan = Retrieval.plan(for: .init(grams: 25, thicknessMillimetres: 25,
+                                             metresAway: 1))
+        XCTAssertEqual(plan.oneLine, "25 g, 25 mm thick, 1.0 m away · it can do this")
+    }
+
+    /// THE ONE THIS EXISTS FOR. 600 g is past the trained lift and inside what
+    /// the floor can take, so `isPossible` is true and the row used to print an
+    /// unqualified yes over `Drag.untestedNote`.
+    func testAnUntestedDragIsNamedRatherThanCountedAsACaveat() {
+        let plan = Retrieval.plan(for: .init(grams: 600, thicknessMillimetres: 25,
+                                             metresAway: 1, floorFriction: 0.4))
+        XCTAssertTrue(plan.isPossible, "the premise: no FATAL refusal")
+        XCTAssertEqual(plan.oneLine,
+                       "600 g, 25 mm thick, 1.0 m away · only by dragging, which nothing has measured")
+        XCTAssertFalse(plan.oneLine.hasSuffix("· it can do this"))
+    }
+}
