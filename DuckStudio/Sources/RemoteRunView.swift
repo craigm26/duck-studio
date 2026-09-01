@@ -10,6 +10,7 @@ import StudioKit
 /// machine and baked in when the app was built. Point this at a bench on your
 /// network and an imported policy becomes something you can actually run.
 struct RemoteRunView: View {
+    @ObservedObject var model: LibraryModel
     @ObservedObject var scenes: SceneStore
     @ObservedObject var drafts: DraftStore
     /// For the player that shows what the bench just recorded: remixing that
@@ -38,6 +39,8 @@ struct RemoteRunView: View {
     @State private var success: DuckBench.Success?
     @State private var busy = false
     @State private var failure: String?
+    /// Named once a recording has been kept, so the button can say so.
+    @State private var kept: String?
 
     var body: some View {
         List {
@@ -174,10 +177,29 @@ struct RemoteRunView: View {
                         Label("Watch what it did — \(clip.frames.count) ticks",
                               systemImage: "play.circle")
                     }
+                    // KEEPING IT IS THE WHOLE POINT OF HAVING RECORDED IT.
+                    // Until this button existed the footer below was simply
+                    // true: a recording lasted as long as the screen, so a
+                    // policy that did not ship with the app — an imported one,
+                    // or a blend made on this phone — could be watched once on
+                    // the bench and never played again. Kept, it becomes a
+                    // motion in the Intents tab like any other, playable with
+                    // no bench and no network.
+                    Button {
+                        keepRecording(clip)
+                    } label: {
+                        Label(kept == clip.name ? "Kept — it is in your Intents"
+                                                : "Keep this recording",
+                              systemImage: kept == clip.name ? "checkmark.circle" : "tray.and.arrow.down")
+                    }
+                    .disabled(kept == clip.name)
                 } header: {
                     Text("Recorded")
                 } footer: {
-                    Text("This recording lives for as long as this screen does. It was made on the bench just now, not shipped with the app.")
+                    Text("Made on the bench just now, not shipped with the app. Keep it and it "
+                       + "becomes a motion in your Intents — playable afterwards with no bench "
+                       + "and no network, because the frames are the recording rather than a "
+                       + "live run.")
                 }
             }
         }
@@ -227,6 +249,29 @@ struct RemoteRunView: View {
     private func requireBench() throws -> BenchEndpoint {
         guard let bench else { throw DuckBench.Refusal.empty }
         return bench
+    }
+
+    /// Put a bench recording into the app's own Intents.
+    ///
+    /// THROUGH `acceptIntent`, NOT AROUND IT. That is the same door a
+    /// `.duckintent` arriving from Files or AirDrop goes through — it decodes,
+    /// writes, reloads and reports — so a recording made here gets exactly the
+    /// checks an imported one gets, and lands in exactly the same place.
+    ///
+    /// THE FINGERPRINT IS THE BENCH'S POLICY NAME AND NOTHING MORE. A policy
+    /// running on a bench has no digest this phone has computed, and inventing
+    /// one would put a number on a card that nothing verified.
+    @MainActor private func keepRecording(_ clip: DuckIntentClip) {
+        failure = nil
+        let note = DuckBench.recordedCredit(plantName: health?.plantName,
+                                            plantDigest: health?.plantDigest)
+        do {
+            let export = IntentExport(clip: clip, policyFingerprint: nil, note: note)
+            model.acceptIntent(try export.encoded(), named: clip.name)
+            kept = clip.name
+        } catch {
+            failure = "That recording could not be kept: \(error.localizedDescription)"
+        }
     }
 
     @MainActor private func run<T>(_ work: () async throws -> T) async -> T? {

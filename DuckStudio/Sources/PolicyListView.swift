@@ -85,7 +85,7 @@ struct PolicyListView: View {
             // pattern `IntentAuthorView` already uses.
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    NavigationLink { RemoteRunView(scenes: scenes, drafts: drafts,
+                    NavigationLink { RemoteRunView(model: model, scenes: scenes, drafts: drafts,
                                                    models: models, benches: benches) } label: {
                         Label("Run on your network", systemImage: "wifi")
                     }
@@ -125,7 +125,8 @@ struct PolicyListView: View {
 
     private func row(_ entry: PolicyLibrary.Entry) -> some View {
         NavigationLink {
-            PolicyDetailView(entry: entry, standing: model.standing(for: entry),
+            PolicyDetailView(entry: entry, library: model.library, benches: benches,
+                             standing: model.standing(for: entry),
                              scenes: scenes, drafts: drafts, models: models)
         } label: {
             HStack(spacing: 12) {
@@ -158,6 +159,11 @@ struct PolicyListView: View {
 /// One policy: what it is, where it came from, and what is inside it.
 struct PolicyDetailView: View {
     let entry: PolicyLibrary.Entry
+    /// So this policy can be remixed and run from its own screen, rather than
+    /// only from a menu two taps away that does not know which one you are
+    /// looking at.
+    let library: PolicyLibrary
+    @ObservedObject var benches: BenchStore
     let standing: DuckOfficialPolicies.Standing
     @ObservedObject var scenes: SceneStore
     @ObservedObject var drafts: DraftStore
@@ -260,8 +266,22 @@ struct PolicyDetailView: View {
                     NavigationLink { BenchView(entry: entry, store: scenes) } label: {
                         Label("Probe this network", systemImage: "slider.horizontal.below.square.filled.and.square")
                     }
+                    // REMIX AND RUN, FROM THE POLICY YOU ARE LOOKING AT.
+                    // Both existed and neither was reachable from here: blending
+                    // was a menu item on the list behind this screen, which
+                    // cannot know which policy you had open, and running one
+                    // meant going to the bench and picking it out of a list by
+                    // name. A policy's own screen is where somebody asks "what
+                    // can I do with this one".
+                    if library.runnableCount >= 2 {
+                        NavigationLink { PolicyBlendView(library: library,
+                                                         benches: benches,
+                                                         starting: entry) } label: {
+                            Label("Remix it with another", systemImage: "arrow.triangle.merge")
+                        }
+                    }
                 } footer: {
-                    Text("Hand it an observation and see the fourteen numbers it answers with, and the robot they command. A network has no time axis — nothing plays here.")
+                    Text("Hand it an observation and see the fourteen numbers it answers with, and the robot they command. A network has no time axis — nothing plays here. To watch it move, run it on a bench and keep the recording.")
                 }
 
                 // The real link between the two halves of this app: a clip

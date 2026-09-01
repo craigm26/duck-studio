@@ -27,6 +27,11 @@ struct PolicyBlendView: View {
     /// to carry its own address box, so the same machine was configured three
     /// times and a token entered on one was missing on the next.
     @ObservedObject var benches: BenchStore
+    /// Pre-chosen when this was opened from a policy's own screen: that screen
+    /// knows which policy you were looking at and this one otherwise starts
+    /// blank, asking you to find it again in a picker.
+    var starting: PolicyLibrary.Entry?
+
     @State private var first: String?
     @State private var second: String?
     @State private var towardSecond = 0.5
@@ -133,6 +138,11 @@ struct PolicyBlendView: View {
             }
         }
         .navigationTitle("Blend policies")
+        .task {
+            // Once, and only into an empty slot — reopening this screen must
+            // not overwrite a pair somebody has already chosen.
+            if first == nil, let starting { first = starting.id }
+        }
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $outgoing) { file in
             ShareSheet(items: [file.url]) { outgoing = nil }

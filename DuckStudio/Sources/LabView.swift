@@ -24,6 +24,7 @@ import StudioKit
 /// duck chasing a ball both LOOK like capability and neither is a robot doing
 /// anything. `LabCatalogue` holds the sentences so `swift test` can read them.
 struct LabView: View {
+    @ObservedObject var model: LibraryModel
     @ObservedObject var scenes: SceneStore
     @ObservedObject var drafts: DraftStore
     @ObservedObject var models: EndpointStore
@@ -155,7 +156,7 @@ struct LabView: View {
     @ViewBuilder private func destination(_ mode: LabCatalogue.Mode) -> some View {
         switch mode.id {
         case "bench":
-            RemoteRunView(scenes: scenes, drafts: drafts, models: models, benches: benches)
+            RemoteRunView(model: model, scenes: scenes, drafts: drafts, models: models, benches: benches)
         case "ghost":
             // The games hub. Golf, fetch, follow me, the bow bridge, the trick
             // run, the slalom and the flamingo hold are all reached from inside

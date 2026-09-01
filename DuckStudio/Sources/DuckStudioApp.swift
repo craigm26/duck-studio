@@ -62,7 +62,7 @@ struct DuckStudioApp: App {
                 // code in them at all — a new Microduck owner should not need
                 // four apps to use one robot.
                 NavigationStack {
-                    LabView(scenes: scenes, drafts: drafts, models: models, benches: benches)
+                    LabView(model: model, scenes: scenes, drafts: drafts, models: models, benches: benches)
                 }
                     .tabItem { Label("Lab", systemImage: "flask") }
             }
