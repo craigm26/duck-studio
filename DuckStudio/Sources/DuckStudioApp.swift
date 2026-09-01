@@ -55,6 +55,24 @@ struct DuckStudioApp: App {
 
     var body: some Scene {
         WindowGroup {
+            // THE SELECTED TAB IS MARKED THE WAY iOS MARKS IT, AND THE BILL IS
+            // NOT AVAILABLE HERE. The design system asks for `BillIndicator` —
+            // a flat orange bar, squared at one end — under the selected tab,
+            // and SwiftUI has no API that will accept one: `TabView` exposes no
+            // selection-indicator hook in any form, and the nearest thing on the
+            // platform is `UITabBarAppearance.selectionIndicatorImage`, which
+            // takes a rasterised `UIImage` rather than a view, sits centred
+            // behind the whole item rather than as a bar beneath it, and is not
+            // this component. The only remaining route is a hand-drawn tab bar,
+            // and the brief for this app is explicit that native beats custom —
+            // a custom bar would cost the system's own VoiceOver ordering, its
+            // "More" folding, its Dynamic Type behaviour and its scroll-edge
+            // material to gain one silhouette. So the selection is carried by
+            // the tint, which is where the bill's colour goes instead.
+            //
+            // `BillIndicator` is used inside the app where the design system's
+            // other job for it — the slider fill and the standalone marker — is
+            // reachable in SwiftUI.
             TabView(selection: $tab) {
                 NavigationStack { PolicyListView(model: model, scenes: scenes, drafts: drafts,
                                                models: models, benches: benches) }
@@ -102,10 +120,34 @@ struct DuckStudioApp: App {
                     .tabItem { Label("Lab", systemImage: "flask") }
                     .tag(4)
             }
+            // LARGE TITLES ARE THE DEFAULT AND THE ROOT DOES NOT IMPOSE THEM.
+            // A `NavigationStack` root already gets a large title, so four of
+            // the five tabs are large without a word being said — and the
+            // fifth, the Draft tab, sets `.inline` on purpose, because a chat
+            // transcript with a compose bar under it has nowhere to put a 34pt
+            // title. `navigationBarTitleDisplayMode` applied out here would
+            // reach past that decision and overrule it from a file that cannot
+            // see it, which is exactly the kind of remote override this app's
+            // own theme comment argues against. Each screen says it for itself;
+            // `IntentListView` now does, out loud.
+            //
+            // THE DISPLAY WEIGHT IS NOT SET, AND THAT IS A TRADE RATHER THAN AN
+            // OMISSION. The design system asks for `.heavy` on large titles and
+            // SwiftUI has no font API for one: the only route is
+            // `UINavigationBar.appearance().largeTitleTextAttributes`, and a
+            // font put there is a fixed point size that stops responding to
+            // Dynamic Type — the appearance proxy is configured once at launch
+            // and a bar built from it does not re-scale. That would buy one
+            // weight and sell the largest text in the app out of Dynamic Type,
+            // on a screen where somebody is reading a refusal at AX5. `Theme`
+            // makes the choice in its own words: "Dynamic Type matters more
+            // than a matched face" — and a matched weight is worth less than a
+            // matched face.
+
             // A policy handed over from Files, Mail, AirDrop or another app.
             // Declared in Info.plist as an IMPORTED type — ONNX is not this
             // app's format to own.
-            .onOpenURL { model.open($0, into: drafts, plans: plans) }
+            .onOpenURL { Imports.open($0, model: model, drafts: drafts, plans: plans) }
             // THE 0.4 s SETTLE IS THE POINT AND ALSO THE HOLE. Both stores
             // batch writes so that a finger on a slider does not encode the
             // whole library sixty times a second — and a rename is a single
@@ -121,7 +163,76 @@ struct DuckStudioApp: App {
             // INSIDE THE WindowGroup, ON THE VIEW. `tint` and
             // `preferredColorScheme` are View modifiers; hung on the
             // WindowGroup they are a Scene modifier that does not exist.
+            //
+            // THIS IS ALSO THE TAB BAR'S TINT. `microduckTheme` sets
+            // `.tint(Theme.actionPrimary)` for the whole app, and the selected
+            // tab item is the most visible thing that inherits it — Duck Orange
+            // on the tab bar, which is where the action colour belongs. Two
+            // notes for whoever owns the tokens next. The first is that the
+            // scheme is no longer forced: the modifier now carries whatever
+            // `Theme.Appearance` the person chose, which is `system` by default
+            // and therefore no override at all. The second is a measured
+            // caveat: Duck Orange is 2.30:1 on Warm Cream, so in light mode the
+            // selected tab's LABEL is an orange word on a near-cream bar and
+            // does not clear the 4.5:1 SC 1.4.3 asks of text. The palette
+            // already holds the fix — `actionSecondary` is the same orange
+            // darkened to 4.52:1 in light and left as Duck Orange in dark — but
+            // one `.tint` serves every control in the app, and swapping it here
+            // would take the brand value out of every filled control at the
+            // same time. It belongs in `Theme`, as a tint that is the ink in
+            // light and the brand in dark, not in a per-screen override.
             .microduckTheme()
         }
+    }
+}
+
+/// The one door a file comes in through, and the one place the phone says so.
+///
+/// A HAPTIC BELONGS TO AN EVENT IN THE WORLD, AND AN IMPORT IS ONE. `Haptic`'s
+/// whole design is that nothing fires on a tap: a phone that buzzes when you
+/// touch it is telling you what you already know. A file arriving is the
+/// opposite — the person picked it in another app, or AirDropped it from a
+/// laptop, and the moment it lands is the moment they are least likely to be
+/// looking at this screen. `finished()` is the mapping the brief gives for
+/// "something the person asked for ran to the end".
+///
+/// IT TAPS FOR AN ARRIVAL, NOT FOR A CALL. `LibraryModel.open` reports every
+/// outcome — added, already here, refused by name, unreadable — into one string
+/// and returns nothing, so a tap fired on the call itself would fire on
+/// "was not added" as loudly as on a motion arriving, and a success feeling
+/// that also means failure is a feeling that means nothing. What it watches
+/// instead is whether the app is holding more than it was: a policy, a
+/// recording, a draft or a plan. That is one comparison over four counts and it
+/// cannot disagree with the sentence the screen prints.
+///
+/// THE ONE SUCCESS IT MISSES IS THE RIGHT ONE TO MISS. Re-importing a
+/// `.duckintent` whose name the app already has replaces it — deliberately,
+/// see `acceptIntent` — so the counts do not move and the phone stays quiet.
+/// Silence on a real success costs a person nothing they can notice; a buzz on
+/// a refusal costs the buzz its meaning.
+@MainActor
+enum Imports {
+
+    /// Hand a file to the library, and tap once if anything actually arrived.
+    static func open(_ url: URL, model: LibraryModel,
+                     drafts: DraftStore, plans: PlanStore) {
+        let before = holdings(model: model, drafts: drafts, plans: plans)
+        model.open(url, into: drafts, plans: plans)
+        if holdings(model: model, drafts: drafts, plans: plans) != before {
+            Haptic.finished()
+        }
+    }
+
+    /// How many things this app is holding that an import can add to.
+    ///
+    /// Read straight after the call rather than observed, because the stores
+    /// publish synchronously: by the time `open` returns, the arrays are the
+    /// new ones.
+    private static func holdings(model: LibraryModel,
+                                 drafts: DraftStore, plans: PlanStore) -> Int {
+        model.library.entries.count
+            + model.importedClips.count
+            + drafts.drafts.count
+            + plans.plans.count
     }
 }

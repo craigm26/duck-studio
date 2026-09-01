@@ -3,6 +3,111 @@ import DuckKit
 import DuckEvidence
 import StudioKit
 
+// MARK: - the pieces this screen shares with the Policies tab
+
+/// One point — the thinnest rule iOS draws crisply.
+///
+/// THIS IS THE FOURTH PLACE IN THE APP TO WRITE THIS NUMBER DOWN, AND
+/// `PolicyListView` SAID WHAT THAT MEANS. Its own copy carries the sentence
+/// "two files knowing that a hairline is one point is tolerable; a third would
+/// mean the number belongs in `Palette`" — and the count was already past that
+/// before this line: `DesignComponents.Metric.hairlineStroke`,
+/// `DriveView.DriveMetric.hairlineStroke` and `PolicyListView`'s own. So by
+/// that file's own rule the stroke has earned a place in the design system
+/// beside the radii and the focus ring's geometry, and this declaration is the
+/// evidence rather than the argument. It is written here rather than moved
+/// there because this change owns the root and the Motions tab and nothing
+/// else; the move is a one-line addition to `Palette` and a four-place
+/// deletion, and it should be made by whoever owns the tokens next.
+private let hairlineStroke: CGFloat = 1
+
+/// A section heading, in the one heading style this design system has.
+///
+/// A DELIBERATE SECOND COPY, NOT A DIVERGENCE. `PolicyListView` declares the
+/// same three helpers `private` at file scope, which in Swift means file-local,
+/// so there is nothing to import and nothing that can collide. Two screens
+/// drawing the same heading from two identical declarations is drift waiting to
+/// happen and it is written down here so the next person sees it: these three —
+/// `SectionHeading`, `sectionFootnote`, `cardSegment` — belong in
+/// `DesignComponents`, beside `StateBadge` and `TelemetryRow`, for exactly the
+/// reason that file already gives ("drawn twice, they drift within a release").
+/// They are not moved here because that file is not this change's to edit.
+///
+/// THIRTEEN POINTS, BOLD, SIX PER CENT OF TRACKING, TERTIARY — the brand
+/// sheet's heading, with the size as a `@ScaledMetric` so that a section
+/// heading is not the smallest text on the screen once somebody has enlarged
+/// type, and with the tracking derived from whatever size that lands on,
+/// because six per cent of 13 is not six per cent of 30.
+///
+/// `.textCase(nil)` because SwiftUI upper-cases grouped section headers by
+/// default, and "FROM POLLEN'S POLICIES" is a different, louder app.
+private struct SectionHeading: View {
+    let text: String
+
+    /// The `.footnote` point size at the person's current setting; 13 is what
+    /// that style measures at the default content size.
+    @ScaledMetric(relativeTo: .footnote) private var size: CGFloat = 13
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: size, weight: .bold))
+            .tracking(size * 0.06)
+            .textCase(nil)
+            .foregroundStyle(Theme.textTertiary)
+            .accessibilityAddTraits(.isHeader)
+    }
+}
+
+/// The explanatory line under a section, and the long sentences this screen
+/// leads with.
+///
+/// SET IN `textSecondary`, WHICH IS A CONTRAST DECISION AND NOT A TASTE ONE.
+/// Footers sit on the list's recessed ground, and `Palette` is explicit that
+/// `backgroundSecondary` is a ground for surfaces rather than for words: the
+/// four ink variants land between 4.17:1 and 4.27:1 on it, short of the 4.5:1
+/// body text owes. The two greys clear it — secondary 6.24:1, tertiary 4.59:1
+/// in light — so the only text allowed outside a card on this screen is grey
+/// text, and every coloured word in the design lives on a card.
+private func sectionFootnote(_ text: String) -> some View {
+    Text(text)
+        .font(.footnote)
+        .foregroundStyle(Theme.textSecondary)
+}
+
+/// One row's share of its section's card.
+///
+/// A CARD DRAWN AS SEGMENTS, BECAUSE A `Section` HAS NO BACKGROUND OF ITS OWN.
+/// The design system asks for a `surfacePrimary` card at the card radius with
+/// rows inside it; a SwiftUI list gives you rows and a group shape it draws
+/// itself, at the platform's radius. Painting the first and last rows with
+/// their outer corners rounded and the rest square produces the card the brief
+/// asks for, at the radius the brief asks for, without hand-rolling a list —
+/// and the corners are the ones we set, because a 14pt corner is strictly
+/// inside the 10pt one the platform would clip to.
+private func cardSegment(first: Bool, last: Bool) -> some View {
+    UnevenRoundedRectangle(
+        topLeadingRadius: first ? Theme.radius(.card) : 0,
+        bottomLeadingRadius: last ? Theme.radius(.card) : 0,
+        bottomTrailingRadius: last ? Theme.radius(.card) : 0,
+        topTrailingRadius: first ? Theme.radius(.card) : 0,
+        style: .continuous)
+        .fill(Theme.surfacePrimary)
+}
+
+private extension View {
+    /// A row that is part of a card: the right corner treatment for where it
+    /// sits in the run, and the palette's own rule between it and the next one.
+    ///
+    /// The separator is 1.42:1 on the surface and that is deliberate — the
+    /// palette calls a separator decoration in SC 1.4.11's sense, because the
+    /// rows are already separated by space and by type, and a rule dark enough
+    /// to clear 3:1 on cream would read as a table border.
+    func cardRow(first: Bool, last: Bool) -> some View {
+        listRowBackground(cardSegment(first: first, last: last))
+            .listRowSeparatorTint(Theme.separator)
+    }
+}
+
 /// The recordings. A separate place from the policies, because they are a
 /// separate kind of thing.
 ///
@@ -19,6 +124,14 @@ import StudioKit
 /// They are two lists now, and the real relationship between them — every clip
 /// names the policy it was recorded from — is shown as a link rather than as an
 /// accident of layout.
+///
+/// AND THE COLOUR SAYS WHAT THE HEADING SAYS. This screen is sorted by
+/// provenance, so it uses the palette as a claim about provenance and nothing
+/// else: teal is Pollen's own network driven in physics, yellow is a motion
+/// somebody WROTE, lavender is somebody else's training, and grey is a file
+/// that came off this person's own bench. Nothing here is distinguished by
+/// colour alone — every pill says its word as well as wearing its colour, and
+/// every worrying number is a number before it is a hue.
 struct IntentListView: View {
     /// Which model answers a plain-language tweak inside the editor. Threaded
     /// through rather than made here, so the Draft tab and the editor share one
@@ -87,135 +200,18 @@ struct IntentListView: View {
     var body: some View {
         List {
             Section {
-                Text("Motions recorded in MuJoCo from the trained policies, because the policy cannot run live on a phone. Playing one shows what the robot did; it does not re-run the network.")
-                    .font(.footnote).foregroundStyle(.secondary)
+                sectionFootnote("Motions recorded in MuJoCo from the trained policies, because the policy cannot run live on a phone. Playing one shows what the robot did; it does not re-run the network.")
+                    .cardRow(first: true, last: true)
             }
 
-            Section {
-                ForEach(drafts.drafts) { draft in
-                    Button { editing = DraftID(id: draft.id) } label: { draftRow(draft) }
-                        .buttonStyle(.plain)
-                }
-                .onDelete { offsets in
-                    for index in offsets { drafts.delete(drafts.drafts[index]) }
-                }
-                Button {
-                    // NOT SAVED HERE, AND THAT IS THE WHOLE FIX. This line used
-                    // to be `drafts.save(fresh)`, because the sheet looks a
-                    // draft up by id and cannot present one the store has never
-                    // heard of. The cost was that the row — and, 0.4 s later,
-                    // the file — existed before the person had written a single
-                    // thing into it, so every way OUT of the editor then needed
-                    // its own agreement to un-create it. Cancel got one
-                    // (`IntentAuthorView.discard()`), the confirmation dialog
-                    // got one (`reallyDiscard()`), and the fourth exit — a
-                    // swipe down, which is the one most people reach for — got
-                    // nothing, ran neither, and left a motion called "New
-                    // motion" that its owner never asked for and could not
-                    // explain. Twice fixed, twice by adding a guard to one more
-                    // exit.
-                    //
-                    // A FOURTH GUARD WOULD HAVE BEEN THE THIRD PATCH ON THE
-                    // SAME DANCE, and it could not have worked anyway: from out
-                    // here Done and a swipe are the same event — both just set
-                    // `editing` to nil — so no rule applied on dismissal can
-                    // keep one and throw away the other. Whatever such a rule
-                    // did to the swipe, it would also do to Done, and a Done
-                    // that quietly produces nothing is worse than a leftover
-                    // row.
-                    //
-                    // So the state that needed guarding is gone instead. A
-                    // blank motion is a motion nobody has written; it waits in
-                    // `unwritten` and becomes a row and a file at the moment
-                    // the editor's first change is saved. All four exits now
-                    // do the same thing to an untouched one — nothing — and
-                    // they cannot drift apart again, because none of them has
-                    // anything left to do.
-                    let fresh = IntentDraft.blank()
-                    unwritten = fresh
-                    editing = DraftID(id: fresh.id, isNew: true)
-                } label: { Label("Write a new motion", systemImage: "plus") }
-                NavigationLink {
-                    RetrieveView(plans: plans)
-                } label: {
-                    Label("Fetch something", systemImage: "arrow.down.to.line")
-                }
-            } header: {
-                Text("Written here")
-            } footer: {
-                Text("Poses and times, interpolated. A phone has no physics engine, so this is what you asked the robot for — not what it would do. Every authored move already in this app was written the same way, and all four stair ones get up their flight 0 times in 16.\n\nFetch something is different: it writes no poses at all. Retrieval composes policies the robot already has — walk, ground pick, and the one servo no network drives — so a sentence there becomes a plan, not a keyframe track.")
-            }
+            writtenHere
 
             // PLANS ARE KEPT NOW, NOT JUST EXPORTED. A fetch used to leave as a
             // quackd task file this app could not read back, so the only record
             // of a plan was a file in Files that returned "nothing was added".
-            if !plans.plans.isEmpty {
-                Section {
-                    ForEach(plans.plans, id: \.name) { plan in
-                        NavigationLink {
-                            RetrieveView(plans: plans, opening: plan)
-                        } label: {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(plan.name).font(.subheadline)
-                                Text(planSummary(plan))
-                                    .font(.caption).foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                    .onDelete { indexes in
-                        indexes.map { plans.plans[$0] }.forEach(plans.delete)
-                    }
-                } header: {
-                    Text("Plans")
-                } footer: {
-                    Text("A fetch, kept on this phone in this app's own format. The steps are "
-                       + "worked out again each time it is opened, against the measurements "
-                       + "this app holds — so a plan cannot go stale and argue with the app "
-                       + "that opened it.")
-                }
-            }
+            if !plans.plans.isEmpty { savedPlans }
 
-            if !drafts.drafts.isEmpty {
-                Section {
-                    ForEach(drafts.drafts) { draft in
-                        NavigationLink {
-                            PipelineView(draftID: draft.id, drafts: drafts, scenes: store,
-                                         models: models, benches: benches)
-                        } label: {
-                            let pipeline = Pipeline.of(draft, bench: draft.bench)
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(draft.name).font(.subheadline)
-                                ProgressView(value: pipeline.fractionDone)
-                                    // A BARE BAR ANNOUNCES A PERCENTAGE AND
-                                    // NOTHING ELSE — "sixty percent" of what is
-                                    // the whole question.
-                                    //
-                                    // THE LABEL NAMES WHAT THE BAR MEASURES,
-                                    // NOT WHAT COMES NEXT. Labelling it with
-                                    // `pipeline.next` made the two halves answer
-                                    // different questions: the value is how far
-                                    // this motion has come, and `next` is the
-                                    // first stage it has NOT reached, so a bar
-                                    // reading sixty percent announced itself as
-                                    // the name of the thing that has not
-                                    // happened. What is still to come belongs in
-                                    // the value, where it reads as a position.
-                                    .accessibilityLabel(Text("Sim to real"))
-                                    .accessibilityValue(Text(pipeline.next.map {
-                                        "next: \($0.name)" } ?? "every stage done"))
-                                Text(draft.bench.map { "Run in physics: \($0.summary)" }
-                                     ?? "Never run in physics.")
-                                    .font(.caption2).foregroundStyle(.secondary)
-                                    .lineLimit(2)
-                            }
-                        }
-                    }
-                } header: {
-                    Text("Sim to real")
-                } footer: {
-                    Text("What has actually happened to each motion. A preview on this phone is NOT a run — an iPhone has no physics engine, so what it draws is what you asked for. Point the app at a bench and this becomes a real result the draft keeps.")
-                }
-            }
+            if !drafts.drafts.isEmpty { simToReal }
 
             // WHERE THE IMPORTER SAYS WHAT HAPPENED. `model.lastImport` was
             // drawn on the Policies tab and nowhere else, so a `.duckmove`, a
@@ -224,39 +220,41 @@ struct IntentListView: View {
             // did not change, and the sentence explaining why was on a tab the
             // person was not looking at.
             if let message = model.lastImport {
-                Section { Text(message).font(.footnote).foregroundStyle(.secondary) }
+                Section {
+                    sectionFootnote(message)
+                        .cardRow(first: true, last: true)
+                }
             }
             if !fromPollen.isEmpty {
                 Section {
-                    ForEach(fromPollen, id: \.name) { row($0) }
+                    clipRows(fromPollen, whose: .pollen)
                 } header: {
-                    Text("From Pollen's policies")
+                    SectionHeading(text: "From Pollen's policies")
                 } footer: {
-                    Text("The policy's own output, driven in physics and recorded.")
+                    sectionFootnote("The policy's own output, driven in physics and recorded.")
                 }
             }
             if !authored.isEmpty {
                 Section {
-                    ForEach(authored, id: \.name) { row($0) }
+                    clipRows(authored, whose: .authored)
                 } header: {
-                    Text("Authored moves")
+                    SectionHeading(text: "Authored moves")
                 } footer: {
-                    Text("A keyframe track riding on a standing policy as offsets — searched against a prop rather than trained. These are the ones most likely to fail, and the posture each ends in says whether it did.")
+                    sectionFootnote("A keyframe track riding on a standing policy as offsets — searched against a prop rather than trained. These are the ones most likely to fail, and the posture each ends in says whether it did.")
                 }
             }
             if !model.importedClips.isEmpty {
                 Section {
-                    ForEach(model.importedClips, id: \.name) { row($0) }
-                        // THEIRS TO THROW AWAY, AND UNTIL NOW THEY COULD NOT.
-                        // Everything in this section arrived by AirDrop, by
-                        // Files, or off the person's own bench; none of it is
-                        // the app's, and there was no delete anywhere on the
-                        // screen that listed it. The bundled clips are a
-                        // different array and keep no swipe.
-                        .onDelete { offsets in
-                            offsets.map { model.importedClips[$0] }
-                                   .forEach { model.removeIntent($0) }
-                        }
+                    // THEIRS TO THROW AWAY, AND UNTIL NOW THEY COULD NOT.
+                    // Everything in this section arrived by AirDrop, by
+                    // Files, or off the person's own bench; none of it is
+                    // the app's, and there was no delete anywhere on the
+                    // screen that listed it. The bundled clips are a
+                    // different array and keep no swipe.
+                    clipRows(model.importedClips, whose: .yours) { offsets in
+                        offsets.map { model.importedClips[$0] }
+                               .forEach { model.removeIntent($0) }
+                    }
                 } header: {
                     // NOT "Sent to you". Recordings kept from your own bench
                     // land in exactly this array — nobody sent those, and the
@@ -265,22 +263,35 @@ struct IntentListView: View {
                     // `policyFingerprint: nil` because a policy running on a
                     // bench has no digest this phone computed, and inventing one
                     // would put an unverified number on a card.
-                    Text("Brought in")
+                    SectionHeading(text: "Brought in")
                 } footer: {
-                    Text("Motions from a .duckintent file — sent to you, or kept from your own bench. One that carries a digest names the policy it was recorded from, so you can check whether you hold the same network; a bench recording carries none, and its card says so.")
+                    sectionFootnote("Motions from a .duckintent file — sent to you, or kept from your own bench. One that carries a digest names the policy it was recorded from, so you can check whether you hold the same network; a bench recording carries none, and its card says so.")
                 }
             }
             if !shared.isEmpty {
                 Section {
-                    ForEach(shared, id: \.name) { row($0) }
+                    clipRows(shared, whose: .community)
                 } header: {
-                    Text("Shared by other owners")
+                    SectionHeading(text: "Shared by other owners")
                 } footer: {
-                    Text("Recorded the same way, from a policy this app did not ship.")
+                    sectionFootnote("Recorded the same way, from a policy this app did not ship.")
                 }
             }
         }
+        .scrollContentBackground(.hidden)
+        // THE RECESSED GROUND, WHICH IS WHAT THIS TOKEN IS FOR. Grouped content
+        // sits on it and the words sit on the cards, the way
+        // `systemGroupedBackground` works on iOS — see `sectionFootnote` for
+        // the numbers that make that a rule rather than a preference.
+        .background(Theme.backgroundSecondary)
         .navigationTitle("Motions")
+        // SAID OUT LOUD RATHER THAN INHERITED. A `NavigationStack` root already
+        // gets a large title by default, so this line changes nothing today —
+        // it pins the design system's choice against a future default, and it
+        // is the only place the choice can be made without reaching into a
+        // screen this change does not own. See `DuckStudioApp` for why the root
+        // does not impose it on the other four tabs.
+        .navigationBarTitleDisplayMode(.large)
         .toolbar {
             // ONE GEAR, SAME PLACE, SAME WORD, ON ALL FIVE TAB ROOTS.
             // Configuration was scattered across three tabs and nothing was
@@ -291,7 +302,17 @@ struct IntentListView: View {
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
-                Button { picking = true } label: { Image(systemName: "square.and.arrow.down") }
+                Button {
+                    // WARMED HERE BECAUSE THIS IS THE TAP BEFORE THE EVENT.
+                    // The taptic engine spins up on demand and the delay is
+                    // long enough that the first tap of a session lands after
+                    // the thing it is about — which teaches a person that the
+                    // buzz and the event are unrelated. Opening the picker is
+                    // the moment an import becomes possible, and it is several
+                    // seconds ahead of the file actually arriving.
+                    Haptic.prepare()
+                    picking = true
+                } label: { Image(systemName: "square.and.arrow.down") }
                     // The door every shared motion and every policy file comes
                     // in through, and an icon-only one. What it accepts is said
                     // by the picker it opens and by `model.lastImport`
@@ -303,10 +324,14 @@ struct IntentListView: View {
                       allowedContentTypes: [.json, .data],
                       allowsMultipleSelection: false) { result in
             // The same door as onOpenURL, so a motion picked from Files and one
-            // AirDropped end up in the same place having had the same checks.
+            // AirDropped end up in the same place having had the same checks —
+            // including the tap, which is why both go through `Imports.open`
+            // rather than calling `model.open` directly.
             switch result {
             case .success(let urls):
-                if let url = urls.first { model.open(url, into: drafts, plans: plans) }
+                if let url = urls.first {
+                    Imports.open(url, model: model, drafts: drafts, plans: plans)
+                }
             case .failure(let error):
                 // THE PICKER CAN FAIL AND USED TO DO IT IN SILENCE. `if case
                 // .success` dropped the other half on the floor, so a file the
@@ -385,37 +410,311 @@ struct IntentListView: View {
                         Text("It was being opened and is no longer in your drafts. Nothing has been lost that was saved — a motion you had already written into is in the list behind this. If this keeps happening, it is a bug in this build and not something you did.")
                     } actions: {
                         Button("Close") { editing = nil }
-                            .buttonStyle(.borderedProminent)
+                            .buttonStyle(.primaryAction)
                     }
                 }
             }
         }
     }
 
-    private func row(_ clip: DuckIntentClip) -> some View {
+    // MARK: - the sections
+
+    /// The person's own motions, the door to a new one, and the door to a plan.
+    ///
+    /// ONE CARD ACROSS THREE KINDS OF ROW, which is what the `first`/`last`
+    /// bookkeeping is for: the drafts, the "write" button and the "fetch" link
+    /// are one run of rows in one rounded surface, so the corners are drawn at
+    /// the two ends of the run and nowhere in between.
+    @ViewBuilder private var writtenHere: some View {
+        Section {
+            ForEach(Array(drafts.drafts.enumerated()), id: \.element.id) { index, draft in
+                Button { editing = DraftID(id: draft.id) } label: { draftRow(draft) }
+                    .buttonStyle(.plain)
+                    .cardRow(first: index == 0, last: false)
+            }
+            .onDelete { offsets in
+                for index in offsets { drafts.delete(drafts.drafts[index]) }
+            }
+            Button {
+                // NOT SAVED HERE, AND THAT IS THE WHOLE FIX. This line used
+                // to be `drafts.save(fresh)`, because the sheet looks a
+                // draft up by id and cannot present one the store has never
+                // heard of. The cost was that the row — and, 0.4 s later,
+                // the file — existed before the person had written a single
+                // thing into it, so every way OUT of the editor then needed
+                // its own agreement to un-create it. Cancel got one
+                // (`IntentAuthorView.discard()`), the confirmation dialog
+                // got one (`reallyDiscard()`), and the fourth exit — a
+                // swipe down, which is the one most people reach for — got
+                // nothing, ran neither, and left a motion called "New
+                // motion" that its owner never asked for and could not
+                // explain. Twice fixed, twice by adding a guard to one more
+                // exit.
+                //
+                // A FOURTH GUARD WOULD HAVE BEEN THE THIRD PATCH ON THE
+                // SAME DANCE, and it could not have worked anyway: from out
+                // here Done and a swipe are the same event — both just set
+                // `editing` to nil — so no rule applied on dismissal can
+                // keep one and throw away the other. Whatever such a rule
+                // did to the swipe, it would also do to Done, and a Done
+                // that quietly produces nothing is worse than a leftover
+                // row.
+                //
+                // So the state that needed guarding is gone instead. A
+                // blank motion is a motion nobody has written; it waits in
+                // `unwritten` and becomes a row and a file at the moment
+                // the editor's first change is saved. All four exits now
+                // do the same thing to an untouched one — nothing — and
+                // they cannot drift apart again, because none of them has
+                // anything left to do.
+                let fresh = IntentDraft.blank()
+                unwritten = fresh
+                editing = DraftID(id: fresh.id, isNew: true)
+            } label: {
+                Label("Write a new motion", systemImage: "plus")
+            }
+            // THE ACTION COLOUR THAT CAN SET A WORD, WHICH IS NOT THE ONE THE
+            // APP IS TINTED IN. A `Button` in a list paints its label from the
+            // tint, and the app's tint is Duck Orange — 2.30:1 on Warm Cream,
+            // which is unreadable as text and is exactly why `Palette` carries
+            // an ink for it. `actionSecondary` is that ink in light (4.52:1)
+            // and stays Duck Orange in dark, where the brand value clears
+            // 6.76:1 on the dark ground on its own. The rule the palette states
+            // is the whole of it: a brand colour fills a shape, an ink colour
+            // sets a word, and this is a word.
+            //
+            // `.tint` RATHER THAN `.foregroundStyle`, because the automatic
+            // button style reads the tint explicitly and an inherited
+            // foreground style never reaches the label.
+            .tint(Theme.actionSecondary)
+            .cardRow(first: drafts.drafts.isEmpty, last: false)
+            NavigationLink {
+                RetrieveView(plans: plans)
+            } label: {
+                Label("Fetch something", systemImage: "arrow.down.to.line")
+            }
+            .foregroundStyle(Theme.textPrimary)
+            .cardRow(first: false, last: true)
+        } header: {
+            SectionHeading(text: "Written here")
+        } footer: {
+            sectionFootnote("Poses and times, interpolated. A phone has no physics engine, so this is what you asked the robot for — not what it would do. Every authored move already in this app was written the same way, and all four stair ones get up their flight 0 times in 16.\n\nFetch something is different: it writes no poses at all. Retrieval composes policies the robot already has — walk, ground pick, and the one servo no network drives — so a sentence there becomes a plan, not a keyframe track.")
+        }
+    }
+
+    @ViewBuilder private var savedPlans: some View {
+        Section {
+            ForEach(Array(plans.plans.enumerated()), id: \.element.name) { index, plan in
+                NavigationLink {
+                    RetrieveView(plans: plans, opening: plan)
+                } label: {
+                    VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
+                        Text(plan.name)
+                            .font(.subheadline)
+                            .foregroundStyle(Theme.textPrimary)
+                        Text(planSummary(plan))
+                            .font(.caption)
+                            .foregroundStyle(Theme.textSecondary)
+                    }
+                }
+                .cardRow(first: index == 0, last: index == plans.plans.count - 1)
+            }
+            .onDelete { indexes in
+                indexes.map { plans.plans[$0] }.forEach(plans.delete)
+            }
+        } header: {
+            SectionHeading(text: "Plans")
+        } footer: {
+            sectionFootnote("A fetch, kept on this phone in this app's own format. The steps are "
+                          + "worked out again each time it is opened, against the measurements "
+                          + "this app holds — so a plan cannot go stale and argue with the app "
+                          + "that opened it.")
+        }
+    }
+
+    @ViewBuilder private var simToReal: some View {
+        Section {
+            ForEach(Array(drafts.drafts.enumerated()), id: \.element.id) { index, draft in
+                NavigationLink {
+                    PipelineView(draftID: draft.id, drafts: drafts, scenes: store,
+                                 models: models, benches: benches)
+                } label: {
+                    let pipeline = Pipeline.of(draft, bench: draft.bench)
+                    VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
+                        Text(draft.name)
+                            .font(.subheadline)
+                            .foregroundStyle(Theme.textPrimary)
+                        ProgressView(value: pipeline.fractionDone)
+                            // TEAL RATHER THAN THE APP'S ORANGE TINT, FOR TWO
+                            // REASONS THAT AGREE. The first is measured: Duck
+                            // Orange is 2.30:1 on Warm Cream, below even the
+                            // 3:1 SC 1.4.11 asks of a control's boundary, and a
+                            // native `ProgressView` has nowhere to hang the
+                            // hairline rim `BillIndicator` and the action
+                            // capsule use to fix that. The second is what the
+                            // bar means: how far a motion has come through sim
+                            // to real is something this app WORKED OUT from
+                            // what has actually happened to the draft, and teal
+                            // is what a machine measured. Orange is the colour
+                            // of the thing you press, and nobody presses this.
+                            .tint(Theme.brandPrimary)
+                            // A BARE BAR ANNOUNCES A PERCENTAGE AND
+                            // NOTHING ELSE — "sixty percent" of what is
+                            // the whole question.
+                            //
+                            // THE LABEL NAMES WHAT THE BAR MEASURES,
+                            // NOT WHAT COMES NEXT. Labelling it with
+                            // `pipeline.next` made the two halves answer
+                            // different questions: the value is how far
+                            // this motion has come, and `next` is the
+                            // first stage it has NOT reached, so a bar
+                            // reading sixty percent announced itself as
+                            // the name of the thing that has not
+                            // happened. What is still to come belongs in
+                            // the value, where it reads as a position.
+                            .accessibilityLabel(Text("Sim to real"))
+                            .accessibilityValue(Text(pipeline.next.map {
+                                "next: \($0.name)" } ?? "every stage done"))
+                        Text(draft.bench.map { "Run in physics: \($0.summary)" }
+                             ?? "Never run in physics.")
+                            .font(.caption2)
+                            .foregroundStyle(Theme.textSecondary)
+                            .lineLimit(2)
+                    }
+                }
+                .cardRow(first: index == 0, last: index == drafts.drafts.count - 1)
+            }
+        } header: {
+            SectionHeading(text: "Sim to real")
+        } footer: {
+            sectionFootnote("What has actually happened to each motion. A preview on this phone is NOT a run — an iPhone has no physics engine, so what it draws is what you asked for. Point the app at a bench and this becomes a real result the draft keeps.")
+        }
+    }
+
+    // MARK: - where a motion came from
+
+    /// Whose motion this is — which is a different question from which section
+    /// it happens to be filed under today.
+    ///
+    /// THE PILL TRAVELS AND THE HEADING DOES NOT. A heading is true of a run of
+    /// rows until you scroll past it; a clip's provenance is true of the clip,
+    /// and this is the one screen in the app where a clip changes hands. A
+    /// recording shared out of "From Pollen's policies" arrives on somebody
+    /// else's phone under "Brought in", and the pill is what carries the answer
+    /// across that move. It is also the only thing that can disambiguate
+    /// "Brought in", which is genuinely mixed: a stranger's contribution and a
+    /// recording off your own bench land in the same array.
+    ///
+    /// The colours are the app's provenance claim and nothing else — teal for
+    /// what Pollen's network produced, yellow for what a person WROTE, lavender
+    /// for somebody else's training, grey for a file that came off this
+    /// person's own bench. Lavender is the palette's least-used hue on its
+    /// least-frequent claim, which is what the design system asks of it. Every
+    /// one of them clears 4.5:1 on the card it sits on, because each sets a
+    /// word rather than filling a shape.
+    private enum Provenance {
+        case pollen
+        case authored
+        case community
+        case yours
+
+        var title: String {
+            switch self {
+            case .pollen: return "Pollen Robotics"
+            case .authored: return "Authored"
+            case .community: return "Community"
+            case .yours: return "Yours"
+            }
+        }
+
+        var colour: Color {
+            switch self {
+            case .pollen: return Theme.measured
+            case .authored: return Theme.asked
+            case .community: return Theme.training
+            case .yours: return Theme.textSecondary
+            }
+        }
+    }
+
+    /// What the clip itself can say, and the section's answer for what it
+    /// cannot.
+    ///
+    /// THE KIT DECIDES WHETHER A CREDIT IS YOURS, NOT THIS VIEW.
+    /// `DuckBench.wasRecordedHere` is the one place that knows the prefix this
+    /// app writes onto a recording made on your own bench, and reproducing that
+    /// test here is exactly the kind of second opinion the app is built to
+    /// avoid. A clip with no credit and no authorship has nothing to say about
+    /// itself, and then — and only then — the section it is filed under
+    /// answers: bundled motions are Pollen's, imported ones are yours.
+    private func provenance(of clip: DuckIntentClip, in section: Provenance) -> Provenance {
+        if let credit = clip.credit {
+            return DuckBench.wasRecordedHere(credit) ? .yours : .community
+        }
+        if clip.authored { return .authored }
+        return section
+    }
+
+    private func provenancePill(_ whose: Provenance) -> some View {
+        Text(whose.title)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(whose.colour)
+            .padding(.horizontal, Theme.spacing(.tight))
+            .padding(.vertical, Theme.spacing(.hairline))
+            // A CAPSULE, WHICH THE SHAPE SCALE OTHERWISE RESERVES FOR THINGS
+            // YOU PRESS — and it is here because `StateBadge` already sets the
+            // precedent for a badge that is a capsule and is not pressable. Two
+            // shapes for the same job would be a worse inconsistency than this
+            // one. The outline is the separator: the word carries the colour,
+            // and the pill only says the word belongs together.
+            .overlay(Capsule().strokeBorder(Theme.separator, lineWidth: hairlineStroke))
+            .fixedSize()
+    }
+
+    // MARK: - the rows
+
+    /// Every clip in one section, each knowing whether it is an end of the
+    /// card, and each carrying its own provenance rather than the section's.
+    private func clipRows(_ list: [DuckIntentClip],
+                          whose section: Provenance,
+                          onDelete: ((IndexSet) -> Void)? = nil) -> some View {
+        ForEach(Array(list.enumerated()), id: \.element.name) { index, clip in
+            row(clip, whose: section)
+                .cardRow(first: index == 0, last: index == list.count - 1)
+        }
+        .onDelete(perform: onDelete)
+    }
+
+    private func row(_ clip: DuckIntentClip, whose section: Provenance) -> some View {
         NavigationLink {
             IntentPlayerView(clip: clip, store: store, drafts: drafts, models: models)
         } label: {
-            VStack(alignment: .leading, spacing: 3) {
-                HStack {
-                    Text(clip.name).font(.subheadline.weight(.medium))
+            VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
+                // WHAT IT IS AND WHOSE IT IS, ON ONE LINE. The pill sits beside
+                // the name it qualifies, the way the Policies tab draws the
+                // same claim, and the measured numbers move down to the second
+                // line with the other measured numbers.
+                HStack(spacing: Theme.spacing(.tight)) {
+                    Text(clip.name)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(Theme.textPrimary)
                     if clip.environment.hasProps {
                         Image(systemName: "square.3.layers.3d")
-                            .font(.caption2).foregroundStyle(.secondary)
+                            .font(.caption2)
+                            .foregroundStyle(Theme.textTertiary)
                             // The screen this row opens says WHICH props, and
                             // offers to hide them; the row only says there were
                             // some — in the same words that screen's toggle
                             // uses, "recorded against".
                             .accessibilityLabel(Text("Recorded against props"))
                     }
-                    Spacer()
-                    Text(String(format: "%.1fs", clip.duration))
-                        .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                    Spacer(minLength: Theme.spacing(.tight))
+                    provenancePill(provenance(of: clip, in: section))
                 }
                 // The measured start and end posture. It is the single most
                 // useful line in the row: step_up reads "standing → toppled",
                 // which is the move failing, stated plainly.
-                HStack(spacing: 4) {
+                HStack(spacing: Theme.spacing(.hairline)) {
                     // THE ARROW IS THE VERB, AND AN ARROW IS NOT A WORD.
                     // "standing, toppled" read out in a row is two postures
                     // with no idea which is which; the two words that fix it
@@ -427,31 +726,57 @@ struct IntentListView: View {
                     Image(systemName: "arrow.right").font(.caption2)
                         .accessibilityHidden(true)
                     Text(clip.endsIn.rawValue)
-                        .foregroundStyle(worrying(clip.endsIn) ? .orange : .secondary)
+                        .foregroundStyle(worrying(clip.endsIn) ? Theme.warning
+                                                              : Theme.textSecondary)
                         .accessibilityLabel(Text("Ends \(clip.endsIn.rawValue)"))
                     if let outcome = odds?[clip.name] {
                         Text("·").accessibilityHidden(true)
-                        // The measured rate, not the posture. `climb` ends
-                        // standing every time and gets up the flight none of
-                        // them, and the posture alone cannot say that.
-                        Text("works \(outcome.achieves)/\(outcome.rollouts)")
-                            .foregroundStyle(outcome.achieves == 0 ? .orange : .secondary)
+                        // THE WORD IS SF AND THE FIGURE IS MONO, WHICH IS THE
+                        // WHOLE OF THE TYPOGRAPHIC RULE APPLIED TO FOUR
+                        // CHARACTERS. "works" is the same on every row; the
+                        // fraction is the number somebody is scanning this list
+                        // for, it varies row to row, and tabular figures are
+                        // what let 0/16 and 12/16 line up down the column
+                        // instead of drifting. If it never changes, it is not
+                        // telemetry — so only half of this is set as if it
+                        // were.
+                        (Text("works ")
+                            + Text("\(outcome.achieves)/\(outcome.rollouts)")
+                                .font(.caption.monospaced().monospacedDigit()))
+                            .foregroundStyle(outcome.achieves == 0 ? Theme.warning
+                                                                   : Theme.textSecondary)
                     }
+                    Spacer(minLength: Theme.spacing(.tight))
+                    Text(String(format: "%.1fs", clip.duration))
+                        .font(.caption.monospaced().monospacedDigit())
+                        .foregroundStyle(Theme.textSecondary)
                 }
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.textSecondary)
             }
         }
     }
 
     private func draftRow(_ draft: IntentDraft) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack {
-                Text(draft.name).font(.subheadline.weight(.medium))
-                Spacer()
+        VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
+            HStack(spacing: Theme.spacing(.tight)) {
+                Text(draft.name)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Theme.textPrimary)
                 if !draft.isPlayable {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.caption2).foregroundStyle(.orange)
+                        .font(.caption2)
+                        // THE REFUSAL COLOUR, NOT THE WARNING ONE, AND THE TWO
+                        // ARE KEPT APART ON THIS SCREEN ON PURPOSE. A motion
+                        // that ends toppled, or that achieves its goal none of
+                        // sixteen times, is a measured disappointment and takes
+                        // `warning`. This is different in kind: the app has
+                        // checked the motion and will not play it. `refused` is
+                        // the token the palette gives that — "a refusal, or a
+                        // limit being approached" — and using it here keeps the
+                        // strongest colour in the app for the one thing on the
+                        // row that is not going to happen at all.
+                        .foregroundStyle(Theme.refused)
                         // WHY it will not play, in the checker's own words.
                         // `isPlayable` is false exactly when a broken problem
                         // exists, so this reads the first of them rather than
@@ -461,11 +786,19 @@ struct IntentListView: View {
                         .accessibilityLabel(Text(
                             draft.problems.first { $0.severity == .broken }?.text ?? ""))
                 }
+                Spacer(minLength: Theme.spacing(.tight))
                 Text(String(format: "%.1fs", draft.duration))
-                    .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                    .font(.caption.monospaced().monospacedDigit())
+                    .foregroundStyle(Theme.textSecondary)
             }
+            // PROSE, AND SO NOT SET AS TELEMETRY. The keyframe count varies from
+            // row to row like the duration does, but it is a clause in a
+            // sentence with a middot in it rather than a readout in a column,
+            // and monospacing one word of a sentence is how a list starts to
+            // look like a log file.
             Text("\(draft.keys.count) keyframes · no physics")
-                .font(.caption).foregroundStyle(.secondary)
+                .font(.caption)
+                .foregroundStyle(Theme.textSecondary)
         }
         .contentShape(Rectangle())
     }
@@ -597,22 +930,27 @@ struct IntentPlayerView: View {
             .frame(maxHeight: 340)
 
             TransportBar(duration: clip.duration, playhead: $playhead, isRunning: $isRunning)
-                .padding(.horizontal).padding(.vertical, 8)
+                .padding(.horizontal, Theme.spacing(.standard))
+                .padding(.vertical, Theme.spacing(.tight))
 
             Picker("Panel", selection: $panel) {
                 ForEach(Panel.allCases) { Text($0.rawValue).tag($0) }
             }
             .pickerStyle(.segmented)
-            .padding(.horizontal).padding(.bottom, 6)
+            .padding(.horizontal, Theme.spacing(.standard))
+            .padding(.bottom, Theme.spacing(.tight))
 
             List {
                 if let elsewhere {
                     Section {
                         Label("Playing in \(elsewhere.name), not where it was recorded.",
                               systemImage: "arrow.triangle.branch")
-                            .font(.footnote).foregroundStyle(.orange)
+                            .font(.footnote)
+                            .foregroundStyle(Theme.warning)
                         Button("Back to the recorded world") { elsewhereID = nil }
+                            .tint(Theme.actionSecondary)
                     }
+                    .listRowBackground(Theme.surfacePrimary)
                 } else if elsewhereID != nil {
                     // DELETED WHILE IT WAS BEING PLAYED IN. The banner above is
                     // gated on resolving the scene, so without this branch the
@@ -623,9 +961,12 @@ struct IntentPlayerView: View {
                     Section {
                         Label(StageCaption.sceneDeleted(.playedIn),
                               systemImage: "exclamationmark.triangle")
-                            .font(.footnote).foregroundStyle(.orange)
+                            .font(.footnote)
+                            .foregroundStyle(Theme.warning)
                         Button("Fine, keep the recorded world") { elsewhereID = nil }
+                            .tint(Theme.actionSecondary)
                     }
+                    .listRowBackground(Theme.surfacePrimary)
                 }
 
                 switch panel {
@@ -636,7 +977,12 @@ struct IntentPlayerView: View {
                 case .story:    story
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(Theme.backgroundSecondary)
         }
+        // The page ground behind the stage, the transport and the panel picker.
+        // The list paints its own recessed ground over the rest.
+        .background(Theme.backgroundPrimary)
         .navigationTitle(clip.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -743,47 +1089,79 @@ struct IntentPlayerView: View {
     // MARK: - what happened
 
     @ViewBuilder private var story: some View {
-        Section("What happened") {
-            LabeledContent("Starts", value: clip.startsFrom.rawValue)
-                    LabeledContent("Ends", value: clip.endsIn.rawValue)
-                    LabeledContent("Turns") {
-                        Text(String(format: "%+.2f rad", clip.netYaw)).monospacedDigit()
-                    }
-                    LabeledContent("Length") {
-                        Text(String(format: "%.1f s · %d ticks", clip.duration, clip.frames.count))
-                            .monospacedDigit()
-                    }
-                }
+        Section {
+            posture("Starts", clip.startsFrom.rawValue)
+            posture("Ends", clip.endsIn.rawValue)
+            // A NUMBER THAT CHANGES, IN THE COMPONENT THE APP ALREADY HAS FOR
+            // ONE. `TelemetryRow` is a label that does not change beside a
+            // value that does, in tabular figures, reflowing to stacked at
+            // accessibility sizes instead of letting the value be truncated off
+            // the right-hand edge — which is exactly what these two rows are.
+            // Drawing a lookalike here is the drift `DesignComponents` exists
+            // to prevent.
+            TelemetryRow(label: "Turns",
+                         value: String(format: "%+.2f", clip.netYaw),
+                         unit: "rad")
+            TelemetryRow(label: "Length",
+                         value: String(format: "%.1f s · %d ticks",
+                                       clip.duration, clip.frames.count))
+        } header: {
+            SectionHeading(text: "What happened")
+        }
+        .listRowBackground(Theme.surfacePrimary)
 
-                Section("Recorded from") {
-                    LabeledContent("Policy", value: clip.policy)
-                    if clip.authored {
-                        Text("A keyframe track riding on that policy as offsets, not the policy's own output. It was searched against a prop, and searching found what worked in that one situation — not a motion that generalises.")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                    if let note = ClipNote.provenance(for: clip) {
-                        Text(note).font(.caption).foregroundStyle(.secondary)
-                    }
-                    if ClipNote.needsPlantCaveat(clip) {
-                        Text(ClipNote.plantCaveat)
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                }
+        Section {
+            posture("Policy", clip.policy)
+            if clip.authored {
+                Text("A keyframe track riding on that policy as offsets, not the policy's own output. It was searched against a prop, and searching found what worked in that one situation — not a motion that generalises.")
+                    .font(.caption).foregroundStyle(Theme.textSecondary)
+            }
+            if let note = ClipNote.provenance(for: clip) {
+                Text(note).font(.caption).foregroundStyle(Theme.textSecondary)
+            }
+            if ClipNote.needsPlantCaveat(clip) {
+                Text(ClipNote.plantCaveat)
+                    .font(.caption).foregroundStyle(Theme.textSecondary)
+            }
+        } header: {
+            SectionHeading(text: "Recorded from")
+        }
+        .listRowBackground(Theme.surfacePrimary)
 
-                Section {
-                    Button { share() } label: {
-                        Label("Share this motion", systemImage: "square.and.arrow.up")
-                    }
-                } footer: {
-                    Text("Sends a .duckintent file — the frames, the postures, and the digest of the policy it was recorded from. The digest lets whoever receives it check they hold the same network; it does not say who made the motion, because a signature nobody can anchor would not tell them that either.")
-                }
+        Section {
+            Button { share() } label: {
+                Label("Share this motion", systemImage: "square.and.arrow.up")
+            }
+            .tint(Theme.actionSecondary)
+        } footer: {
+            sectionFootnote("Sends a .duckintent file — the frames, the postures, and the digest of the policy it was recorded from. The digest lets whoever receives it check they hold the same network; it does not say who made the motion, because a signature nobody can anchor would not tell them that either.")
+        }
+        .listRowBackground(Theme.surfacePrimary)
 
         if clip.environment.hasProps {
             Section {
                 Toggle("Show what it was recorded against", isOn: $showProps)
+                    .foregroundStyle(Theme.textPrimary)
             } footer: {
-                Text("Hiding the props is how you see the motion alone; showing them is how you see whether it worked. \(clip.name) was performed against \(clip.environment.steps.isEmpty ? "a wall" : "a four-step flight"), and without it on screen a duck that falls over looks like it fell over for no reason.")
+                sectionFootnote("Hiding the props is how you see the motion alone; showing them is how you see whether it worked. \(clip.name) was performed against \(clip.environment.steps.isEmpty ? "a wall" : "a four-step flight"), and without it on screen a duck that falls over looks like it fell over for no reason.")
             }
+            .listRowBackground(Theme.surfacePrimary)
+        }
+    }
+
+    /// A word beside a word.
+    ///
+    /// NOT `TelemetryRow`, BECAUSE A POSTURE IS NOT A MEASUREMENT. "standing"
+    /// set in tabular figures would be the app claiming a word is a number that
+    /// is about to change — the one thing the typographic rule here forbids. It
+    /// keeps `TelemetryRow`'s hierarchy, though: the label is the quiet half
+    /// and the value is the loud one, so a column of these and a column of
+    /// those read as one table.
+    private func posture(_ label: String, _ value: String) -> some View {
+        LabeledContent {
+            Text(value).foregroundStyle(Theme.textPrimary)
+        } label: {
+            Text(label).foregroundStyle(Theme.textSecondary)
         }
     }
 
@@ -796,9 +1174,27 @@ struct IntentPlayerView: View {
     /// whole of whether it is worth another attempt.
     @ViewBuilder private var numbers: some View {
         let m = metrics
-        Section("Where it went") { ForEach(m.travel) { ReadingRow(reading: $0) } }
-        Section("How it held itself") { ForEach(m.attitude) { ReadingRow(reading: $0) } }
-        Section("What the joints did") { ForEach(m.joints) { ReadingRow(reading: $0) } }
+        Section {
+            ForEach(m.travel) { ReadingRow(reading: $0) }
+        } header: {
+            SectionHeading(text: "Where it went")
+        }
+        .listRowBackground(Theme.surfacePrimary)
+
+        Section {
+            ForEach(m.attitude) { ReadingRow(reading: $0) }
+        } header: {
+            SectionHeading(text: "How it held itself")
+        }
+        .listRowBackground(Theme.surfacePrimary)
+
+        Section {
+            ForEach(m.joints) { ReadingRow(reading: $0) }
+        } header: {
+            SectionHeading(text: "What the joints did")
+        }
+        .listRowBackground(Theme.surfacePrimary)
+
         Section {
             // LIVE, AT THE PLAYHEAD. The aggregate rows below say what each
             // joint did over the whole run; these say what it is doing NOW,
@@ -809,27 +1205,31 @@ struct IntentPlayerView: View {
                 JointMomentRow(moment: moment)
             }
         } header: {
-            Text(String(format: "Right now — %.2f s", playhead))
+            SectionHeading(text: String(format: "Right now — %.2f s", playhead))
         } footer: {
-            Text("Scrub the transport and these follow. The sign is the direction: positive is toward the joint's positive travel, and the achieved motion is shown, not the command — a clamped servo is doing something different from what it was told.")
+            sectionFootnote("Scrub the transport and these follow. The sign is the direction: positive is toward the joint's positive travel, and the achieved motion is shown, not the command — a clamped servo is doing something different from what it was told.")
         }
+        .listRowBackground(Theme.surfacePrimary)
 
         Section {
             ForEach(m.perJoint) { JointRow(reading: $0) }
         } header: {
-            Text("Over the whole run")
+            SectionHeading(text: "Over the whole run")
         } footer: {
-            Text("Travel is how far the joint moved in total; deviation is how far from the home pose it got. They answer different questions — a gait travels a long way without ever going far — and the bar is the deviation against the room that joint actually has.")
+            sectionFootnote("Travel is how far the joint moved in total; deviation is how far from the home pose it got. They answer different questions — a gait travels a long way without ever going far — and the bar is the deviation against the room that joint actually has.")
         }
+        .listRowBackground(Theme.surfacePrimary)
+
         Section {
             ForEach(m.control) { ReadingRow(reading: $0) }
         } header: {
-            Text("What the policy emitted")
+            SectionHeading(text: "What the policy emitted")
         } footer: {
-            Text(m.telemetryMissing
+            sectionFootnote(m.telemetryMissing
                  ? "This recording stored the robot's joint angles only. The network's own output was not kept, so nothing here can be derived from it."
                  : "The network's raw output, before the gait scales it and before the travel stops clamp it.")
         }
+        .listRowBackground(Theme.surfacePrimary)
     }
 
     // MARK: - how often it works
@@ -843,17 +1243,18 @@ struct IntentPlayerView: View {
         let m = metrics
         if m.success.isEmpty {
             Section {
-                Text("Nobody has rolled this motion out. A rate needs repeated runs under varied conditions, and this clip has only ever been recorded once — which is one run, not a measurement.")
-                    .font(.footnote).foregroundStyle(.secondary)
+                sectionFootnote("Nobody has rolled this motion out. A rate needs repeated runs under varied conditions, and this clip has only ever been recorded once — which is one run, not a measurement.")
             }
+            .listRowBackground(Theme.surfacePrimary)
         } else {
             Section {
                 ForEach(m.success) { ReadingRow(reading: $0) }
             } header: {
-                Text("Measured by rolling it out again")
+                SectionHeading(text: "Measured by rolling it out again")
             } footer: {
-                Text("Two rates rather than one, because they are different questions and they come apart on exactly the motions that matter. A stair move that reliably ends upright on the floor repeats perfectly and achieves nothing.")
+                sectionFootnote("Two rates rather than one, because they are different questions and they come apart on exactly the motions that matter. A stair move that reliably ends upright on the floor repeats perfectly and achieves nothing.")
             }
+            .listRowBackground(Theme.surfacePrimary)
         }
     }
 
@@ -868,11 +1269,12 @@ struct IntentPlayerView: View {
         // to draw a line that has not changed is how a chart tab stutters.
         let series = cachedSeries ?? RunSeries(clip: clip)
         Section {
-            Text("Sampled once per tick at \(Int(clip.hz)) Hz, unsmoothed. The interesting features here are the sharp ones — the instant a foot lands, the tick a joint hits its stop — and a filter would remove exactly those. The orange line is the playhead.")
-                .font(.caption).foregroundStyle(.secondary)
+            sectionFootnote("Sampled once per tick at \(Int(clip.hz)) Hz, unsmoothed. The interesting features here are the sharp ones — the instant a foot lands, the tick a joint hits its stop — and a filter would remove exactly those. The orange line is the playhead.")
         }
+        .listRowBackground(Theme.surfacePrimary)
         ForEach(series.tracks) { track in
             Section { RunChart(track: track, playhead: playhead) }
+                .listRowBackground(Theme.surfacePrimary)
         }
     }
 
@@ -880,27 +1282,34 @@ struct IntentPlayerView: View {
 
     @ViewBuilder private var reward: some View {
         let m = metrics
-        Section { Text(m.provenance).font(.footnote).foregroundStyle(.secondary) }
+        Section {
+            sectionFootnote(m.provenance)
+        }
+        .listRowBackground(Theme.surfacePrimary)
 
         if !m.rewards.isEmpty {
-            Section("Scored on this recording") {
+            Section {
                 ForEach(m.rewards) { RewardRow(term: $0) }
+            } header: {
+                SectionHeading(text: "Scored on this recording")
             }
+            .listRowBackground(Theme.surfacePrimary)
         }
         if !m.unevaluated.isEmpty {
             Section {
                 ForEach(m.unevaluated) { ReadingRow(reading: $0) }
             } header: {
-                Text("Terms a recording cannot answer")
+                SectionHeading(text: "Terms a recording cannot answer")
             } footer: {
-                Text("These are real terms in the training config and they are not scored here, because each reads a sensor a clip does not carry. Listing them is the honest alternative to a shorter panel that looks complete.")
+                sectionFootnote("These are real terms in the training config and they are not scored here, because each reads a sensor a clip does not carry. Listing them is the honest alternative to a shorter panel that looks complete.")
             }
+            .listRowBackground(Theme.surfacePrimary)
         }
         if m.rewards.isEmpty && m.unevaluated.isEmpty {
             Section {
-                Text("No reward is scored for this motion. Weights belong to a training config, and attaching the wrong one would give every number on this screen an authority it has not earned.")
-                    .font(.footnote).foregroundStyle(.secondary)
+                sectionFootnote("No reward is scored for this motion. Weights belong to a training config, and attaching the wrong one would give every number on this screen an authority it has not earned.")
             }
+            .listRowBackground(Theme.surfacePrimary)
         }
     }
 }
@@ -910,15 +1319,18 @@ private struct ReadingRow: View {
     let reading: RunMetrics.Reading
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
             HStack {
-                Text(reading.label).font(.subheadline)
+                Text(reading.label)
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.textSecondary)
                 Spacer()
-                Text(reading.value).font(.subheadline.monospacedDigit())
-                    .foregroundStyle(.secondary)
+                Text(reading.value)
+                    .font(.subheadline.monospaced().monospacedDigit())
+                    .foregroundStyle(Theme.textPrimary)
             }
             if let detail = reading.detail {
-                Text(detail).font(.caption).foregroundStyle(.secondary)
+                Text(detail).font(.caption).foregroundStyle(Theme.textSecondary)
             }
         }
         // A name, a number and the sentence about them are one reading. Three
@@ -933,14 +1345,26 @@ private struct JointMomentRow: View {
     let moment: RunSeries.JointMoment
 
     var body: some View {
-        HStack(spacing: 8) {
-            Text(moment.name).font(.caption)
+        HStack(spacing: Theme.spacing(.tight)) {
+            Text(moment.name)
+                .font(.caption)
+                .foregroundStyle(Theme.textSecondary)
             Spacer()
             if moment.isMoving {
+                // THE ARROW CARRIES THE DIRECTION AND THE COLOUR NO LONGER
+                // TRIES TO. This drew a positive rate in the accent colour and
+                // a negative one in orange, which is a hue standing in for a
+                // sign — and in an app where a hue is a claim about provenance,
+                // that claim is false: both directions are the same
+                // measurement, off the same recording, and colouring one of
+                // them says the two came from different places. Two glyphs that
+                // point opposite ways are the stronger cue anyway, they survive
+                // every form of colour blindness (SC 1.4.1), and the signed
+                // number is printed immediately beside them.
                 Image(systemName: moment.velocity > 0
                       ? "arrow.up.right.circle.fill" : "arrow.down.left.circle.fill")
                     .font(.caption)
-                    .foregroundStyle(moment.velocity > 0 ? Color.accentColor : Color.orange)
+                    .foregroundStyle(Theme.textSecondary)
                     // SILENT ON PURPOSE. The arrow is the sign of the number
                     // printed immediately beside it, drawn again for a reader
                     // scanning at a glance. Spoken, it would be the same fact
@@ -948,13 +1372,14 @@ private struct JointMomentRow: View {
                     // no words here that the signed value does not carry.
                     .accessibilityHidden(true)
                 Text(String(format: "%+.1f rad/s", moment.velocity))
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(moment.velocity > 0 ? Color.accentColor : Color.orange)
+                    .font(.caption.monospaced().monospacedDigit())
+                    .foregroundStyle(Theme.textPrimary)
             } else {
-                Text("holding").font(.caption2).foregroundStyle(.tertiary)
+                Text("holding").font(.caption2).foregroundStyle(Theme.textTertiary)
             }
             Text(String(format: "%+.2f rad", moment.angle))
-                .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                .font(.caption.monospaced().monospacedDigit())
+                .foregroundStyle(Theme.textSecondary)
                 .frame(width: 74, alignment: .trailing)
         }
         // One joint at one instant is one thing to hear: which joint, how fast,
@@ -968,33 +1393,45 @@ private struct JointRow: View {
     let reading: RunMetrics.JointReading
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
             HStack {
-                Text(reading.name).font(.caption)
+                Text(reading.name)
+                    .font(.caption)
+                    .foregroundStyle(Theme.textSecondary)
                 if reading.atStopFraction > 0 {
                     Image(systemName: "arrow.up.and.down.and.arrow.left.and.right")
-                        .font(.caption2).foregroundStyle(.orange)
+                        .font(.caption2).foregroundStyle(Theme.warning)
                         // The text next to it says this in words already.
                         .accessibilityHidden(true)
                     Text("\(Int((reading.atStopFraction * 100).rounded()))% at its stop")
-                        .font(.caption2).foregroundStyle(.orange)
+                        .font(.caption2).foregroundStyle(Theme.warning)
                 }
                 Spacer()
                 Text(String(format: "%.2f rad · %.0f rad/s", reading.travel, reading.peakRate))
-                    .font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
+                    .font(.caption2.monospaced().monospacedDigit())
+                    .foregroundStyle(Theme.textSecondary)
             }
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(Color.secondary.opacity(0.15))
+                    // THE TRACK IS FURNITURE AND THE FILL IS THE FINDING. The
+                    // track used to be the system grey at 15% opacity, which is
+                    // an invented colour on an invented ground; `separator` is
+                    // the token the palette already keeps for a line that is
+                    // there to be seen past rather than read. The fill is teal
+                    // because a deviation is something this app MEASURED, and
+                    // it turns to the warning colour on the one condition worth
+                    // interrupting a scan for — a joint spending part of the
+                    // run against its stop, which the words beside it say too.
+                    Capsule().fill(Theme.separator)
                     Capsule()
-                        .fill(reading.atStopFraction > 0 ? Color.orange : Color.accentColor)
+                        .fill(reading.atStopFraction > 0 ? Theme.warning : Theme.brandPrimary)
                         .frame(width: geo.size.width * CGFloat(reading.usedFraction))
                 }
             }
-            .frame(height: 5)
+            .frame(height: Theme.spacing(.hairline))
             Text(String(format: "furthest from home: %.2f rad at %.2f s",
                         reading.peakDeviation, reading.peakDeviationAt))
-                .font(.caption2).foregroundStyle(.tertiary)
+                .font(.caption2).foregroundStyle(Theme.textTertiary)
         }
         // Four fragments about one joint, heard as one. The bar is the
         // deviation drawn, and the deviation is already in the last line.
@@ -1007,22 +1444,28 @@ private struct RewardRow: View {
     let term: RunMetrics.RewardTerm
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
             HStack {
-                Text(term.name).font(.subheadline.monospaced())
+                // MONO ON A NAME THAT NEVER CHANGES, WHICH IS THE ONE EXEMPTION
+                // THE RULE HAS. A reward term is an identifier out of a training
+                // config, not a sentence, and the app already sets the other
+                // identifier it shows — a policy's digest — the same way.
+                Text(term.name)
+                    .font(.subheadline.monospaced())
+                    .foregroundStyle(Theme.textPrimary)
                 Spacer()
                 switch term.standing {
                 case .evaluated(let mean, let weighted):
                     Text(String(format: "%.3f × %+.3f = %+.3f", mean, term.weight, weighted))
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(weighted < 0 ? .orange : .secondary)
+                        .font(.caption.monospaced().monospacedDigit())
+                        .foregroundStyle(weighted < 0 ? Theme.warning : Theme.textSecondary)
                 case .missing:
-                    Text("not scored").font(.caption).foregroundStyle(.secondary)
+                    Text("not scored").font(.caption).foregroundStyle(Theme.textSecondary)
                 }
             }
-            Text(term.purpose).font(.caption).foregroundStyle(.secondary)
+            Text(term.purpose).font(.caption).foregroundStyle(Theme.textSecondary)
             if case .missing(let why) = term.standing {
-                Text("Not scored: \(why).").font(.caption).foregroundStyle(.orange)
+                Text("Not scored: \(why).").font(.caption).foregroundStyle(Theme.warning)
             }
         }
         // The term, its arithmetic, what it is for and why it went unscored are
@@ -1045,9 +1488,14 @@ struct TransportBar: View {
     private var printedTime: String { String(format: "%.2fs", playhead) }
 
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: Theme.spacing(.snug)) {
             Button { isRunning.toggle() } label: {
                 Image(systemName: isRunning ? "pause.fill" : "play.fill")
+                    // 44pt, the floor. These were roughly 20pt glyphs with no
+                    // frame — under half the minimum, on the two controls a
+                    // person taps most while watching a recording.
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
             }
             // The name follows the symbol, because this one button is both
             // controls and announcing "play" while it is playing sends people
@@ -1055,6 +1503,8 @@ struct TransportBar: View {
             .accessibilityLabel(Text(isRunning ? "Pause" : "Play"))
             Button { playhead = 0; isRunning = true } label: {
                 Image(systemName: "arrow.counterclockwise")
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
             }
             .accessibilityLabel(Text("Restart"))
             Slider(value: $playhead, in: 0...max(duration, 0.01)) { editing in
@@ -1070,12 +1520,20 @@ struct TransportBar: View {
             .accessibilityLabel(Text("Scrub"))
             .accessibilityValue(Text(printedTime))
             Text(printedTime)
-                .font(.caption2.monospacedDigit())
+                .font(.caption2.monospaced().monospacedDigit())
+                .foregroundStyle(Theme.textSecondary)
                 .frame(width: 46, alignment: .trailing)
                 // Said by the slider, one element to the left.
                 .accessibilityHidden(true)
         }
         .buttonStyle(.borderless)
+        // THE TRANSPORT IS THE ACTION ON THIS SCREEN, AND IT SETS WORDS RATHER
+        // THAN FILLING THEM. Play, pause and restart are glyphs on the page
+        // ground, not fills, so they take the ink that clears 4.5:1 on cream
+        // rather than Duck Orange, which is 2.30:1 there. In dark this IS Duck
+        // Orange — the token is the same colour in both schemes on the one
+        // ground where the brand value works.
+        .tint(Theme.actionSecondary)
     }
 }
 

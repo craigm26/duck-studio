@@ -23,6 +23,11 @@ import StudioKit
 /// the five names are load-bearing; a gear in the same place on every root is
 /// findable without spending the one slot left.
 struct SettingsView: View {
+    /// The one reader of `Theme.appearanceKey` had zero writers: the design
+    /// run built the preference, its titles and its detail copy, and no
+    /// screen offered it — so un-forcing dark made dark UNREACHABLE rather
+    /// than optional. This is the writer.
+    @AppStorage(Theme.appearanceKey) private var appearance = Theme.defaultAppearance.rawValue
     @ObservedObject var models: EndpointStore
     @ObservedObject var benches: BenchStore
 
@@ -51,6 +56,18 @@ struct SettingsView: View {
                     Text(note).font(.footnote)
                     Button("Got it") { benches.dismissUnreadableNote() }
                 }
+            }
+
+            Section {
+                Picker("Appearance", selection: $appearance) {
+                    ForEach(Theme.Appearance.allCases) { choice in
+                        Text(choice.title).tag(choice.rawValue)
+                    }
+                }
+            } footer: {
+                // THE DETAIL IS THE APPEARANCE'S OWN, not composed here, so the
+                // sentence a person reads is the one the type documents.
+                Text((Theme.Appearance(rawValue: appearance) ?? Theme.defaultAppearance).detail)
             }
 
             Section {
