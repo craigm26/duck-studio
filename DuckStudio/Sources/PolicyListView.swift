@@ -97,6 +97,9 @@ struct PolicyListView: View {
                     NavigationLink { FindDuckView() } label: {
                         Label("Find a real duck", systemImage: "antenna.radiowaves.left.and.right")
                     }
+                    NavigationLink { PolicyHubView(model: model) } label: {
+                        Label("Published by others", systemImage: "person.2")
+                    }
                     NavigationLink { RemoteRunView(model: model, scenes: scenes, drafts: drafts,
                                                    models: models, benches: benches) } label: {
                         Label("Run on your network", systemImage: "wifi")
