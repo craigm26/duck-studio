@@ -52,6 +52,66 @@ final class LibraryModel: ObservableObject {
             .sorted { $0.name < $1.name }
     }
 
+    /// Keep a policy's manifest with it, so what the author wrote down survives
+    /// the install.
+    /// - Note: Called straight after `accept`, so the entry it belongs to is
+    ///   already in the library. The identity comes from the WEIGHTS, which is
+    ///   why the entry is looked up rather than reconstructed here — a manifest
+    ///   filed under a made-up identity would be a manifest nothing ever reads.
+    func rememberManifest(_ data: Data, forPolicyNamed name: String) {
+        guard let stored = library.entries.first(where: { $0.displayName == name }) else { return }
+        PolicyLibrary.persistManifest(data, for: stored, into: container)
+    }
+
+    /// The manifest stored with a policy, if it came with one.
+    func manifest(for entry: PolicyLibrary.Entry) -> PolicyManifest? {
+        PolicyLibrary.manifest(for: entry, in: container)
+    }
+
+    /// The action scale that policy declared, or nil to let the caller guess.
+    func declaredScale(for entry: PolicyLibrary.Entry) -> Double? {
+        PolicyLibrary.declaredScale(for: entry, in: container)
+    }
+
+    /// Remove a motion somebody brought in — sent to them, or kept from their
+    /// own bench.
+    ///
+    /// EVERY MOTION IN THIS LIST IS THE PERSON'S OWN AND NONE OF IT COULD BE
+    /// REMOVED. Recordings arrived by AirDrop, by Files, or from a bench, and
+    /// once in they were permanent: there was no delete anywhere on the screen
+    /// that listed them. Only the bundled clips are the app's, and those are
+    /// not in this array.
+    ///
+    /// BY THE NAME ON DISK, WHICH IS THE EXPORT'S NAME. `acceptIntent` writes
+    /// `intents/<export.name>.duckintent`, so that is the file to remove — and
+    /// re-reading the directory afterwards is what makes the list agree with
+    /// the disk rather than with what this method believes it did.
+    @discardableResult
+    func removeIntent(_ clip: DuckIntentClip) -> Bool {
+        let url = intents.appendingPathComponent("\(clip.name).duckintent")
+        defer { reloadIntents() }
+        guard FileManager.default.fileExists(atPath: url.path) else { return false }
+        do {
+            try FileManager.default.removeItem(at: url)
+            return true
+        } catch {
+            lastImport = "\(clip.name) could not be removed."
+            return false
+        }
+    }
+
+    /// Remove a policy the person brought in themselves.
+    ///
+    /// REFUSED FOR THE NINE THAT SHIPPED WITH THE APP, and `Entry.isRemovable`
+    /// is where that is decided — their bytes are inside the read-only bundle,
+    /// so this is what the filesystem allows rather than a rule invented here.
+    @discardableResult
+    func removePolicy(_ entry: PolicyLibrary.Entry) -> Bool {
+        let gone = PolicyLibrary.remove(entry, from: container)
+        if gone { reload() }
+        return gone
+    }
+
     /// Take a file the system handed us.
     ///
     /// A security-scoped resource, because the URL points outside this app's

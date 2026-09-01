@@ -190,6 +190,88 @@ public struct PolicyLibrary: Sendable {
     /// send you `policy.onnx` and the second must not overwrite the first. The
     /// display name is what was typed on the outside of the envelope; the
     /// identity is what is in it.
+    /// Where a policy's manifest is kept beside its weights.
+    ///
+    /// KEYED BY IDENTITY, LIKE THE WEIGHTS. A manifest belongs to a specific
+    /// set of weights, and storing it under the display name would attach one
+    /// person's `policy.onnx` manifest to another's.
+    static func manifestURL(for entry: Entry, in container: URL) -> URL {
+        container.appendingPathComponent("\(entry.identity.value).manifest.json")
+    }
+
+    /// Keep a policy's manifest with it.
+    ///
+    /// THE MANIFEST WAS BEING READ AND THEN THROWN AWAY. The community browser
+    /// fetched it, showed the command layout and the author's caveats, and then
+    /// installed the `.onnx` alone — so the moment a policy was in the library,
+    /// everything the manifest knew was gone. The most expensive loss is
+    /// `action_scale`: without it the bench guesses from the FILE NAME, matches
+    /// nothing for a community policy, and silently applies walking's 0.9. A
+    /// policy declaring 1.0 is then driven 10% short, which is the same error
+    /// `BenchView` already documents for roulade.
+    @discardableResult
+    public static func persistManifest(_ data: Data, for entry: Entry, into container: URL,
+                                       using fileManager: FileManager = .default) -> Bool {
+        do {
+            try fileManager.createDirectory(at: container, withIntermediateDirectories: true)
+            try data.write(to: manifestURL(for: entry, in: container))
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    /// The manifest stored with a policy, if one was.
+    public static func manifest(for entry: Entry, in container: URL,
+                                using fileManager: FileManager = .default) -> PolicyManifest? {
+        let url = manifestURL(for: entry, in: container)
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return try? PolicyManifest.decode(data)
+    }
+
+    /// The action scale a policy DECLARED, as opposed to one inferred from its
+    /// file name.
+    ///
+    /// A NAMED ACCESSOR RATHER THAN A FIELD READ, because the app-target gate
+    /// forbids `actionScale` there and is right to: the number is a fact about
+    /// the robot, and a view reaching into a manifest for it is a view one edit
+    /// away from doing arithmetic with it. Nil means the policy came with no
+    /// manifest, and the caller should fall back to the guess — which is what
+    /// `DuckGait.stages` does with a nil `scale`.
+    public static func declaredScale(for entry: Entry, in container: URL,
+                                     using fileManager: FileManager = .default) -> Double? {
+        manifest(for: entry, in: container, using: fileManager)?.actionScale
+    }
+
+    /// Take a policy back out of the container.
+    ///
+    /// BY IDENTITY, THE SAME WAY IT WENT IN. `persist` stores under the digest
+    /// rather than the display name precisely so two files called `policy.onnx`
+    /// cannot collide, and a removal that went looking for the display name
+    /// would delete the wrong one — or, more often, nothing at all while
+    /// reporting success.
+    ///
+    /// - Returns: whether a file was actually removed. False for a bundled
+    ///   policy, whose bytes are inside the read-only app bundle.
+    @discardableResult
+    public static func remove(_ entry: Entry, from container: URL,
+                              using fileManager: FileManager = .default) -> Bool {
+        guard entry.isRemovable else { return false }
+        let url = container.appendingPathComponent("\(entry.identity.value).onnx")
+        guard fileManager.fileExists(atPath: url.path) else { return false }
+        do {
+            try fileManager.removeItem(at: url)
+            // THE MANIFEST GOES WITH IT. Leaving it behind would attach the
+            // departed policy's command layout and action scale to the next
+            // file that happens to hash the same — which is nothing, in
+            // practice, but it is also just litter nobody can see or clear.
+            try? fileManager.removeItem(at: manifestURL(for: entry, in: container))
+            return true
+        } catch {
+            return false
+        }
+    }
+
     @discardableResult
     public static func persist(_ data: Data, entry: Entry, into container: URL,
                                using fileManager: FileManager = .default) throws -> URL {
@@ -210,5 +292,44 @@ public struct PolicyLibrary: Sendable {
 
     static func fileDigest(_ data: Data) -> String {
         SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+}
+
+extension PolicyLibrary.Entry {
+
+    /// Whether this entry can be removed from the app at all.
+    ///
+    /// BUNDLED POLICIES CANNOT BE, AND THE REASON IS NOT A POLICY DECISION.
+    /// The nine Pollen ship live inside the app bundle, which is read-only and
+    /// is restored whole on every update — deleting one is not something the
+    /// filesystem permits, and an app that offered the button anyway would be
+    /// offering a control that cannot work. Everything a person brought in
+    /// themselves, by file or by download, lives in the container and is theirs
+    /// to throw away.
+    public var isRemovable: Bool {
+        switch origin {
+        case .bundled: return false
+        case .imported, .fetched: return true
+        }
+    }
+
+    /// The sentence to confirm a removal with.
+    ///
+    /// IT NAMES WHAT CANNOT BE UNDONE. A policy somebody was sent, or trained
+    /// themselves and imported, may exist nowhere else — this app is not a
+    /// backup and deleting the file is deleting the weights. A download from a
+    /// repository can be fetched again and says so, because those are two very
+    /// different risks wearing the same button.
+    public var removalWarning: String {
+        switch origin {
+        case .bundled:
+            return "This one came with the app and cannot be removed."
+        case .fetched(let host):
+            return "Removes \(displayName) from this phone. It came from \(host), so it can be "
+                 + "downloaded again."
+        case .imported:
+            return "Removes \(displayName) from this phone. It was brought in as a file, so if "
+                 + "this is the only copy, the weights are gone with it."
+        }
     }
 }

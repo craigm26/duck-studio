@@ -21,6 +21,9 @@ import StudioKit
 /// physics nobody ran.
 struct BenchView: View {
     let entry: PolicyLibrary.Entry
+    /// For the policy's stored manifest — the only place the action scale is
+    /// KNOWN rather than inferred from a file name. See `probe()`.
+    @ObservedObject var model: LibraryModel
     /// OBSERVED, AND NOT OPTIONAL. Resolving the scene by id is only half the
     /// fix: without a property wrapper this view never subscribes to the
     /// store's `objectWillChange`, so whether the resolution is redrawn is left
@@ -276,7 +279,15 @@ struct BenchView: View {
         // their policy to the walking action scale.
         let kind = DuckPolicyKind.allCases.first { $0.fileName == entry.displayName
                                                 || "BEST_" + $0.fileName == entry.displayName }
-        stages = DuckGait.stages(action: actions, previousTargets: nil, kind: kind ?? .walk)
+        // THE MANIFEST BEATS THE FILE NAME, when the policy came with one. The
+        // match above can only ever recognise the nine Pollen ship; a policy
+        // somebody trained themselves matches nothing and falls to `.walk`'s
+        // 0.9 however wrong that is for it. A published policy states its own
+        // `action_scale` — happy-hop's is 1.0 — and stating it is exactly what
+        // this app should stop guessing at.
+        stages = DuckGait.stages(action: actions, previousTargets: nil,
+                                 kind: kind ?? .walk,
+                                 scale: model.declaredScale(for: entry))
         strip = ZScoreStrip(observation: observation, policy: policy)
         sensitivity = Sensitivity(policy: policy, observation: observation)
     }

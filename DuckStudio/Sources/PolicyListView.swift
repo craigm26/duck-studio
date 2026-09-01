@@ -71,6 +71,18 @@ struct PolicyListView: View {
             }
         }
         .navigationTitle("Policies")
+        .confirmationDialog("Remove this policy?",
+                            isPresented: Binding(get: { removing != nil },
+                                                 set: { if !$0 { removing = nil } }),
+                            presenting: removing) { entry in
+            Button("Remove \(entry.displayName)", role: .destructive) {
+                model.removePolicy(entry)
+                removing = nil
+            }
+            Button("Keep it", role: .cancel) { removing = nil }
+        } message: { entry in
+            Text(entry.removalWarning)
+        }
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Text("\(model.library.runnableCount) of \(model.library.entries.count) run")
@@ -96,9 +108,6 @@ struct PolicyListView: View {
                     // should not have to be told where it is.
                     NavigationLink { FindDuckView() } label: {
                         Label("Find a real duck", systemImage: "antenna.radiowaves.left.and.right")
-                    }
-                    NavigationLink { PolicyHubView(model: model) } label: {
-                        Label("Published by others", systemImage: "person.2")
                     }
                     NavigationLink { RemoteRunView(model: model, scenes: scenes, drafts: drafts,
                                                    models: models, benches: benches) } label: {
@@ -133,12 +142,34 @@ struct PolicyListView: View {
         }
     }
 
+    /// The policy a removal is being confirmed for.
+    ///
+    /// CONFIRMED RATHER THAN SWIPED AWAY, because for an imported policy this
+    /// is not recoverable: the weights may exist nowhere else, and this app is
+    /// not a backup. `Entry.removalWarning` says which of the two cases it is —
+    /// a download that can be fetched again, or a file that cannot.
+    @State private var removing: PolicyLibrary.Entry?
+
     private func isReleased(_ standing: DuckOfficialPolicies.Standing) -> Bool {
         if case .released = standing { return true }
         return false
     }
 
     private func row(_ entry: PolicyLibrary.Entry) -> some View {
+        rowLink(entry)
+            // ONLY WHERE IT CAN WORK. The nine that ship inside the app bundle
+            // cannot be deleted from a read-only bundle, so they get no swipe
+            // at all rather than one that appears and does nothing.
+            .swipeActions(edge: .trailing) {
+                if entry.isRemovable {
+                    Button(role: .destructive) { removing = entry } label: {
+                        Label("Remove", systemImage: "trash")
+                    }
+                }
+            }
+    }
+
+    private func rowLink(_ entry: PolicyLibrary.Entry) -> some View {
         NavigationLink {
             PolicyDetailView(entry: entry, model: model,
                              library: model.library, benches: benches,
@@ -298,7 +329,8 @@ struct PolicyDetailView: View {
                             Label("Watch it move", systemImage: "play.circle")
                         }
                     }
-                    NavigationLink { BenchView(entry: entry, store: scenes) } label: {
+                    NavigationLink { BenchView(entry: entry, model: model,
+                                               store: scenes) } label: {
                         Label("Probe this network", systemImage: "slider.horizontal.below.square.filled.and.square")
                     }
                     // REMIX AND RUN, FROM THE POLICY YOU ARE LOOKING AT.

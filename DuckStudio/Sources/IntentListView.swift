@@ -247,6 +247,16 @@ struct IntentListView: View {
             if !model.importedClips.isEmpty {
                 Section {
                     ForEach(model.importedClips, id: \.name) { row($0) }
+                        // THEIRS TO THROW AWAY, AND UNTIL NOW THEY COULD NOT.
+                        // Everything in this section arrived by AirDrop, by
+                        // Files, or off the person's own bench; none of it is
+                        // the app's, and there was no delete anywhere on the
+                        // screen that listed it. The bundled clips are a
+                        // different array and keep no swipe.
+                        .onDelete { offsets in
+                            offsets.map { model.importedClips[$0] }
+                                   .forEach { model.removeIntent($0) }
+                        }
                 } header: {
                     // NOT "Sent to you". Recordings kept from your own bench
                     // land in exactly this array — nobody sent those, and the

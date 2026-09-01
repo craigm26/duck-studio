@@ -18,6 +18,9 @@ struct CommunityPoliciesView: View {
 
     @State private var entries: [PolicyCatalogue.CommunityEntry] = []
     @State private var manifests: [String: PolicyManifest] = [:]
+    /// The manifest bytes as fetched, so an install can store the file itself
+    /// rather than a re-encoding of this app's understanding of it.
+    @State private var manifestBytes: [String: Data] = [:]
     @State private var noManifest: Set<String> = []
     @State private var busy = false
     @State private var working: String?
@@ -233,6 +236,7 @@ struct CommunityPoliciesView: View {
                 return
             }
             manifests[entry.id] = try PolicyManifest.decode(data)
+            manifestBytes[entry.id] = data
         } catch let error as PolicyManifest.ReadError {
             if case .unsupportedSchema(let version) = error {
                 failure = "\(entry.name) is written in sharing format \(version), which this "
@@ -262,6 +266,13 @@ struct CommunityPoliciesView: View {
             }
             model.accept(data, named: "\(manifest.name).onnx",
                          origin: "huggingface.co/\(entry.id)")
+            // AND KEEP THE MANIFEST, which this screen already has in hand.
+            // Installing the weights alone threw away the command layout, the
+            // author's caveats, and the action scale — leaving the bench to
+            // guess the scale from a file name that matches nothing.
+            if let raw = manifestBytes[entry.id] {
+                model.rememberManifest(raw, forPolicyNamed: "\(manifest.name).onnx")
+            }
         } catch {
             failure = "\(error)"
         }
