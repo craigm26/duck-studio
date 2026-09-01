@@ -1,6 +1,7 @@
 import SwiftUI
 import StudioKit
 import DuckKit
+import DuckEvidence
 
 /// Drive a policy with your thumbs, live.
 ///
@@ -28,7 +29,7 @@ struct DriveView: View {
     @State private var health: DuckBench.Health?
     @State private var chosen = ""
     @State private var live: DuckDrive.Live?
-    @State private var sticks = DuckDrive.Sticks.centred
+    @State private var touchSticks = DuckDrive.Sticks.centred
     @State private var running = false
     @State private var busy = false
     @State private var failure: String?
@@ -39,6 +40,22 @@ struct DriveView: View {
     /// the duck moves in lurches, and that reads as a broken policy rather than
     /// as a slow network unless the screen counts it out loud.
     @State private var trips = 0
+    /// A real controller, when one is paired.
+    @StateObject private var pad = PadReader()
+    /// Which overlays are on. See `DuckPad.Layer` — a driver and a tester want
+    /// different amounts on top of the same picture.
+    @State private var layers = DuckPad.Layer.defaults
+    /// What the buttons flashed most recently, so a press is visible even when
+    /// the thing it did is off-screen.
+    @State private var lastAction: String?
+
+    /// A REAL PAD WINS WHILE IT IS BEING HELD. Both inputs are live at once —
+    /// a tester can put a thumb on the glass without unpairing anything — and
+    /// the physical sticks only take over once they leave centre, so a resting
+    /// controller does not pin the on-screen pads to zero.
+    private var sticks: DuckDrive.Sticks {
+        pad.sticks == .centred ? touchSticks : pad.sticks
+    }
 
     private var twist: DuckDrive.Twist { DuckDrive.twist(for: sticks) }
 
@@ -48,12 +65,19 @@ struct DriveView: View {
     var body: some View {
         VStack(spacing: 0) {
             stage
+            layerChips
             controls
         }
         .navigationTitle("Drive")
         .navigationBarTitleDisplayMode(.inline)
-        .task { await connect() }
+        .task {
+            // THE PAD'S PRESSES GO THROUGH THE SAME DOOR as the on-screen ones.
+            pad.onPress = { control in Task { await press(control) } }
+            pad.begin()
+            await connect()
+        }
         .onDisappear {
+            pad.stop()
             // LEAVING THE SCREEN STOPS THE LOOP. Without this the task keeps
             // sending intents at a bench for a screen nobody is looking at.
             running = false
@@ -69,8 +93,43 @@ struct DriveView: View {
     private var stage: some View {
         ZStack(alignment: .topLeading) {
             DuckStage(pose: pose, environment: .bareFloor, orbit: $orbit)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(readout).font(.caption2.monospacedDigit().weight(.medium))
+            VStack(alignment: .leading, spacing: 3) {
+                if layers.contains(.telemetry) {
+                    Text(readout).font(.caption2.monospacedDigit().weight(.medium))
+                }
+                if layers.contains(.command) {
+                    Text(DuckDrive.says(twist))
+                        .font(.caption2.monospacedDigit()).foregroundStyle(.cyan)
+                }
+                if layers.contains(.policy) {
+                    Text(policyLine).font(.caption2.monospacedDigit()).foregroundStyle(.mint)
+                }
+                if layers.contains(.link) {
+                    Text(linkLine).font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
+                }
+                if layers.contains(.limits), let live {
+                    // ONLY THE ONES ABOUT TO CLIP. A list of fourteen joints is
+                    // a list nobody reads; three joints against their stops is
+                    // the finding.
+                    let near = DuckPad.nearLimits(live.stance.jointAngles)
+                    if near.isEmpty {
+                        Text("no joint within 10° of a stop")
+                            .font(.caption2).foregroundStyle(.secondary)
+                    } else {
+                        ForEach(near, id: \.name) { joint in
+                            Text(String(format: "%@ %.3f → stop %.3f",
+                                        joint.name, joint.angle, joint.limit))
+                                .font(.caption2.monospacedDigit()).foregroundStyle(.orange)
+                        }
+                    }
+                }
+                if layers.contains(.joints), let live {
+                    Text(jointGrid(live.stance.jointAngles))
+                        .font(.system(size: 9).monospaced()).foregroundStyle(.secondary)
+                }
+                if let lastAction {
+                    Text(lastAction).font(.caption2.weight(.medium)).foregroundStyle(.yellow)
+                }
                 if let live, !live.upright {
                     // NOT AN ERROR, AND NOT HIDDEN EITHER. A duck on its side is
                     // the most informative thing this screen produces: it is the
@@ -85,6 +144,80 @@ struct DriveView: View {
             .padding(10)
         }
         .frame(maxHeight: 300)
+    }
+
+    /// One face button. DIMMED WHERE IT CANNOT WORK, and still pressable —
+    /// pressing it is how a tester learns WHY, which is more use than a control
+    /// that is missing or inert.
+    private func padButton(_ control: DuckPad.Control) -> some View {
+        let binding = DuckPad.binding(for: control)
+        let live = binding?.isLive ?? false
+        let flashing = pad.lastPressed == control
+        return Button { Task { await press(control) } } label: {
+            Text(control.face)
+                .font(.caption.weight(.semibold).monospaced())
+                .frame(minWidth: 38, minHeight: 30)
+                .background(flashing ? Color.accentColor.opacity(0.5)
+                            : live ? Color.accentColor.opacity(0.18) : Color.clear,
+                            in: RoundedRectangle(cornerRadius: 8))
+                .overlay(RoundedRectangle(cornerRadius: 8)
+                    .stroke(.tertiary, lineWidth: live ? 0 : 1))
+                .foregroundStyle(live ? Color.primary : Color.secondary)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text(control.face))
+        .accessibilityHint(Text(binding.map {
+            $0.isLive ? "On the robot: \($0.onTheRobot)" : "Does nothing against a bench"
+        } ?? ""))
+    }
+
+    private var policyLine: String {
+        guard !chosen.isEmpty else { return "no policy loaded" }
+        return "policy \(chosen)"
+    }
+
+    private var linkLine: String {
+        trips == 0 ? "no round trips yet" : "\(trips) trips"
+    }
+
+    /// Fourteen numbers in two rows, small enough to sit over the picture.
+    private func jointGrid(_ angles: [Double]) -> String {
+        var rows: [String] = []
+        var row = ""
+        for slot in 0..<DuckModel.policyJointCount {
+            row += String(format: "%7.3f", angles[DuckModel.jointOfPolicySlot(slot)])
+            if (slot + 1) % 7 == 0 { rows.append(row); row = "" }
+        }
+        if !row.isEmpty { rows.append(row) }
+        return rows.joined(separator: "\n")
+    }
+
+    /// The layer switches. A SHEET WOULD HIDE THE DUCK, which is the one thing
+    /// somebody driving needs to keep watching, so these are a row of chips
+    /// under the stage and toggle in place.
+    private var layerChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(DuckPad.Layer.allCases) { layer in
+                    let on = layers.contains(layer)
+                    Button {
+                        if on { layers.remove(layer) } else { layers.insert(layer) }
+                    } label: {
+                        Text(layer.title)
+                            .font(.caption2.weight(on ? .semibold : .regular))
+                            .padding(.horizontal, 10).padding(.vertical, 5)
+                            .background(on ? Color.accentColor.opacity(0.25) : Color.clear,
+                                        in: Capsule())
+                            .overlay(Capsule().stroke(.tertiary, lineWidth: on ? 0 : 1))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(Text(layer.title))
+                    .accessibilityValue(Text(on ? "on" : "off"))
+                    .accessibilityHint(Text(layer.detail))
+                }
+            }
+            .padding(.horizontal, 14).padding(.vertical, 8)
+        }
     }
 
     private var readout: String {
@@ -108,12 +241,35 @@ struct DriveView: View {
                 }
             } else {
                 Section {
-                    HStack(spacing: 24) {
-                        ThumbPad(title: "Move", stick: $sticks.left)
-                        ThumbPad(title: "Turn", stick: $sticks.right, verticalIsLive: false)
+                    // BUMPERS ABOVE THE STICKS, FACE BUTTONS RIGHT OF THEM, the
+                    // way they sit on the thing itself. Somebody who has driven
+                    // the robot should not have to read this layout.
+                    HStack(spacing: 10) {
+                        padButton(.leftBumper)
+                        Spacer()
+                        padButton(.rightBumper)
+                    }
+                    .padding(.horizontal, 6)
+                    HStack(spacing: 18) {
+                        ThumbPad(title: "Move", stick: $touchSticks.left)
+                        VStack(spacing: 6) {
+                            padButton(.y)
+                            HStack(spacing: 6) { padButton(.x); padButton(.b) }
+                            padButton(.a)
+                        }
+                        ThumbPad(title: "Turn", stick: $touchSticks.right, verticalIsLive: false)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 6)
+                    HStack(spacing: 10) {
+                        padButton(.dpadLeft)
+                        padButton(.dpadDown)
+                        padButton(.dpadRight)
+                        Spacer()
+                        padButton(.start)
+                        padButton(.select)
+                    }
+                    .padding(.horizontal, 6)
                 } footer: {
                     Text(DuckDrive.says(twist))
                         .font(.caption.monospacedDigit())
@@ -168,6 +324,17 @@ struct DriveView: View {
                 }
 
                 Section {
+                    if let name = pad.name {
+                        Label(DuckPad.connected(name), systemImage: "gamecontroller.fill")
+                            .font(.footnote).foregroundStyle(.green)
+                    } else {
+                        Text(DuckPad.noPad).font(.footnote).foregroundStyle(.secondary)
+                    }
+                } header: {
+                    Text("Controller")
+                }
+
+                Section {
                     Text(DuckDrive.thisIsNotARobot)
                         .font(.footnote).foregroundStyle(.secondary)
                     Text(DuckDrive.intentMeansACommandHere)
@@ -175,6 +342,57 @@ struct DriveView: View {
                 }
             }
         }
+    }
+
+    // MARK: - the pad
+
+    /// Act on a control. THE ONE PATH FOR BOTH INPUTS — a real controller's
+    /// press and a tap on the on-screen face button arrive here identically,
+    /// so the two can never drift into doing different things.
+    @MainActor private func press(_ control: DuckPad.Control) async {
+        guard let binding = DuckPad.binding(for: control) else { return }
+        switch binding.here {
+        case .loadSlot(let slot):
+            // THE SLOT NAMES A ROLE, NOT A FILE. Which policy fills `roulade`
+            // is the bench's business; this asks for the role and lets the
+            // health listing say which network that is on this machine.
+            guard let policy = policy(filling: slot) else {
+                lastAction = "\(control.face): this bench has no \(slot.title) policy loaded."
+                return
+            }
+            chosen = policy
+            lastAction = "\(control.face) → \(slot.title): \(policy)"
+            await swap(to: policy)
+        case .drive:
+            break
+        case .stop:
+            lastAction = "\(control.face) → stop"
+            await halt()
+        case .reset:
+            lastAction = "\(control.face) → reset"
+            await putBack()
+        case .unsupported(let why):
+            // NOT SILENCE. A tester pressing a button they know from the robot
+            // gets told why it does nothing here rather than concluding the
+            // link is broken.
+            lastAction = "\(control.face): \(why)"
+        }
+    }
+
+    /// Which of the bench's policies fills a slot.
+    ///
+    /// MATCHED ON THE ROLE NAME, which this app and the robot now share — the
+    /// rename to Pollen's role names is what makes a bench's `alpha_sitstand`
+    /// findable from `Slot.sitstand` at all. A bench carrying somebody's own
+    /// networks may fill none of them, and saying so beats loading the wrong
+    /// one.
+    private func policy(filling slot: DuckOfficialPolicies.Slot) -> String? {
+        guard let policies = health?.policies else { return nil }
+        let wanted = DuckOfficialPolicies.releases.first { $0.slot == slot }?.filename
+        if let wanted, let exact = policies.first(where: { $0 == wanted }) { return exact }
+        // A bench often lists them without the extension.
+        let stem = wanted.map { $0.replacingOccurrences(of: ".onnx", with: "") }
+        return stem.flatMap { name in policies.first { $0 == name } }
     }
 
     // MARK: - talking to it
@@ -226,7 +444,7 @@ struct DriveView: View {
 
     @MainActor private func halt() async {
         running = false
-        sticks = .centred
+        touchSticks = .centred
         busy = true
         defer { busy = false }
         do {
@@ -237,7 +455,7 @@ struct DriveView: View {
 
     @MainActor private func putBack() async {
         running = false
-        sticks = .centred
+        touchSticks = .centred
         busy = true
         defer { busy = false }
         do {
