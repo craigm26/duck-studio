@@ -17,7 +17,7 @@
   "right_knee",
   "right_ankle"
  ],
- "policy": "BEST_alpha_stand.onnx",
+ "policy": "alpha_stand.onnx",
  "authored": true,
  "plantName": "scene.mjb",
  "plantDigest": "3f8c9ab9b409ba74c73c30179d5f7c12b025f631693f9eec78d80dca242547be",

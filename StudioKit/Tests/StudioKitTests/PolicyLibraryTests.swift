@@ -89,7 +89,7 @@ final class PolicyLibraryTests: XCTestCase {
     func testOriginDecidesTheSectionOrder() throws {
         let data = try fixture("Fixtures/policies", "alpha_walking.onnx")
         let other = try fixture("Fixtures/policies", "roulade.onnx")
-        let third = try fixture("Fixtures/policies", "BEST_roller.onnx")
+        let third = try fixture("Fixtures/policies", "roller.onnx")
         var library = PolicyLibrary()
         library.add(PolicyLibrary.entry(for: third, name: "z.onnx", origin: .fetched(host: "huggingface.co")))
         library.add(PolicyLibrary.entry(for: other, name: "m.onnx", origin: .imported))

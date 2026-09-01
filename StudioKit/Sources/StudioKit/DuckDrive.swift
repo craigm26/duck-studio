@@ -355,17 +355,18 @@ public enum DuckDrive {
 
     /// What the app calls a thing, against what the ROBOT calls it.
     ///
-    /// "INTENT" IS ALREADY TAKEN, AND NOT BY US. This app's Intents tab holds
-    /// recordings — what a network did, played back. In Pollen's contract an
-    /// intent is the opposite: `robot.move`, `robot.head`, `robot.stop`,
-    /// `robot.enable` — "what a client asks the robot to *do*". So the screen
-    /// that drives is closer to their meaning than the tab that borrows the
-    /// word. Nothing here renames anything; it is written down so that when the
-    /// two vocabularies meet, somebody knows they were always different.
-    public static let intentMeansSomethingElseOnTheRobot =
-        "The Intents tab holds recordings — what a network did. On the robot, "
-      + "an \"intent\" is a command you send it: move, head, stop, enable. Driving "
-      + "is the second kind."
+    /// "INTENT" WAS TAKEN, AND NOT BY US — SO THE TAB GAVE IT BACK.
+    ///
+    /// The tab that holds recordings is called Motions now. In Pollen's
+    /// contract an intent is the opposite of a recording: `robot.move`,
+    /// `robot.head`, `robot.stop`, `robot.enable` — "what a client asks the
+    /// robot to *do*". One word for opposite ends of the same pipeline gets
+    /// worse with every screen, and THIS is the screen that genuinely sends
+    /// intents, so it is the one that would have collided hardest.
+    public static let intentMeansACommandHere =
+        "Motions are recordings — what a network did. An intent is the other "
+      + "direction: a command you send the robot. Pollen\'s are move, head, "
+      + "look, stop, enable. Driving sends the first."
 
     public static let thisIsNotARobot =
         "You are driving MuJoCo on your bench, not a Microduck. This app cannot reach a robot at "

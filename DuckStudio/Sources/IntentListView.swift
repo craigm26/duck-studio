@@ -270,7 +270,7 @@ struct IntentListView: View {
                 }
             }
         }
-        .navigationTitle("Intents")
+        .navigationTitle("Motions")
         .toolbar {
             // ONE GEAR, SAME PLACE, SAME WORD, ON ALL FIVE TAB ROOTS.
             // Configuration was scattered across three tabs and nothing was

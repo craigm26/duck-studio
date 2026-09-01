@@ -94,7 +94,7 @@ final class DuckBenchTests: XCTestCase {
         {"bench":"duck-bench/2","plant":"scene.mjb — Pollen robot_allcollisions, training parameters",
          "plantName":"scene.mjb",
          "plantDigest":"3f8c9ab9b409ba74c73c30179d5f7c12b025f631693f9eec78d80dca242547be",
-         "tickHz":50,"cores":4,"policies":["BEST_alpha_stand.onnx"],"trains":false}
+         "tickHz":50,"cores":4,"policies":["alpha_stand.onnx"],"trains":false}
         """#.utf8)
         let health = try DuckBench.readHealth(data)
         XCTAssertEqual(health.plantName, "scene.mjb")
@@ -181,7 +181,7 @@ final class DuckBenchTests: XCTestCase {
     /// `Fixtures/bench/perform.json` and `Fixtures/bench/record.json` were
     /// captured on 2026-08-30 by running `node duckbench.mjs` on this machine
     /// and calling it over HTTP — the perform body from a real two-rollout run
-    /// of BEST_alpha_stand against a two-keyframe track, the record body from a
+    /// of alpha_stand against a two-keyframe track, the record body from a
     /// real half-second recording of the same policy under a neutral command,
     /// each with its frames/roots/commands trimmed to three rows so the file
     /// stays readable.
@@ -226,7 +226,7 @@ final class DuckBenchTests: XCTestCase {
     /// which world it was made in — the same hole `/perform` had.
     func testALiveRecordingCarriesTheWorldItWasMadeIn() throws {
         let clip = try DuckBench.readClip(captured("record"), named: "standing on the bench")
-        XCTAssertEqual(clip.policy, "BEST_alpha_stand.onnx")
+        XCTAssertEqual(clip.policy, "alpha_stand.onnx")
         XCTAssertEqual(clip.frames.count, 3)
         XCTAssertEqual(clip.credit,
                        "Recorded on a bench on your network. On scene.mjb, sha256 3f8c9ab9b409.")
@@ -236,7 +236,7 @@ final class DuckBenchTests: XCTestCase {
     /// with anyone else's, and the credit says that rather than implying a
     /// world nobody recorded.
     func testARecordingFromABenchThatNamesNoWorldSaysSoInItsCredit() throws {
-        let payload: [String: Any] = ["hz": 50, "policy": "BEST_alpha_stand.onnx",
+        let payload: [String: Any] = ["hz": 50, "policy": "alpha_stand.onnx",
                                       "frames": [Array(repeating: 0.0, count: 14)],
                                       "roots": [[0.0, 0, 0.12, 1, 0, 0, 0]],
                                       "endsUpright": true]
@@ -251,7 +251,7 @@ final class DuckBenchTests: XCTestCase {
     /// A name with no digest: runnable, not comparable, and said in the one
     /// place the sentence lives.
     func testARecordingFromABenchThatWillNotDigestItsWorldSaysThatToo() throws {
-        let payload: [String: Any] = ["hz": 50, "policy": "BEST_alpha_stand.onnx",
+        let payload: [String: Any] = ["hz": 50, "policy": "alpha_stand.onnx",
                                       "plantName": "scene.mjb",
                                       "frames": [Array(repeating: 0.0, count: 14)],
                                       "roots": [[0.0, 0, 0.12, 1, 0, 0, 0]],

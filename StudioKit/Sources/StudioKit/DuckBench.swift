@@ -179,7 +179,7 @@ public enum DuckBench {
     /// WHY THIS EXISTS ALONGSIDE A SUCCESS RATE. The bench's criterion is "ends
     /// standing, trunk at least 100 mm up", and a duck that stands still passes
     /// it perfectly. Measured on this bench: `alpha_walking` averaged 75/25 with
-    /// `BEST_alpha_stand` scores 16 of 16 while travelling two millimetres,
+    /// `alpha_stand` scores 16 of 16 while travelling two millimetres,
     /// where the walking policy it came from covers 1.207 m. Without a distance
     /// beside it, that rate reports a collapse as a triumph.
     ///

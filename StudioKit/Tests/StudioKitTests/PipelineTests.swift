@@ -16,7 +16,7 @@ final class PipelineTests: XCTestCase {
         .init(when: Date(timeIntervalSince1970: 0), bench: "duck-bench/2",
               plantName: "scene.mjb",
               plantDigest: "3f8c9ab9b409ba74c73c30179d5f7c12b025f631693f9eec78d80dca242547be",
-              policy: "BEST_alpha_stand.onnx",
+              policy: "alpha_stand.onnx",
               achieves: 16, rollouts: 16, criterion: "stayed upright", medianHeight: 0.116)
     }
 
@@ -161,7 +161,7 @@ extension PipelineTests {
     /// The real answer from the bench, read into something a draft keeps.
     func testAPerformAnswerBecomesAnOutcome() throws {
         let body = """
-        {"format":"duck-intent-clips/3","policy":"BEST_alpha_stand.onnx","authored":true,
+        {"format":"duck-intent-clips/3","policy":"alpha_stand.onnx","authored":true,
          "rollouts":8,"achieves":8,"criterion":"stayed upright to the end, over drop heights 0.120-0.130 m",
          "medianHeight":0.0908,"endsUpright":true,"endHeight":0.0911,"peakJointRate":10.765}
         """
@@ -187,7 +187,7 @@ extension PipelineTests {
     /// the name: the file, and which bytes that file was.
     func testAPerformAnswerCarriesThePlantTheBenchActuallyRan() throws {
         let body = """
-        {"format":"duck-intent-clips/3","policy":"BEST_alpha_stand.onnx","authored":true,
+        {"format":"duck-intent-clips/3","policy":"alpha_stand.onnx","authored":true,
          "plantName":"scene.mjb",
          "plantDigest":"3f8c9ab9b409ba74c73c30179d5f7c12b025f631693f9eec78d80dca242547be",
          "rollouts":8,"achieves":8,"criterion":"stayed upright","medianHeight":0.116}
@@ -208,7 +208,7 @@ extension PipelineTests {
     func testAnOutcomeStoredBeforeAnyBenchNamedItsWorldSaysNothingRecordedIt() throws {
         let stored = """
         {"when":0,"bench":"duck-intent-clips/3","plant":"the bench's own plant",
-         "policy":"BEST_alpha_stand.onnx","achieves":8,"rollouts":8,
+         "policy":"alpha_stand.onnx","achieves":8,"rollouts":8,
          "criterion":"stayed upright to the end, over drop heights 0.120-0.130 m",
          "medianHeight":0.0908,"peakJointRate":10.765}
         """

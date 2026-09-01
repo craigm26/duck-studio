@@ -11,7 +11,7 @@ import DuckKit
 /// that is in doubt and none of it is interesting.
 ///
 /// WHAT IS IN DOUBT IS WHETHER IT WALKS, AND IT DOES NOT. This is no longer a
-/// prior. Averaging `alpha_walking` with `BEST_alpha_stand` at four ratios and
+/// prior. Averaging `alpha_walking` with `alpha_stand` at four ratios and
 /// running each for six seconds on the duckbench, commanded forward at
 /// vx = 0.5 on plant `scene.mjb` (3f8c9ab9b409):
 ///

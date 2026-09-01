@@ -337,7 +337,7 @@ struct RetrieveView: View {
                 // 400-character sentence on one screen.
                 .disabled(confidence == .notUnderstood)
                 if let kept {
-                    Label("Kept as \"\(kept)\" — it is in your Intents, under Plans.",
+                    Label("Kept as \"\(kept)\" — it is in your Motions, under Plans.",
                           systemImage: "checkmark.circle")
                         .font(.footnote).foregroundStyle(.green)
                 }
@@ -353,10 +353,10 @@ struct RetrieveView: View {
                     // WHAT THE BUTTON ACTUALLY DOES. This sentence outlived the
                     // control it described: it promised a task file that travels
                     // and gets "run somewhere this app is not", one line under a
-                    // confirmation saying the plan is in your Intents. The only
+                    // confirmation saying the plan is in your Motions. The only
                     // control here writes a `.duckplan` into Application Support.
                     // Nothing leaves the phone.
-                    Text("This plan is kept on this phone, in this app's own format, and it appears in your Intents under Plans. The file holds the MEASUREMENT, not the steps — the schedule above is worked out again from those numbers every time the plan is opened, so a kept plan cannot go stale and start disagreeing with the app that opens it.")
+                    Text("This plan is kept on this phone, in this app's own format, and it appears in your Motions under Plans. The file holds the MEASUREMENT, not the steps — the schedule above is worked out again from those numbers every time the plan is opened, so a kept plan cannot go stale and start disagreeing with the app that opens it.")
                 }
             }
         }

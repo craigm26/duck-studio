@@ -23,7 +23,7 @@ let package = Package(
         // By tag, never by sibling path: an inspector that reports which
         // network it loaded has to be built against a pinned reader, or its
         // report describes a parser nobody can identify later.
-        .package(url: "https://github.com/craigm26/duckkit.git", from: "1.31.1")
+        .package(url: "https://github.com/craigm26/duckkit.git", from: "1.32.0")
     ],
     targets: [
         .target(

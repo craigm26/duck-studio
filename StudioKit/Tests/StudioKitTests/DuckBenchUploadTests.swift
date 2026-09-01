@@ -108,7 +108,7 @@ final class DuckBenchUploadTests: XCTestCase {
     /// These two are the duckbench's own answers, saved byte for byte: six
     /// seconds of `alpha_walking` commanded forward at vx = 0.5 on plant
     /// `scene.mjb`, and the same command given to `alpha_walking` averaged
-    /// 75/25 with `BEST_alpha_stand`.
+    /// 75/25 with `alpha_stand`.
     ///
     /// This is the pair that made the case for `readTravel` existing. Both end
     /// upright — both score perfectly against the bench's own criterion — and

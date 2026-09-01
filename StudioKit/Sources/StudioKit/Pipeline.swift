@@ -155,7 +155,7 @@ public struct Pipeline: Equatable, Sendable {
     }
 
     /// What the trunk sits at when the standing policy is simply left alone,
-    /// metres. MEASURED on the canon plant: `BEST_alpha_stand.onnx` over three
+    /// metres. MEASURED on the canon plant: `alpha_stand.onnx` over three
     /// seconds holds 0.1162 m from the first frame to the last. The model's
     /// nominal rest height is 0.12; this is what the policy actually does.
     public static let standingHeight = 0.116

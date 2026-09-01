@@ -135,7 +135,7 @@ public enum DuckSoccer {
         /// Whether this capability set can roll at all.
         public var canRoll: Bool { rollDistance > 0.01 }
 
-        /// SKATES. Measured 2026-08-28 with `BEST_roller.onnx` on the rollers
+        /// SKATES. Measured 2026-08-28 with `roller.onnx` on the rollers
         /// plant — WITH A CAVEAT THE LEGS DO NOT CARRY: that plant has not yet
         /// been rebuilt with training's parameters (the legs plant has), so
         /// these numbers describe the pre-training-parameter rollers scene and

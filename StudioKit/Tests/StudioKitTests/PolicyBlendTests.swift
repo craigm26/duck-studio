@@ -89,7 +89,7 @@ final class PolicyBlendTests: XCTestCase {
     /// carries a distance at all.
     ///
     /// These are the real numbers off the duckbench: `alpha_walking` averaged
-    /// 75/25 with `BEST_alpha_stand`, commanded forward at vx = 0.5, ends
+    /// 75/25 with `alpha_stand`, commanded forward at vx = 0.5, ends
     /// upright in all 16 rollouts — a perfect score against "ends standing,
     /// trunk at least 100 mm up" — while travelling two millimetres where the
     /// walking policy it was made from covers 1.207 m. It did not keep the

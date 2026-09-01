@@ -208,7 +208,7 @@ struct BenchView: View {
 
     /// The pose to draw: the policy's clamped targets, or the home stance
     /// while nothing has run. Nothing PLAYS here — a network has no time axis,
-    /// and recordings live in the Intents tab.
+    /// and recordings live in the Motions tab.
     private var jointAngles: [Double] {
         stages?.clamped ?? ObservationPreset.restingPose
     }
@@ -267,6 +267,13 @@ struct BenchView: View {
         // at 1.0 and only walking and the kicks are de-rated to 0.9 — so a
         // bench that applied the walking scale to a roulade policy showed
         // targets 10% short of what the robot would actually be sent.
+        // THE `BEST_` FALLBACK IS FOR FILES, NOT FOR US ANY MORE. This app used
+        // to vendor four of the nine under upstream's training-run names, so
+        // matching had to try both spellings. The bundle now uses Pollen's role
+        // names throughout — but somebody who imported `BEST_alpha_stand.onnx`
+        // from the older prototype still has that file on their phone, and it
+        // is the same network. Dropping the alternative would silently de-rate
+        // their policy to the walking action scale.
         let kind = DuckPolicyKind.allCases.first { $0.fileName == entry.displayName
                                                 || "BEST_" + $0.fileName == entry.displayName }
         stages = DuckGait.stages(action: actions, previousTargets: nil, kind: kind ?? .walk)

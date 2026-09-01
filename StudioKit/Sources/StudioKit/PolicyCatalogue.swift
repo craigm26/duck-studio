@@ -16,7 +16,7 @@ import DuckEvidence
 /// and git blob hashes, and NONE of those is the identity this app uses. Two of
 /// the nine upstream files are not even named the way the bundled copies are —
 /// upstream ships `alpha_stand.onnx` and `roller.onnx` where this app carries
-/// `BEST_alpha_stand.onnx` and `BEST_roller.onnx`. So a listing entry can say
+/// `alpha_stand.onnx` and `roller.onnx`. So a listing entry can say
 /// "a name you do not hold" and never "a network you do not hold": that
 /// question is answered by `DuckPolicy.fingerprint` after the bytes arrive, and
 /// this type is careful never to phrase it otherwise.

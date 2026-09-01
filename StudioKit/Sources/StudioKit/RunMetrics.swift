@@ -46,7 +46,7 @@ public struct RunMetrics: Equatable, Sendable {
     /// Which `microduck_rl` environment trained a policy.
     ///
     /// Resolved from the FILENAME, which is the only handle a recording gives —
-    /// and deliberately incomplete. `BEST_alpha_stand.onnx` is not listed:
+    /// and deliberately incomplete. `alpha_stand.onnx` is not listed:
     /// standing appears both as a curriculum inside the velocity config and as
     /// its own `velstand` config, and picking one would attach a weight table to
     /// a policy that may not have been trained with it. An unknown task costs a
@@ -71,9 +71,9 @@ public struct RunMetrics: Equatable, Sendable {
             case "ball_kick_left.onnx",
                  "ball_kick_right.onnx":      return .ballKick
             case "roulade.onnx":              return .roulade
-            case "BEST_alpha_sitstand.onnx":  return .sitstand
+            case "alpha_sitstand.onnx":  return .sitstand
             case "alpha_ground_pick.onnx":    return .groundPick
-            case "BEST_roller_crouch.onnx":   return .rollerCrouch
+            case "roller_crouch.onnx":   return .rollerCrouch
             default:                          return nil
             }
         }

@@ -21,6 +21,13 @@ final class LibraryModel: ObservableObject {
     private var intents: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory,
                                             in: .userDomainMask)[0]
+        // THE FOLDER KEEPS THE OLD NAME ON PURPOSE, and it is the one place the
+        // rename stops. The tab is "Motions" now — Pollen's "intent" means a
+        // command sent to the robot, not a recording — but this path is where
+        // every motion a TestFlight tester already has is sitting. Renaming the
+        // directory without moving the files empties their library; renaming it
+        // WITH a migration is a data move to buy a word nobody can see. The
+        // word was the point, and it was free everywhere it was visible.
         return base.appendingPathComponent("Intents", isDirectory: true)
     }
 
@@ -56,7 +63,7 @@ final class LibraryModel: ObservableObject {
     /// that is a wiring fact rather than a design one. `DuckStudioApp` holds
     /// `LibraryModel` and `DraftStore` as two independent `@StateObject`s, so
     /// this model has no way to reach the live draft list on its own. Both call
-    /// sites — `onOpenURL` and the Intents tab's importer — already have
+    /// sites — `onOpenURL` and the Motions tab's importer — already have
     /// `drafts` in scope and should pass it. Until they do, a `.duckmove`
     /// arriving here is REFUSED BY NAME rather than filed somewhere it is not,
     /// because an import that lands in a list nobody is watching is the same
@@ -155,7 +162,7 @@ final class LibraryModel: ObservableObject {
     /// decode refusal, a directory that would not create, a write that threw —
     /// lands in `lastImport`, which the Policies tab renders. A screen that
     /// calls this and then reports its own success is reporting that it made
-    /// the call, and `RemoteRunView` said "Kept — it is in your Intents" over
+    /// the call, and `RemoteRunView` said "Kept — it is in your Motions" over
     /// every one of those failures, with the real message on a tab nobody was
     /// looking at.
     @discardableResult
@@ -190,7 +197,7 @@ final class LibraryModel: ObservableObject {
                 lastImport = "\(plan.name) could not be written to this phone."
                 return
             }
-            lastImport = "\(plan.name) is in your Intents, under Plans."
+            lastImport = "\(plan.name) is in your Motions, under Plans."
         } catch let error as DuckPlanFile.ReadError {
             lastImport = error.message
         } catch {

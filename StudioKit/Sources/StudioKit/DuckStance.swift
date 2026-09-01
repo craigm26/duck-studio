@@ -22,7 +22,7 @@ public struct DuckStance: Equatable, Sendable {
     /// Where the trunk sits when the standing policy has settled, metres.
     ///
     /// MEASURED, NOT CHOSEN. `hold` — the clip recorded from
-    /// `BEST_alpha_stand.onnx` — settles here, and the posture classifier's
+    /// `alpha_stand.onnx` — settles here, and the posture classifier's
     /// "standing" threshold of 100 mm is set below it for that reason. A round
     /// 0.12 would put the feet 4 mm under the floor.
     public static let standingHeight = 0.11622

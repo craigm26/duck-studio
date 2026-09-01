@@ -297,7 +297,7 @@ struct AutomationChatView: View {
                             // was: press, nothing changes, go and look in
                             // another tab. Only the failure had a voice.
                             if kept == entry.asked {
-                                Label("Kept — it is in your Intents, under Plans.",
+                                Label("Kept — it is in your Motions, under Plans.",
                                       systemImage: "checkmark.circle")
                                     .font(.caption).foregroundStyle(.green)
                             }
@@ -444,7 +444,7 @@ struct AutomationChatView: View {
     private var blurb: String {
         switch mode {
         case .motion:
-            return "Describe a motion and the robot performs your words in 3D, immediately — then open the keyframes and see the sliders the sentence moved. Drafts land in your Intents tab."
+            return "Describe a motion and the robot performs your words in 3D, immediately — then open the keyframes and see the sliders the sentence moved. Drafts land in your Motions tab."
         case .rule:
             return "A rule you draft here is one you can read, check and share. It does not fire: reaching a robot needs hardware that does not exist yet, so nothing here is live."
         case .train:
@@ -495,7 +495,7 @@ struct AutomationChatView: View {
             case .unavailable(.deviceNotEligible):
                 return Availability(isUsable: false, explanation:
                     "This device does not have Apple Intelligence, so there is no on-device model "
-                    + "to draft with. Motions can still be written by hand in the Intents tab.")
+                    + "to draft with. Motions can still be written by hand in the Motions tab.")
             case .unavailable(.appleIntelligenceNotEnabled):
                 return Availability(isUsable: false, explanation:
                     "Turn on Apple Intelligence in Settings to draft from a sentence.")
@@ -753,7 +753,7 @@ struct AutomationChatView: View {
     /// IT USED TO EXPORT A `.duck` — quackd's task file — which this app could
     /// not read back, so a fetch worked out here left as a file that returned
     /// "nothing was added" if anyone tried to bring it home. `DuckPlanFile` is
-    /// ours and round-trips, and a kept plan appears in the Intents tab beside
+    /// ours and round-trips, and a kept plan appears in the Motions tab beside
     /// the motions.
     ///
     /// THE TITLE IS THE PERSON'S OWN WORDS, not a phrase composed here.

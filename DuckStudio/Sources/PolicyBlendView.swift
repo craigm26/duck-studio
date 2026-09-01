@@ -11,7 +11,7 @@ import StudioKit
 /// capability, and it is real.
 ///
 /// AND IT MOSTLY DOES NOT WORK, WHICH IS SAID BEFORE THE BUTTON, NOT AFTER.
-/// Measured on the duckbench: `alpha_walking` averaged with `BEST_alpha_stand`
+/// Measured on the duckbench: `alpha_walking` averaged with `alpha_stand`
 /// falls over at 25% and 50%, and at 75% stands still. `PolicyBlend` carries
 /// that table. A screen that let somebody discover it as a surprise would be
 /// selling a trick.

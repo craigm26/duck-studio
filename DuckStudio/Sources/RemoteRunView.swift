@@ -200,12 +200,12 @@ struct RemoteRunView: View {
                     // policy that did not ship with the app — an imported one,
                     // or a blend made on this phone — could be watched once on
                     // the bench and never played again. Kept, it becomes a
-                    // motion in the Intents tab like any other, playable with
+                    // motion in the Motions tab like any other, playable with
                     // no bench and no network.
                     Button {
                         keepRecording(clip)
                     } label: {
-                        Label(kept != nil && kept == recordedName ? "Kept — it is in your Intents"
+                        Label(kept != nil && kept == recordedName ? "Kept — it is in your Motions"
                                                 : "Keep this recording",
                               systemImage: kept != nil && kept == recordedName ? "checkmark.circle" : "tray.and.arrow.down")
                     }
@@ -214,7 +214,7 @@ struct RemoteRunView: View {
                     Text("Recorded")
                 } footer: {
                     Text("Made on the bench just now, not shipped with the app. Keep it and it "
-                       + "becomes a motion in your Intents — playable afterwards with no bench "
+                       + "becomes a motion in your Motions — playable afterwards with no bench "
                        + "and no network, because the frames are the recording rather than a "
                        + "live run.")
                 }

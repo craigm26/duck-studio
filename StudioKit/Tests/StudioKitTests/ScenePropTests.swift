@@ -102,7 +102,7 @@ extension ScenePropTests {
     func testTheBenchReportsWhatItHasToPickUp() throws {
         let body = """
         {"bench":"duck-bench/2","plant":"scene_grasp.mjb — Pollen robot_allcollisions, training parameters",
-         "tickHz":50,"cores":4,"policies":["BEST_alpha_stand.onnx"],
+         "tickHz":50,"cores":4,"policies":["alpha_stand.onnx"],
          "graspables":[{"name":"broom","mass":0.6},{"name":"dowel","mass":0.025},
                        {"name":"block_a","mass":0.03}]}
         """

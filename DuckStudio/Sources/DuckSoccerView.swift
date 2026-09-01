@@ -1202,7 +1202,7 @@ final class SoccerCoordinator: NSObject, ARSessionDelegate {
                     // trajectory set yet, and a stepping walk under a duck
                     // moving at four times walking speed reads as a cartoon —
                     // the settled stand pose gliding is closer to what
-                    // BEST_roller actually does.
+                    // roller actually does.
                     duck.apply(jointAngles: stand.pose(
                         at: CACurrentMediaTime().truncatingRemainder(dividingBy: 1000))
                         .jointAngles)

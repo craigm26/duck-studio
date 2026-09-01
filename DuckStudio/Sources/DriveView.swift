@@ -170,7 +170,7 @@ struct DriveView: View {
                 Section {
                     Text(DuckDrive.thisIsNotARobot)
                         .font(.footnote).foregroundStyle(.secondary)
-                    Text(DuckDrive.intentMeansSomethingElseOnTheRobot)
+                    Text(DuckDrive.intentMeansACommandHere)
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }

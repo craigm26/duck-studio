@@ -154,7 +154,7 @@ struct PipelineView: View {
                 .font(.caption2).foregroundStyle(.secondary)
             // WHICH BENCH THIS IS ABOUT, AND A WAY TO CHANGE IT. This screen
             // offered a route to bench settings only while no bench existed,
-            // so the Intents tab contained no way to reach them at all once one
+            // so the Motions tab contained no way to reach them at all once one
             // did — and no way to see which machine a result came off.
             if let chosen = benches.selected {
                 Text("On \(chosen.name) — \(chosen.address)")

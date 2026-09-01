@@ -38,7 +38,16 @@ struct DuckStudioApp: App {
                                                models: models, benches: benches) }
                     .tabItem { Label("Policies", systemImage: "cpu") }
                 NavigationStack { IntentListView(models: models, benches: benches, plans: plans, store: scenes, model: model, drafts: drafts) }
-                    .tabItem { Label("Intents", systemImage: "figure.walk.motion") }
+                    // "MOTIONS", NOT "INTENTS", AND POLLEN OWN THE OTHER WORD.
+                    // This tab holds recordings and authored moves — what a
+                    // network DID, played back. In `duck-ipc-proto` an intent is
+                    // the opposite: "what a client asks the robot to *do*" —
+                    // robot.move, robot.head, robot.stop, robot.enable. Two
+                    // vocabularies using one word for opposite ends of the same
+                    // pipeline is a confusion that gets worse with every screen,
+                    // and the Drive screen is now the one that really does send
+                    // intents. So this tab gives the word back.
+                    .tabItem { Label("Motions", systemImage: "figure.walk.motion") }
                 // A THIRD KIND OF THING, and it earned its own tab the moment
                 // the stage started drawing one. A policy is a network, an
                 // intent is a motion, and a scene is a PLACE — the floor, the

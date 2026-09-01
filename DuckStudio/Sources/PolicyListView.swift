@@ -18,7 +18,7 @@ struct PolicyListView: View {
     @ObservedObject var drafts: DraftStore
     /// Not used on this screen — carried through to the clip player and the
     /// bench, because a motion remixed from a policy's own recordings opens the
-    /// same editor as one remixed from the Intents tab, and the Ask panel there
+    /// same editor as one remixed from the Motions tab, and the Ask panel there
     /// was dead for want of this one argument. No screen in this app puts a
     /// store in the environment; every one is passed by hand, so a feature that
     /// needs one three screens down has to be threaded through the two between.
@@ -178,7 +178,7 @@ struct PolicyDetailView: View {
     @ObservedObject var scenes: SceneStore
     @ObservedObject var drafts: DraftStore
     /// For the player below: a recording listed here opens the same viewer, and
-    /// a remix from it opens the same editor, as the Intents tab. Without this
+    /// a remix from it opens the same editor, as the Motions tab. Without this
     /// the Ask panel in that editor was disabled with a message pointing at a
     /// screen this view tree does not contain.
     @ObservedObject var models: EndpointStore
@@ -325,7 +325,7 @@ struct PolicyDetailView: View {
                     // to somebody who already has the recording is what sent
                     // people away from the answer.
                     if madeFromThisPolicy.isEmpty {
-                        Text("Nothing has been recorded from this network yet, so there is nothing to play. A phone has no physics engine: watching a policy move means running it somewhere that does. Send it to a bench, record it, and keep the recording — it comes back to the Intents tab under \"Brought in\".\n\nProbe hands it one observation and shows the fourteen numbers it answers with, and the robot they command. That works with no bench at all, but a network has no time axis, so nothing plays there either.")
+                        Text("Nothing has been recorded from this network yet, so there is nothing to play. A phone has no physics engine: watching a policy move means running it somewhere that does. Send it to a bench, record it, and keep the recording — it comes back to the Motions tab under \"Brought in\".\n\nProbe hands it one observation and shows the fourteen numbers it answers with, and the robot they command. That works with no bench at all, but a network has no time axis, so nothing plays there either.")
                     } else {
                         Text("Watch it move plays a recording made when this network drove a robot in physics — what it did, not what somebody asked for. Probe is the other half: hand it one observation and see the fourteen numbers it answers with. A network has no time axis, so nothing plays in Probe.\n\nRun it on a bench to record it again under your own commands, on your own floor.")
                     }
