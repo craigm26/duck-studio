@@ -269,6 +269,20 @@ struct PolicyDetailView: View {
 
             if entry.isRunnable {
                 Section {
+                    // THE PREVIEW GOES FIRST, AND IT ALREADY EXISTED. This
+                    // screen led with "Probe this network" — one observation in,
+                    // fourteen numbers out, nothing moving — and then told you
+                    // in its footer to go and find a bench, while a playable
+                    // recording of this exact policy sat two sections further
+                    // down under a heading nobody reads as "press here to watch
+                    // it". Somebody arriving to see what a policy DOES was sent
+                    // to another machine to obtain something they already had.
+                    if let preview = madeFromThisPolicy.first {
+                        NavigationLink { IntentPlayerView(clip: preview, store: scenes,
+                                                          drafts: drafts, models: models) } label: {
+                            Label("Watch it move", systemImage: "play.circle")
+                        }
+                    }
                     NavigationLink { BenchView(entry: entry, store: scenes) } label: {
                         Label("Probe this network", systemImage: "slider.horizontal.below.square.filled.and.square")
                     }
@@ -292,7 +306,17 @@ struct PolicyDetailView: View {
                         Label("Run it on a bench", systemImage: "wifi")
                     }
                 } footer: {
-                    Text("Hand it an observation and see the fourteen numbers it answers with, and the robot they command. A network has no time axis — nothing plays here. To watch it move, run it on a bench and keep the recording — it lands in the Intents tab, under \"Brought in\", not on this screen.")
+                    // TWO DIFFERENT SCREENS, AND THE ADVICE DIFFERS. With a
+                    // recording in hand the bench is optional; without one — a
+                    // remix, a policy somebody sent you — it is the only way to
+                    // see the thing move at all, and saying "run it on a bench"
+                    // to somebody who already has the recording is what sent
+                    // people away from the answer.
+                    if madeFromThisPolicy.isEmpty {
+                        Text("Nothing has been recorded from this network yet, so there is nothing to play. A phone has no physics engine: watching a policy move means running it somewhere that does. Send it to a bench, record it, and keep the recording — it comes back to the Intents tab under \"Brought in\".\n\nProbe hands it one observation and shows the fourteen numbers it answers with, and the robot they command. That works with no bench at all, but a network has no time axis, so nothing plays there either.")
+                    } else {
+                        Text("Watch it move plays a recording made when this network drove a robot in physics — what it did, not what somebody asked for. Probe is the other half: hand it one observation and see the fourteen numbers it answers with. A network has no time axis, so nothing plays in Probe.\n\nRun it on a bench to record it again under your own commands, on your own floor.")
+                    }
                 }
 
                 // The real link between the two halves of this app: a clip
