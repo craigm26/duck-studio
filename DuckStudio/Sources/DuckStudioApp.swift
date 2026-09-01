@@ -118,6 +118,10 @@ struct DuckStudioApp: App {
             .onChange(of: scenePhase) { _, phase in
                 if phase != .active { scenes.flush(); drafts.flush() }
             }
+            // INSIDE THE WindowGroup, ON THE VIEW. `tint` and
+            // `preferredColorScheme` are View modifiers; hung on the
+            // WindowGroup they are a Scene modifier that does not exist.
+            .microduckTheme()
         }
     }
 }

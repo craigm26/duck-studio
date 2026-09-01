@@ -99,10 +99,10 @@ struct DriveView: View {
                 }
                 if layers.contains(.command) {
                     Text(DuckDrive.says(twist))
-                        .font(.caption2.monospacedDigit()).foregroundStyle(.cyan)
+                        .font(.caption2.monospacedDigit()).foregroundStyle(Theme.asked)
                 }
                 if layers.contains(.policy) {
-                    Text(policyLine).font(.caption2.monospacedDigit()).foregroundStyle(.mint)
+                    Text(policyLine).font(.caption2.monospacedDigit()).foregroundStyle(Theme.measured)
                 }
                 if layers.contains(.link) {
                     Text(linkLine).font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
@@ -119,7 +119,7 @@ struct DriveView: View {
                         ForEach(near, id: \.name) { joint in
                             Text(String(format: "%@ %.3f → stop %.3f",
                                         joint.name, joint.angle, joint.limit))
-                                .font(.caption2.monospacedDigit()).foregroundStyle(.orange)
+                                .font(.caption2.monospacedDigit()).foregroundStyle(Theme.refused)
                         }
                     }
                 }
@@ -128,7 +128,7 @@ struct DriveView: View {
                         .font(.system(size: 9).monospaced()).foregroundStyle(.secondary)
                 }
                 if let lastAction {
-                    Text(lastAction).font(.caption2.weight(.medium)).foregroundStyle(.yellow)
+                    Text(lastAction).font(.caption2.weight(.medium)).foregroundStyle(Theme.amber)
                 }
                 if let live, !live.upright {
                     // NOT AN ERROR, AND NOT HIDDEN EITHER. A duck on its side is
