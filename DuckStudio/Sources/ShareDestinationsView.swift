@@ -18,6 +18,10 @@ struct ShareDestinationsView: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
+    /// The person may be watching a real robot while this sheet is up, and
+    /// somebody who has turned this on has said what they want. See the copy
+    /// button.
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var sharing = false
     @State private var copied = false
 
@@ -44,13 +48,18 @@ struct ShareDestinationsView: View {
                 // because the glyph is the whole of the feedback: nothing else
                 // on screen moves when the pasteboard is written.
                 //
-                // `Theme.settle` RATHER THAN THE SPRING. A label swapping under
-                // a finger that is still on it should arrive and stop; a
-                // bouncing checkmark reads as the app being pleased with
-                // itself.
+                // `Theme.settle`, AND THE REDUCED-MOTION CURVE WHEN ASKED FOR.
+                // Settle rather than the spring because a label swapping under a
+                // finger that is still on it should arrive and stop: a bouncing
+                // checkmark reads as the app being pleased with itself. The
+                // first restyle routed this through `Theme.motion(reduced:)` to
+                // honour Reduce Motion, which was right, and thereby handed
+                // everyone else the overshoot this comment had argued against,
+                // which was not. Both values are `Theme`'s own; choosing between
+                // them here invents nothing.
                 Button {
                     UIPasteboard.general.string = message
-                    withAnimation(Theme.settle) { copied = true }
+                    withAnimation(reduceMotion ? Theme.reducedMotion : Theme.settle) { copied = true }
                 } label: {
                     Label(copied ? "Copied" : "Copy the message",
                           systemImage: copied ? "checkmark" : "doc.on.doc")

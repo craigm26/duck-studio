@@ -30,11 +30,12 @@ import StudioKit
 /// nobody mistaking a silence for a refusal, and until this restyle that
 /// distinction was carried by a green tick against an orange cross against a red
 /// clock — which is to say, by colour, to the roughly one man in twelve who
-/// cannot separate those (SC 1.4.1). Every step now wears a `StateBadge`: a dot
-/// AND the word beside it. The kit's own `Outcome.line` still sits underneath
-/// wherever it says something the badge cannot, because that line is where a
-/// refusal and a silence are kept apart in Pollen's terms rather than this
-/// app's, and it is the text somebody pastes into an issue.
+/// cannot separate those (SC 1.4.1). Every step now wears an `OutcomeBadge`: a
+/// dot AND the word beside it, in the token that word means. The kit's own
+/// `Outcome.line` still sits underneath wherever it says something the badge
+/// cannot, because that line is where a refusal and a silence are kept apart in
+/// Pollen's terms rather than this app's, and it is the text somebody pastes
+/// into an issue.
 struct PairingSpikeView: View {
 
     /// Its own scanner, not the one `FindDuckView` holds. The everyday screen's
@@ -344,7 +345,18 @@ struct PairingSpikeView: View {
     private func stepRow(_ step: PairingSpike.Step) -> some View {
         let running = scanner.spikeStep == step
         let outcome = scanner.spikeOutcomes[step] ?? .notReached
-        let state = running ? RobotState.scanning : badge(outcome)
+        // TEAL WHILE IT IS IN FLIGHT, WHICH IS THE COLOUR THE TOOLBAR IS ALREADY
+        // WEARING. `LensIndicator` calls teal the connection accent and draws
+        // the eye's ring in it for `.connecting`, which is exactly what
+        // `linkState` above has the lens doing while `spikeStep` is set — so the
+        // row that is running and the eye that says something is happening are
+        // one colour rather than two. It also has to be none of the four below:
+        // `warning` and `sensorActive` are the same yellow in the palette, and
+        // the run does NOT stop at a timeout — `advance(after: .readVersion)`
+        // carries on to `.subscribe` — so a timed-out row and a running row are
+        // on screen together, which is precisely when two identical yellows
+        // would blunt the one finding this whole screen exists to report.
+        let ink = running ? Theme.brandPrimary : colour(outcome)
         return VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
             HStack(spacing: Theme.spacing(.tight)) {
                 // THE GLYPH AND THE BADGE SAY THE SAME THING IN TWO CHANNELS,
@@ -352,13 +364,13 @@ struct PairingSpikeView: View {
                 // endings still get four different icons, for the reason they
                 // always did.
                 Image(systemName: running ? "circle.dotted" : symbol(outcome))
-                    .foregroundStyle(state.color)
+                    .foregroundStyle(ink)
                 Text(step.title)
                     .font(.subheadline)
                     .foregroundStyle(Theme.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: Theme.spacing(.tight))
-                StateBadge(text: running ? "running" : word(outcome), state: state)
+                OutcomeBadge(word: running ? "running" : word(outcome), ink: ink)
             }
 
             if running {
@@ -393,7 +405,7 @@ struct PairingSpikeView: View {
                     // reader to watch something that is not going to move.
                     Text(outcome.line)
                         .font(.caption)
-                        .foregroundStyle(state.color)
+                        .foregroundStyle(ink)
                         .fixedSize(horizontal: false, vertical: true)
                     Text(step.failureMeans)
                         .font(.caption2)
@@ -433,27 +445,50 @@ struct PairingSpikeView: View {
         }
     }
 
-    /// Which of `RobotState`'s four colours an ending is drawn in.
+    /// Which token an ending is drawn in.
+    ///
+    /// NOT `RobotState`, WHICH IS WHAT THIS USED TO BE. That enum is the robot's
+    /// four states, and its badge announces them: a step that answered was
+    /// `.idle`, so `StateBadge` read "ok" and then said "Idle" — a robot word
+    /// about a BLE step, on the one screen in the app whose entire value is that
+    /// its vocabulary can be trusted. None of these four outcomes is a robot
+    /// state. A step is not idle; it answered, or it was refused, or nothing
+    /// came back, or nobody got to it.
     ///
     /// THE WORD IS THE STATE AND THE COLOUR IS A HINT, which is what makes this
-    /// mapping safe to argue about. `StateBadge` takes a `RobotState`, so the
-    /// palette's proof that each of its four values clears 4.5:1 on every ground
-    /// the app sets words on comes with it — and `Theme.refused`, the critical
-    /// red, is deliberately not reachable through it. That is the right way
-    /// round here: a refusal is an ANSWER, and the ending this spike exists to
-    /// find is the one where nothing came back at all, so the loudest of the
-    /// four goes to the hang and the yellow warning register goes to the refusal.
-    private func badge(_ outcome: PairingSpike.Outcome) -> RobotState {
+    /// mapping safe to argue about at all. All four tokens are `isText` in
+    /// `Palette`, so `PaletteTests` proves each of them clears 4.5:1 on every
+    /// ground the app sets words on — `surfacePrimary` here — exactly as the
+    /// robot palette did.
+    ///
+    /// AND NOW EACH TOKEN MEANS WHAT IT MEANS ON THE OTHER SCREENS. The old
+    /// mapping deliberately withheld the critical red from a refusal and spent
+    /// the loudest colour on the hang, arguing that the hang is the finding this
+    /// spike is hunting. That is true of the FINDING and it was the wrong place
+    /// to say it. `IntentAuthorView` gives `Theme.refused` to the kit saying no
+    /// and `Theme.warning` to a limit being approached; a refusal here is the
+    /// platform or the robot saying no, and a budget running out is a limit. A
+    /// person who reads red as "refused" on one screen and as "no answer" on
+    /// this one has been taught the palette twice.
+    ///
+    /// THE HANG DOES NOT GO QUIET FOR IT. It keeps the alarm glyph
+    /// (`clock.badge.exclamationmark.fill`), the capitals in `Outcome.line`'s
+    /// "TIMED OUT after 60.00 s — no answer and no error", the sentence from
+    /// `Step.failureMeans` under it, and the verdict `Reading.headline` prints
+    /// when the run ends. Four channels, none of them a hue.
+    private func colour(_ outcome: PairingSpike.Outcome) -> Color {
         switch outcome {
-        // Teal is what a machine measured. A step that answered is a measurement.
-        case .ok: return .idle
-        // Yellow is the app's warning register: the platform or the robot said
-        // no, in words somebody can be shown.
-        case .refused: return .scanning
-        // The loudest of the four, for the §5.5 symptom itself.
-        case .timedOut: return .active
+        // A step that answered. Green is the app's token for a thing that
+        // actually happened, and this is the only one of the four that did.
+        case .ok: return Theme.success
+        // The platform or the robot said no, in words somebody can be shown.
+        // That is a refusal, and the refusal token is what a refusal takes.
+        case .refused: return Theme.refused
+        // A budget ran out: the limit, not a no. Nothing was refused because
+        // nothing answered at all.
+        case .timedOut: return Theme.warning
         // Grey. Nothing happened here and nothing is being claimed about it.
-        case .notReached: return .offline
+        case .notReached: return Theme.textTertiary
         }
     }
 
@@ -482,32 +517,63 @@ struct PairingSpikeView: View {
 
     // MARK: - the one answer only a person has
 
-    /// THREE EQUAL BUTTONS RATHER THAN A SEGMENTED CONTROL, and the reason is
-    /// the height. A segmented control is about 32 points tall, which is under
-    /// the HIG's 44pt floor, on the one question in this app whose answer is a
-    /// piece of evidence — asked of somebody holding a robot in one hand. These
-    /// are 44pt each, they share the width equally, and the chosen one carries
-    /// the bill as well as the wash, because `surfaceInteractive` differs from
-    /// its ground by 1.02:1 in light and the palette says in as many words that
-    /// this is a hint and not information.
+    /// THE STOCK SEGMENTED `Picker`, RESTORED. Three hand-drawn capsules stood
+    /// here, 44 points each, and the argument for them was the Human Interface
+    /// Guidelines' 44pt floor against a segmented control's 32 — on the one
+    /// question in this app whose answer is a piece of evidence, asked of
+    /// somebody holding a robot in one hand. That argument is real and it is
+    /// outweighed, because the brief this app is drawn to is explicit that a
+    /// native control beats a custom one and this is what a native control is
+    /// carrying that the capsules were not: the platform announces each option
+    /// as "1 of 3" with its selected state, keyboard focus lands on the control
+    /// and the arrow keys move between the answers, and Increase Contrast,
+    /// Button Shapes, Reduce Transparency and Dynamic Type all reach it without
+    /// this file writing a line for any of them. Three `.plain` buttons had to
+    /// be told each of those by hand, and had been told exactly one — the
+    /// `.isSelected` trait — which is the way this kind of control always
+    /// decays. What it would have cost is twelve points of height, and the
+    /// frame under it gives those back: the control is held at the 44 the
+    /// capsules had.
+    ///
+    /// THE SELECTION IS DRAWN BY THE SYSTEM, WHICH IS THE OTHER HALF OF THAT.
+    /// `surfaceInteractive` differs from its ground by 1.02:1 in light and the
+    /// palette says in as many words that a wash is a hint and not information,
+    /// so the capsules had to add a bill under the chosen one to be legal at
+    /// all. The segmented control's indicator is the platform's, drawn against
+    /// whatever contrast settings the person is running.
+    ///
+    /// "NOT SURE" IS SELECTED BEFORE ANYBODY ANSWERS, AND THAT IS THE TRUTH
+    /// RATHER THAN A DEFAULT. `nil` is what the report carries until a person
+    /// speaks, and `Run.pairingPromptShown` keeps "nobody watched" apart from
+    /// "no prompt appeared"; a fourth, blank segment would invent a state the
+    /// kit does not have. The capsules behaved the same way.
     ///
     /// STILL EDITABLE AFTER THE ALERT, and after the run has ended. Somebody who
-    /// tapped the wrong button, or who was looking at the duck rather than the
+    /// tapped the wrong answer, or who was looking at the duck rather than the
     /// phone and only worked out afterwards what they saw, must be able to
     /// correct the report instead of shipping a wrong observation because a
     /// dialog had gone.
     private var promptSection: some View {
         Section {
-            HStack(spacing: Theme.spacing(.tight)) {
+            // THE SAME CALL THE ALERT MAKES, WITH THE SAME THREE VALUES. What
+            // this screen records is `scanner.answerPairingPrompt`, and nothing
+            // about the control in front of it may change that: `Answer` maps
+            // the three segments onto `true`, `false` and `nil` exactly as it
+            // mapped the three buttons.
+            Picker("iOS asked to pair", selection: Binding(
+                get: { Answer(scanner.pairingPrompt) },
+                set: { scanner.answerPairingPrompt($0.value) })) {
                 ForEach(Answer.allCases, id: \.self) { answer in
-                    answerButton(answer)
+                    Text(answer.label).tag(answer)
                 }
             }
-            // Room for the bill to hang below the chosen capsule without the row
-            // jogging four points taller the moment an answer is given.
-            .padding(.bottom, Theme.spacing(.snug))
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel(Text("iOS asked to pair"))
+            .pickerStyle(.segmented)
+            // HELD AT THE 44 THE CAPSULES HAD. A segmented control is about 32
+            // points tall on its own, and this is the one question in the app
+            // whose answer becomes evidence, asked of somebody holding a robot
+            // in one hand; the control accepts a taller frame and draws itself
+            // to it, so the floor costs nothing the stock control was bringing.
+            .frame(minHeight: ConnectivityMetric.minimumTarget)
         } header: {
             Text("The pairing prompt")
         } footer: {
@@ -517,34 +583,7 @@ struct PairingSpikeView: View {
         .listRowBackground(Theme.surfacePrimary)
     }
 
-    /// One answer. The bill is the selection, not the tint — the same
-    /// construction `DriveView`'s layer chips use, for the same reason.
-    private func answerButton(_ answer: Answer) -> some View {
-        let chosen = Answer(scanner.pairingPrompt) == answer
-        return Button {
-            scanner.answerPairingPrompt(answer.value)
-        } label: {
-            Text(answer.label)
-                .font(.footnote.weight(chosen ? .semibold : .regular))
-                .multilineTextAlignment(.center)
-                .foregroundStyle(chosen ? Theme.textPrimary : Theme.textSecondary)
-                .padding(.horizontal, Theme.spacing(.tight))
-                .frame(maxWidth: .infinity,
-                       minHeight: ConnectivityMetric.minimumTarget)
-                .background { if chosen { Capsule().fill(Theme.surfaceInteractive) } }
-                .overlay(Capsule().strokeBorder(Theme.separator,
-                                                lineWidth: ConnectivityMetric.hairlineStroke))
-                .overlay(alignment: .bottom) {
-                    if chosen { BillIndicator().offset(y: Theme.spacing(.tight)) }
-                }
-                .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(Text(answer.label))
-        .accessibilityAddTraits(chosen ? [.isSelected] : [])
-    }
-
-    /// The three states the report can carry, as something three buttons can
+    /// The three states the report can carry, as something three segments can
     /// hold. "Not sure" and "never answered" are the same `nil`: a person who is
     /// unsure has not observed anything, and `Run.pairingPromptShown` exists to
     /// keep that apart from a `false`.
@@ -652,5 +691,63 @@ struct PairingSpikeView: View {
         return withUnsafeBytes(of: &system.machine) { raw in
             String(decoding: raw.prefix(while: { $0 != 0 }), as: UTF8.self)
         }
+    }
+}
+
+// MARK: - the badge a spike step wears
+
+/// A dot AND a word, in a pill — `StateBadge`'s picture, drawn from a token
+/// rather than from a robot state.
+///
+/// IT EXISTS BECAUSE THE FOUR THINGS THIS SCREEN REPORTS ARE NOT ROBOT STATES.
+/// `StateBadge` takes a `RobotState`, and a `RobotState` speaks: its
+/// `accessibilityValue` adds the state's own word whenever the caller's differs,
+/// so a step that answered was announced "ok, Idle" — a robot's vocabulary
+/// borrowed for a Bluetooth step, on the screen whose whole value is that its
+/// words can be trusted. Here the word IS the value and there is no second one
+/// to add, so the badge says "ok" and stops.
+///
+/// THE PILL IS FURNITURE, exactly as it is on `StateBadge`. Its fill is the same
+/// surface the card uses and its edge is a hairline, because the palette's
+/// grounds are within about 1.1:1 of each other by design and a chip drawn on
+/// this system can never announce itself with a fill. The information is the dot
+/// and the word; the pill only says they belong together.
+///
+/// THE INK IS A `Color` AND EVERY VALUE HANDED TO IT IS A TOKEN, which the type
+/// cannot enforce and one caller can. `stepRow` is that caller: it passes
+/// `Theme.brandPrimary` for a step in flight and whatever `colour(_:)` returns
+/// otherwise, and every one of those five is a `Theme` token `PaletteTests` has
+/// already proved legible as text on `surfacePrimary` in both schemes. A second
+/// caller reaching for a literal is how that guarantee would be lost.
+private struct OutcomeBadge: View {
+    /// The ending in one word — `word(_:)` above returns `PairingSpike.Outcome`'s
+    /// own four, ok / refused / timed out / not reached, and a step that has not
+    /// ended yet is "running".
+    let word: String
+
+    /// The token that word means.
+    let ink: Color
+
+    var body: some View {
+        HStack(spacing: Theme.spacing(.hairline)) {
+            Circle()
+                .fill(ink)
+                .frame(width: Theme.spacing(.tight),
+                       height: Theme.spacing(.tight))
+            Text(word)
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(ink)
+        }
+        .padding(.horizontal, Theme.spacing(.snug))
+        .padding(.vertical, Theme.spacing(.hairline))
+        .background(Capsule().fill(Theme.surfacePrimary))
+        .overlay(Capsule().strokeBorder(Theme.separator,
+                                        lineWidth: ConnectivityMetric.hairlineStroke))
+        // ONE ELEMENT SAYING ONE THING. The dot and the word are the same fact
+        // in two channels, and letting VoiceOver read them as two children
+        // would announce an unlabelled graphic before the only word that
+        // matters.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(word))
     }
 }

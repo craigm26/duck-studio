@@ -96,13 +96,41 @@ struct PhoneModelPickerView: View {
                     TextField("Search mlx-community", text: $search)
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
                         .onSubmit { Task { await runSearch() } }
-                    Button("Find") { Task { await runSearch() } }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(Theme.actionSecondary)
-                        .padding(.vertical, Theme.spacing(.snug))
-                        .padding(.leading, Theme.spacing(.snug))
-                        .contentShape(Rectangle())
-                        .disabled(searching)
+                    // THE PADDING IS INSIDE THE LABEL, WHICH IS THE ONLY PLACE
+                    // IT ENLARGES ANYTHING. Applied after `.buttonStyle`, it
+                    // grows the view the button is wrapped in and leaves the
+                    // control's own hit region at the size of the word —
+                    // "Find" at the body size is about thirty-four points by
+                    // twenty-two, and a `.contentShape` out there is shaping a
+                    // wrapper that was never doing the hit-testing. Inside the
+                    // label the style measures the padded text, so the padding
+                    // IS the target and the shape makes the transparent part of
+                    // it pressable.
+                    //
+                    // AND THE FLOOR IS ASSERTED RATHER THAN ARRIVED AT. Twelve
+                    // points above and below a body-size word is forty-four at
+                    // the default text size and less than that at the smallest
+                    // one, so the frame states the minimum instead of leaving
+                    // it to be recomputed from a font metric.
+                    //
+                    // `.borderless` IS THE STOCK STYLE THIS ROW HAD. It takes
+                    // the app's tint — `Theme.actionSecondary`, set once in
+                    // `MicroduckTheme` — for its word, and greys that word when
+                    // the button is disabled. The hand-rolled version set the
+                    // action colour itself, so a `Find` disabled mid-search
+                    // stayed orange and read as pressable.
+                    Button {
+                        Task { await runSearch() }
+                    } label: {
+                        Text("Find")
+                            .padding(.vertical, Theme.spacing(.snug))
+                            .padding(.leading, Theme.spacing(.snug))
+                            .frame(minWidth: ConnectivityMetric.minimumTarget,
+                                   minHeight: ConnectivityMetric.minimumTarget)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(searching)
                 }
                 if searching {
                     ProgressView().tint(Theme.brandPrimary)
@@ -311,15 +339,25 @@ struct PhoneModelPickerView: View {
                 }
             }
             Spacer(minLength: Theme.spacing(.tight))
-            Button("Add") { Task { await vetThenAdd(hit) } }
-                .buttonStyle(.plain)
-                .foregroundStyle(Theme.actionSecondary)
-                .padding(.vertical, Theme.spacing(.snug))
-                .padding(.leading, Theme.spacing(.snug))
-                .contentShape(Rectangle())
-                .disabled(busyWith != nil)
-                .accessibilityLabel(Text("Add"))
-                .accessibilityValue(Text(hit.name))
+            // THE SAME TARGET THE SEARCH BUTTON GETS, AND FOR THE SAME REASON:
+            // the padding lives inside the label so the control is what grew,
+            // the frame states the forty-four rather than hoping the type size
+            // supplies it, and `.borderless` is the stock style, which greys
+            // its own word while a download holds this row disabled.
+            Button {
+                Task { await vetThenAdd(hit) }
+            } label: {
+                Text("Add")
+                    .padding(.vertical, Theme.spacing(.snug))
+                    .padding(.leading, Theme.spacing(.snug))
+                    .frame(minWidth: ConnectivityMetric.minimumTarget,
+                           minHeight: ConnectivityMetric.minimumTarget)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.borderless)
+            .disabled(busyWith != nil)
+            .accessibilityLabel(Text("Add"))
+            .accessibilityValue(Text(hit.name))
         }
     }
 

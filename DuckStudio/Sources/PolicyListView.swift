@@ -11,7 +11,7 @@ import StudioKit
 /// hairline is one point is tolerable; a third would mean the number belongs in
 /// `Palette` beside the radii, next to the focus ring's geometry, which is the
 /// other layout constant the design system already carries.
-private let hairlineStroke: CGFloat = 1
+private let hairlineStroke = DesignMetric.hairlineStroke
 
 /// A section heading, in the one heading style this design system has.
 ///

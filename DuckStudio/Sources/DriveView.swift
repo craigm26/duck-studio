@@ -910,18 +910,14 @@ private enum DriveMetric {
     /// constraint exactly when it would have been.
     static let readoutWidth: CGFloat = 260
 
-    /// A hairline STROKE. One point, which on every device this ships to is one
-    /// to three pixels. Named for the stroke because `Palette.Spacing` already
-    /// has a `hairline` and it is four points.
-    static let hairlineStroke: CGFloat = 1
+    /// A hairline STROKE, the app's one.
+    static let hairlineStroke = DesignMetric.hairlineStroke
 
-    /// How far a press darkens a control.
-    ///
-    /// THE SAME DELTA `PrimaryActionStyle` USES, written again because the
-    /// style's copy is private to the components file. It is here for one
-    /// reason: a button pressed on a paired controller has to look like a
-    /// button pressed with a thumb, and the style cannot see Bluetooth.
-    static let pressDelta: Double = -0.12
+    /// How far a press darkens a control: the delta `PrimaryActionStyle` uses,
+    /// by name. It is here because a button pressed on a paired controller has
+    /// to look like a button pressed with a thumb, and the style cannot see
+    /// Bluetooth.
+    static let pressDelta = DesignMetric.pressDelta
 }
 
 /// A control that is on the pad and does nothing against a bench.

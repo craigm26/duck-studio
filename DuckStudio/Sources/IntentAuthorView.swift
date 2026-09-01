@@ -22,12 +22,12 @@ import StudioKit
 /// for a change that actually landed. None of them appears without a glyph,
 /// because the whole screen is read by somebody deciding whether to trust it.
 ///
-/// A JOINT IS DRAWN AS A JOINT. Fifteen stock sliders per keyframe say nothing
-/// about which machine they belong to and nothing about how close an angle is
-/// to the end of its travel; `JointSlider` below builds the same control out of
-/// the design system's own pieces — the bill for the filled track, the servo
-/// horn for the handle — and grows the handle as the joint is pushed toward a
-/// stop, exactly as `DriveView`'s thumb pads do.
+/// A JOINT IS A STOCK SLIDER. Fifteen of them per keyframe, each with the
+/// joint's real travel as its ends, its angle above it in a `TelemetryRow` and
+/// its two stops printed underneath. A hand-drawn control was built here out of
+/// the design system's own pieces and has been taken out again — see
+/// `JointSlider` — because the system's slider is the only control on this
+/// panel that somebody who cannot drag can still move.
 struct IntentAuthorView: View {
     @State var draft: IntentDraft
     @ObservedObject var scenes: SceneStore
@@ -983,68 +983,81 @@ struct IntentAuthorView: View {
 
 // MARK: - one joint
 
-/// One joint, with its real travel as the ends of the track.
+/// One joint, with its real travel as the ends of the system's own slider.
 ///
-/// A JOINT IS DRAWN AS A JOINT. The design system has exactly one picture of a
-/// servo — `JointNode`, a dark hub inside a quieter collar that grows as the
-/// joint is pushed toward a stop — and exactly one picture of "this much, from
-/// here", which is the bill. A stock `Slider` is neither: it is a system
-/// capsule that says nothing about which machine it belongs to and, worse,
-/// nothing about how close this angle is to the end of its travel. Fifteen of
-/// them per keyframe is fifteen chances to notice that and none taken.
-/// `DriveView`'s thumb pads made the same swap for the same reason, and the
-/// knob there grows for the same quantity.
+/// A STOCK `Slider`, AND THE HAND-DRAWN ONE THAT STOOD HERE IS GONE. It was
+/// built out of the design system's own pieces — the bill for the filled track,
+/// a `JointNode` for the handle, growing as the joint was pushed toward a stop —
+/// and it moved on a `DragGesture` attached to that handle alone. It is the
+/// better picture and the worse control, for two reasons that outrank a picture.
+///
+/// THE FIRST IS THAT A `Slider` IS A CONTROL AND A DRAG GESTURE IS A PICTURE
+/// THAT MOVES. The system control is adjustable to VoiceOver and to Switch
+/// Control, it takes keyboard focus and steps on the arrow keys under Full
+/// Keyboard Access, and it hit-tests the thumb the way the platform decided
+/// rather than the way this file guessed — all of that out of
+/// `Slider(value:in:step:)`. The drawn control had a hand-written
+/// `accessibilityAdjustableAction`, which buys the VoiceOver swipe and nothing
+/// after it: no keyboard focus, because a `ZStack` with a gesture on it is not
+/// focusable, and nothing a Voice Control user could do except say the joint's
+/// name at a control that only answers a drag. That is on the one panel in this
+/// app whose entire purpose is moving joints. The brief this app is drawn to
+/// says a native control beats a custom one, and this is the row it had in mind.
+///
+/// THE SECOND IS THAT IT WAS THE LARGEST UNTESTED SURFACE IN THE APP. Sixty
+/// lines of position-to-angle arithmetic and its own inverse, a grab offset, an
+/// inset derived from a node's diameter — none of it reachable from
+/// `swift test`, which sees StudioKit and not this target. Fifteen of these per
+/// keyframe is fifteen chances for a mapping to drift away from the finger
+/// holding it, on the screen where a wrong angle is silently written into the
+/// motion. The system's slider has neither the arithmetic nor the risk.
+///
+/// WHAT IS LOST IS REAL AND IS NOT INFORMATION. The horn grew with load and the
+/// bill said "this much, from here"; a system capsule says neither. Both were
+/// pictures of the number printed directly above them, though — the angle is in
+/// the `TelemetryRow` and the stops are under the track — so nothing that was
+/// only ever said by the drawing has gone with it. `DriveView`'s thumb pads keep
+/// the servo-horn motif for the one place it carries something the numbers do
+/// not: a live joint under load, on hardware.
 ///
 /// THE ENDS ARE THE TRAVEL STOPS, WHICH IS BEHAVIOUR AND NOT DECORATION: the
-/// control cannot ask for an angle the joint does not have. A slider with
-/// generous ends and a warning underneath is a slider that teaches people to
-/// ignore warnings. That was true of the stock control and it is true of this
-/// one; nothing about what leaves this view has changed.
+/// control cannot ask for an angle the joint does not have, because `in:` is
+/// `JointControl`'s own travel and the kit is where that travel is asserted. A
+/// slider with generous ends and a warning underneath is a slider that teaches
+/// people to ignore warnings. That was true of the drawn control and it is true
+/// of this one. The RANGE of what leaves this view is unchanged; its resolution
+/// is not — the drawn control wrote any angle a drag landed on, and this one
+/// writes whole degrees, which the next paragraph is about.
 ///
-/// THE HANDLE IS THE ONLY THING THAT DRAGS, and that is a decision about the
-/// list rather than about the joint. These rows live inside a scrolling `List`
-/// where fifteen full-width drag targets would be fifteen places a flick
-/// upward moves a servo instead of the page. A stock slider does not respond
-/// to a tap on its track either, so nothing is lost — the handle is a
-/// forty-eight point target around a sixteen-to-twenty-four point mark, which
-/// clears the HIG's floor without this file writing that floor down.
-///
-/// IT IS STILL ADJUSTABLE WITHOUT A DRAG. A hand-drawn control that answers
-/// only to `DragGesture` is a control nobody using VoiceOver, Switch Control or
-/// Voice Control can move at all — on the one panel whose entire purpose is
-/// moving them. The step is one degree because one degree is what the readout
-/// prints: a finer step would change the motion without changing anything on
-/// screen, which is how somebody comes to believe the control is broken.
+/// ONE DEGREE IS THE STEP BECAUSE ONE DEGREE IS WHAT THE READOUT PRINTS.
+/// `JointControl.degrees` formats whole degrees, so a finer adjustment would
+/// move the motion and change nothing on screen — which is how somebody comes to
+/// believe a control is broken. Said as the slider's own `step` rather than as a
+/// custom adjustable action, it is the same increment under a thumb, under a
+/// VoiceOver swipe and under an arrow key, instead of one number for the drag
+/// and another for everybody else.
 ///
 /// NO HAPTIC AT THE STOP, AND THAT IS THE DESIGN SYSTEM'S RULE RATHER THAN AN
 /// OMISSION. `Haptic.jointAtStop` is for a joint that has arrived at its stop
-/// in the WORLD — the thing a person watching the robot cannot see on the
-/// glass. Nothing moves while a motion is being written, so a tap here would be
-/// the phone reporting the person's own thumb back to them, which is precisely
-/// what `Haptic`'s preamble refuses to spend the taptic engine on.
+/// in the WORLD — the thing a person watching the robot cannot see on the glass.
+/// Nothing moves while a motion is being written, so a tap here would be the
+/// phone reporting the person's own thumb back to them, which is precisely what
+/// `Haptic`'s preamble refuses to spend the taptic engine on.
 private struct JointSlider: View {
     let control: JointControl
     @Binding var value: Double
 
-    /// The angle the handle was at when this drag began.
-    ///
-    /// A DRAG IS MEASURED FROM WHERE IT STARTED, not from where the finger is.
-    /// Reading the touch's absolute position would make the handle jump to
-    /// under the thumb on contact — a two-degree correction turns into a
-    /// twenty-degree one because the finger landed slightly off the mark.
-    @State private var grabbed: Double?
-
     /// What the control says when it is spoken instead of seen.
     ///
     /// THE TRAVEL STOPS ARE PART OF THE VALUE, NOT DECORATION. The ends of this
-    /// track are the joint's real travel, so a handle that will not go further
+    /// slider are the joint's real travel, so a handle that will not go further
     /// has hit the joint's limit rather than a bug — and the two numbers under
-    /// the track are the only thing on screen that says which. Drop them and
-    /// the spoken control is strictly worse than the printed one: fifteen of
-    /// these per keyframe, each stopping somewhere different, with no way to
-    /// tell a stop from a stall. Every part comes from `JointControl`, the same
-    /// expressions the visible rows use, so the spoken and printed angles
-    /// cannot round apart.
+    /// the track are the only thing on screen that says which. Drop them and the
+    /// spoken control is strictly worse than the printed one: fifteen of these
+    /// per keyframe, each stopping somewhere different, with no way to tell a
+    /// stop from a stall. Every part comes from `JointControl`, the same
+    /// expressions the visible rows use, so the spoken and printed angles cannot
+    /// round apart.
     private var spoken: String {
         "\(control.degrees(value)), travel \(control.travelLabel.lower) to \(control.travelLabel.upper)"
     }
@@ -1058,15 +1071,42 @@ private struct JointSlider: View {
             // truncated one at an accessibility size, where an HStack is a
             // fight for the width that the number always loses.
             //
-            // HIDDEN, BECAUSE THE TRACK BELOW SAYS ALL OF IT. The track is an
-            // adjustable element carrying the name, the angle and both stops;
-            // left visible this would be a second element repeating two thirds
-            // of that immediately before it.
+            // HIDDEN, BECAUSE THE SLIDER BELOW SAYS ALL OF IT. A `Slider` is
+            // its own accessibility element carrying the name, the angle and
+            // both stops; left visible this would be a second element repeating
+            // two thirds of that immediately before it.
             TelemetryRow(label: control.name, value: control.degrees(value))
                 .accessibilityHidden(true)
 
-            track
+            Slider(value: $value, in: travel, step: AuthoringMetric.oneDegree)
+                // TINTED WITH AN INK, BECAUSE THE TINT PAINTS THE FILLED HALF OF
+                // THE TRACK AND THAT HALF HAS NO RIM TO BORROW. Duck Orange is
+                // 2.30:1 on Warm Cream — under even the 3:1 SC 1.4.11 asks of a
+                // shape a person has to locate — and `Theme.actionPrimaryEdge`
+                // exists for shapes this app draws itself, which a system
+                // slider's track is not. `actionSecondary` is that same hue at
+                // ink weight in light (4.52:1) and full Duck Orange in dark.
+                // `microduckTheme()` already puts this value on the whole app;
+                // it is said again here because a control whose colour arrives
+                // from three files away is a control somebody re-tints by hand.
+                .tint(Theme.actionSecondary)
+                // THE SLIDER IS THE ROW, AS FAR AS VOICEOVER IS CONCERNED, so
+                // the name has to be ON it rather than beside it. A `Slider` is
+                // its own element and never reads the `TelemetryRow` above:
+                // unlabelled, all fifteen of these announce "52 percent,
+                // adjustable" and nothing else, with left knee and head yaw
+                // indistinguishable. Labelled and not combined, for the reason
+                // the bench's inputs are — folding the row into one element
+                // would fold the adjustable trait away with it and leave fifteen
+                // joints that can be heard and not moved.
+                .accessibilityLabel(Text(control.name))
+                .accessibilityValue(Text(spoken))
 
+            // THE TWO STOPS, PRINTED. They are the ends of the travel and the
+            // only thing on screen that says a handle stopped because the joint
+            // does. Hidden from VoiceOver because `spoken` above already carries
+            // both, and an unlabelled pair of numbers after an adjustable
+            // control is two more swipes to nowhere.
             HStack {
                 Text(control.travelLabel.lower)
                 Spacer()
@@ -1078,130 +1118,16 @@ private struct JointSlider: View {
         }
     }
 
-    /// The collar, the bill, and the horn that runs along them.
+    /// The joint's travel, as a range a `Slider` can be handed.
     ///
-    /// THREE PIECES OF THE DESIGN SYSTEM AND NO FOURTH THING. The collar is a
-    /// `surfaceInteractive` capsule with the palette's hairline round it — a
-    /// wash, which `Theme` says in as many words is a hint and not information,
-    /// so it is the groove and never the signal. The bill is the signal: it is
-    /// the app's one pointing gesture and it says "this much, from here". The
-    /// horn is where the joint actually is.
-    private var track: some View {
-        GeometryReader { proxy in
-            let width = proxy.size.width
-            ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(Theme.surfaceInteractive)
-                    .overlay(Capsule().strokeBorder(
-                        Theme.separator, lineWidth: AuthoringMetric.hairlineStroke))
-                    .frame(height: Theme.spacing(.tight))
-                BillIndicator(fill: fraction, thickness: Theme.spacing(.hairline))
-                knob(in: width)
-            }
-            .frame(width: width, height: AuthoringMetric.trackHeight)
-        }
-        .frame(height: AuthoringMetric.trackHeight)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text(control.name))
-        .accessibilityValue(Text(spoken))
-        .accessibilityAdjustableAction { direction in
-            switch direction {
-            case .increment: nudge(by: AuthoringMetric.oneDegree)
-            case .decrement: nudge(by: -AuthoringMetric.oneDegree)
-            @unknown default: break
-            }
-        }
-    }
-
-    /// The servo horn, at the angle, with a target around it.
-    ///
-    /// A FIXED FRAME AROUND A MARK THAT CHANGES SIZE. `JointNode` grows from
-    /// sixteen points to twenty-four with load, and a target that grew with it
-    /// would move under a finger that is already on it — the same objection
-    /// `PrimaryActionStyle` makes to a control that shrinks when pressed. The
-    /// frame is the track's own height, so the thing you can hit is constant
-    /// whatever the thing you can see is doing.
-    private func knob(in width: CGFloat) -> some View {
-        JointNode(load: towardTheStop, label: control.name)
-            // The track above is the element and carries the name and the
-            // angle; the horn inside it would be a second thing to swipe past
-            // saying "Neck yaw, moderate load" about a control that has already
-            // said where it is.
-            .accessibilityHidden(true)
-            .frame(width: AuthoringMetric.trackHeight,
-                   height: AuthoringMetric.trackHeight)
-            .contentShape(Rectangle())
-            .offset(x: centre(in: width) - AuthoringMetric.trackHeight / 2)
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { drag in
-                        let from = grabbed ?? value
-                        if grabbed == nil { grabbed = from }
-                        let moved = Double(drag.translation.width / travel(in: width))
-                        value = angle(at: position(of: from) + moved)
-                    }
-                    .onEnded { _ in grabbed = nil })
-    }
-
-    // MARK: what the numbers here are
-
-    /// How far along its travel the joint is, 0...1. Where to draw the horn and
-    /// how much of the bill to fill, and nothing else.
-    private var fraction: Double { position(of: value) }
-
-    /// The angle as a proportion of the joint's travel, and back again.
-    ///
-    /// TWO FUNCTIONS RATHER THAN ONE EXPRESSION WRITTEN TWICE, because a drag
-    /// converts in both directions on every frame — the handle's position out,
-    /// the new angle in — and a mapping that disagrees with its own inverse is
-    /// a control that drifts away from the finger holding it.
-    private func position(of angle: Double) -> Double {
-        let span = control.upper - control.lower
-        guard span > 0 else { return 0 }
-        return min(max((angle - control.lower) / span, 0), 1)
-    }
-
-    private func angle(at position: Double) -> Double {
-        control.lower + (control.upper - control.lower) * min(max(position, 0), 1)
-    }
-
-    /// How hard this joint is pushed toward a stop, 0...1 — the size of the
-    /// horn and nothing else.
-    ///
-    /// A PRESENTATION QUANTITY, NOT A CLAIM ABOUT THE ROBOT, which is the note
-    /// `DriveView`'s thumb pads carry about their own: how big to draw a dot.
-    /// What leaves this view is the binding's angle in radians, exactly as it
-    /// was set. Rest is free and either end of the travel is against the stop,
-    /// so a joint driven hard in either direction grows — which is what
-    /// `JointNode` draws and, for anybody not looking, what its spoken value
-    /// says in words.
-    private var towardTheStop: Double {
-        let rest = control.home
-        if value >= rest {
-            let span = control.upper - rest
-            return span > 0 ? min(max((value - rest) / span, 0), 1) : 0
-        }
-        let span = rest - control.lower
-        return span > 0 ? min(max((rest - value) / span, 0), 1) : 0
-    }
-
-    /// Where the horn's centre sits, inset by half its largest diameter so a
-    /// fully-loaded joint at a stop is inside the track rather than half out
-    /// of it. `ThumbPad` derives its own travel from the same two numbers.
-    private func centre(in width: CGFloat) -> CGFloat {
-        let inset = Theme.spacing(.loose) / 2
-        return inset + max(width - inset * 2, 0) * CGFloat(fraction)
-    }
-
-    /// How far the horn's centre moves between the two stops — the divisor a
-    /// drag is measured against, so the mark on the glass and the angle
-    /// underneath it cannot disagree.
-    private func travel(in width: CGFloat) -> CGFloat {
-        max(width - Theme.spacing(.loose), 1)
-    }
-
-    private func nudge(by radians: Double) {
-        value = min(max(value + radians, control.lower), control.upper)
+    /// GUARDED AT THE BOTTOM BECAUSE AN EMPTY RANGE IS A CRASH, NOT A DEGENERATE
+    /// CONTROL. Every joint DuckKit ships has real travel, so the guard never
+    /// fires today; it is here because `lower...upper` is built from data and a
+    /// range whose ends meet traps inside SwiftUI rather than drawing something
+    /// odd. `BenchView`'s inputs take the same precaution against the same
+    /// shape of data.
+    private var travel: ClosedRange<Double> {
+        control.lower...max(control.upper, control.lower + AuthoringMetric.oneDegree)
     }
 }
 
@@ -1306,7 +1232,7 @@ enum AuthoringMetric {
     /// already has a `hairline` and it is four points. Two things called
     /// hairline that differ by four times is how a rule ends up drawn at the
     /// width of a gap.
-    static let hairlineStroke: CGFloat = 1
+    static let hairlineStroke = DesignMetric.hairlineStroke
 
     /// 3pt stroke, 2pt clear of the shape — the focus ring, both schemes.
     ///
@@ -1328,21 +1254,23 @@ enum AuthoringMetric {
     /// outer radius and the inner one follows.
     static let viewport = Palette.Radius.group
 
-    /// How tall a joint's track is: the largest a servo horn gets, with a ring
-    /// of padding either side so the thing you drag is bigger than the thing
-    /// you see. `.loose` is `JointNode`'s diameter at a stop and `.snug` above
-    /// and below it puts the target past the Human Interface Guidelines'
-    /// forty-four point floor — which is why this file never writes that floor
-    /// down as a number.
-    static let trackHeight: CGFloat = Theme.spacing(.loose) + Theme.spacing(.snug) * 2
+    // `trackHeight` LIVED HERE AND HAS GONE WITH THE CONTROL IT SIZED. It was
+    // the height of `JointSlider`'s hand-drawn track, chosen so the drag target
+    // cleared the Human Interface Guidelines' forty-four point floor; the stock
+    // `Slider` that replaced that control brings its own target and its own
+    // geometry, so a number describing a track nobody draws any more would only
+    // be a comment about a control that is not there. Nothing else in the app
+    // referenced it.
 
     /// One degree, in radians.
     ///
     /// THE SMALLEST STEP THE READOUT CAN SHOW, which is what makes it the right
-    /// step for a swipe. `JointControl.degrees` prints whole degrees, so a
-    /// finer adjustment would move the motion and change nothing on screen —
-    /// and a control that appears not to respond is one people stop using. It
-    /// is a unit conversion rather than a fact about the robot; every angle
-    /// this app knows about still comes out of the kit.
+    /// step for a joint slider — under a thumb, under a VoiceOver swipe and
+    /// under an arrow key, because it is the `Slider`'s own `step` rather than a
+    /// number one input method gets and the others do not. `JointControl.degrees`
+    /// prints whole degrees, so a finer adjustment would move the motion and
+    /// change nothing on screen — and a control that appears not to respond is
+    /// one people stop using. It is a unit conversion rather than a fact about
+    /// the robot; every angle this app knows about still comes out of the kit.
     static let oneDegree: Double = .pi / 180
 }

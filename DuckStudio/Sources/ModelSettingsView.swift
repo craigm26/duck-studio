@@ -550,19 +550,35 @@ struct EndpointEditor: View {
 
     /// The verdict as a word and a dot.
     ///
-    /// TWO WORDS FOR SIXTEEN CAUSES, AND THE SENTENCE CARRIES THE REST.
-    /// `Reachability.Cause` separates sixteen outcomes because sixteen of them
-    /// have different remedies; the badge collapses them at the only place a
-    /// glance actually splits — did something that speaks this API answer, or
-    /// did it not. `foundAnAPI` is exactly that line, and it is the kit's own,
-    /// so the badge and the paragraph under it can never disagree.
+    /// THE COLOUR SPLITS ON `isReady`, WHICH IS THE PREDICATE THIS SCREEN HAS
+    /// ALWAYS USED. Before the badge existed the sentence was tinted green when
+    /// `verdict.isReady` and orange otherwise; restyling it moved the test to
+    /// `foundAnAPI`, and that is a wider set — `Reachability.Verdict` documents
+    /// `isReady` as "`foundAnAPI` minus the empty shelf", so `noModelsLoaded`
+    /// and `modelNamesUnreadable` crossed over into the success reading. Both
+    /// are addresses that cannot draft anything: one has no model on it, the
+    /// other answered with a list this app could not read a name out of. A
+    /// badge saying "Answered" above a sentence saying to go and load a model
+    /// on that machine is the badge contradicting the paragraph it sits on, and
+    /// the badge is what a glance takes.
     ///
-    /// `idle` FOR ONE THAT ANSWERED: powered, and standing still, which is what
+    /// SO THE COLOUR HAS TWO STATES AND THE WORD HAS THREE. Everything that is
+    /// not ready takes the same non-success state, which is the split the
+    /// original made; the word then separates the two very different ways of
+    /// not being ready, because "Unreachable" is false of a machine that
+    /// answered and "Not ready" is true of both. The word is the information
+    /// and the colour is the hint — `CatalogueOriginPill` makes the same
+    /// argument for the same reason — and `verdict.sentence`, which is
+    /// StudioKit's and which a test asserts, says which of the sixteen causes
+    /// it actually was.
+    ///
+    /// `idle` FOR ONE THAT IS READY: powered, and standing still, which is what
     /// a model server is between requests. It is also the teal, which is this
     /// app's colour for something a machine said.
     private func standing(_ verdict: Reachability.Verdict)
         -> (text: String, state: RobotState) {
-        verdict.foundAnAPI ? ("Answered", .idle) : ("Unreachable", .offline)
+        if verdict.isReady { return ("Answered", .idle) }
+        return (verdict.foundAnAPI ? "Not ready" : "Unreachable", .offline)
     }
 
     private func save() {

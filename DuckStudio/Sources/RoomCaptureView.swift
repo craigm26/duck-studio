@@ -181,7 +181,7 @@ private enum RoomMetric {
     /// A hairline STROKE. One point, which on every device this ships to is one
     /// to three pixels. Named for the stroke because `Palette.Spacing` already
     /// has a `hairline` and it is four points.
-    static let hairlineStroke: CGFloat = 1
+    static let hairlineStroke = DesignMetric.hairlineStroke
 }
 
 /// The unit this screen prints, written once.

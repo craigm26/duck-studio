@@ -643,12 +643,15 @@ private enum StageMetric {
     /// the viewport's radius and the panel's follows.
     static let panel = Palette.Radius.group.inner
 
-    /// A hairline STROKE. One point, which on every device this ships to is one
-    /// to three pixels — the thinnest line iOS will draw crisply. Named for the
-    /// stroke because `Palette.Spacing` already has a `hairline` and it is four
-    /// points; two things called hairline that differ by 4x is how a rule ends
-    /// up drawn at the width of a gap.
-    static let hairlineStroke: CGFloat = 1
+    /// A hairline STROKE, the app's one.
+    static let hairlineStroke = DesignMetric.hairlineStroke
+
+    /// The smallest thing a finger is asked to hit — the app's one 44, by name.
+    /// It is a floor and not a size: the chip below is wider than this because
+    /// its label makes it so, and taller than this at every text size past the
+    /// default. This used to be a second copy, with a paragraph explaining that
+    /// the first was private to its file; the first is not private any more.
+    static let minimumTarget = DesignMetric.minimumTarget
 }
 
 /// The unit the legend prints, written once.
@@ -871,14 +874,26 @@ struct StageLegend: View {
 
     /// The camera toggle, as a chip.
     ///
-    /// FORTY-FOUR POINTS, WHICH IT WAS NOT. This was `.bordered` at
-    /// `.controlSize(.mini)` — a control around twenty points tall, well under
-    /// the HIG's floor, sitting on top of a live 3D render where the penalty for
-    /// missing it is that the pan recogniser underneath swings the camera
-    /// instead. `.standard` either side of a footnote and `.snug` above and
+    /// FORTY-FOUR POINTS, AND THIS TIME MEASURED RATHER THAN ASSERTED. It began
+    /// as `.bordered` at `.controlSize(.mini)` — a control around twenty points
+    /// tall, well under the HIG's floor, sitting on top of a live 3D render
+    /// where the penalty for missing it is that the pan recogniser underneath
+    /// swings the camera instead. The repair claimed the spacing scale had
+    /// settled it: "`.standard` either side of a footnote and `.snug` above and
     /// below it is comfortably past the floor in both directions, off the
-    /// spacing scale alone — the app writes 44 down as a number in exactly one
-    /// place, `DesignComponents`, and this is not it.
+    /// spacing scale alone". Add it up and it is not. A footnote's line box is
+    /// about eighteen points at the default text size, and `.snug` above plus
+    /// `.snug` below is twenty-four, which makes forty-two — two points short of
+    /// the floor, at the one text size most people are actually on, in a comment
+    /// that said the opposite. Nothing in the app could have contradicted it:
+    /// a padding is a number typed here and a rendered height is not, so the
+    /// claim was never checked against anything.
+    ///
+    /// So the floor is now ASKED FOR, in the units it is specified in. It stays
+    /// a floor rather than a size — the paddings still decide the chip at every
+    /// text size past the default, where the label alone already clears 44 — and
+    /// the fill, the rim and the hit-testing shape are all applied after it, so
+    /// what a finger can land on is the same 44 points the eye is offered.
     ///
     /// THE WORD IS THE STATE, NOT THE WASH. `surfaceInteractive` differs from
     /// its ground by about 1.02:1 in light, which `Theme` says in as many words
@@ -903,6 +918,13 @@ struct StageLegend: View {
                 .foregroundStyle(orbit.follows ? Theme.textPrimary : Theme.textSecondary)
                 .padding(.horizontal, Theme.spacing(.standard))
                 .padding(.vertical, Theme.spacing(.snug))
+                // BOTH DIRECTIONS, BECAUSE THE HIG SPECIFIES BOTH. The width is
+                // never the binding one here — "Following" beside a symbol is
+                // far wider than 44 — but a minimum that is only asserted for
+                // the dimension that currently needs it is a minimum that stops
+                // being true the day somebody shortens the word.
+                .frame(minWidth: StageMetric.minimumTarget,
+                       minHeight: StageMetric.minimumTarget)
                 .background { if orbit.follows { Capsule().fill(Theme.surfaceInteractive) } }
                 .overlay(Capsule().strokeBorder(Theme.separator,
                                                 lineWidth: StageMetric.hairlineStroke))

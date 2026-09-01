@@ -37,7 +37,17 @@ import StudioKit
 /// gathered here rather than scattered through the components so that there is
 /// exactly one 44 and one 60 in the app, and so the next person can see at a
 /// glance which numbers in this file are load-bearing.
-private enum Metric {
+///
+/// INTERNAL, NOT PRIVATE. The first cut of this file kept these two enums to
+/// itself, and the app answered by writing the numbers again: `DriveView`,
+/// `DuckSoccerView`, `DuckStage` and `FindDuckView` each carried a copy of the
+/// 60, the 44 or the press delta with a comment saying the original could not
+/// be reached — a comment that was true, and that was the defect. The private
+/// keyword was protecting a number from the screens whose whole job is to draw
+/// it. Every screen-local metric enum now names these by reference, and the
+/// claim above — one 44 and one 60 in the app — is a fact again rather than an
+/// intention.
+enum DesignMetric {
     /// 44pt — the smallest thing a finger is asked to hit.
     ///
     /// Source: Apple Human Interface Guidelines, Layout — "a minimum tappable
@@ -73,6 +83,17 @@ private enum Metric {
     /// hairline that differ by 4x is how a rule ends up drawn at the width of a
     /// gap.
     static let hairlineStroke: CGFloat = 1
+
+    /// How far a press darkens a filled control.
+    ///
+    /// A DELTA RATHER THAN A SECOND TOKEN. `Palette` has no pressed variant and
+    /// should not gain one: a press is a moment, not a colour, and a hard-coded
+    /// darker orange is a value that drifts the first time Duck Orange is
+    /// re-specified. Brightness applies to whatever the token is, so it cannot
+    /// drift. One number, so a button pressed on a paired controller, a football
+    /// pad held under a thumb and a capsule tapped in a list all darken by the
+    /// same amount — a press has to feel like one press everywhere in the app.
+    static let pressDelta: Double = -0.12
 }
 
 /// The two colours in the app that must NOT follow the colour scheme.
@@ -89,7 +110,7 @@ private enum Metric {
 /// So these ask `Palette` for a token in ONE NAMED SCHEME. It is the only place
 /// in the app that does, and the reason is written above rather than left to be
 /// worked out from the call.
-private enum Fixed {
+enum DesignFixed {
     /// What a label on a Duck Orange fill is set in, in both schemes.
     /// Mechanical Charcoal, 6.76:1 on the orange — the same number the palette
     /// documents for charcoal grounds, because contrast is symmetric.
@@ -198,7 +219,7 @@ struct StateBadge: View {
         .background(Capsule().fill(Theme.surfacePrimary))
         .overlay(
             Capsule().strokeBorder(Theme.separator,
-                                   lineWidth: Metric.hairlineStroke))
+                                   lineWidth: DesignMetric.hairlineStroke))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(text))
         // ONLY WHEN IT ADDS SOMETHING. If the caller's word already is the
@@ -249,8 +270,8 @@ struct PrimaryActionStyle: ButtonStyle {
 
         var minimum: CGFloat {
             switch self {
-            case .standard: return Metric.minimumTarget
-            case .moves: return Metric.movingTarget
+            case .standard: return DesignMetric.minimumTarget
+            case .moves: return DesignMetric.movingTarget
             }
         }
 
@@ -291,7 +312,7 @@ struct PrimaryActionStyle: ButtonStyle {
             configuration.label
                 .font(.headline)
                 .multilineTextAlignment(.center)
-                .foregroundStyle(isEnabled ? Fixed.onAction : Theme.textSecondary)
+                .foregroundStyle(isEnabled ? DesignFixed.onAction : Theme.textSecondary)
                 .padding(.horizontal, Theme.spacing(reach.horizontalPadding))
                 .padding(.vertical, Theme.spacing(reach.verticalPadding))
                 .frame(minWidth: reach.minimum, minHeight: reach.minimum)
@@ -301,19 +322,14 @@ struct PrimaryActionStyle: ButtonStyle {
                 .contentShape(Capsule())
         }
 
-        /// The capsule, darkened while held.
-        ///
-        /// A DELTA RATHER THAN A SECOND TOKEN. `Palette` has no pressed variant
-        /// and should not gain one: a press is a moment, not a colour, and a
-        /// hard-coded darker orange is a value that drifts the first time Duck
-        /// Orange is re-specified. Brightness applies to whatever the token is,
-        /// so it cannot drift. It is applied to the fill alone — the label
-        /// keeps its own colour, because darkening the pair together would move
-        /// the contrast between them.
+        /// The capsule, darkened while held by `DesignMetric.pressDelta`, which
+        /// says why it is a delta and not a second token. It is applied to the
+        /// fill alone — the label keeps its own colour, because darkening the
+        /// pair together would move the contrast between them.
         private var fill: some View {
             Capsule()
                 .fill(isEnabled ? Theme.actionPrimary : Theme.surfaceInteractive)
-                .brightness(configuration.isPressed ? -0.12 : 0)
+                .brightness(configuration.isPressed ? DesignMetric.pressDelta : 0)
         }
 
         /// The rim a Duck Orange fill needs in light so its EDGE is findable.
@@ -326,9 +342,9 @@ struct PrimaryActionStyle: ButtonStyle {
         /// control that can be operated, and 1.4.11 exempts those.
         @ViewBuilder private var edge: some View {
             if !isEnabled {
-                Capsule().strokeBorder(Theme.separator, lineWidth: Metric.hairlineStroke)
+                Capsule().strokeBorder(Theme.separator, lineWidth: DesignMetric.hairlineStroke)
             } else if let rim = Theme.actionPrimaryEdge(scheme) {
-                Capsule().strokeBorder(rim, lineWidth: Metric.hairlineStroke)
+                Capsule().strokeBorder(rim, lineWidth: DesignMetric.hairlineStroke)
             }
         }
 
@@ -345,8 +361,8 @@ struct PrimaryActionStyle: ButtonStyle {
         @ViewBuilder private var focusRing: some View {
             if isFocused {
                 Capsule()
-                    .strokeBorder(Theme.focus, lineWidth: Metric.focusRingWidth)
-                    .padding(-(Metric.focusRingOffset + Metric.focusRingWidth))
+                    .strokeBorder(Theme.focus, lineWidth: DesignMetric.focusRingWidth)
+                    .padding(-(DesignMetric.focusRingOffset + DesignMetric.focusRingWidth))
             }
         }
     }
@@ -498,7 +514,7 @@ struct LensIndicator: View {
     /// so it stays a catchlight when the eye opens instead of a second pupil.
     private func catchlight(on diameter: CGFloat) -> some View {
         Circle()
-            .fill(Fixed.catchlight)
+            .fill(DesignFixed.catchlight)
             .frame(width: diameter * 0.28, height: diameter * 0.28)
             .padding(.leading, diameter * 0.18)
             .padding(.top, diameter * 0.16)
@@ -523,7 +539,7 @@ struct LensIndicator: View {
     /// The barrel's thickness, as a fraction of the lens. A fixed point width
     /// would make a large lens look like a thin ring and a small one look
     /// solid.
-    private var ringWidth: CGFloat { max(Metric.hairlineStroke, size * 0.08) }
+    private var ringWidth: CGFloat { max(DesignMetric.hairlineStroke, size * 0.08) }
 }
 
 // MARK: - 4. the bill
@@ -590,7 +606,7 @@ struct BillIndicator: View {
 
     @ViewBuilder private var edge: some View {
         if let rim = Theme.actionPrimaryEdge(scheme) {
-            shape.strokeBorder(rim, lineWidth: Metric.hairlineStroke)
+            shape.strokeBorder(rim, lineWidth: DesignMetric.hairlineStroke)
         }
     }
 

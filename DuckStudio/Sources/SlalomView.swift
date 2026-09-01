@@ -83,8 +83,7 @@ struct SlalomView: View {
                             .buttonStyle(.primaryActionMoves)
                             .accessibilityHint(Text("Puts the duck back at the first gate and clears the clock."))
                     } else {
-                        JoystickView { model.stick = $0 }
-                            .frame(width: SlalomMetric.stick, height: SlalomMetric.stick)
+                        JoystickView(side: SlalomMetric.stick) { model.stick = $0 }
                     }
                 }
             }
@@ -145,7 +144,7 @@ private enum SlalomMetric {
     /// A hairline STROKE. One point, which on every device this ships to is one
     /// to three pixels. Named for the stroke because `Palette.Spacing` already
     /// has a `hairline` and it is four points.
-    static let hairlineStroke: CGFloat = 1
+    static let hairlineStroke = DesignMetric.hairlineStroke
 }
 
 @MainActor

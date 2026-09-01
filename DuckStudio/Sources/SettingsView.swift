@@ -47,18 +47,37 @@ struct SettingsView: View {
             // learns their bench was dropped when a run fails.
             if let note = models.unreadableNote {
                 Section {
-                    Text(note).font(.footnote)
+                    // IN `warning`, WITH THE TRIANGLE SAYING IT AGAIN IN A
+                    // SHAPE. Something a person configured could not be read
+                    // back: not as it was left, and nothing broken. This is the
+                    // same treatment `ModelSettingsView` gives the same note,
+                    // because it is the same sentence arriving by a shorter
+                    // route, and a notice that changes colour depending on
+                    // which screen you found it on is a notice that teaches
+                    // nobody what the colour means.
+                    Label(note, systemImage: "exclamationmark.triangle")
+                        .font(.footnote).foregroundStyle(Theme.warning)
+                        .fixedSize(horizontal: false, vertical: true)
                     Button("Got it") { models.dismissUnreadableNote() }
                 }
+                .listRowBackground(Theme.surfacePrimary)
             }
             if let note = benches.unreadableNote {
                 Section {
-                    Text(note).font(.footnote)
+                    Label(note, systemImage: "exclamationmark.triangle")
+                        .font(.footnote).foregroundStyle(Theme.warning)
+                        .fixedSize(horizontal: false, vertical: true)
                     Button("Got it") { benches.dismissUnreadableNote() }
                 }
+                .listRowBackground(Theme.surfacePrimary)
             }
 
             Section {
+                // THE STOCK PICKER, WEARING THE APP'S TINT. A segmented or
+                // hand-drawn pair of cards here would be two more shapes to
+                // keep at 44 points and to teach VoiceOver about; a `Picker` in
+                // a `Form` is already a row that says its label, its value and
+                // that it can be changed.
                 Picker("Appearance", selection: $appearance) {
                     ForEach(Theme.Appearance.allCases) { choice in
                         Text(choice.title).tag(choice.rawValue)
@@ -68,11 +87,23 @@ struct SettingsView: View {
                 // THE DETAIL IS THE APPEARANCE'S OWN, not composed here, so the
                 // sentence a person reads is the one the type documents.
                 Text((Theme.Appearance(rawValue: appearance) ?? Theme.defaultAppearance).detail)
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .listRowBackground(Theme.surfacePrimary)
 
             Section {
+                // THE GLYPH CARRIES THE ACTION COLOUR AND THE WORD DOES NOT —
+                // the arrangement `CatalogueView` makes for every door that is
+                // not the primary one. A navigation row is a place to go, not
+                // the thing this screen is for, so it gets a coloured mark
+                // rather than a coloured sentence.
                 NavigationLink { ModelSettingsView(store: models) } label: {
-                    Label("Models", systemImage: "brain")
+                    Label {
+                        Text("Models").foregroundStyle(Theme.textPrimary)
+                    } icon: {
+                        Image(systemName: "brain").foregroundStyle(Theme.actionSecondary)
+                    }
                 }
             } footer: {
                 // THREE, NOT TWO. A downloaded model is neither Apple's nor
@@ -82,11 +113,19 @@ struct SettingsView: View {
                    + "on-device model needs no setup; a model downloaded onto this phone runs "
                    + "with nothing leaving it; and anything on your network speaking the "
                    + "OpenAI chat API works too.")
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .listRowBackground(Theme.surfacePrimary)
 
             Section {
                 NavigationLink { BenchSettingsView(store: benches) } label: {
-                    Label("Benches", systemImage: "server.rack")
+                    Label {
+                        Text("Benches").foregroundStyle(Theme.textPrimary)
+                    } icon: {
+                        Image(systemName: "server.rack")
+                            .foregroundStyle(Theme.actionSecondary)
+                    }
                 }
             } footer: {
                 // NO "CONNECTED" OR "CHECKED" WORDING HERE. Settings links to
@@ -94,10 +133,20 @@ struct SettingsView: View {
                 // summarise a state nobody measured this launch.
                 Text("Machines on your network with physics on them. This phone has none, so "
                    + "running a policy or a motion needs one.")
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .listRowBackground(Theme.surfacePrimary)
 
             huggingFace
         }
+        // THE RECESSED GROUND UNDER THE CARDS, and it is what lets any coloured
+        // word be set on this screen at all: `Palette` documents
+        // `backgroundSecondary` as carrying the four inks between 4.17:1 and
+        // 4.27:1 — short of the 4.5:1 body text owes — so every row keeps a
+        // real `surfacePrimary` card under it and nothing is set on the ground.
+        .scrollContentBackground(.hidden)
+        .background(Theme.backgroundSecondary)
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { token = TokenStore.load() ?? "" }
@@ -109,36 +158,90 @@ struct SettingsView: View {
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
 
-            Button(busy ? "Checking…" : "Check this token") {
+            // THE ONE CONTROL ON THIS SCREEN THAT LEAVES THE PHONE WITH
+            // SOMETHING TO PROVE, so it is the one capsule in the action colour
+            // — the same rule `EndpointEditor` follows for "Check this
+            // address", and the same verb. Everything else here edits a field
+            // or opens another screen.
+            //
+            // THE WORD IS THE SPINNER. "Checking…" replaces the verb while the
+            // request is out, which is the only version of that state a screen
+            // reader has ever been able to read, and it says what is being
+            // waited on rather than that this phone is busy.
+            Button {
                 Task { await check() }
+            } label: {
+                Label(busy ? "Checking…" : "Check this token", systemImage: "key")
+                    .frame(maxWidth: .infinity)
             }
+            .buttonStyle(.primaryAction)
             .disabled(token.isEmpty || busy)
+            .listRowSeparator(.hidden)
+            .accessibilityLabel(Text("Check this token"))
+            .accessibilityValue(Text(busy ? "Checking" : ""))
 
             if TokenStore.load() != nil {
-                Button("Remove this token", role: .destructive) { remove() }
+                // THE ROLE STAYS AND THE COLOUR COMES FROM THE PALETTE — what
+                // `TrickRunView` does with the same shape of row. `.destructive`
+                // is what tells VoiceOver and the system what this is, and it is
+                // worth keeping on a control that deletes a write credential.
+                // Its red, though, is UIKit's; `Theme.critical` is the app's
+                // refusal colour and is proved at 4.5:1 on every ground this app
+                // sets words on. Set on the label rather than as a tint, because
+                // a tint does not reach the title of a role-coloured row.
+                Button(role: .destructive) { remove() } label: {
+                    Text("Remove this token").foregroundStyle(Theme.critical)
+                }
             }
 
             // NAMED ONLY IN THE SECONDS AFTER A CHECK SOMEBODY ASKED FOR.
             // Nothing persists the account name, so printing one from a saved
             // token would assert an identity verified at an unknown time, on a
             // credential that may have been revoked on the web an hour ago.
+            //
+            // THREE OUTCOMES OF ONE SECTION, EACH A WORD BESIDE ITS COLOUR AND
+            // EACH WITH ITS OWN GLYPH. They appear in the same place and are
+            // mutually exclusive, which is exactly the situation where a reader
+            // is asked to tell green from orange with nothing beside them to
+            // compare against — so the tick, the bin and the triangle carry the
+            // same three claims in shapes. Roughly one man in twelve cannot
+            // reliably separate the pair this used to rely on.
             if let account {
+                // `success` AND NOT `measured`. Teal is this app's claim that a
+                // machine produced the thing you are reading; this is a check
+                // that passed. The name inside it came from huggingface.co, but
+                // what the line reports is the state of your setup.
                 Label("Publishing as \(account)", systemImage: "checkmark.circle.fill")
-                    .font(.footnote).foregroundStyle(.green)
+                    .font(.footnote).foregroundStyle(Theme.success)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             if removed {
-                Text(HuggingFacePublish.tokenRemovedNote)
-                    .font(.footnote).foregroundStyle(.secondary)
+                // NOT A STATE COLOUR, because nothing is wrong and nothing was
+                // proved: a credential was deleted because somebody asked. The
+                // sentence is `HuggingFacePublish`'s, so a test owns the words.
+                Label(HuggingFacePublish.tokenRemovedNote, systemImage: "trash")
+                    .font(.footnote).foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             if let failure {
-                Text(failure).font(.footnote).foregroundStyle(.orange)
+                // A HOST SAID NO, IN ITS OWN WORDS — `Theme.refused` is the
+                // provenance colour for exactly that, and it is what
+                // `CatalogueView` sets the same kind of sentence in. Orange was
+                // the raw colour here, and orange in this app is the thing you
+                // press.
+                Label(failure, systemImage: "exclamationmark.triangle")
+                    .font(.footnote).foregroundStyle(Theme.refused)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         } header: {
             Text("Hugging Face")
         } footer: {
             Text(TokenStore.load() == nil ? HuggingFacePublish.tokenAbsentNote
                                           : HuggingFacePublish.tokenHeldNote)
+                .foregroundStyle(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
+        .listRowBackground(Theme.surfacePrimary)
     }
 
     /// DELIBERATELY THE SAME REQUEST `PublishMotionView.check()` MAKES, and

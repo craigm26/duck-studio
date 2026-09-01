@@ -68,14 +68,12 @@ struct DuckGolfView: View {
                         // the width of a phone at AX5 — one of them loses, and
                         // it is always the words. They take the whole width in
                         // turn instead.
-                        JoystickView { model.stick = $0 }
-                            .frame(width: GolfMetric.stick, height: GolfMetric.stick)
+                        JoystickView(side: GolfMetric.stick) { model.stick = $0 }
                         power
                         kick
                     } else {
                         HStack(spacing: Theme.spacing(.standard)) {
-                            JoystickView { model.stick = $0 }
-                                .frame(width: GolfMetric.stick, height: GolfMetric.stick)
+                            JoystickView(side: GolfMetric.stick) { model.stick = $0 }
                             VStack(spacing: Theme.spacing(.tight)) {
                                 power
                                 kick
@@ -160,7 +158,7 @@ private enum GolfMetric {
     /// A hairline STROKE. One point, which on every device this ships to is one
     /// to three pixels. Named for the stroke because `Palette.Spacing` already
     /// has a `hairline` and it is four points.
-    static let hairlineStroke: CGFloat = 1
+    static let hairlineStroke = DesignMetric.hairlineStroke
 }
 
 @MainActor

@@ -443,7 +443,7 @@ private enum BenchMetric {
     /// A hairline STROKE. One point, which on every device this ships to is one
     /// to three pixels. Named for the stroke because `Palette.Spacing` already
     /// has a `hairline` and it is four points.
-    static let hairlineStroke: CGFloat = 1
+    static let hairlineStroke = DesignMetric.hairlineStroke
 
     /// The action bar and the sensitivity bar. Four and five points — the bars
     /// are marks under a number, not a chart, and anything thicker starts to
@@ -451,9 +451,26 @@ private enum BenchMetric {
     static let actionBarHeight: CGFloat = 6
     static let sensitivityBarHeight: CGFloat = 5
 
-    /// The width the z-score is given beside a slider, at the default text
-    /// size. It is a reservation and not a limit: past the accessibility sizes
-    /// the row stacks instead — see `SlotRow`.
+    /// The column the z-score is ALIGNED TO beside a slider. A floor, not a
+    /// width: fifty-two points holds a reading like "-12.3σ" at the default text
+    /// size and lines every slider up on the same edge, and anything that needs
+    /// more takes more.
+    ///
+    /// IT WAS `.frame(width:)`, AND THAT CLIPPED BEFORE THE ACCESSIBILITY SIZES
+    /// EVEN BEGAN. The comment beside it said the reservation "becomes a clip"
+    /// only past those sizes, and the branch in `SlotRow` was written to that
+    /// belief — but `caption2` is eleven points at the default and about fifteen
+    /// at xxxLarge, which is still an ordinary size that no
+    /// `isAccessibilitySize` check is true at. A six-glyph reading that fits in
+    /// fifty-two points at eleven wants nearer seventy at fifteen, so the tail
+    /// was being cut off a whole size class before anything was watching for it.
+    /// The half that goes first is the σ and then the digits before it, which is
+    /// to say the row stops being able to tell you the input is out of
+    /// distribution while still looking like it is telling you something.
+    ///
+    /// As a minimum it keeps the alignment for every reading that fits and
+    /// borrows from the slider for the ones that do not — the slider is elastic
+    /// and the number is not, so the elastic thing is the one that gives way.
     static let sigmaWidth: CGFloat = 52
 
     /// The raw action's full scale. 1.5 rad is generous — the policies rarely
@@ -578,12 +595,18 @@ private struct SlotRow: View {
             } else {
                 HStack(spacing: Theme.spacing(.tight)) {
                     slider
-                    // A RESERVED WIDTH, AND ONLY WHERE IT CANNOT TRUNCATE. At
-                    // the default sizes fifty-two points holds "-12.3σ" with
-                    // room to spare and keeps sixty-one sliders ending on the
-                    // same column; past those sizes the reservation becomes a
-                    // clip, so the branch above drops it.
-                    sigma.frame(width: BenchMetric.sigmaWidth, alignment: .trailing)
+                    // A COLUMN THAT CANNOT CUT THE NUMBER DOWN TO FIT IT.
+                    // `fixedSize` is what makes the minimum mean anything: on
+                    // its own, a minimum width still lets the HStack squeeze a
+                    // `Text` below its ideal width and truncate, because a
+                    // `Text` will accept a narrower proposal and a `Slider`
+                    // will not. Fixed, the reading always asks for exactly the
+                    // room it needs and the slider absorbs the difference; the
+                    // minimum then does the only job left, which is keeping the
+                    // ordinary readings on one column.
+                    sigma
+                        .fixedSize(horizontal: true, vertical: false)
+                        .frame(minWidth: BenchMetric.sigmaWidth, alignment: .trailing)
                 }
             }
         }

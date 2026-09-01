@@ -40,6 +40,34 @@ struct RunChart: View {
     let track: RunSeries.Track
     let playhead: TimeInterval
 
+    /// So the plot can stop being squeezed by its own axis at accessibility
+    /// sizes — see `plotHeight`.
+    @Environment(\.dynamicTypeSize) private var typeSize
+
+    /// The plot's height, scaled with the type that shares it.
+    ///
+    /// NINETY-SIX POINTS IS A COMPOSITION DECISION AND IT ONLY HOLDS AT THE
+    /// SIZES IT WAS CHOSEN AT. Everything inside the plot except the curve is
+    /// text — four time labels, three value labels and the reference line's own
+    /// word — and all of it is `caption2`, which is eleven points at the default
+    /// and about forty-four at AX5. Held at ninety-six, a chart at an
+    /// accessibility size is two rows of axis labels with a sliver of curve
+    /// between them: the picture is squeezed out by the words describing it,
+    /// which is the same failure `DriveView` and `BenchView` fixed by uncapping
+    /// their viewports.
+    ///
+    /// `@ScaledMetric` RATHER THAN `maxHeight: nil`, BECAUSE THE CONTAINER IS
+    /// DIFFERENT. Those two stages are greedy views in a `VStack` with real
+    /// height to hand out, so dropping the ceiling makes them grow into it. This
+    /// chart is a row in a `List`, which proposes no height at all and takes
+    /// whatever the row asks for — remove the frame there and `Chart` has
+    /// nothing of its own to fall back on, so the row collapses and the curve
+    /// disappears entirely, which is a worse version of the bug. Asking for more
+    /// POINTS is the same uncapping written in the unit this container answers
+    /// to, and relative to `caption2` because `caption2` is what is doing the
+    /// squeezing.
+    @ScaledMetric(relativeTo: .caption2) private var plotHeight = ChartMetric.height
+
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
             // THE HEADER IS A TELEMETRY ROW BECAUSE IT IS ONE. A track's name
@@ -130,7 +158,14 @@ struct RunChart: View {
                 }
             }
         }
-        .frame(height: ChartMetric.height)
+        // THE DESIGNED HEIGHT AT THE SIZES IT WAS DESIGNED FOR, AND THE SCALED
+        // ONE PAST THEM. The branch is deliberate: several tracks stack in one
+        // list and ninety-six points is what keeps scrolling from becoming the
+        // way you compare them, which is a judgement worth keeping for everybody
+        // it still works for. It stops working exactly where
+        // `isAccessibilitySize` becomes true, which is where the rest of this
+        // batch draws the same line.
+        .frame(height: typeSize.isAccessibilitySize ? plotHeight : ChartMetric.height)
         // THE PICTURE IS ONE ELEMENT AND IT SAYS THE ONE THING THE ROW ABOVE
         // DOES NOT. The reading under the playhead is already announced by the
         // `TelemetryRow`, and what the curve means is already announced by
@@ -173,7 +208,7 @@ private enum ChartMetric {
     /// A hairline STROKE. One point, which on every device this ships to is one
     /// to three pixels. Named for the stroke rather than the scale because
     /// `Palette.Spacing` already has a `hairline` and it is four points.
-    static let hairlineStroke: CGFloat = 1
+    static let hairlineStroke = DesignMetric.hairlineStroke
 
     /// The playhead is drawn twice as heavy as the grid it crosses, because it
     /// is the one line in the plot a person is moving.
@@ -188,9 +223,13 @@ private enum ChartMetric {
     /// thick, smaller than the axis type.
     static let endpointArea: CGFloat = 36
 
-    /// How tall a track is allowed to be. Small enough that several stack in a
-    /// list without scrolling becoming the way you compare them, tall enough
-    /// that a 45° threshold and a curve at 40° are two lines.
+    /// How tall a track is drawn AT THE DEFAULT TEXT SIZE. Small enough that
+    /// several stack in a list without scrolling becoming the way you compare
+    /// them, tall enough that a 45° threshold and a curve at 40° are two lines.
+    ///
+    /// Past the accessibility sizes it is the seed for `RunChart.plotHeight`
+    /// rather than the height itself, because at those sizes the axis text this
+    /// number was balanced against is four times bigger — see the comment there.
     static let height: CGFloat = 96
 
     /// Four times and three values. More labels on a chart this wide is a

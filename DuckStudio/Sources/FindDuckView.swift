@@ -461,30 +461,17 @@ struct FindDuckView: View {
 /// and lives in `Palette`, where a test runs the WCAG formula over it. How thick
 /// to draw a rule is a judgement about a screen.
 enum ConnectivityMetric {
-    /// A hairline STROKE. One point, which on every device this ships to is one
-    /// to three pixels — the thinnest line iOS will draw crisply.
-    ///
-    /// Named for the stroke rather than the scale because `Palette.Spacing`
-    /// already has a `hairline` and it is four points. Two things called
-    /// hairline that differ by four times is how a rule ends up drawn at the
-    /// width of a gap.
-    static let hairlineStroke: CGFloat = 1
+    /// A hairline STROKE, the app's one.
+    static let hairlineStroke = DesignMetric.hairlineStroke
 
-    /// 44pt — the smallest thing a finger is asked to hit.
-    ///
-    /// Source: Apple Human Interface Guidelines, Layout — "a minimum tappable
-    /// area of 44x44 points for all controls". Nothing on these four screens
-    /// moves a robot, so nothing here takes the 60pt floor `PrimaryActionStyle`
-    /// keeps for controls that do.
-    static let minimumTarget: CGFloat = 44
+    /// 44pt — the smallest thing a finger is asked to hit, the app's one, by
+    /// name. Nothing on these four screens moves a robot, so nothing here takes
+    /// the 60pt floor `PrimaryActionStyle` keeps for controls that do.
+    static let minimumTarget = DesignMetric.minimumTarget
 
-    /// 3pt stroke, 2pt clear of the shape — the focus ring, both schemes.
-    ///
-    /// Source: the Microduck design system's own token table. The offset matters
-    /// as much as the width: a ring drawn ON a control's edge reads as a heavier
-    /// border and disappears against a filled shape.
-    static let focusRingWidth: CGFloat = 3
-    static let focusRingOffset: CGFloat = 2
+    /// The focus ring's geometry, the app's one pair.
+    static let focusRingWidth = DesignMetric.focusRingWidth
+    static let focusRingOffset = DesignMetric.focusRingOffset
 }
 
 /// The second-loudest button on these four screens.

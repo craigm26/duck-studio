@@ -30,6 +30,10 @@ import StudioKit
 struct CatalogueView: View {
     @ObservedObject var model: LibraryModel
 
+    /// So the two rows that put a provenance pill beside something else can
+    /// stack instead of fighting for the width. See `provenance(origin:content:)`.
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     @State private var source = PolicyCatalogue.officialPolicies
     @State private var entries: [PolicyCatalogue.Entry] = []
     @State private var headline: String?
@@ -129,17 +133,16 @@ struct CatalogueView: View {
                 NavigationLink {
                     CommunityPoliciesView(model: model)
                 } label: {
-                    HStack(spacing: Theme.spacing(.tight)) {
+                    provenance(origin: .community) {
                         // THE GLYPH CARRIES THE ACTION COLOUR AND THE WORD DOES
                         // NOT — the same arrangement `PolicyListView` makes for
                         // the doors that are not the primary one.
                         Label {
                             Text("Community policies").foregroundStyle(Theme.textPrimary)
+                                .fixedSize(horizontal: false, vertical: true)
                         } icon: {
                             Image(systemName: "person.2").foregroundStyle(Theme.actionSecondary)
                         }
-                        Spacer(minLength: Theme.spacing(.tight))
-                        CatalogueOriginPill(origin: .community)
                     }
                 }
                 Text("Pollen are not the only people training this robot any more. Other authors publish policies on Hugging Face, each with a manifest saying what its command block means.")
@@ -181,16 +184,20 @@ struct CatalogueView: View {
     /// so the action disappears for the people who most enlarged the type.
     private func row(_ entry: PolicyCatalogue.Entry) -> some View {
         VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
-            HStack(spacing: Theme.spacing(.tight)) {
+            provenance(origin: .pollen) {
                 // MONO BECAUSE IT IS A FILENAME — a machine identifier somebody
                 // matches against another one character by character.
+                //
+                // AND IT IS THE ONE ON THIS LINE THAT IS ALLOWED TO TRUNCATE,
+                // which is a decision about which of the two a person can
+                // recover. A filename cut in the middle still shows both ends,
+                // and the whole of it is one tap away; a provenance word cut to
+                // "Comm…" leaves the claim being made by the colour alone.
                 Text(entry.filename)
                     .font(.subheadline.monospaced())
                     .foregroundStyle(Theme.textPrimary)
                     .lineLimit(1)
                     .truncationMode(.middle)
-                Spacer(minLength: Theme.spacing(.tight))
-                CatalogueOriginPill(origin: .pollen)
             }
             Text(isPolicySource
                  ? PolicyCatalogue.summary(of: entry)
@@ -218,6 +225,38 @@ struct CatalogueView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Something, with the pill that says whose repository it came out of.
+    ///
+    /// AT ACCESSIBILITY SIZES IT STACKS RATHER THAN SQUEEZES, which is the
+    /// argument `TelemetryRow` already makes about a label beside a value: two
+    /// runs of text on one line at AX5 is a fight for the width that one of them
+    /// has to lose, and here the loser is always the pill — it is the trailing
+    /// item, and the leading one is a whole filename or a whole row title. What
+    /// gets lost is the word "Pollen" or "Community", after which the provenance
+    /// is being carried by a coloured capsule and nothing else. That is SC 1.4.1
+    /// (Use of Colour) failing on the one claim this app is strictest about, and
+    /// failing hardest for the people who enlarged the type in order to read it.
+    ///
+    /// STACKED, EACH GETS THE WHOLE WIDTH and neither has to give anything up.
+    @ViewBuilder
+    private func provenance<Content: View>(
+        origin: CatalogueOriginPill.Origin,
+        @ViewBuilder content: () -> Content) -> some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
+                content()
+                CatalogueOriginPill(origin: origin)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            HStack(spacing: Theme.spacing(.tight)) {
+                content()
+                Spacer(minLength: Theme.spacing(.tight))
+                CatalogueOriginPill(origin: origin)
+            }
+        }
     }
 
     // MARK: - the network
@@ -342,7 +381,22 @@ struct CatalogueOriginPill: View {
         Text(origin.word)
             .font(.caption2.weight(.medium))
             .foregroundStyle(origin.color)
+            // THE WORD IS NOT ALLOWED TO BE THE THING THAT GIVES WAY. One line,
+            // and `fixedSize` so that line is measured at the width the word
+            // actually needs rather than at whatever a row has left over. A
+            // `lineLimit(1)` on its own is a promise to truncate: squeezed, this
+            // pill said "Comm…" and the provenance fell back to a colour, which
+            // is the one thing a pill built for SC 1.4.1 must never do. Wrapping
+            // would not have saved it either — these are single words, and a
+            // single word too wide for its line is truncated, not wrapped.
+            //
+            // A FIXED-WIDTH ITEM IN AN HSTACK IS SERVED FIRST, so the flexible
+            // thing beside it — a filename, which is built to truncate in the
+            // middle and is one tap from being read in full — is what shrinks.
+            // At accessibility sizes `CatalogueView.provenance(origin:content:)`
+            // stops asking them to share a line at all.
             .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: true)
             .padding(.horizontal, Theme.spacing(.tight))
             .padding(.vertical, Theme.spacing(.hairline))
             .background(Capsule().fill(Theme.surfacePrimary))

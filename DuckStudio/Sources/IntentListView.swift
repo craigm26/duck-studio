@@ -19,7 +19,7 @@ import StudioKit
 /// there because this change owns the root and the Motions tab and nothing
 /// else; the move is a one-line addition to `Palette` and a four-place
 /// deletion, and it should be made by whoever owns the tokens next.
-private let hairlineStroke: CGFloat = 1
+private let hairlineStroke = DesignMetric.hairlineStroke
 
 /// A section heading, in the one heading style this design system has.
 ///
