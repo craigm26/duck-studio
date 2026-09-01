@@ -97,6 +97,23 @@ struct FindDuckView: View {
                 }
             }
 
+            // THE SECOND, DELIBERATELY SEPARATE DOOR. Everything above is the
+            // everyday path — find my duck, is it there, where do I ssh. This is
+            // a diagnostic run for Pollen's own blocker: it takes longer, it
+            // asks a question out loud, and it ends in a report rather than an
+            // answer. Putting it behind its own screen keeps the ordinary case
+            // ordinary and stops a timed experiment from ever being the thing
+            // somebody taps by accident.
+            Section {
+                NavigationLink { PairingSpikeView() } label: {
+                    Label("Run the pairing spike", systemImage: "stopwatch")
+                }
+            } footer: {
+                Text("A timed diagnostic run that ends in a report you can hand over, rather than "
+                     + "an answer about your duck. It takes minutes, it asks you a question part "
+                     + "way through, and the everyday path above is untouched by it.")
+            }
+
             Section {
                 Text(DuckLink.whatThisCanDo)
                     .font(.footnote).foregroundStyle(.secondary)

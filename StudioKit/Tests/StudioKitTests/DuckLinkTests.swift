@@ -196,3 +196,15 @@ extension DuckLinkTests {
         XCTAssertFalse(DuckLink.looksLikeADuck("LE-Bose QC35"))
     }
 }
+
+extension DuckLinkTests {
+
+    /// The app's own shortcut, named — Pollen document the failure mode about
+    /// exactly this shape, and the word in their sentence doing the work is
+    /// "alone".
+    func testTheAppAdmitsAPeripheralIdentifierIsNotAnIdentity() {
+        XCTAssertTrue(DuckLink.identifierIsNotAnIdentity.contains("Bluetooth address"))
+        XCTAssertTrue(DuckLink.identifierIsNotAnIdentity.contains("SoC serial"))
+        XCTAssertTrue(DuckLink.identifierIsNotAnIdentity.contains("system.info"))
+    }
+}

@@ -136,6 +136,33 @@ public enum DuckLink {
         return lower.contains("duck") || lower.hasPrefix("microduck")
     }
 
+    /// Why a stored peripheral identifier is not an identity.
+    ///
+    /// POLLEN SAY THIS ABOUT OUR EXACT SHORTCUT. `SystemInfoResult.serial` is
+    /// documented as "the durable handle a client should key on. It outlives a
+    /// rename, and it outlives a change of Bluetooth address — which is not
+    /// hypothetical, so **an app that remembers a robot by its peripheral
+    /// identifier alone will lose it** (`app-path-design.md` §8.6)."
+    ///
+    /// This app remembers peripheral identifiers, and should: it is what lets
+    /// `retrievePeripherals(withIdentifiers:)` reconnect with no fresh
+    /// sighting. The word doing the work in their sentence is ALONE. The
+    /// identifier is a fast path and the serial is the identity, so a duck
+    /// whose address has changed reads as new until it has been asked who it
+    /// is — and the answer only arrives after a successful `system.info`,
+    /// which is a call this app does not yet make outside the spike.
+    ///
+    /// Written down rather than fixed, because fixing it properly means
+    /// carrying `system.info` on the ordinary path and keying the fleet on the
+    /// serial — real work, and work that would be untestable here until
+    /// somebody has two ducks and a router that reassigns.
+    public static let identifierIsNotAnIdentity =
+        "This app remembers a duck by the identifier iOS gives its Bluetooth peripheral. That "
+      + "survives a rename and does not survive a change of Bluetooth address, so a duck can "
+      + "come back looking like one this app has never seen. The robot's own durable handle is "
+      + "the SoC serial that system.info returns, which this app does not yet ask for outside "
+      + "the pairing spike."
+
     // MARK: - the handshake, in the order it has to happen
 
     /// What a client must do, in order, and why the order is not negotiable.
