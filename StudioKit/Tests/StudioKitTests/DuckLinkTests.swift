@@ -184,3 +184,15 @@ final class DuckLinkTests: XCTestCase {
         XCTAssertTrue(DuckLink.whatThisCanDo.contains("Nothing here has been run against a robot"))
     }
 }
+
+extension DuckLinkTests {
+
+    /// The weakest tier, and the one a bonded duck falls back to.
+    func testANameIsAcceptedGenerouslyBecauseAMissCostsMore() {
+        XCTAssertTrue(DuckLink.looksLikeADuck("microduck-a3f1"))
+        XCTAssertTrue(DuckLink.looksLikeADuck("Duck"))
+        XCTAssertTrue(DuckLink.looksLikeADuck("pistachio-duck"))
+        XCTAssertFalse(DuckLink.looksLikeADuck("Craig's AirPods"))
+        XCTAssertFalse(DuckLink.looksLikeADuck("LE-Bose QC35"))
+    }
+}

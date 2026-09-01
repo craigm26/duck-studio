@@ -55,6 +55,18 @@ final class DuckLinkScanner: NSObject, ObservableObject {
     private var reassembler = DuckLink.Reassembler()
     /// Set once a scan has been asked for but the radio was not ready yet.
     private var wantsScan = false
+    /// Peripherals this app has connected to before.
+    ///
+    /// STORED AFTER A SUCCESSFUL HANDSHAKE, NOT AFTER A SIGHTING. An identifier
+    /// is only worth keeping once "serves our characteristic" has been proven —
+    /// that is the one authoritative identity test, and it is knowable solely
+    /// after connecting.
+    private var remembered: Set<UUID> {
+        get { Set((UserDefaults.standard.array(forKey: Self.rememberedKey) as? [String] ?? [])
+                    .compactMap(UUID.init(uuidString:))) }
+        set { UserDefaults.standard.set(newValue.map(\.uuidString), forKey: Self.rememberedKey) }
+    }
+    private static let rememberedKey = "duck.link.known"
 
     private static let service = CBUUID(string: DuckLink.serviceUUID)
     private static let rpc = CBUUID(string: DuckLink.rpcUUID)
@@ -87,10 +99,28 @@ final class DuckLinkScanner: NSObject, ObservableObject {
         guard wantsScan, let central, central.state == .poweredOn else { return }
         found.removeAll()
         scanning = true
-        // ALLOW DUPLICATES OFF. The RSSI would refresh, and the cost is a
-        // callback per advertisement per duck for as long as the screen is open.
-        // A listing that settles is easier to read than one that flickers.
-        central.scanForPeripherals(withServices: [Self.service], options: nil)
+
+        // ALREADY-BONDED DUCKS FIRST, WITHOUT WAITING FOR A SIGHTING. iOS can
+        // hand back a peripheral by identifier and let us connect with no fresh
+        // advertisement at all, which turns reconnection from "wait for the
+        // radio to be heard" into latency. It does nothing for a FIRST
+        // connection — that still needs the scan below.
+        for known in central.retrievePeripherals(withIdentifiers: Array(remembered)) {
+            note(known, name: known.name ?? "Microduck", manufacturer: nil, rssi: nil)
+        }
+
+        // 🔴 UNFILTERED, AND THIS IS NOT A PREFERENCE. Pollen measured it and
+        // wrote it down in `app-path-design.md` §3.3: "CoreBluetooth honours the
+        // filter strictly, and a bonded peripheral frequently advertises with an
+        // empty service list. Filtered, it is then never reported at all — not
+        // 'reported without services', absent." Their own tool reported
+        // `no robot found` on roughly half its runs from exactly this, and a
+        // first fix survived because a name fallback could only match
+        // peripherals the filtered scan had already returned.
+        //
+        // So the filter moves here, into `note`, where a candidate is judged on
+        // the strongest evidence it actually carries.
+        central.scanForPeripherals(withServices: nil, options: nil)
     }
 
     /// Connect to one and run the whole handshake.
@@ -143,21 +173,38 @@ extension DuckLinkScanner: CBCentralManagerDelegate {
                                     rssi RSSI: NSNumber) {
         // COPIED OUT ON THIS THREAD, because `advertisementData` is not Sendable
         // and must not cross the hop.
+        let advertised = advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID] ?? []
         let name = (advertisementData[CBAdvertisementDataLocalNameKey] as? String)
-            ?? peripheral.name ?? "unnamed duck"
+            ?? peripheral.name
         let manufacturer = advertisementData[CBAdvertisementDataManufacturerDataKey] as? Data
-        let address = manufacturer.map(DuckLink.address(fromManufacturerData:))
-            ?? .notBroadcast
         // -127 is CoreBluetooth's "no reading", not a very distant duck.
         let rssi = RSSI.intValue == 127 || RSSI.intValue == -127 ? nil : RSSI.intValue
-        let id = peripheral.identifier
+        let servesUs = advertised.contains(Self.service)
         Task { @MainActor in
-            let sighting = DuckLink.Sighting(name: name, rssi: rssi, address: address)
-            if let i = found.firstIndex(where: { $0.id == id }) {
-                found[i] = Found(id: id, sighting: sighting, peripheral: peripheral)
-            } else {
-                found.append(Found(id: id, sighting: sighting, peripheral: peripheral))
-            }
+            guard servesUs || self.remembered.contains(peripheral.identifier)
+                    || (name.map(DuckLink.looksLikeADuck) ?? false) else { return }
+            self.note(peripheral, name: name ?? "Microduck",
+                      manufacturer: manufacturer, rssi: rssi)
+        }
+    }
+
+    /// Add or refresh a candidate.
+    ///
+    /// THREE TIERS OF EVIDENCE, STRONGEST FIRST, and none of them is proof.
+    /// Pollen's own note is precise about this: the advertised UUID is the best
+    /// hint, a known name or a stored identifier is the next, and "serves our
+    /// characteristic" is "the only authoritative identity test — it is knowable
+    /// solely after connecting". So a listing is a list of CANDIDATES, and the
+    /// handshake is what settles it.
+    @MainActor private func note(_ peripheral: CBPeripheral, name: String,
+                                 manufacturer: Data?, rssi: Int?) {
+        let address = manufacturer.map(DuckLink.address(fromManufacturerData:)) ?? .notBroadcast
+        let sighting = DuckLink.Sighting(name: name, rssi: rssi, address: address)
+        let id = peripheral.identifier
+        if let i = found.firstIndex(where: { $0.id == id }) {
+            found[i] = Found(id: id, sighting: sighting, peripheral: peripheral)
+        } else {
+            found.append(Found(id: id, sighting: sighting, peripheral: peripheral))
         }
     }
 
@@ -252,6 +299,11 @@ extension DuckLinkScanner: CBPeripheralDelegate {
                 for line in try reassembler.feed(value) {
                     let hello = try DuckLink.hello(fromLine: line)
                     progress = .done(hello, apiByte: apiByte ?? hello.apiVersion.asByte)
+                    // PROVEN, SO WORTH REMEMBERING. Now — and only now — is it
+                    // established that this peripheral is a Microduck, so its
+                    // identifier can be stored and `retrievePeripherals` can
+                    // skip the scan entirely next time.
+                    remembered.insert(peripheral.identifier)
                     // THE JOB IS DONE, SO LET GO OF THE RADIO. A phone that
                     // stays bonded and connected to a robot it has finished
                     // asking about is a phone holding a slot somebody else

@@ -118,6 +118,24 @@ public enum DuckLink {
         return .at(quad.map(String.init).joined(separator: "."))
     }
 
+    /// Whether an advertised name is worth connecting to when the service list
+    /// came back empty.
+    ///
+    /// A NAME IS THE WEAKEST TIER AND IT IS STILL NEEDED. Pollen measured that a
+    /// BONDED peripheral frequently advertises no services at all — so the duck
+    /// somebody has already paired with, the one they most want to find, is
+    /// exactly the one the strongest evidence goes missing for. The robot's own
+    /// advertised name is its hostname, which `app-path-design.md` §8.2 records
+    /// as being given a duck-ish default.
+    ///
+    /// DELIBERATELY GENEROUS, because the cost of a wrong guess is one refused
+    /// connection and the cost of a miss is a duck that cannot be found. The
+    /// handshake settles it either way.
+    public static func looksLikeADuck(_ name: String) -> Bool {
+        let lower = name.lowercased()
+        return lower.contains("duck") || lower.hasPrefix("microduck")
+    }
+
     // MARK: - the handshake, in the order it has to happen
 
     /// What a client must do, in order, and why the order is not negotiable.
