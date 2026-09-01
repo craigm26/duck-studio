@@ -85,6 +85,10 @@ struct PolicyListView: View {
             // pattern `IntentAuthorView` already uses.
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
+                    NavigationLink { DriveView(model: model, benches: benches,
+                                               scenes: scenes) } label: {
+                        Label("Drive one live", systemImage: "gamecontroller")
+                    }
                     NavigationLink { RemoteRunView(model: model, scenes: scenes, drafts: drafts,
                                                    models: models, benches: benches) } label: {
                         Label("Run on your network", systemImage: "wifi")
@@ -304,6 +308,14 @@ struct PolicyDetailView: View {
                                                    drafts: drafts, models: models,
                                                    benches: benches) } label: {
                         Label("Run it on a bench", systemImage: "wifi")
+                    }
+                    // THE PRESENT TENSE, UNDER THE TWO PAST ONES. Watch is what
+                    // it did, Run records what it does under a schedule written
+                    // in advance; this is the one where you decide what happens
+                    // next while it is happening.
+                    NavigationLink { DriveView(model: model, benches: benches,
+                                               scenes: scenes) } label: {
+                        Label("Drive it live", systemImage: "gamecontroller")
                     }
                 } footer: {
                     // TWO DIFFERENT SCREENS, AND THE ADVICE DIFFERS. With a
