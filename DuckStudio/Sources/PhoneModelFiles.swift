@@ -58,19 +58,32 @@ enum PhoneModelFiles {
                 at: folder, includingPropertiesForKeys: [.fileSizeKey],
                 options: [.skipsHiddenFiles]) else { return ([], nil, 0) }
 
+        // THE NAMES AND THE BYTES ARE IN DIFFERENT PLACES, and conflating them
+        // is what made a fully downloaded model read as partial forever.
+        //
+        // A Hugging Face snapshot directory holds SYMLINKS — `config.json`,
+        // `tokenizer.json`, `model.safetensors` — pointing into `blobs/`, where
+        // the data sits under opaque sha names. Skipping symlinks to avoid
+        // double-counting bytes therefore skipped every file with a real name,
+        // so `state` never found a config or a tokenizer and answered `.partial`
+        // with 2.3 GB on the disk and a Resume button that could not finish.
+        //
+        // So: names come from the links, bytes come from the blobs.
         var paths: [String] = []
         var sizes: [Int] = []
         var index: Data?
         for case let url as URL in walker {
-            // A snapshot is symlinks into blobs/; counting both sides doubles
-            // the total and lists every file twice.
-            let resolved = (try? url.resourceValues(forKeys: [.isSymbolicLinkKey]))?
-                .isSymbolicLink ?? false
-            if resolved { continue }
-            if let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize {
-                sizes.append(size)
-            }
+            let values = try? url.resourceValues(forKeys: [.isSymbolicLinkKey, .fileSizeKey])
+            let isLink = values?.isSymbolicLink ?? false
+
+            // Every name, from wherever it appears. A blob's sha is not a name
+            // anything looks for, so including it costs nothing.
             paths.append(url.lastPathComponent)
+
+            // Bytes from real files only — counting a link and its target
+            // doubles the total.
+            if !isLink, let size = values?.fileSize { sizes.append(size) }
+
             if url.lastPathComponent == "model.safetensors.index.json" {
                 index = try? Data(contentsOf: url)
             }

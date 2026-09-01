@@ -206,9 +206,22 @@ struct PhoneModelPickerView: View {
         job = Task { @MainActor in
             defer { busyWith = nil; progress = nil; refreshInstalled() }
             do {
+                rate = DownloadRate()
                 try await PhoneModelRuntime.shared.load(model.repository) { made in
+                    // READ THE NUMBERS HERE, NOT INSIDE THE TASK, or the rate is
+                    // computed from a moment other than the one reported.
+                    //
+                    // AND COMPLETED COMES FROM THE FRACTION. The parent Progress
+                    // aggregates its children through `fractionCompleted`; its
+                    // own completedUnitCount does not advance, so a rate fed
+                    // from that sees a delta of zero every time.
+                    let fraction = made.fractionCompleted
+                    let total = Int(made.totalUnitCount)
+                    let done = Int(fraction * Double(total))
+                    let at = Date().timeIntervalSince1970
                     Task { @MainActor in
-                                progress = (made.fractionCompleted, Int(made.totalUnitCount))
+                        rate.observe(completedBytes: done, totalBytes: total, at: at)
+                        progress = (fraction, total)
                     }
                 }
                 add(repository: model.repository, named: model.name)
