@@ -36,11 +36,34 @@ struct PolicyBlendView: View {
     @State private var second: String?
     @State private var towardSecond = 0.5
     @State private var blended: Data?
+    /// What the bytes in `blended` were ACTUALLY made from.
+    ///
+    /// THE PICKERS AND THE SLIDER MOVE AFTERWARDS, AND EVERYTHING DOWNSTREAM
+    /// USED TO READ THEM. `mix()` is the only thing that clears `blended`, so a
+    /// blend survives every later change to the controls above it — and then
+    /// `measure` re-read `chosenPair` to decide which two networks to upload as
+    /// the yardstick, and `PolicyBlend.measured` printed "it travelled X where
+    /// the liveliest network it was made from travels Y" about two networks it
+    /// was not made from. `export` had the same shape one level down: mix at
+    /// 50/50, drag to 75, Save, and the 50/50 bytes leave the phone in a file
+    /// called `blend-25-75.onnx`. The recipe footer identifies ingredients by
+    /// digest precisely so a blend can be reproduced; the file name was the one
+    /// artefact that then misidentified it.
+    @State private var recipe: Recipe?
+
+    /// The ingredients and ratio a blend was actually mixed from.
+    struct Recipe {
+        let first: PolicyLibrary.Entry
+        let second: PolicyLibrary.Entry
+        let towardSecond: Double
+    }
     @State private var failure: String?
     @State private var busy = false
     @State private var outgoing: ExportedFile?
     @State private var verdict: String?
     @State private var uploadedAs: String?
+    /// Whether `starting` has been offered to the First slot. See the `.task`.
+    @State private var seeded = false
 
     /// Only policies that actually load. A blend of something this app refused
     /// would be a blend of nothing.
@@ -76,6 +99,13 @@ struct PolicyBlendView: View {
 
             if let blended {
                 Section("The blend") {
+                    if let recipe {
+                        LabeledContent("Mixed from", value: String(
+                            format: "%.0f%% %@ / %.0f%% %@",
+                            (1 - recipe.towardSecond) * 100, recipe.first.displayName,
+                            recipe.towardSecond * 100, recipe.second.displayName))
+                        .font(.caption)
+                    }
                     LabeledContent("Size", value: "\(blended.count / 1024) KB")
                     LabeledContent("Loads here", value: (try? DuckPolicy.load(from: blended)) != nil
                                                         ? "yes" : "no")
@@ -139,8 +169,15 @@ struct PolicyBlendView: View {
         }
         .navigationTitle("Blend policies")
         .task {
-            // Once, and only into an empty slot — reopening this screen must
-            // not overwrite a pair somebody has already chosen.
+            // ONCE PER SCREEN, NOT ONCE PER APPEARANCE. `.task` re-runs every
+            // time this view comes back, and pushing "Set up a bench" or
+            // "Manage benches" from inside it is exactly that: leave, come
+            // back, and the seed fires again. `first == nil` cannot tell "never
+            // seeded" from "set to None on purpose to pick a different pair",
+            // so returning from bench settings silently put the originating
+            // policy back in the First slot.
+            guard !seeded else { return }
+            seeded = true
             if first == nil, let starting { first = starting.id }
         }
         .navigationBarTitleDisplayMode(.inline)
@@ -187,6 +224,7 @@ struct PolicyBlendView: View {
 
     private func mix(_ pair: (PolicyLibrary.Entry, PolicyLibrary.Entry)) {
         busy = true; failure = nil; blended = nil; verdict = nil; uploadedAs = nil
+        recipe = nil
         defer { busy = false }
         do {
             guard let a = PolicyStore.data(for: pair.0),
@@ -196,7 +234,10 @@ struct PolicyBlendView: View {
             }
             let x = try DuckPolicy.load(from: a).parameters
             let y = try DuckPolicy.load(from: b).parameters
-            blended = try PolicyBlend.mix([(x, 1 - towardSecond), (y, towardSecond)])
+            // CAPTURED WITH THE BYTES, not read back off the controls later.
+            let ratio = towardSecond
+            blended = try PolicyBlend.mix([(x, 1 - ratio), (y, ratio)])
+            recipe = Recipe(first: pair.0, second: pair.1, towardSecond: ratio)
         } catch let refusal as PolicyBlend.Refusal {
             failure = refusal.message
         } catch let refusal as DuckPolicyWriter.WriteError {
@@ -208,7 +249,8 @@ struct PolicyBlendView: View {
 
     private func export(_ data: Data) {
         do {
-            let ratio = String(format: "%.0f-%.0f", (1 - towardSecond) * 100, towardSecond * 100)
+            let toward = recipe?.towardSecond ?? towardSecond
+            let ratio = String(format: "%.0f-%.0f", (1 - toward) * 100, toward * 100)
             outgoing = ExportedFile(url: try ExportFile.write(data, named: "blend-\(ratio).onnx"))
         } catch let refusal as ExportFile.Failure {
             failure = refusal.message
@@ -246,8 +288,12 @@ struct PolicyBlendView: View {
             // command. Uploading them is how a bench that has never seen them
             // gets to run them.
             var furthest = 0.0
-            if let pair = chosenPair {
-                for entry in [pair.0, pair.1] {
+            // THE RECIPE'S OWN INGREDIENTS. `chosenPair` is whatever the
+            // pickers say now, and it is also nil the moment either is set to
+            // "None" — which skipped this loop entirely, left `furthest` at 0.0
+            // and let the verdict compare the blend against nothing.
+            if let recipe {
+                for entry in [recipe.first, recipe.second] {
                     guard let bytes = PolicyStore.data(for: entry) else { continue }
                     let put = try DuckBench.readUploaded(
                         await ask(try DuckBench.upload(address, onnx: bytes)))

@@ -1,7 +1,7 @@
 # The Lab tab — consolidating the duck apps into one
 
 Written before any code, in the house pattern. This is the merge plan for
-folding the other Microduck apps into Duck Studio as a fifth tab, **Lab**.
+folding the other Microduck apps into Microduck Studio as a fifth tab, **Lab**.
 
 ## Why this is worth doing, stated honestly
 
@@ -22,7 +22,7 @@ cycle and an App Store listing before it can show anybody a single duck. Duck
 Studio already has all of that. Consolidation is not a tidy-up; it is the
 difference between three apps that do not exist and three screens that could.
 
-**And the sim2real argument is the real one.** Duck Studio can already inspect a
+**And the sim2real argument is the real one.** Microduck Studio can already inspect a
 policy and author a motion, but it cannot run either — an iPhone has no physics.
 `duck-sounds/sim/` has physics. Put them in one app and the loop closes: author a
 motion, run it in MuJoCo on a machine on your desk, watch what physics did to it,
@@ -102,7 +102,7 @@ gates must be re-pre-registered before the Lab tab ships, not after**, or they
 stop being a lookup and become an argument.
 
 **2. The app's claim about itself gets harder to keep.**
-Duck Studio's value is that it refuses to overclaim: it says what is measured,
+Microduck Studio's value is that it refuses to overclaim: it says what is measured,
 what is assumed, and what is not real. A Lab tab is where overclaiming would be
 easiest — a ghost in your room and a duck chasing a ball both *look* like
 capability. Every Lab screen needs the same discipline as the rest: the criterion

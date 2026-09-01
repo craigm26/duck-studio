@@ -1,11 +1,11 @@
 import SwiftUI
 import DuckKit
 
-/// The goal celebrations this phone holds: motions authored in Duck Studio,
+/// The goal celebrations this phone holds: motions authored in Microduck Studio,
 /// arrived here as `.duckmove` files, played by YOUR team when it scores.
 ///
 /// THE WHOLE PIPELINE THIS COMPLETES: pose the robot keyframe by keyframe in
-/// Duck Studio, export, AirDrop or save to Files, open here — and the next
+/// Microduck Studio, export, AirDrop or save to Files, open here — and the next
 /// goal your duck scores, it performs the thing you wrote. The file is read
 /// through DuckKit's `DuckMoveFile`, the format's single door, so a motion
 /// that plays in the editor plays identically on the pitch: same reader, same

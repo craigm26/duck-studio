@@ -61,8 +61,20 @@ public struct IntentExport: Equatable, Sendable {
     /// rollers existed, so it decodes as legs.
     public let variant: DuckKinematics.Variant
 
-    public init(clip: DuckIntentClip, policyFingerprint: String?, note: String? = nil) {
-        name = clip.name
+    /// - Parameter named: A name for the file, when the clip's own is not
+    ///   unique. A bench recording is named after the POLICY it ran, so two
+    ///   recordings of `alpha_walking` — different twists, different duration —
+    ///   are two different clips with one name, and the second silently
+    ///   destroyed the first: `LibraryModel.acceptIntent` writes
+    ///   `intents/<name>.duckintent` atomically with no existence check, which
+    ///   is right for re-importing a shared file and wrong for this.
+    /// - Parameter note: Falls back to the clip's own credit. The credit is
+    ///   built from the answer the recording came in — the world it actually
+    ///   ran in — and a caller composing a fresher-looking one from a later
+    ///   `/health` was replacing a true line with a guess.
+    public init(clip: DuckIntentClip, policyFingerprint: String?, note: String? = nil,
+                named override: String? = nil) {
+        name = override ?? clip.name
         hz = clip.hz
         frames = clip.frames
         netYaw = clip.netYaw
@@ -72,7 +84,7 @@ public struct IntentExport: Equatable, Sendable {
         policyName = clip.policy
         self.policyFingerprint = policyFingerprint
         authored = clip.authored
-        self.note = note
+        self.note = note ?? clip.credit
         roots = clip.roots.map { [$0.x, $0.y, $0.z, $0.quaternion.0,
                                   $0.quaternion.1, $0.quaternion.2, $0.quaternion.3] }
         environment = clip.environment

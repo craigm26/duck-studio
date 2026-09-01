@@ -403,7 +403,7 @@ extension TrainingRequest {
         return """
         \"\"\"\(name) — \(summary)
 
-        A SKELETON, NOT A TRAINED TASK. Written in Duck Studio on a phone, which
+        A SKELETON, NOT A TRAINED TASK. Written in Microduck Studio on a phone, which
         has no Python, no mjlab and no GPU: nothing here has been imported, run
         or converged. It forks \(base.rawValue), names reward functions that
         exist in mjlab_microduck/tasks/mdp.py, and leaves every weight where a

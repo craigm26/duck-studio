@@ -17,7 +17,7 @@ final class PublishTests: XCTestCase {
                 return p
             }()),
             .init(time: 1.2, pose: DuckModel.homePose),
-        ], provenance: "Authored by hand in Duck Studio.")
+        ], provenance: "Authored by hand in Microduck Studio.")
     }
 
     // MARK: - the credential
@@ -283,7 +283,7 @@ final class PublishTests: XCTestCase {
         XCTAssertTrue(card.contains("Never run on hardware"))
         XCTAssertTrue(card.contains(DuckModel.jointNames.joined(separator: ", ")),
                       "the joint order IS the contract and belongs in the card")
-        XCTAssertTrue(card.contains("Authored by hand in Duck Studio."))
+        XCTAssertTrue(card.contains("Authored by hand in Microduck Studio."))
         XCTAssertTrue(card.contains(Self.whenToUse), "the sentence that makes it browsable")
         XCTAssertTrue(card.contains("## When to play it"))
     }

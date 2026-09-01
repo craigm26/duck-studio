@@ -29,7 +29,29 @@ struct RetrieveView: View {
     /// living and then had nothing to say when it was the one that failed.
     @State private var failure: String?
     /// Named after it is kept, so the screen can say so rather than going quiet.
+    ///
+    /// READ IN THE BODY, which is the whole point of it. It was written here
+    /// and rendered nowhere for one revision: "Keep this plan" wrote a file,
+    /// set this, and changed nothing on screen, so the only way to learn
+    /// whether the headline button had worked was to leave for the Intents
+    /// tab. A save that reports nothing is indistinguishable from a save that
+    /// failed.
     @State private var kept: String?
+
+    /// The measurement a REOPENED plan was kept with, until the sentence is
+    /// edited.
+    ///
+    /// WITHOUT IT, REOPENING A PLAN SHOWS A DIFFERENT PLAN. `DuckPlanFile`
+    /// stores the stick precisely so a kept plan cannot go stale, and this
+    /// screen used to throw that away and re-derive everything from
+    /// `Retrieval.read(asked)` — the sentence-only reader, with no `props:`.
+    /// A plan drafted against a scene prop, or by a model that resolved the
+    /// object itself, reopened as a DIFFERENT object: different grams,
+    /// different thickness, sometimes `.notUnderstood`, whose own text calls
+    /// the numbers below it invented. The words are still what somebody wants
+    /// to edit, so they come back too — and the moment they are edited this
+    /// clears and the sentence is in charge again.
+    @State private var restored: Retrieval.Stick?
 
     /// The header over the unread verdict, named because the Save footer points
     /// the reader at it BY NAME. Two literals would be one rename away from a
@@ -37,7 +59,16 @@ struct RetrieveView: View {
     private static let unreadHeader = "It did not find a thing to fetch"
 
     private var reading: Retrieval.Reading { Retrieval.read(sentence) }
-    private var plan: Retrieval.Plan { Retrieval.plan(for: reading.stick) }
+    /// The measurement everything on this screen is about: the one the plan was
+    /// kept with if this screen was opened from one, otherwise the sentence's.
+    private var stick: Retrieval.Stick { restored ?? reading.stick }
+    private var plan: Retrieval.Plan { Retrieval.plan(for: stick) }
+    /// A reopened plan HAS a pinned-down object — it was measured when it was
+    /// kept — so the unread state cannot apply to it, and neither can the
+    /// caveats about guesses. Re-reading the sentence would decide otherwise.
+    private var confidence: Retrieval.Reading.Confidence {
+        restored != nil ? .understood : reading.confidence
+    }
 
     /// Keep the plan in this app, in this app's own format.
     private func keep() {
@@ -45,12 +76,20 @@ struct RetrieveView: View {
         let reading = Retrieval.plan(for: sentence)
         // THE SAME NAME THE EXPORT USES, so a plan kept here and a plan
         // exported are recognisably the same thing.
-        let title = reading.reading.object.map { "Fetch the \($0)" } ?? "Fetch it"
+        let noun = reading.reading.object ?? "it"
+        // THE MEASUREMENT IS IN THE NAME, because `PlanStore.save` is keyed by
+        // name and justifies that on "two plans with the same name are the same
+        // plan re-measured". That holds only if a person chose the name, and
+        // nobody does here. On the object word alone, "fetch the pencil" and
+        // "fetch the pencil 4 m away, 30 mm thick" were both "Fetch the pencil"
+        // and the second silently destroyed the first — everything that made
+        // them different plans lived in the numbers this now prints.
+        let title = "Fetch the \(noun) · " + Self.measured(stick)
         // KEPT EVEN WHEN THE DUCK CANNOT DO IT. A refusal is a result — it is
         // the measured reason a fetch will not work — and somebody who wants to
         // come back and change the object should not have to retype it.
         let file = DuckPlanFile(name: title,
-                                stick: reading.plan.stick,
+                                stick: stick,
                                 asked: sentence,
                                 provenance: "Written here")
         guard plans.save(file) else {
@@ -67,8 +106,37 @@ struct RetrieveView: View {
     /// words back is what makes the two agree, and it is also the thing
     /// somebody wants to edit.
     private func restoreIfOpening() {
-        guard let opening, let asked = opening.asked, !asked.isEmpty else { return }
+        guard let opening else { return }
+        // THE MEASUREMENT FIRST, and unconditionally: a plan kept without a
+        // sentence still has one, and it is the half that cannot be re-derived.
+        restored = opening.stick
+        guard let asked = opening.asked, !asked.isEmpty else { return }
         sentence = asked
+    }
+
+    /// A stored measurement as rows, one number per line.
+    private static func lines(_ stick: Retrieval.Stick) -> [String] {
+        var rows = [String(format: "%.0f g", stick.grams),
+                    String(format: "%.0f mm thick where the jaw closes", stick.thicknessMillimetres),
+                    String(format: "%.2f m away", stick.metresAway),
+                    String(format: "floor friction %.2f", stick.floorFriction)]
+        if let height = stick.graspHeightMillimetres {
+            rows.append(String(format: "held %.0f mm off the floor", height))
+        } else {
+            rows.append("lying on the floor")
+        }
+        return rows
+    }
+
+    /// A plan's measurement in one line, short enough for a row title.
+    private static func measured(_ stick: Retrieval.Stick) -> String {
+        var parts = [String(format: "%.0f g", stick.grams),
+                     String(format: "%.0f mm", stick.thicknessMillimetres),
+                     String(format: "%.1f m", stick.metresAway)]
+        if let height = stick.graspHeightMillimetres {
+            parts.append(String(format: "up %.0f mm", height))
+        }
+        return parts.joined(separator: ", ")
     }
 
     var body: some View {
@@ -83,12 +151,29 @@ struct RetrieveView: View {
                 Text("Try \"fetch the pencil\", \"drag the broom standing in the corner\", \"pick up the dowel 2 m away\". Weights, thicknesses and grip heights can be given outright — \"a 30 g stick 25 mm thick\", \"held 120 mm up\".")
             }
 
-            if !reading.understood.isEmpty {
+            if let restored {
+                Section {
+                    ForEach(Self.lines(restored), id: \.self) {
+                        Label($0, systemImage: "tray.and.arrow.down").font(.footnote)
+                    }
+                } header: {
+                    Text("The measurement this plan was kept with")
+                } footer: {
+                    // NOT `reading.sentence`. That paragraph says which numbers
+                    // came out of THESE words, and none of these did — they came
+                    // out of the file. Printing it here is how a plan drafted
+                    // against a scene prop came back reading "this app invented
+                    // the thickness" about a thickness somebody measured.
+                    Text("These are the numbers the plan was written with, not a re-reading of the words above. Edit the sentence and the app reads it again from scratch.")
+                }
+            }
+
+            if restored == nil, !reading.understood.isEmpty {
                 Section("Read as") {
                     ForEach(reading.understood, id: \.self) { Text($0).font(.footnote) }
                 }
             }
-            if !reading.assumed.isEmpty {
+            if restored == nil, !reading.assumed.isEmpty {
                 Section {
                     ForEach(reading.assumed, id: \.self) {
                         Label($0, systemImage: "questionmark.circle").font(.footnote)
@@ -108,7 +193,7 @@ struct RetrieveView: View {
             }
 
             Section {
-                switch reading.confidence {
+                switch confidence {
                 case .notUnderstood:
                     // WHERE THE GREEN SEAL USED TO GO UNCONDITIONALLY, AND THE
                     // LINE IN THE BUG REPORT. "Inside every envelope." is a claim
@@ -146,7 +231,7 @@ struct RetrieveView: View {
                 // true for the invented 20 g / 20 mm object — flipping it would
                 // trade one false statement for another. The honest header says
                 // what actually happened: the reading failed, not the duck.
-                if reading.confidence == .notUnderstood {
+                if confidence == .notUnderstood {
                     Text(Self.unreadHeader)
                 } else {
                     Text(plan.isPossible ? "It can do this" : "It cannot do this")
@@ -160,7 +245,7 @@ struct RetrieveView: View {
                 // `.notUnderstood` there is no footer, because the same sentence
                 // is already the row above — it is rendered EXACTLY ONCE per
                 // state, and it is a paragraph, not a line.
-                if reading.confidence != .notUnderstood {
+                if confidence != .notUnderstood {
                     Text(reading.sentence)
                 }
             }
@@ -187,7 +272,7 @@ struct RetrieveView: View {
                 // 22.8 s schedule pass for an answer. "Guessed" is the word the
                 // section two rows up uses, and it is true in both halves of this
                 // state: the weight may be the person's, the thickness never is.
-                if reading.confidence == .notUnderstood {
+                if confidence == .notUnderstood {
                     Text("The plan for the guessed object · \(String(format: "%.1f s", plan.seconds))")
                 } else {
                     Text("The plan · \(String(format: "%.1f s", plan.seconds))")
@@ -209,7 +294,7 @@ struct RetrieveView: View {
                 measurement("Mouth sweeps", String(format: "%.0f–%.0f mm through the arc",
                                                    Retrieval.Reach.lowestDuringPick * 1000,
                                                    Retrieval.Reach.highestDuringPick * 1000))
-                if let height = reading.stick.graspHeightMillimetres,
+                if let height = stick.graspHeightMillimetres,
                    let at = Retrieval.Reach.graspTime(forHeight: height / 1000) {
                     measurement(String(format: "Bite at %.0f mm", height),
                                 String(format: "%.2f s into the pick", at))
@@ -243,9 +328,14 @@ struct RetrieveView: View {
                 // the footer below it; the full explanation is the paragraph
                 // further up, and repeating it here would be the third copy of a
                 // 400-character sentence on one screen.
-                .disabled(reading.confidence == .notUnderstood)
+                .disabled(confidence == .notUnderstood)
+                if let kept {
+                    Label("Kept as \"\(kept)\" — it is in your Intents, under Plans.",
+                          systemImage: "checkmark.circle")
+                        .font(.footnote).foregroundStyle(.green)
+                }
             } footer: {
-                if reading.confidence == .notUnderstood {
+                if confidence == .notUnderstood {
                     // NO PHYSICAL CLAIM IN HERE ON PURPOSE. Which numbers are
                     // whose is StudioKit's sentence to make — it is on the
                     // screen already, and it differs between a sentence that
@@ -260,6 +350,14 @@ struct RetrieveView: View {
         .navigationTitle("Fetch something")
         .navigationBarTitleDisplayMode(.inline)
         .task { restoreIfOpening() }
+        // A CONFIRMATION IS ABOUT WHAT WAS ON SCREEN WHEN IT WAS PRESSED. Leave
+        // "Kept as …" standing over an edited sentence and it claims a plan
+        // nobody wrote; leave `restored` standing and the stored measurement
+        // outlives the words it belonged to.
+        .onChange(of: sentence) { _, _ in
+            kept = nil
+            restored = nil
+        }
         .alert("That did not save",
                isPresented: .constant(failure != nil),
                presenting: failure) { _ in

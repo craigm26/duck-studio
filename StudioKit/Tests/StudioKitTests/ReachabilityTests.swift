@@ -241,7 +241,7 @@ final class ReachabilityTests: XCTestCase {
         XCTAssertEqual(verdict.sentence,
             "Nothing on this network answers to the name duck.local. A .local name is found over "
             + "Bonjour, and iOS asks for Local Network permission the first time an app looks; if "
-            + "that was declined, nothing here can reach it until Duck Studio is turned back on "
+            + "that was declined, nothing here can reach it until Microduck Studio is turned back on "
             + "under Settings, Privacy & Security, Local Network. An address like 192.168.1.10 "
             + "does not need the name to resolve, and is the quicker thing to try.")
     }
@@ -266,7 +266,7 @@ final class ReachabilityTests: XCTestCase {
             + "and iOS would not make the connection anyway. That is what a refused Local "
             + "Network permission looks like from in here, and this app does not read that "
             + "switch — so it is the shape of the failure and not a reading of the setting. Open "
-            + "Settings, then Privacy & Security, then Local Network, and turn Duck Studio on. "
+            + "Settings, then Privacy & Security, then Local Network, and turn Microduck Studio on. "
             + "If it is already on, then the address itself is the thing to check.")
     }
 
@@ -281,7 +281,7 @@ final class ReachabilityTests: XCTestCase {
             + "your own network and needs none. That is what a refused Local Network permission "
             + "looks like from in here, and this app does not read that switch — so it is the "
             + "shape of the failure and not a reading of the setting. Open Settings, then "
-            + "Privacy & Security, then Local Network, and turn Duck Studio on. If it is already "
+            + "Privacy & Security, then Local Network, and turn Microduck Studio on. If it is already "
             + "on, then the address itself is the thing to check.")
     }
 

@@ -15,15 +15,15 @@ final class CameraAvailabilityTests: XCTestCase {
     // word fails on the pair it changed rather than on all twelve at once.
     private let missingKey = "This build cannot open the camera: it ships without the camera usage description iOS requires, and iOS ends an app that asks for the camera without one."
     private let noTracking = "This device cannot do world tracking, so nothing here can find the floor you are standing on."
-    private let switchedOff = "Camera access is switched off for Duck Studio."
-    private let restricted = "Camera access is restricted on this device — by a configuration profile or by Screen Time, not by anything Duck Studio can change."
+    private let switchedOff = "Camera access is switched off for Microduck Studio."
+    private let restricted = "Camera access is restricted on this device — by a configuration profile or by Screen Time, not by anything Microduck Studio can change."
 
     private let venue = "\"Your floor\" is off, so this mode plays in its own rendered world instead — which is where it starts anyway."
     private let followMe = "Follow me is off entirely, and it is the one mode with no stage to fall back to: what it follows is your phone, and the camera's own reckoning of where the phone has moved to IS the measurement. A stage would have to replace you with a joystick, which is pretend where this is perception."
     private let roomCapture = "Room capture is off entirely. It has no stage either, and nothing to measure without a camera — what it writes out is the floor and the furniture ARKit found in the room you are standing in."
 
     private let itIsABug = "That is a bug in this build, not something you did."
-    private let goToSettings = "You can switch it back on in Settings, under Duck Studio."
+    private let goToSettings = "You can switch it back on in Settings, under Microduck Studio."
 
     /// Everything present and the person has said yes.
     private func working(_ permission: CameraAvailability.Permission = .authorized) -> CameraAvailability {
@@ -128,7 +128,7 @@ final class CameraAvailabilityTests: XCTestCase {
         XCTAssertEqual(door.refusal(for: .venue), restricted + " " + venue)
         XCTAssertEqual(door.refusal(for: .followMe), restricted + " " + followMe)
         XCTAssertEqual(door.refusal(for: .roomCapture), restricted + " " + roomCapture)
-        XCTAssertFalse(door.refusal(for: .venue)!.contains("Settings, under Duck Studio"))
+        XCTAssertFalse(door.refusal(for: .venue)!.contains("Settings, under Microduck Studio"))
     }
 
     // MARK: - the invariants, over every state there is

@@ -6,7 +6,7 @@ import Foundation
 /// quackd's task format — and this app has no reader for one. So the loop was
 /// open at the worst possible point: somebody describes a fetch, the app works
 /// out whether the duck can manage it, writes a file, and then refuses to take
-/// that file back. The Intents screen said so in as many words: "Duck Studio
+/// that file back. The Intents screen said so in as many words: "Microduck Studio
 /// writes these for quackd to run somewhere else and has no reader for one, so
 /// nothing was added."
 ///

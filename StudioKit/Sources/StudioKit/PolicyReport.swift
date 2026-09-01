@@ -1,7 +1,7 @@
 import Foundation
 import DuckKit
 
-/// What Duck Studio says about a file somebody handed it.
+/// What Microduck Studio says about a file somebody handed it.
 ///
 /// THIS TYPE IS THE APP'S VALUE PROPOSITION, WRITTEN DOWN. Someone exports a
 /// policy from their own PPO run, it does not load, and the useful product is
@@ -78,7 +78,7 @@ public struct PolicyReport: Equatable, Sendable {
     /// concludes their file is broken — and this app only knows that its own
     /// reader would not take it.
     public static let refusalIsAboutThisApp =
-        "This is Duck Studio's answer, not the robot's. This app reads one exact architecture "
+        "This is Microduck Studio's answer, not the robot's. This app reads one exact architecture "
       + "— 61 to 512 to 256 to 128 to 14, ELU throughout — so it refuses networks the robot's "
       + "runtime would load: robotd checks the observation is 61 wide, the actions are 14 wide, "
       + "and that one zeroed step runs. It does not look at layers or activations."
@@ -122,14 +122,14 @@ public struct PolicyReport: Equatable, Sendable {
             let (reason, remedy) = explain(error, structure: structure)
             return PolicyReport(
                 outcome: .refused,
-                headline: "\(name) will not load in Duck Studio",
+                headline: "\(name) will not load in Microduck Studio",
                 reason: reason,
                 remedy: remedy,
                 facts: facts)
         } catch {
             return PolicyReport(
                 outcome: .refused,
-                headline: "\(name) will not load in Duck Studio",
+                headline: "\(name) will not load in Microduck Studio",
                 reason: "\(error)",
                 remedy: nil,
                 facts: facts)

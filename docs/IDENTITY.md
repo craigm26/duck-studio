@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| App name | Duck Studio |
+| App name | Microduck Studio |
 | Bundle identifier | `com.duckstudio.ios` |
 | Team | `WYGG3JXWMG` |
 | Platform | iPhone only, portrait, iOS 17+ |

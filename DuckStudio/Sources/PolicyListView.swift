@@ -57,7 +57,7 @@ struct PolicyListView: View {
             }
             if model.library.entries.isEmpty {
                 Section {
-                    Text("No policies yet. Send one to Duck Studio from Files, Mail or AirDrop.")
+                    Text("No policies yet. Send one to Microduck Studio from Files, Mail or AirDrop.")
                     // THE PERSON WHO MOST NEEDS THIS ROUTE. The sentence above
                     // offers Files, Mail and AirDrop and no way to reach the
                     // policies Pollen publishes — which is where somebody with
@@ -281,7 +281,7 @@ struct PolicyDetailView: View {
                         }
                     }
                 } footer: {
-                    Text("Hand it an observation and see the fourteen numbers it answers with, and the robot they command. A network has no time axis — nothing plays here. To watch it move, run it on a bench and keep the recording.")
+                    Text("Hand it an observation and see the fourteen numbers it answers with, and the robot they command. A network has no time axis — nothing plays here. To watch it move, run it on a bench and keep the recording — it lands in the Intents tab, under \"Brought in\", not on this screen.")
                 }
 
                 // The real link between the two halves of this app: a clip

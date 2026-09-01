@@ -1,12 +1,12 @@
-_Duck Studio — pre-registered decision gates_
+_Microduck Studio — pre-registered decision gates_
 
-Written before launch, on purpose. Duck Studio is a free developer tool for a
+Written before launch, on purpose. Microduck Studio is a free developer tool for a
 narrow audience, and "the RL crowd would love this" is a feeling, not evidence.
 These thresholds are fixed **now** so the decision later is a lookup rather than
 an argument with myself. Clocks start at **App Store approval** — the downloads
 numerator does not exist until the app is live.
 
-**Hard rule: Duck Studio ships no in-app analytics.** No first-party endpoint,
+**Hard rule: Microduck Studio ships no in-app analytics.** No first-party endpoint,
 no SDK, no event stream, no per-user telemetry. The App Privacy label is **Data
 Not Collected** and the Privacy Manifest declares an empty
 `NSPrivacyCollectedDataTypes`. This is easier to mean here than anywhere else in

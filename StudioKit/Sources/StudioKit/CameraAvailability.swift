@@ -125,7 +125,7 @@ public struct CameraAvailability: Equatable, Sendable {
     /// to Settings to fix our mistake.
     ///
     /// The device check comes before the permission check because there is no
-    /// point walking somebody to Settings > Duck Studio > Camera on a phone
+    /// point walking somebody to Settings > Microduck Studio > Camera on a phone
     /// that still cannot do world tracking when they come back. That would be
     /// a true sentence used to make a false promise.
     ///
@@ -180,9 +180,9 @@ public struct CameraAvailability: Equatable, Sendable {
         case .deviceCannotWorldTrack:
             return "This device cannot do world tracking, so nothing here can find the floor you are standing on."
         case .permissionDenied:
-            return "Camera access is switched off for Duck Studio."
+            return "Camera access is switched off for Microduck Studio."
         case .permissionRestricted:
-            return "Camera access is restricted on this device — by a configuration profile or by Screen Time, not by anything Duck Studio can change."
+            return "Camera access is restricted on this device — by a configuration profile or by Screen Time, not by anything Microduck Studio can change."
         }
     }
 
@@ -213,7 +213,7 @@ public struct CameraAvailability: Equatable, Sendable {
     ///
     /// TWO OF THE FOUR RETURN NIL AND THAT IS NOT AN OVERSIGHT. A phone that
     /// cannot do world tracking will not learn to, and a restriction set by a
-    /// profile or by Screen Time is not clearable from Duck Studio's own
+    /// profile or by Screen Time is not clearable from Microduck Studio's own
     /// Settings page. Offering a step that does not work is how a refusal turns
     /// into a runaround.
     private static func remedy(_ blocker: Blocker) -> String? {
@@ -221,7 +221,7 @@ public struct CameraAvailability: Equatable, Sendable {
         case .noUsageDescription:
             return "That is a bug in this build, not something you did."
         case .permissionDenied:
-            return "You can switch it back on in Settings, under Duck Studio."
+            return "You can switch it back on in Settings, under Microduck Studio."
         case .deviceCannotWorldTrack, .permissionRestricted:
             return nil
         }

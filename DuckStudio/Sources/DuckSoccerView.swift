@@ -68,7 +68,7 @@ struct DuckSoccerView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             // NO GOAL-CELEBRATION PICKER. It offered one option and told
-            // people to "author a motion in Duck Studio and open the .duckmove
+            // people to "author a motion in Microduck Studio and open the .duckmove
             // here to celebrate with it" — which this build cannot do:
             // `CelebrationStore.importFile(at:)` has no caller anywhere, no
             // .duckmove is bundled, and `LibraryModel` routes that extension to
@@ -1132,7 +1132,7 @@ final class SoccerCoordinator: NSObject, ARSessionDelegate {
             }
 
             // A goal celebration outranks the engine's motion state. YOUR
-            // team's scorer performs the motion you authored in Duck Studio,
+            // team's scorer performs the motion you authored in Microduck Studio,
             // if you chose one; everyone else — and your team, when you have
             // not — rolls Pollen's own roulade. An authored move is a list of
             // poses smoothstepped between keyframes, so it plays through

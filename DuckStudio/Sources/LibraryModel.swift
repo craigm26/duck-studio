@@ -106,13 +106,13 @@ final class LibraryModel: ObservableObject {
             // somebody may still have a `.duck` an older build exported, and
             // being told which of your files this app reads is more use than
             // the default's "not a policy".
-            lastImport = "\(name) is a task file for other robot software. Duck Studio keeps "
+            lastImport = "\(name) is a task file for other robot software. Microduck Studio keeps "
                        + "plans in its own format now — a `.duckplan` — and does not read this "
                        + "one."
         case "onnx":
             accept(data, named: name, origin: nil)
         default:
-            lastImport = "\(name) was not added. Duck Studio opens .onnx policies, .duckintent "
+            lastImport = "\(name) was not added. Microduck Studio opens .onnx policies, .duckintent "
                        + "recordings and .duckmove motions — if this is a policy under another "
                        + "name, rename it to .onnx and hand it over again."
         }
@@ -141,7 +141,17 @@ final class LibraryModel: ObservableObject {
     /// else's export bug, and "that file could not be read" sends them looking
     /// in the wrong place. `IntentExport.ImportError` already says which frame
     /// and how many joints.
-    func acceptIntent(_ data: Data, named name: String) {
+    /// - Returns: Whether the motion is now in the library.
+    ///
+    /// IT RETURNED VOID, AND A CALLER BELIEVED IT. Every failure here — a
+    /// decode refusal, a directory that would not create, a write that threw —
+    /// lands in `lastImport`, which the Policies tab renders. A screen that
+    /// calls this and then reports its own success is reporting that it made
+    /// the call, and `RemoteRunView` said "Kept — it is in your Intents" over
+    /// every one of those failures, with the real message on a tab nobody was
+    /// looking at.
+    @discardableResult
+    func acceptIntent(_ data: Data, named name: String) -> Bool {
         do {
             let export = try IntentExport.decode(data)
             try FileManager.default.createDirectory(
@@ -154,10 +164,29 @@ final class LibraryModel: ObservableObject {
             lastImport = export.hasRecordedPath
                 ? "Added the motion \(export.name)."
                 : "Added \(export.name). It carries no path, so it plays on the spot — the sender's app was an older version."
+            return true
         } catch let error as IntentExport.ImportError {
             lastImport = error.message
+            return false
         } catch {
             lastImport = "That motion could not be saved."
+            return false
+        }
+    }
+
+    /// A plan written by this app, coming home.
+    func acceptPlan(_ data: Data, named name: String, into plans: PlanStore) {
+        do {
+            let plan = try DuckPlanFile.read(data)
+            guard plans.save(plan) else {
+                lastImport = "\(plan.name) could not be written to this phone."
+                return
+            }
+            lastImport = "\(plan.name) is in your Intents, under Plans."
+        } catch let error as DuckPlanFile.ReadError {
+            lastImport = error.message
+        } catch {
+            lastImport = error.localizedDescription
         }
     }
 
@@ -181,22 +210,6 @@ final class LibraryModel: ObservableObject {
     /// alone — which compiled everywhere and filed a motion nowhere, turning a
     /// finished import path into a door that opens onto a refusal. A parameter
     /// that can be omitted is a parameter that will be.
-    /// A plan written by this app, coming home.
-    func acceptPlan(_ data: Data, named name: String, into plans: PlanStore) {
-        do {
-            let plan = try DuckPlanFile.read(data)
-            guard plans.save(plan) else {
-                lastImport = "\(plan.name) could not be written to this phone."
-                return
-            }
-            lastImport = "\(plan.name) is in your Intents, under Plans."
-        } catch let error as DuckPlanFile.ReadError {
-            lastImport = error.message
-        } catch {
-            lastImport = error.localizedDescription
-        }
-    }
-
     func acceptMove(_ data: Data, named name: String, into drafts: DraftStore) {
         do {
             let draft = try IntentDraft.decode(data)

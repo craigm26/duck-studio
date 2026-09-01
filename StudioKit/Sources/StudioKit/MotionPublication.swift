@@ -1,7 +1,7 @@
 import Foundation
 import DuckKit
 
-/// What Duck Studio publishes, and what its card has to admit.
+/// What Microduck Studio publishes, and what its card has to admit.
 ///
 /// A MOVE IS A DATASET, NOT A MODEL. This app published motions as model
 /// repositories, and that was wrong in a way anyone can check: on the live
@@ -148,7 +148,7 @@ public struct MotionPublication: Equatable, Sendable {
             .init(path: Self.manifestPath, contents: manifest, isText: true),
             .init(path: "README.md", contents: Data(card.utf8), isText: true),
         ]
-        summary = "Add \(draft.name) — a Microduck move authored in Duck Studio"
+        summary = "Add \(draft.name) — a Microduck move authored in Microduck Studio"
     }
 
     static func manifest(for draft: IntentDraft, whenToUse: String, note: String?) -> Data {
@@ -161,7 +161,7 @@ public struct MotionPublication: Equatable, Sendable {
             // The same sentence the card leads with, where something reading
             // the repository rather than the page can find it.
             "when_to_use": whenToUse,
-            "authored_in": "Duck Studio",
+            "authored_in": "Microduck Studio",
             "robot": ["model": "microduck", "hw_rev": 1,
                       "servos": "xl330", "control_hz": DuckModel.tickHz],
             "motion": [
@@ -218,7 +218,7 @@ public struct MotionPublication: Equatable, Sendable {
         # \(draft.name)
 
         A move for the Pollen Robotics [Microduck](https://github.com/pollen-robotics/microduck), \
-        authored in Duck Studio. \(note ?? "")
+        authored in Microduck Studio. \(note ?? "")
 
         ## When to play it
 

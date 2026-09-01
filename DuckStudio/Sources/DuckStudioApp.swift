@@ -1,7 +1,7 @@
 import SwiftUI
 import StudioKit
 
-/// Duck Studio: open a Microduck policy and see what is actually in it.
+/// Microduck Studio: open a Microduck policy and see what is actually in it.
 ///
 /// A TAB PER KIND OF THING. A policy is a network with
 /// no time axis: hand it an observation, get fourteen numbers. An intent is a

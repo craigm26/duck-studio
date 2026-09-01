@@ -46,7 +46,15 @@ final class PlanStore: ObservableObject {
         do {
             try FileManager.default.createDirectory(at: directory,
                                                     withIntermediateDirectories: true)
-            guard let safe = ExportFile.safeName(plan.fileName) else { return false }
+            // THE EXTENSION HAS TO SURVIVE `safeName`, and for one name it did
+            // not. An empty title makes `fileName` ".duckplan" — non-empty, so
+            // the nil guard passes — and `safeName`'s leading-dot rule strips
+            // the dot and returns "duckplan", a file with no extension at all.
+            // `reload()` filters on `pathExtension == "duckplan"`, so `save`
+            // returned true for a plan that was never going to appear: the
+            // silent success this whole format exists to stop.
+            guard let safe = ExportFile.safeName(plan.fileName),
+                  (safe as NSString).pathExtension == "duckplan" else { return false }
             try plan.encoded().write(to: directory.appendingPathComponent(safe), options: .atomic)
             reload()
             return true

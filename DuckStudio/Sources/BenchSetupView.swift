@@ -20,7 +20,7 @@ struct BenchSetupView: View {
     var body: some View {
         List {
             Section {
-                Text("Duck Studio can read a policy and blend one. It cannot RUN one — an "
+                Text("Microduck Studio can read a policy and blend one. It cannot RUN one — an "
                    + "iPhone has no physics engine. The bench is a small program on a computer "
                    + "you already own that does, and these are the steps to start it.")
                     .font(.footnote).foregroundStyle(.secondary)

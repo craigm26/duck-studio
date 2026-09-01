@@ -1,4 +1,4 @@
-# Duck Studio
+# Microduck Studio
 
 A bench for Microduck reinforcement-learning policies and the motions they
 produce, on a phone.
@@ -17,7 +17,7 @@ parameter count, the layer widths and the input and output tensor names of what
 *was* in the file sitting underneath the refusal. `DuckPolicy.load` accepts
 exactly
 `Sub → Div → Gemm → Elu → Gemm → Elu → Gemm → Elu → Gemm` at 61→512→256→128→14
-with `transB=1` and refuses everything else with a reason. Duck Studio shows the
+with `transB=1` and refuses everything else with a reason. Microduck Studio shows the
 reason and the structure together, which is the screen an RL person installs
 this app for.
 
@@ -208,15 +208,15 @@ would show targets 10% short of what the robot is actually sent.
   which also settles App Review's minimum-functionality question.
 - **Files, AirDrop and Open With.** This is the workflow that makes the app real:
   your training run finishes on the Mac, you AirDrop the `.onnx`, it lands in
-  Duck Studio. It only works because the app *declares the type* — there is no
+  Microduck Studio. It only works because the app *declares the type* — there is no
   system UTType for ONNX, so `project.yml` carries a `UTImportedTypeDeclarations`
   entry for `org.onnx.model` conforming to `public.data` with extension `onnx`,
   plus a matching `CFBundleDocumentTypes` row. Without both, iOS treats `.onnx`
-  as generic data and never offers Duck Studio in the share sheet. Silent
+  as generic data and never offers Microduck Studio in the share sheet. Silent
   failure, far-away symptom — the same shape of bug as the entitlements trap in
   OpenCastor.
 - **URL.** Paste an `https://` model URL, or give `owner/repo` + filename and
-  Duck Studio builds the Hugging Face resolve URL for you. `resolve/` and not
+  Microduck Studio builds the Hugging Face resolve URL for you. `resolve/` and not
   `blob/`, which fetches the HTML page around the file and fails as a confusing
   protobuf error. https only, public repos only, 8 MB cap, and the whole URL is
   shown before anything leaves the device. **No token field on this path** — a
@@ -350,7 +350,7 @@ Depends on `github.com/craigm26/duckkit` for everything Microduck-shaped —
 manifest and `DuckVisual`/`DuckRender` for the geometry the stage draws. By tag,
 never by path: an inspector that reports which network it loaded must be built
 against a pinned reader, or its report describes a parser nobody can identify
-later. Duck Studio adds no robot knowledge of its own and reimplements nothing.
+later. Microduck Studio adds no robot knowledge of its own and reimplements nothing.
 
 ## Build and test
 
@@ -417,7 +417,7 @@ never the people.
 
 The nine policies, the observation layout, the control constants and the MuJoCo
 model are from `pollen-robotics/microduck` and `pollen-robotics/microduck_rl`,
-Apache-2.0. Every number Duck Studio displays about the robot is upstream's
+Apache-2.0. Every number Microduck Studio displays about the robot is upstream's
 number, and the Policies screen says of each file whether it is one of Pollen's
 releases. Every file format this app writes is its own; nothing here implements
 another project's schema.

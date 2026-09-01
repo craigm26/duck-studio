@@ -5,7 +5,7 @@
 Puts Claude behind an OpenAI-compatible endpoint, using the Claude Code
 subscription already signed in on the machine you run it on.
 
-**Why it exists.** Duck Studio drafts against anything speaking
+**Why it exists.** Microduck Studio drafts against anything speaking
 `/v1/chat/completions` — Ollama, LM Studio, llama.cpp. It cannot speak to a
 Claude subscription, because a subscription is a CLI on a computer rather than
 an HTTP endpoint, and a phone cannot shell out. This is the missing forty lines.
@@ -26,7 +26,7 @@ CLAUDEBRIDGE_TOKEN=$(openssl rand -hex 16) node tools/claudebridge.mjs
 # token required
 ```
 
-Then in Duck Studio: **Models → Claude, through my subscription**, put in the
+Then in Microduck Studio: **Models → Claude, through my subscription**, put in the
 machine's address and the token, and **Ask what models it has**.
 
 | env | default | |

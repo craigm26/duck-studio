@@ -3,7 +3,7 @@ import Crypto
 import DuckKit
 import DuckEvidence
 
-/// Everything Duck Studio currently holds, and what each thing is.
+/// Everything Microduck Studio currently holds, and what each thing is.
 ///
 /// IDENTITY IS THE WHOLE PROBLEM HERE, and it has two answers rather than one.
 /// A policy that loads is identified by `DuckPolicy.fingerprint` — a digest of

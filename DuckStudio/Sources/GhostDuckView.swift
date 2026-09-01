@@ -334,12 +334,12 @@ final class GhostDuckModel: ObservableObject {
     @Published var venue: LabVenue = .stage
     @Published var clip: DuckTrajectory.Clip = .walk
     @Published var isMirrored = false
-    /// A motion from Duck Studio, chosen instead of a gait. The ghost stands
+    /// A motion from Microduck Studio, chosen instead of a gait. The ghost stands
     /// in place and performs it on a loop — an authored move carries no root
     /// motion because no physics produced any.
 
     /// A trick being performed right now, and when it started. It outranks the
-    /// gait picker and the Duck Studio motion for as long as it runs, then
+    /// gait picker and the Microduck Studio motion for as long as it runs, then
     /// clears itself — a trick is an event, not a mode.
     @Published var trick: DuckIntentClip?
     var trickStarted: TimeInterval = 0
@@ -582,7 +582,7 @@ final class GhostDuckCoordinator: NSObject {
                 return
             }
         }
-        // The branch that played a chosen Duck Studio motion in place is gone
+        // The branch that played a chosen Microduck Studio motion in place is gone
         // with the menu that chose it — `studioMove` could only ever be nil,
         // because nothing in this build can put a .duckmove in that list.
         guard let trajectory, let model else { return }

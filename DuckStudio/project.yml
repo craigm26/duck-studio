@@ -92,7 +92,7 @@ targets:
     info:
       path: Info.plist
       properties:
-        CFBundleDisplayName: Duck Studio
+        CFBundleDisplayName: Microduck Studio
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         UILaunchScreen: {}

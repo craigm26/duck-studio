@@ -39,7 +39,13 @@ struct RemoteRunView: View {
     @State private var success: DuckBench.Success?
     @State private var busy = false
     @State private var failure: String?
-    /// Named once a recording has been kept, so the button can say so.
+    /// The name a recording was kept under, so the button can say so.
+    ///
+    /// CLEARED WHENEVER THE RECORDING CHANGES, and it was not. `clip.name` is
+    /// the bench's POLICY name, so recording `alpha_walking` twice yields two
+    /// clips with one name: keep the first, record a second, and `kept ==
+    /// clip.name` was still true — the button read "Kept — it is in your
+    /// Intents" and sat disabled over a recording nobody had saved.
     @State private var kept: String?
 
     var body: some View {
@@ -188,11 +194,11 @@ struct RemoteRunView: View {
                     Button {
                         keepRecording(clip)
                     } label: {
-                        Label(kept == clip.name ? "Kept — it is in your Intents"
+                        Label(kept == Self.keepName(clip) ? "Kept — it is in your Intents"
                                                 : "Keep this recording",
-                              systemImage: kept == clip.name ? "checkmark.circle" : "tray.and.arrow.down")
+                              systemImage: kept == Self.keepName(clip) ? "checkmark.circle" : "tray.and.arrow.down")
                     }
-                    .disabled(kept == clip.name)
+                    .disabled(kept == Self.keepName(clip))
                 } header: {
                     Text("Recorded")
                 } footer: {
@@ -263,15 +269,45 @@ struct RemoteRunView: View {
     /// one would put a number on a card that nothing verified.
     @MainActor private func keepRecording(_ clip: DuckIntentClip) {
         failure = nil
-        let note = DuckBench.recordedCredit(plantName: health?.plantName,
-                                            plantDigest: health?.plantDigest)
+        // THE CLIP'S OWN CREDIT FIRST. `DuckBench.readClip` already built one
+        // from the /record answer — the world that recording actually ran in —
+        // and composing a fresh one from a later /health answers a different
+        // question: it downgrades to "nothing recorded which world this ran in"
+        // when /health is silent about the plant although the recording named
+        // one, and names a different plant outright if the bench reloaded
+        // between Connect and Record.
+        let note = clip.credit
+            ?? DuckBench.recordedCredit(plantName: health?.plantName,
+                                        plantDigest: health?.plantDigest)
+        let title = Self.keepName(clip)
         do {
-            let export = IntentExport(clip: clip, policyFingerprint: nil, note: note)
-            model.acceptIntent(try export.encoded(), named: clip.name)
-            kept = clip.name
+            let export = IntentExport(clip: clip, policyFingerprint: nil,
+                                      note: note, named: title)
+            guard model.acceptIntent(try export.encoded(), named: title) else {
+                // ITS MESSAGE, NOT A NEW ONE. `acceptIntent` says exactly what
+                // went wrong — a decode refusal names the field — and it says it
+                // on the Policies tab, which is not this screen.
+                failure = model.lastImport ?? "That recording could not be kept."
+                return
+            }
+            kept = title
         } catch {
             failure = "That recording could not be kept: \(error.localizedDescription)"
         }
+    }
+
+    /// A name no other recording of the same policy will take.
+    ///
+    /// THE POLICY NAME IS NOT ENOUGH, and it is also a name bundled clips
+    /// already hold. `roulade` and `headspin` are both a bundled clip AND the
+    /// stem of the policy they came from, and both have entries in
+    /// `intent-success.json` — so a fresh recording made on somebody's own
+    /// bench came up carrying a measured success rate that had been measured
+    /// about something else.
+    private static func keepName(_ clip: DuckIntentClip) -> String {
+        let seconds = clip.hz > 0 ? Double(clip.frames.count) / clip.hz : 0
+        return String(format: "%@ — bench, %.1f s, %d ticks",
+                      clip.name, seconds, clip.frames.count)
     }
 
     @MainActor private func run<T>(_ work: () async throws -> T) async -> T? {
@@ -285,7 +321,7 @@ struct RemoteRunView: View {
     }
 
     @MainActor private func connect() async {
-        health = nil; clip = nil; success = nil
+        health = nil; clip = nil; success = nil; kept = nil
         health = await run {
             let address = try requireBench().resolved()
             let request = DuckBench.urlRequest(for: DuckBench.health(address), token: token)
@@ -296,7 +332,7 @@ struct RemoteRunView: View {
     }
 
     @MainActor private func record() async {
-        success = nil
+        success = nil; kept = nil
         clip = await run {
             let address = try requireBench().resolved()
             let call = try DuckBench.record(address, policy: chosen, seconds: seconds,
@@ -308,7 +344,7 @@ struct RemoteRunView: View {
     }
 
     @MainActor private func measure() async {
-        clip = nil
+        clip = nil; kept = nil
         success = await run {
             let address = try requireBench().resolved()
             let call = try DuckBench.measure(address, policy: chosen, seconds: seconds,

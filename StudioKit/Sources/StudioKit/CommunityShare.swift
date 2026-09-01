@@ -90,7 +90,7 @@ public enum CommunityShare {
             lines.append("This file does not load as a policy here, so there is no fingerprint to give "
                        + "you and nothing about it that you can check from this message.")
         }
-        lines.append("Shared from Duck Studio.")
+        lines.append("Shared from Microduck Studio.")
         return lines.joined(separator: "\n\n")
     }
 
@@ -126,7 +126,7 @@ public enum CommunityShare {
         if !export.hasRecordedPath {
             lines.append("No trunk path in this file, so it will replay on the spot.")
         }
-        lines.append("Shared from Duck Studio.")
+        lines.append("Shared from Microduck Studio.")
         return lines.joined(separator: "\n\n")
     }
 
@@ -139,7 +139,7 @@ public enum CommunityShare {
             + "interpolated with smoothstep.",
             IntentDraft.disclaimer,
             draft.provenance,
-            "Shared from Duck Studio.",
+            "Shared from Microduck Studio.",
         ].joined(separator: "\n\n")
     }
 

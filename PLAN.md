@@ -1,11 +1,11 @@
-# Duck Studio — plan
+# Microduck Studio — plan
 
 ## The bet
 
 An ONNX policy inspector is a tool for the phase of work that happens *before*
 hardware. Microduck deliveries are around Christmas 2026; today is 2026-08-27;
 the only Microduck work anybody can do right now is train and inspect policies.
-Duck Studio is the app in this family with the least dependency on the duck
+Microduck Studio is the app in this family with the least dependency on the duck
 existing, which makes it the one worth building first.
 
 The audience is narrow and precisely reachable: people who train these policies.
@@ -116,7 +116,7 @@ OpenCastor depends on it.
   filter.
 - **D-7 `DuckSimulation.State`** — readable and writable (`jointPositions`,
   `previousTargets`, `lastAction`, `tickCount`). Everything is private today, so
-  Duck Studio cannot inject a state, cannot pin a slot mid-loop, and cannot
+  Microduck Studio cannot inject a state, cannot pin a slot mid-loop, and cannot
   restart two policies from an identical initial condition for the diff. Add a
   `State` struct plus `init(walk:stand:state:)` and `var state`.
 - **D-8 Move CanonicalJSON + CanonicalValue, Ed25519 signing, and the
@@ -125,7 +125,7 @@ OpenCastor depends on it.
   somebody can verify. **Constraint:** `Journal` is currently typed to
   OpenCastor's `Receipt`. It has to be generalized over a `CanonicalValue`
   payload during the move, not copied. `SigningKeyStore` moves too (Keychain on
-  device, in-memory on Linux). `PhoneSight` does **not** move — Duck Studio's AR
+  device, in-memory on Linux). `PhoneSight` does **not** move — Microduck Studio's AR
   needs a horizontal plane and nothing else, and dragging LiDAR capability
   tiering in would add an ARKit dependency to a package whose whole value is
   that it builds on Linux.
@@ -307,7 +307,7 @@ the Mac.*
 Reviewers will ask whether loading a `.onnx` from a URL is executing downloaded
 code under 2.5.2. The answer, which goes in the notes verbatim:
 
-> Duck Studio does not execute downloaded code. It reads a fixed set of
+> Microduck Studio does not execute downloaded code. It reads a fixed set of
 > numeric weights out of a file and multiplies them, using a forward pass
 > compiled into the binary. The app refuses to load any file whose structure is
 > not exactly the one architecture it supports — nine operations in a fixed

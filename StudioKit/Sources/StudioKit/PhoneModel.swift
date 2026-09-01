@@ -23,7 +23,7 @@ import Foundation
 /// 984 MB and "about a gigabyte" is the difference between fitting and not.
 ///
 /// AND A SMALL MODEL IS ACCEPTABLE HERE FOR A REASON THAT IS NOT TRUE OF MOST
-/// APPS. Everything a model writes in Duck Studio is parsed, resolved and
+/// APPS. Everything a model writes in Microduck Studio is parsed, resolved and
 /// clamped by tested code before it reaches a joint — `IntentDraft` refuses a
 /// pose outside the robot's travel, and `DraftRouting` refuses an answer it
 /// cannot read. The failure mode of a weak model here is a refusal, not a duck

@@ -6,7 +6,7 @@ import DuckKit
 
 /// A machine on your network that has physics, which this phone does not.
 ///
-/// THE GAP THIS CLOSES. Duck Studio can import a policy — Pollen's, or one
+/// THE GAP THIS CLOSES. Microduck Studio can import a policy — Pollen's, or one
 /// somebody published on Hugging Face — and then do nothing with it: an iPhone
 /// has no MuJoCo, so every clip in the app was recorded on a bigger machine and
 /// baked in at build time. Point this at a bench (`sim/duckbench.mjs` in

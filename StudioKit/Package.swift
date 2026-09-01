@@ -1,7 +1,7 @@
 // swift-tools-version:5.9
 import PackageDescription
 
-// StudioKit — Duck Studio's presentation core.
+// StudioKit — Microduck Studio's presentation core.
 //
 // THE RULE THIS PACKAGE EXISTS TO ENFORCE: StudioKit computes, DuckStudio
 // displays. No arithmetic in the app target, and no robot knowledge here that

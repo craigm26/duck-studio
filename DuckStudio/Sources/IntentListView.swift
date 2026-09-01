@@ -86,8 +86,20 @@ struct IntentListView: View {
         let object = String(format: "%.0f g, %.0f mm thick, %.1f m away",
                             file.stick.grams, file.stick.thicknessMillimetres,
                             file.stick.metresAway)
-        return plan.isPossible ? "\(object) · it can do this"
-                               : "\(object) · refused"
+        // "IT CAN DO THIS" IS NOT `isPossible` ON ITS OWN. `isPossible` is
+        // "no FATAL refusal", and two refusals are non-fatal by design:
+        // `.tooHeavyToLift` — past the trained lift but the floor can take the
+        // drag — and `.tooFar`. A 600 g broom at friction 0.4 needs ~2.35 N
+        // against a ~5.06 N slip ceiling, so it lands here carrying
+        // `Drag.untestedNote` ("nothing has trained or measured a duck towing
+        // anything") and this row used to print an unqualified yes over it.
+        // The refusals are the product; a summary that drops them sells the
+        // opposite of what the screen below it says.
+        if !plan.isPossible { return "\(object) · refused" }
+        let caveats = plan.refusals.count
+        if caveats == 0 { return "\(object) · it can do this" }
+        return "\(object) · it can do this, with "
+             + (caveats == 1 ? "one caveat" : "\(caveats) caveats")
     }
 
     var body: some View {
@@ -254,9 +266,16 @@ struct IntentListView: View {
                 Section {
                     ForEach(model.importedClips, id: \.name) { row($0) }
                 } header: {
-                    Text("Sent to you")
+                    // NOT "Sent to you". Recordings kept from your own bench
+                    // land in exactly this array — nobody sent those, and the
+                    // footer's promise about digests is false for them on
+                    // purpose: `RemoteRunView.keepRecording` passes
+                    // `policyFingerprint: nil` because a policy running on a
+                    // bench has no digest this phone computed, and inventing one
+                    // would put an unverified number on a card.
+                    Text("Brought in")
                 } footer: {
-                    Text("Motions imported from a .duckintent file. Each names the policy it was recorded from by digest, so you can check whether you hold the same network.")
+                    Text("Motions from a .duckintent file — sent to you, or kept from your own bench. One that carries a digest names the policy it was recorded from, so you can check whether you hold the same network; a bench recording carries none, and its card says so.")
                 }
             }
             if !shared.isEmpty {

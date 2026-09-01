@@ -60,7 +60,6 @@ struct AutomationChatView: View {
     /// on a flag beside it — see `ExportedFile`, which exists because the pair
     /// it replaced could reach a state where the sheet was open and the file
     /// was not there.
-    @State private var outgoing: ExportedFile?
     /// Why a task could not be written. This screen refuses things for a
     /// living; it does not get to fail quietly when it is the one that failed.
     @State private var exportFailure: String?
@@ -131,6 +130,19 @@ struct AutomationChatView: View {
         /// What the model cost in wall-clock, when it was not Apple's. A local
         /// model on a small board is slow, and saying so beats a spinner.
         var timing: String? = nil
+        /// The model that read this sentence, or nil when nothing did.
+        ///
+        /// NIL IS THE COMMON CASE FOR A FETCH, AND `provenance` USED TO LIE
+        /// ABOUT IT. `DuckPlanFile.provenance` is "where it came from — a
+        /// person, or a named model", and `save` filled it unconditionally with
+        /// `models.selected.name`. Two of the three routes to a fetch card run
+        /// no model at all: `draftFetchLocally` is pure `Retrieval` — its own
+        /// comment says sizing a stick does not need a language model — and it
+        /// is reached both from the Apple branch and from the no-model
+        /// fallback, where `models.selected` is merely whatever is picked and
+        /// may never have been contacted. Plans were being stamped with the
+        /// name of a model that never saw them.
+        var drafter: String? = nil
     }
 
     private var knownIntents: Set<String> { Set(clips.keys) }
@@ -261,7 +273,7 @@ struct AutomationChatView: View {
                             // cannot be given this plan until `RetrieveView`
                             // takes a sentence and the props that resolved it.
                             Button {
-                                save(plan, named: entry.asked)
+                                save(plan, named: entry.asked, by: entry.drafter)
                             } label: {
                                 Label("Keep this plan",
                                       systemImage: "tray.and.arrow.down")
@@ -277,6 +289,16 @@ struct AutomationChatView: View {
                             // object nobody mentioned is the file that promise
                             // exists to rule out.
                             .disabled(entry.planConfidence == .notUnderstood)
+                            // WRITTEN AND RENDERED NOWHERE, for one revision.
+                            // `kept` was set on success and read in no `body`,
+                            // so the entire success path of the button above it
+                            // was: press, nothing changes, go and look in
+                            // another tab. Only the failure had a voice.
+                            if kept == entry.asked {
+                                Label("Kept — it is in your Intents, under Plans.",
+                                      systemImage: "checkmark.circle")
+                                    .font(.caption).foregroundStyle(.green)
+                            }
                         }
 
                         if let request = entry.request {
@@ -321,9 +343,6 @@ struct AutomationChatView: View {
             // again when UIKit says the share is over. Hung on the list rather
             // than on the enclosing stack because the draft preview already
             // owns a sheet there.
-            .sheet(item: $outgoing) { out in
-                ShareSheet(items: [out.url]) { outgoing = nil }
-            }
             .alert("That did not save",
                    isPresented: .constant(exportFailure != nil),
                    presenting: exportFailure) { _ in
@@ -671,7 +690,8 @@ struct AutomationChatView: View {
                     entries.append(Entry(asked: asked, plan: plan,
                                          planObject: reading.object,
                                          planConfidence: reading.confidence,
-                                         planReading: reading.sentence, timing: timing))
+                                         planReading: reading.sentence, timing: timing,
+                                         drafter: endpoint.name))
                 } else {
                     // A MODEL READ THIS ONE, SO THE LOCAL READER'S CONFIDENCE
                     // WOULD BE THE WRONG ANSWER. `ChatDraft.stick` got a named
@@ -686,7 +706,8 @@ struct AutomationChatView: View {
                     entries.append(Entry(asked: asked,
                                          plan: Retrieval.plan(for: stick),
                                          planObject: object,
-                                         planConfidence: .understood, timing: timing))
+                                         planConfidence: .understood, timing: timing,
+                                         drafter: endpoint.name))
                 }
             }
         } catch let wire as ChatWire.WireError {
@@ -734,9 +755,10 @@ struct AutomationChatView: View {
     /// the motions.
     ///
     /// THE TITLE IS THE PERSON'S OWN WORDS, not a phrase composed here.
-    private func save(_ plan: Retrieval.Plan, named title: String) {
+    private func save(_ plan: Retrieval.Plan, named title: String, by drafter: String?) {
         let file = DuckPlanFile(name: title, stick: plan.stick, asked: title,
-                                provenance: models.selected.name)
+                                provenance: drafter.map { "Drafted by \($0)" }
+                                         ?? "Read on this phone, no model")
         guard plans.save(file) else {
             exportFailure = "That plan could not be kept on this phone."
             return
