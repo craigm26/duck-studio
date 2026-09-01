@@ -48,30 +48,64 @@ EXCLUDE = {".git", ".build", ".claude", "DerivedData", "__pycache__"}
 
 
 def password() -> str:
-    """Read the Mac password out of 1Password via the desktop integration.
+    """Read the Mac password out of 1Password.
 
-    The service-account token is explicitly stripped: it resolves a DIFFERENT,
-    read-only identity that cannot see this item, and its presence silently
-    wins over the desktop integration.
+    THE SERVICE ACCOUNT FIRST, AND THE COMMENT THAT USED TO BE HERE WAS WRONG.
+    It said the service-account token "resolves a DIFFERENT, read-only identity
+    that cannot see this item" and stripped it on that basis — so every build
+    borrowed authorisation from the desktop app and inherited its lock state.
+    That cost most of a day: the app re-locks on a short timer, and a gate that
+    cannot read a password is a gate that does not run.
 
-    `MAC_PASSWORD` short-circuits the lookup. That exists because the desktop
-    app re-locks on its own timer, and a lock in the middle of a long session
-    turns `op` into a sixty-second hang followed by a dead build — which is a
-    bad way to lose a compile check you were part-way through. Set it for a run
-    of builds; do not put it in a file that outlives the session.
+    Checked 2026-08-31: the `pi-unattended-deploys` service account has READ on
+    the Civqo vault, this item is in Civqo, and `op read` with the token returns
+    it in a clean environment. A service account never locks, which is the whole
+    reason it exists.
+
+    The desktop integration stays as the fallback for a machine that has no
+    token. `MAC_PASSWORD` still short-circuits both.
     """
     cached = os.environ.get("MAC_PASSWORD")
     if cached:
         return cached.strip()
-    env = {k: v for k, v in os.environ.items() if k != "OP_SERVICE_ACCOUNT_TOKEN"}
-    try:
-        out = subprocess.run(["op", "read", OP_REF], capture_output=True, text=True,
-                             timeout=60, env=env, check=True)
-    except subprocess.TimeoutExpired:
-        sys.exit("op timed out. The 1Password desktop app is locked — unlock it and retry.")
-    except subprocess.CalledProcessError as exc:
-        sys.exit(f"op failed: {exc.stderr.strip()}")
-    return out.stdout.strip()
+
+    env = dict(os.environ)
+    if "OP_SERVICE_ACCOUNT_TOKEN" not in env:
+        # Sourced from ~/.bashrc for interactive shells; a subprocess spawned by
+        # an agent does not necessarily have it.
+        account = pathlib.Path.home() / ".config/op/service-account.env"
+        if account.exists():
+            for line in account.read_text().splitlines():
+                line = line.strip().removeprefix("export ").strip()
+                if line.startswith("OP_SERVICE_ACCOUNT_TOKEN="):
+                    env["OP_SERVICE_ACCOUNT_TOKEN"] = line.split("=", 1)[1].strip().strip("'\"")
+
+    attempts = []
+    if env.get("OP_SERVICE_ACCOUNT_TOKEN"):
+        attempts.append(("service account", env))
+    # Desktop integration: same environment WITHOUT the token, because the two
+    # identities cannot both be presented.
+    desktop = {k: v for k, v in os.environ.items() if k != "OP_SERVICE_ACCOUNT_TOKEN"}
+    attempts.append(("desktop app", desktop))
+
+    problems = []
+    for label, environment in attempts:
+        try:
+            out = subprocess.run(["op", "read", OP_REF], capture_output=True, text=True,
+                                 timeout=60, env=environment, check=True)
+            secret = out.stdout.strip()
+            if secret:
+                return secret
+            problems.append(f"{label}: empty answer")
+        except subprocess.TimeoutExpired:
+            problems.append(f"{label}: timed out (the desktop app is locked)")
+        except subprocess.CalledProcessError as exc:
+            problems.append(f"{label}: {exc.stderr.strip().splitlines()[0] if exc.stderr.strip() else 'failed'}")
+
+    sys.exit("could not read the Mac password from 1Password.\n  "
+             + "\n  ".join(problems)
+             + "\nSet MAC_PASSWORD for this run, or fix the service-account token at "
+               "~/.config/op/service-account.env.")
 
 
 # THIS REPO, NOT WHATEVER DIRECTORY THE SHELL HAPPENED TO BE IN.

@@ -191,4 +191,38 @@ final class PhoneModelInstallTests: XCTestCase {
         XCTAssertTrue(gemma.note.contains("buys back no memory"), gemma.note)
         XCTAssertTrue(gemma.note.contains("nobody has run it here"), gemma.note)
     }
+
+    /// A STOPPED DOWNLOAD MUST SAY SO. Swallowing cancellation made the row
+    /// stop moving and — with the partial read as complete — turn green, which
+    /// is how a half-downloaded model looked finished.
+    func testAStoppedDownloadIsReportedAndSaysWhatToDo() {
+        let s = PhoneModelInstall.stopped
+        XCTAssertTrue(s.contains("stopped before it finished"), s)
+        XCTAssertTrue(s.contains("starting it again"), s)
+        XCTAssertTrue(s.contains("delete it and start over"), s)
+    }
+
+    /// QWEN'S OWN SOFT SWITCH, sent as well as the template flag because the
+    /// template route is unproven on a device and the first real run spent
+    /// twenty-three minutes producing no JSON.
+    func testQwenModelsGetTheDocumentedThinkingSwitch() {
+        XCTAssertEqual(
+            PhoneModelInstall.prompt("take a bow", for: "mlx-community/Qwen3-1.7B-4bit"),
+            "take a bow /no_think")
+        // AND NOTHING ELSE DOES. A model that never heard of the token would
+        // just receive a stray word in its prompt.
+        XCTAssertEqual(
+            PhoneModelInstall.prompt("take a bow", for: "mlx-community/Llama-3.2-1B-Instruct-4bit"),
+            "take a bow")
+        XCTAssertEqual(
+            PhoneModelInstall.prompt("take a bow", for: "mlx-community/gemma-3-1b-it-qat-4bit"),
+            "take a bow")
+    }
+
+    /// A DEADLINE THAT STOPS IT, and a sentence that says what to do instead.
+    func testTheTimeoutSentenceSuggestsSomethingActionable() {
+        let s = PhoneModelInstall.tookTooLong(seconds: 300)
+        XCTAssertTrue(s.contains("300 seconds"), s)
+        XCTAssertTrue(s.contains("shorter one, or a bigger model"), s)
+    }
 }

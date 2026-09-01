@@ -138,8 +138,12 @@ enum DraftEngine {
                          : PhoneModel.tooBig(known, budgetBytes: budget))
         }
         let started = Date()
+        // THE ENDPOINT'S OWN ALLOWANCE, ENFORCED. Every other kind gets its
+        // timeout from URLSession; this one had none at all, so a generation
+        // that overran was judged late only after it finished.
         let reply = try await runtime.ask(endpoint.model,
-                                          instructions: instructions, prompt: prompt)
+                                          instructions: instructions, prompt: prompt,
+                                          deadline: endpoint.timeout)
         return Answer(json: try ChatWire.firstJSONObject(in: reply),
                       seconds: Date().timeIntervalSince(started), tokens: nil)
     }

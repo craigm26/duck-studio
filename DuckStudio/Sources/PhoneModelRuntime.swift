@@ -60,7 +60,14 @@ final class PhoneModelRuntime {
     private func capCacheOnce() {
         guard !cappedCache else { return }
         cappedCache = true
-        MLX.GPU.set(cacheLimit: 20 * 1024 * 1024)
+        // 128 MB, AND THIS NUMBER IS A GUESS REPLACING A WORSE ONE. It was
+        // 20 MB, copied from Apple's iOS chat example, and the first real run
+        // on a phone managed roughly 0.85 tokens a second on a 0.6B — about
+        // fifty times slower than that model should be. A cache this small
+        // makes MLX allocate and free Metal buffers continuously, which is the
+        // most likely explanation and is not yet a measured one. The draft card
+        // now prints how long a draft took, so the next run measures it.
+        MLX.GPU.set(cacheLimit: 128 * 1024 * 1024)
     }
 
     /// Deterministic, and bounded. Temperature 0 selects argmax, which is what
@@ -70,7 +77,12 @@ final class PhoneModelRuntime {
     private func parameters() -> GenerateParameters {
         var p = GenerateParameters()
         p.temperature = 0
-        p.maxTokens = 1200
+        // 700, NOT 1200. A motion is a short JSON object — the corpus's longest
+        // is nowhere near this — and on a phone every unused token in the
+        // ceiling is time somebody spends watching a spinner. The first device
+        // run burned 1200 tokens over 1409 seconds and emitted no JSON at all,
+        // so a smaller ceiling is also a shorter way to find that out.
+        p.maxTokens = 700
         return p
     }
 
@@ -109,8 +121,19 @@ final class PhoneModelRuntime {
         return container
     }
 
-    private static func fetch(_ repository: String,
-                              progress: @escaping @Sendable (Progress) -> Void) async throws
+    /// NONISOLATED, AND THAT IS THE WHOLE REASON PROGRESS MOVES.
+    ///
+    /// This class is @MainActor because its state is read from views — but a
+    /// static method inherits that isolation, so the download AND the weight
+    /// load ran on the main actor. The hub samples progress every 100 ms and
+    /// calls back faithfully; every one of those updates then queued behind
+    /// synchronous loading work on the same actor and arrived only when it
+    /// finished. The bar sat at the small files and then jumped to done.
+    ///
+    /// Nothing here touches instance state, so it does not need the actor.
+    nonisolated private static func fetch(
+        _ repository: String,
+        progress: @escaping @Sendable (Progress) -> Void) async throws
         -> ModelContainer {
         // THE `id:` OVERLOAD, NOT A REGISTRY CONSTANT. The registry names a
         // fixed set; this app lets somebody pick any mlx-community repository,
@@ -134,7 +157,16 @@ final class PhoneModelRuntime {
     /// its token loop with a plain `Task {}`, which inherits this actor and
     /// would run the whole generation on the UI thread. ChatSession does its
     /// work inside ModelContainer's own mutex actor instead.
-    func ask(_ repository: String, instructions: String, prompt: String) async throws -> String {
+    /// Ask it, with a DEADLINE THAT ACTUALLY STOPS IT.
+    ///
+    /// `DraftBudget` judges between steps, so a single generation that overran
+    /// was only noticed once it finished: the first device run reported "1409 s
+    /// of the 300 s this was given" — it had been allowed to run for
+    /// twenty-three minutes and then been told it was late. An in-process model
+    /// has no URLSession timeout to fall back on, so the deadline has to be
+    /// here, and it has to cancel.
+    func ask(_ repository: String, instructions: String, prompt: String,
+             deadline: TimeInterval) async throws -> String {
         let container = try await load(repository)
         // THINKING OFF, BY LABEL NOT POSITION — `speculativeDecoding` sits
         // between `instructions` and `generateParameters`, and
@@ -147,7 +179,22 @@ final class PhoneModelRuntime {
                                   instructions: instructions,
                                   generateParameters: parameters(),
                                   additionalContext: PhoneModelInstall.templateThinkingOff)
-        return try await session.respond(to: prompt)
+        let asked = PhoneModelInstall.prompt(prompt, for: repository)
+
+        return try await withThrowingTaskGroup(of: String.self) { group in
+            group.addTask { try await session.respond(to: asked) }
+            group.addTask {
+                try await Task.sleep(for: .seconds(deadline))
+                throw Failure.unavailable(PhoneModelInstall.tookTooLong(seconds: deadline))
+            }
+            // Whichever finishes first wins; cancelling the group stops the
+            // other, which is the part that was missing.
+            defer { group.cancelAll() }
+            guard let first = try await group.next() else {
+                throw Failure.unavailable(PhoneModelInstall.notLoaded)
+            }
+            return first
+        }
     }
 
     /// Whether this repository's weights are the ones currently resident.
@@ -176,7 +223,8 @@ final class PhoneModelRuntime {
         throw Failure.unavailable(PhoneModelInstall.simulatorRefusal)
     }
 
-    func ask(_ repository: String, instructions: String, prompt: String) async throws -> String {
+    func ask(_ repository: String, instructions: String, prompt: String,
+             deadline: TimeInterval) async throws -> String {
         throw Failure.unavailable(PhoneModelInstall.simulatorRefusal)
     }
 

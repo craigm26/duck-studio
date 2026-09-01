@@ -34,8 +34,14 @@ struct PhoneModelPickerView: View {
     /// Read once per appearance. As a computed property it drifted between
     /// rows within a single body evaluation.
     @State private var budgetSnapshot = 0
+    /// Measured from successive progress samples, so the line can say how fast
+    /// and how long — which a filling bar cannot.
+    @State private var rate = DownloadRate()
     @State private var failure: String?
-    @State private var installed: [String: Int] = [:]
+    /// State AND size. Holding only the size meant any directory with a file
+    /// in it read as installed — which is how 14 MB of tokenizer JSON showed as
+    /// "On this phone" with a Delete button and no way to finish the download.
+    @State private var installed: [String: (state: PhoneModelInstall.InstallState, bytes: Int)] = [:]
 
     private var budget: Int { budgetSnapshot }
 
@@ -115,7 +121,7 @@ struct PhoneModelPickerView: View {
     }
 
     @ViewBuilder private func row(_ model: PhoneModel) -> some View {
-        let bytes = installed[model.repository]
+        let here = installed[model.repository]
         let fits = model.fits(budgetBytes: budget)
 
         VStack(alignment: .leading, spacing: 4) {
@@ -128,14 +134,22 @@ struct PhoneModelPickerView: View {
                 Spacer()
                 if busyWith == model.repository {
                     ProgressView()
-                } else if bytes != nil {
+                } else if here?.state == .complete {
                     Button(role: .destructive) { remove(model) } label: { Text("Delete") }
                         .buttonStyle(.borderless)
                 } else {
-                    Button("Download") { download(model) }
-                        .buttonStyle(.borderless)
-                        .disabled(!fits || !PhoneModelRuntime.shared.isSupported
-                                  || busyWith != nil)
+                    // A PARTIAL GETS BOTH. Downloading again is the resume —
+                    // files that finished are skipped — and deleting is the way
+                    // out of a download that will not finish.
+                    HStack(spacing: 12) {
+                        Button(here == nil ? "Download" : "Resume") { download(model) }
+                            .buttonStyle(.borderless)
+                            .disabled(!PhoneModelRuntime.shared.isSupported || busyWith != nil)
+                        if here != nil {
+                            Button(role: .destructive) { remove(model) } label: { Text("Delete") }
+                                .buttonStyle(.borderless)
+                        }
+                    }
                 }
             }
 
@@ -146,13 +160,17 @@ struct PhoneModelPickerView: View {
             if busyWith == model.repository, let progress {
                 VStack(alignment: .leading, spacing: 3) {
                     ProgressView(value: min(max(progress.fraction, 0), 1))
-                    Text(PhoneModelInstall.downloading(fraction: progress.fraction,
-                                                       totalBytes: progress.total))
+                    Text(rate.line(fraction: progress.fraction, totalBytes: progress.total))
                         .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-            } else if let bytes {
-                Text(PhoneModelInstall.installed(bytes: bytes))
+            } else if let here, here.state == .complete {
+                Text(PhoneModelInstall.installed(bytes: here.bytes))
                     .font(.caption).foregroundStyle(.green)
+            } else if let here {
+                Text(PhoneModelInstall.partlyDownloaded(bytes: here.bytes))
+                    .font(.caption).foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
             } else if !fits {
                 Text(PhoneModel.tooBig(model, budgetBytes: budget))
                     .font(.caption).foregroundStyle(.orange)
@@ -167,10 +185,16 @@ struct PhoneModelPickerView: View {
 
     // MARK: - doing it
 
+    /// BOTH LISTS. This walked `catalogue` only, so an untried model could
+    /// never show as installed however much of it was on the phone.
     private func refreshInstalled() {
-        var found: [String: Int] = [:]
-        for model in PhoneModel.catalogue {
-            if let bytes = PhoneModelFiles.bytesOnDisk(model.repository) { found[model.repository] = bytes }
+        var found: [String: (PhoneModelInstall.InstallState, Int)] = [:]
+        for model in PhoneModel.all {
+            let contents = PhoneModelFiles.contents(model.repository)
+            let state = PhoneModelInstall.state(paths: contents.paths,
+                                                indexJSON: contents.index,
+                                                bytes: contents.bytes)
+            if state != .absent { found[model.repository] = (state, contents.bytes) }
         }
         installed = found
     }
@@ -197,10 +221,15 @@ struct PhoneModelPickerView: View {
                     PhoneModelRuntime.shared.unload(ifHolding: model.repository)
                 }
             } catch is CancellationError {
-                // Leaving the screen is not a failure to report back to it.
+                // SAID, NOT SWALLOWED. Silence here is indistinguishable from
+                // success: the row simply stops moving, and with a partial on
+                // disk it used to go green. Whatever stopped it, the person
+                // needs to know it stopped.
+                failure = PhoneModelInstall.stopped
+            } catch let error as URLError where error.code == .cancelled {
+                failure = PhoneModelInstall.stopped
             } catch let error as PhoneModelRuntime.Failure {
                 failure = PhoneModelInstall.failed(error.message)
-            } catch let error as URLError where error.code == .cancelled {
             } catch {
                 failure = PhoneModelInstall.failed(error.localizedDescription)
             }

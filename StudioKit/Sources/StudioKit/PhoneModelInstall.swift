@@ -91,6 +91,17 @@ public enum PhoneModelInstall {
         "On this phone, taking \(PhoneModel.megabytes(bytes))."
     }
 
+    /// A download that stopped without an error of its own.
+    ///
+    /// IT USED TO BE SILENT, which is the worst of the options: the row stopped
+    /// moving and — with a partial on disk read as complete — turned green. A
+    /// person cannot act on a thing that did not say it happened.
+    public static let stopped =
+        "That download stopped before it finished. Files that already arrived are kept, so "
+      + "starting it again picks up from there. If it keeps stopping in the same place, delete "
+      + "it and start over — and on a phone with little free memory, a smaller model is the "
+      + "surer bet."
+
     public static func failed(_ reason: String) -> String {
         "That did not finish. \(reason)"
     }
@@ -132,6 +143,29 @@ public enum PhoneModelInstall {
         }
         return "Delete \(name) and free \(PhoneModel.megabytes(bytes))? It can be downloaded "
              + "again, at the same cost."
+    }
+
+    /// The prompt, with a model's own thinking switch on it where it has one.
+    ///
+    /// BELT AND BRACES, BECAUSE THE TEMPLATE ROUTE IS NOT PROVEN ON A DEVICE.
+    /// `templateThinkingOff` should reach the Jinja template — the chain from
+    /// `additionalContext` through to swift-transformers is plumbed — but the
+    /// first real run on a phone spent 1409 seconds and 700-odd tokens without
+    /// emitting any JSON, which is what thinking-with-greedy-decoding looks
+    /// like. Qwen documents `/no_think` as a soft switch in the message itself,
+    /// so both are sent and either suffices.
+    ///
+    /// ONLY WHERE IT IS DOCUMENTED. A model that has never heard of the token
+    /// would just receive a stray word in its prompt.
+    public static func prompt(_ prompt: String, for repository: String) -> String {
+        repository.lowercased().contains("qwen3") ? prompt + " /no_think" : prompt
+    }
+
+    /// A generation that ran past its deadline and was stopped.
+    public static func tookTooLong(seconds: TimeInterval) -> String {
+        "That took longer than \(Int(seconds)) seconds and was stopped. A model this size on a "
+      + "phone is slow, and a sentence with two clauses in it is where the small ones give up — "
+      + "try a shorter one, or a bigger model."
     }
 
     /// Turns a chat template's thinking block off, where the template reads it.
