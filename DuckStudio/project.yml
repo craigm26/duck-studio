@@ -190,7 +190,7 @@ targets:
         # a Lab mode on their floor. There is no compile-time gate that can see
         # this: it is a runtime plist check, so `swiftc -parse`, `swift test`
         # and a clean `xcodebuild` all pass while the binary is unusable.
-        NSCameraUsageDescription: "Duck Studio uses the camera only in the Lab, and only when you choose 'Your floor' — to find the floor you are standing on so a duck can be drawn at its real 25 cm on it. No image is recorded, stored, or sent anywhere, and every Lab mode also runs on a rendered stage with the camera switched off."
+        NSCameraUsageDescription: "Microduck Studio uses the camera only in the Lab, and only when you choose 'Your floor' — to find the floor you are standing on so a duck can be drawn at its real 25 cm on it. No image is recorded, stored, or sent anywhere, and every Lab mode also runs on a rendered stage with the camera switched off."
         # THE BENCH IS ON YOUR NETWORK, WHICH iOS TREATS AS PRIVATE. A plain
         # request to an RFC1918 or `.local` address needs this key from iOS 14
         # on, and `DuckBench` refuses to send anywhere else — see its `Address`
@@ -200,7 +200,7 @@ targets:
         # NO BONJOUR SERVICES ARE DECLARED, deliberately: nothing here browses
         # for a bench. You type its address. Discovery would be the moment this
         # app started looking at a network it was not pointed at.
-        NSLocalNetworkUsageDescription: "Duck Studio contacts a physics bench on your own network — only the address you type in, and only when you ask it to run something. It never looks for machines by itself and nothing about your policies or motions leaves your network."
+        NSLocalNetworkUsageDescription: "Microduck Studio contacts a physics bench on your own network — only the address you type in, and only when you ask it to run something. It never looks for machines by itself and nothing about your policies or motions leaves your network."
         # ATS BLOCKS PLAIN HTTP, AND A PI ON A DESK HAS NO CERTIFICATE. This
         # exception covers local addresses only; everything else in the app is
         # still held to HTTPS, which is what `ModelEndpoint`'s
@@ -209,7 +209,7 @@ targets:
           NSAllowsLocalNetworking: true
         # A shared motion, which is this app's OWN format — so Exported here,
         # unlike ONNX. Declaring it is what lets a .duckintent arriving in a
-        # chat or in Files offer Duck Studio to open it.
+        # chat or in Files offer Microduck Studio to open it.
         UTExportedTypeDeclarations:
           # The authored-motion format this app WRITES. Declaring it exported
           # is what lets AirDrop and the share sheet hand the type over by
@@ -264,7 +264,7 @@ targets:
           # `DraftStore` — not an optional one — decodes a `.duckmove` and puts
           # it in the drafts list, so iOS offering this app for the type leads
           # somewhere. Owner rather than Alternate because this is our format:
-          # Duck Studio writes `.duckmove` and OpenCastor reads it, so a motion
+          # Microduck Studio writes `.duckmove` and OpenCastor reads it, so a motion
           # coming back the other way should land here by default.
           - CFBundleTypeName: Microduck authored motion
             LSItemContentTypes:
@@ -285,7 +285,7 @@ targets:
         DEVELOPMENT_TEAM: WYGG3JXWMG
         CODE_SIGN_STYLE: Automatic
         MARKETING_VERSION: "1.1"
-        CURRENT_PROJECT_VERSION: "37"
+        CURRENT_PROJECT_VERSION: "38"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         SWIFT_VERSION: "5.9"
         TARGETED_DEVICE_FAMILY: "1,2"
