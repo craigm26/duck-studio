@@ -31,12 +31,35 @@ struct DuckStudioApp: App {
 
     @Environment(\.scenePhase) private var scenePhase
 
+    /// Which tab is showing.
+    ///
+    /// IT EXISTS SO SCREENSHOTS CAN BE TAKEN WITHOUT A HUMAN THUMB. `TabView`
+    /// with no selection cannot be told which tab to open, and the App Store
+    /// wants a picture of each one. A simulator can launch an app with
+    /// arguments but cannot tap a tab bar, so the launch argument is the whole
+    /// mechanism: `-tab 3` opens the fourth tab and the shot is taken.
+    ///
+    /// It changes nothing for anybody running the app normally — no argument,
+    /// first tab, exactly as before — and it is deliberately not a persisted
+    /// preference, because "the tab you were last on" is a different feature
+    /// with different opinions and this is not it.
+    @State private var tab = Self.launchTab
+
+    /// The tab a `-tab N` launch argument asked for, or the first.
+    static var launchTab: Int {
+        let args = ProcessInfo.processInfo.arguments
+        guard let i = args.firstIndex(of: "-tab"), i + 1 < args.count,
+              let n = Int(args[i + 1]), (0...4).contains(n) else { return 0 }
+        return n
+    }
+
     var body: some Scene {
         WindowGroup {
-            TabView {
+            TabView(selection: $tab) {
                 NavigationStack { PolicyListView(model: model, scenes: scenes, drafts: drafts,
                                                models: models, benches: benches) }
                     .tabItem { Label("Policies", systemImage: "cpu") }
+                    .tag(0)
                 NavigationStack { IntentListView(models: models, benches: benches, plans: plans, store: scenes, model: model, drafts: drafts) }
                     // "MOTIONS", NOT "INTENTS", AND POLLEN OWN THE OTHER WORD.
                     // This tab holds recordings and authored moves — what a
@@ -48,6 +71,7 @@ struct DuckStudioApp: App {
                     // and the Drive screen is now the one that really does send
                     // intents. So this tab gives the word back.
                     .tabItem { Label("Motions", systemImage: "figure.walk.motion") }
+                    .tag(1)
                 // A THIRD KIND OF THING, and it earned its own tab the moment
                 // the stage started drawing one. A policy is a network, an
                 // intent is a motion, and a scene is a PLACE — the floor, the
@@ -56,10 +80,12 @@ struct DuckStudioApp: App {
                 // made every clip play in a void.
                 NavigationStack { SceneListView(store: scenes, models: models, benches: benches) }
                     .tabItem { Label("Scenes", systemImage: "square.3.layers.3d") }
+                    .tag(2)
                 NavigationStack {
                     AutomationChatView(drafts: drafts, scenes: scenes, models: models, benches: benches, plans: plans)
                 }
                     .tabItem { Label("Draft", systemImage: "wand.and.stars") }
+                    .tag(3)
                 // THE FIFTH AND LAST TAB, AND THAT IS A HARD CEILING. iPhone
                 // shows five before it folds the rest into "More", where a tab
                 // is somewhere people do not go. Anything that arrives after
@@ -74,6 +100,7 @@ struct DuckStudioApp: App {
                     LabView(model: model, scenes: scenes, drafts: drafts, models: models, benches: benches)
                 }
                     .tabItem { Label("Lab", systemImage: "flask") }
+                    .tag(4)
             }
             // A policy handed over from Files, Mail, AirDrop or another app.
             // Declared in Info.plist as an IMPORTED type — ONNX is not this
