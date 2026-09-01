@@ -39,7 +39,11 @@ struct DuckSoundsView: View {
     @State private var gaits: [DuckTrajectory.Clip: DuckTrajectory] = [:]
     @State private var unavailable: String?
 
-    private let columns = [GridItem(.adaptive(minimum: 92), spacing: 10)]
+    /// Wide enough for the longest call at the default text size, and adaptive
+    /// so the grid reflows to one column rather than truncating a name when the
+    /// text grows.
+    private let columns = [GridItem(.adaptive(minimum: SoundMetric.callWidth),
+                                    spacing: Theme.spacing(.tight))]
 
     var body: some View {
         VStack(spacing: 0) {
@@ -52,6 +56,7 @@ struct DuckSoundsView: View {
 
             controls
         }
+        .background(Theme.backgroundPrimary)
         .navigationTitle("Duck sounds")
         .navigationBarTitleDisplayMode(.inline)
         .task { load() }
@@ -59,44 +64,102 @@ struct DuckSoundsView: View {
     }
 
     @ViewBuilder private var controls: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: Theme.spacing(.snug)) {
             if let unavailable {
-                Text(unavailable).font(.footnote).foregroundStyle(.orange)
-                    .padding(.horizontal)
+                // A RECORDING THAT DID NOT LOAD IS A WARNING, NOT A REFUSAL.
+                // Nothing said no — a file is missing, and the consequence is
+                // that the calls below are inert. `Theme.warning` is the token
+                // for that, and the symbol and the sentence are what carry it
+                // for anybody who cannot see the colour; `.orange` was a raw
+                // literal on cream at 2.30:1, which is the one contrast this
+                // palette explicitly refuses to set words in.
+                Label(unavailable, systemImage: "exclamationmark.triangle")
+                    .font(.footnote)
+                    .foregroundStyle(Theme.warning)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(Theme.spacing(.snug))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Theme.surfacePrimary, in: notice)
+                    .overlay(notice.strokeBorder(Theme.separator,
+                                                 lineWidth: SoundMetric.hairlineStroke))
+                    .padding(.horizontal, Theme.spacing(.standard))
             }
 
-            LazyVGrid(columns: columns, spacing: 10) {
+            LazyVGrid(columns: columns, spacing: Theme.spacing(.tight)) {
                 ForEach(DuckSound.allCases, id: \.self) { sound in
                     button(for: sound)
                 }
             }
-            .padding(.horizontal)
+            .padding(.horizontal, Theme.spacing(.standard))
 
             Text(SoundStaging.caveat)
-                .font(.caption).foregroundStyle(.secondary)
+                .font(.caption)
+                .foregroundStyle(Theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal).padding(.bottom, 8)
+                .padding(.horizontal, Theme.spacing(.standard))
+                .padding(.bottom, Theme.spacing(.tight))
         }
     }
 
+    /// One call.
+    ///
+    /// SIZED FOR A CONTROL THAT MOVES THE DUCK, BECAUSE THAT IS WHAT IT IS.
+    /// Every one of these plays a voice AND a movement of the whole body — the
+    /// screen's own first paragraph says neither half is decoration for the
+    /// other — so it owes the taller floor a machine's control owes, not the
+    /// forty-four points a tab bar owes. It was pinned at 46.
+    ///
+    /// AND THE TARGET COMES OFF THE SPACING SCALE RATHER THAN OFF A NUMBER.
+    /// `.loose` above and below a subheadline is a tile past sixty points in
+    /// both arrangements, which is how `DeadControlStyle` clears the same floor
+    /// in `DriveView`: there is exactly one 44 and one 60 written down in this
+    /// app and they are both in `DesignComponents`, where the HIG is cited.
+    /// `PrimaryActionStyle.moves` cannot be used directly here — these are not
+    /// `Button`s, because the held call needs a `DragGesture` to know when a
+    /// finger LIFTS, which is `DuckSound.isHeld`, the robot's own hold
+    /// semantics rather than a UI convention.
+    ///
+    /// THE BILL SAYS WHICH ONE IS PLAYING. A tint alone cannot: on this palette
+    /// `surfaceInteractive` differs from its ground by about 1.02:1 in light,
+    /// which `Theme` says in as many words is a hint and not information. The
+    /// orange bar under the playing call is the mark that carries it, and the
+    /// accessibility value says it in a word.
     private func button(for sound: DuckSound) -> some View {
         let isActive = playing == sound
-        return VStack(spacing: 2) {
-            Text(sound.tag).font(.subheadline.weight(.semibold))
+        let live = !gaits.isEmpty
+        return VStack(spacing: Theme.spacing(.hairline) / 2) {
+            Text(sound.tag)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(live ? Theme.textPrimary : Theme.textTertiary)
             // THE HELD ONE SAYS SO ON ITS FACE. A button that behaves
             // differently from the six beside it has to look different before
             // it is pressed, not after.
             if sound.isHeld {
-                Text("hold").font(.caption2).foregroundStyle(.secondary)
+                Text("hold")
+                    .font(.caption2)
+                    .foregroundStyle(live ? Theme.textSecondary : Theme.textTertiary)
             }
         }
-        .frame(maxWidth: .infinity, minHeight: 46)
-        .background(isActive ? Color.accentColor.opacity(0.25) : Color.secondary.opacity(0.12),
-                    in: RoundedRectangle(cornerRadius: 10))
-        .contentShape(RoundedRectangle(cornerRadius: 10))
+        .padding(.vertical, Theme.spacing(.loose))
+        .frame(maxWidth: .infinity)
+        .background(isActive ? Theme.surfaceInteractive : Theme.surfacePrimary, in: face)
+        .overlay(face.strokeBorder(Theme.separator, lineWidth: SoundMetric.hairlineStroke))
+        .overlay(alignment: .bottom) {
+            if isActive { BillIndicator().padding(.horizontal, Theme.spacing(.snug)) }
+        }
+        .contentShape(face)
         .gesture(gesture(for: sound))
         .disabled(gaits.isEmpty)
         .accessibilityLabel(Text(sound.isHeld ? "\(sound.tag), press and hold" : sound.tag))
+        .accessibilityValue(Text(isActive ? "playing" : ""))
+    }
+
+    private var face: RoundedRectangle {
+        RoundedRectangle(cornerRadius: Theme.radius(SoundMetric.face), style: .continuous)
+    }
+
+    private var notice: RoundedRectangle {
+        RoundedRectangle(cornerRadius: Theme.radius(SoundMetric.notice), style: .continuous)
     }
 
     private func gesture(for sound: DuckSound) -> some Gesture {
@@ -191,4 +254,24 @@ struct DuckSoundsView: View {
                         + "not travel, and that is a missing recording rather than the ride."
         }
     }
+}
+
+/// The numbers this screen writes down for itself.
+///
+/// NONE OF THEM IS A COLOUR OR A CONTRAST — a ratio is a fact and lives in
+/// `Palette` where a test runs the WCAG formula over it. How wide a call tile
+/// has to be to hold "wheee" is a judgement about a word.
+private enum SoundMetric {
+    /// A call tile — pressable, and not a pill.
+    static let face = Palette.Radius.control
+    /// The notice above them. A card, on the scale.
+    static let notice = Palette.Radius.card
+
+    /// The narrowest a call tile may be before the grid drops a column.
+    static let callWidth: CGFloat = 92
+
+    /// A hairline STROKE. One point, which on every device this ships to is one
+    /// to three pixels. Named for the stroke because `Palette.Spacing` already
+    /// has a `hairline` and it is four points.
+    static let hairlineStroke: CGFloat = 1
 }

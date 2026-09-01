@@ -19,6 +19,28 @@ import UIKit
 /// no buttons and nothing to tap: the app looks broken at the exact moment it
 /// just worked. So the completion handler is wired to the binding that
 /// presented it, and every caller passes one.
+///
+/// THERE IS NO `Theme` IN THIS TYPE AND THERE MUST NOT BE. Every pixel of what
+/// appears is drawn by `UIActivityViewController`: the destination grid, the
+/// row of app icons, the Cancel button, the card's own corner radius. Painting
+/// the app's palette onto a system sheet would make a surface that is not ours
+/// look like one that is — a person tapping "Messages" in there is handing a
+/// file to iOS, not to this app, and the sheet looking like iOS is the honest
+/// signal. The one thing the app does contribute is the tint, and it arrives on
+/// its own: `microduckTheme()` sets `Theme.actionSecondary` at the root and the
+/// presented controller inherits it through the trait collection.
+///
+/// THE SHEET'S LANDING IS NOT OURS TO SET EITHER, and this is worth writing
+/// down because it is the one place the design system asks for something iOS
+/// does not offer. `Theme.settle` is the app's critically-damped spring, for
+/// sheets that must arrive without overshooting; it is a SwiftUI `Animation`,
+/// and a sheet's presentation is animated by UIKit's own presentation
+/// controller, which takes no animation from the SwiftUI environment.
+/// `withAnimation(Theme.settle) { sharing = true }` changes the state on the
+/// settle curve and the sheet still slides up on the system's. Nothing here
+/// fakes it — a `.transition` applied to the representable would animate the
+/// controller's view INSIDE a card that is already moving, which is two springs
+/// fighting rather than one landing.
 struct ShareSheet: UIViewControllerRepresentable {
     let items: [Any]
     /// Called when UIKit dismisses the controller, however it ended. The caller

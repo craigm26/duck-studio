@@ -16,6 +16,23 @@ import StudioKit
 /// for a carrot and it says no, because the lift was trained against 10–40 g.
 /// Somebody who reads two refusals knows more about this robot than somebody
 /// who watched a demo work.
+///
+/// SO THE REFUSALS ARE DRAWN AS THE LESSON. A fatal refusal takes
+/// `Theme.refused` and an octagon; a caveat takes `Theme.warning` and a
+/// triangle; a sentence the reader could not make sense of takes the same
+/// warning with a question mark, because nothing was refused — the reading
+/// failed, not the duck. The three used to be orange, orange and the system's
+/// secondary grey, which said that a caveat is furniture and that a robot
+/// refusing a job is the same event as a parser shrugging.
+///
+/// THE CONSTANTS ARE NOT MONOSPACED AND THE SCHEDULE IS. "Where the numbers
+/// come from" is a table of things about this robot that will be the same next
+/// year — the mouth's lowest point, the trained payload, the pull before the
+/// feet slide — and monospace is the app's claim that a number is going to
+/// move. The schedule above it genuinely moves: change one word of the sentence
+/// and every start time in it changes. That is the whole distinction
+/// `TelemetryRow` is built around, applied here without the component, because
+/// these rows are a reference table rather than a readout.
 struct RetrieveView: View {
     /// Where a plan is kept on this phone.
     @ObservedObject var plans: PlanStore
@@ -156,12 +173,22 @@ struct RetrieveView: View {
                 Text("Say it plainly")
             } footer: {
                 Text("Try \"fetch the pencil\", \"drag the broom standing in the corner\", \"pick up the dowel 2 m away\". Weights, thicknesses and grip heights can be given outright — \"a 30 g stick 25 mm thick\", \"held 120 mm up\".")
+                    .foregroundStyle(Theme.textSecondary)
             }
+            .listRowBackground(Theme.surfacePrimary)
 
             if let restored {
                 Section {
+                    // TEAL, BECAUSE SOMEBODY MEASURED THESE. `Theme.measured` is
+                    // the palette's claim that a number came off a bench or out
+                    // of the kinematics rather than out of a sentence, and a
+                    // stored measurement is the one place on this screen where
+                    // that is unambiguously true — the whole reason the file
+                    // keeps the stick instead of re-reading the words.
                     ForEach(Self.lines(restored), id: \.self) {
-                        Label($0, systemImage: "tray.and.arrow.down").font(.footnote)
+                        Label($0, systemImage: "tray.and.arrow.down")
+                            .font(.footnote)
+                            .foregroundStyle(Theme.measured)
                     }
                 } header: {
                     Text("The measurement this plan was kept with")
@@ -172,22 +199,34 @@ struct RetrieveView: View {
                     // against a scene prop came back reading "this app invented
                     // the thickness" about a thickness somebody measured.
                     Text("These are the numbers the plan was written with, not a re-reading of the words above. Edit the sentence and the app reads it again from scratch.")
+                        .foregroundStyle(Theme.textSecondary)
                 }
+                .listRowBackground(Theme.surfacePrimary)
             }
 
             if restored == nil, !reading.understood.isEmpty {
                 Section("Read as") {
-                    ForEach(reading.understood, id: \.self) { Text($0).font(.footnote) }
+                    ForEach(reading.understood, id: \.self) {
+                        Text($0).font(.footnote).foregroundStyle(Theme.textPrimary)
+                    }
                 }
+                .listRowBackground(Theme.surfacePrimary)
             }
             if restored == nil, !reading.assumed.isEmpty {
                 Section {
+                    // A GUESS IS THE APP ASKING, NOT THE APP MEASURING, and
+                    // `Theme.asked` is the token for exactly that. It sits one
+                    // section above the numbers it produced, so the colour is
+                    // the reader's warning that everything below inherits it.
                     ForEach(reading.assumed, id: \.self) {
-                        Label($0, systemImage: "questionmark.circle").font(.footnote)
+                        Label($0, systemImage: "questionmark.circle")
+                            .font(.footnote)
+                            .foregroundStyle(Theme.asked)
                     }
                 } header: {
                     Text("Guessed")
                 }
+                .listRowBackground(Theme.surfacePrimary)
                 // THE FOOTER THAT USED TO SIT HERE IS NOW `reading.sentence`, ONE
                 // SECTION DOWN. It read "Estimates of YOUR object, not
                 // measurements of the robot" — almost word for word what
@@ -212,12 +251,18 @@ struct RetrieveView: View {
                     // app's own default. The words are StudioKit's, pinned by
                     // test; this file only decides that they go here, above the
                     // schedule they call "below".
+                    //
+                    // A CAVEAT AND NOT A REFUSAL, WHICH IS WHY IT IS THE
+                    // WARNING TOKEN RATHER THAN THE REFUSED ONE. Nothing said
+                    // no here: the duck was never asked about anything, because
+                    // no object came out of the sentence. `Theme.refused` would
+                    // put a robot's verdict on a parser's shrug.
                     Label(reading.sentence, systemImage: "questionmark.circle")
-                        .font(.footnote).foregroundStyle(.orange)
+                        .font(.footnote).foregroundStyle(Theme.warning)
                 case .understood, .understoodWithGuesses:
                     if plan.refusals.isEmpty {
                         Label("Inside every envelope.", systemImage: "checkmark.seal")
-                            .font(.footnote).foregroundStyle(.green)
+                            .font(.footnote).foregroundStyle(Theme.success)
                     }
                 }
                 // THE REFUSALS STAY IN ALL THREE STATES. `.notUnderstood` and a
@@ -226,11 +271,17 @@ struct RetrieveView: View {
                 // person's own 400 g, so it is true and theirs. Dropping it to
                 // keep the state tidy would be a second lie pointing the other
                 // way.
+                //
+                // FATAL IS REFUSED; THE REST ARE CAVEATS. Both already carried
+                // their own glyph, which is what made the old colouring so
+                // strange: the octagon was orange and the triangle was the
+                // system's secondary grey, so a caveat about a robot's limit was
+                // drawn in the same ink as a footnote about where a file goes.
                 ForEach(plan.refusals, id: \.message) { refusal in
                     Label(refusal.message,
                           systemImage: refusal.isFatal ? "xmark.octagon" : "exclamationmark.triangle")
                         .font(.footnote)
-                        .foregroundStyle(refusal.isFatal ? Color.orange : Color.secondary)
+                        .foregroundStyle(refusal.isFatal ? Theme.refused : Theme.warning)
                 }
             } header: {
                 // NOT "It cannot do this" IN THE UNREAD STATE. That is a verdict
@@ -253,19 +304,33 @@ struct RetrieveView: View {
                 // is already the row above — it is rendered EXACTLY ONCE per
                 // state, and it is a paragraph, not a line.
                 if confidence != .notUnderstood {
-                    Text(reading.sentence)
+                    Text(reading.sentence).foregroundStyle(Theme.textSecondary)
                 }
             }
+            .listRowBackground(Theme.surfacePrimary)
 
             Section {
                 ForEach(Array(plan.schedule.enumerated()), id: \.offset) { _, entry in
-                    HStack(alignment: .firstTextBaseline) {
+                    HStack(alignment: .firstTextBaseline, spacing: Theme.spacing(.tight)) {
+                        // MONO, AND HERE IT IS EARNED. Every start time in this
+                        // schedule is recomputed from the sentence, so they
+                        // change while somebody types — which is the claim
+                        // tabular figures make, and the alignment is what lets a
+                        // reader see that two steps are the same ground pick
+                        // split at the moment the mouth is lowest.
                         Text(String(format: "%5.2f s", entry.start))
-                            .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(entry.step.label).font(.subheadline)
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(Theme.textSecondary)
+                        VStack(alignment: .leading, spacing: Theme.spacing(.hairline) / 4) {
+                            Text(entry.step.label)
+                                .font(.subheadline)
+                                .foregroundStyle(Theme.textPrimary)
+                            // A POLICY'S FILENAME IS AN IDENTIFIER, which is the
+                            // one exemption the monospace rule has and the same
+                            // one the recordings list takes for a reward term.
                             Text(entry.step.policy ?? "servo 9 — no policy drives the mouth")
-                                .font(.caption2.monospaced()).foregroundStyle(.secondary)
+                                .font(.caption2.monospaced())
+                                .foregroundStyle(Theme.textSecondary)
                         }
                     }
                 }
@@ -286,7 +351,9 @@ struct RetrieveView: View {
                 }
             } footer: {
                 Text("Two of these steps are the same ground pick, split at the moment the mouth is lowest.")
+                    .foregroundStyle(Theme.textSecondary)
             }
+            .listRowBackground(Theme.surfacePrimary)
 
             Section {
                 measurement("Mouth at its lowest, open",
@@ -317,7 +384,9 @@ struct RetrieveView: View {
                 Text("Where the numbers come from")
             } footer: {
                 Text("The two pull figures are CEILINGS, not demonstrations: the duck's 0.737 kg out of Pollen's MJCF, the ±0.6405 N⋅m training runs its joints at, the 0.084 m from the neck joint to the beak, and the 0.7–1.3 foot friction training randomises over. Nobody has measured this duck dragging anything, and a ceiling says what is impossible rather than what works.\n\nThe payload and the 4 s cycle are upstream's — sample_mouth_payload and GP_PERIOD in microduck_ground_pick_env_cfg.py, and GROUND_PICK_END_PHASE in robotd's control.rs. The mouth heights and the grasp window are measured here, through this app's kinematics over the recorded policy. They DISAGREE with the config's nominal hold of 1.50–1.70 s: the plant bottoms out at 1.16 s and is already climbing by 1.50. Closing the jaw on the config's window closes it on the way up.")
+                    .foregroundStyle(Theme.textSecondary)
             }
+            .listRowBackground(Theme.surfacePrimary)
 
             Section {
                 // THERE IS ONE BUTTON NOW. This screen used to offer only an
@@ -337,9 +406,12 @@ struct RetrieveView: View {
                 // 400-character sentence on one screen.
                 .disabled(confidence == .notUnderstood)
                 if let kept {
+                    // A FILE THAT IS ON THE PHONE IS A RESULT, so it takes the
+                    // success token — the only one on this screen, beside a
+                    // verdict that is only ever a claim about an envelope.
                     Label("Kept as \"\(kept)\" — it is in your Motions, under Plans.",
                           systemImage: "checkmark.circle")
-                        .font(.footnote).foregroundStyle(.green)
+                        .font(.footnote).foregroundStyle(Theme.success)
                 }
             } footer: {
                 if confidence == .notUnderstood {
@@ -349,6 +421,7 @@ struct RetrieveView: View {
                     // gave a weight and one that gave nothing. This footer only
                     // says why the button is off and where to read the rest.
                     Text("Nothing to write down: no thing to fetch was read out of your sentence. See \"\(Self.unreadHeader)\" above.")
+                        .foregroundStyle(Theme.warning)
                 } else {
                     // WHAT THE BUTTON ACTUALLY DOES. This sentence outlived the
                     // control it described: it promised a task file that travels
@@ -357,9 +430,17 @@ struct RetrieveView: View {
                     // control here writes a `.duckplan` into Application Support.
                     // Nothing leaves the phone.
                     Text("This plan is kept on this phone, in this app's own format, and it appears in your Motions under Plans. The file holds the MEASUREMENT, not the steps — the schedule above is worked out again from those numbers every time the plan is opened, so a kept plan cannot go stale and start disagreeing with the app that opens it.")
+                        .foregroundStyle(Theme.textSecondary)
                 }
             }
+            .listRowBackground(Theme.surfacePrimary)
         }
+        // EVERY ROW ON A CARD, AND THE CARDS ON THE RECESSED GROUND — the
+        // arrangement `Theme` asks for in as many words, because the four inks
+        // land short of 4.5:1 against `backgroundSecondary` and clear it against
+        // `surfacePrimary`.
+        .scrollContentBackground(.hidden)
+        .background(Theme.backgroundSecondary)
         .navigationTitle("Fetch something")
         .navigationBarTitleDisplayMode(.inline)
         .task { restoreIfOpening() }
@@ -388,12 +469,35 @@ struct RetrieveView: View {
         } message: { Text($0) }
     }
 
+    /// One row of the reference table: what the robot is, beside the number.
+    ///
+    /// NOT MONOSPACED, AND THAT IS THE POINT OF THE ROW. `TelemetryRow` states
+    /// the rule these numbers fail: monospace is a claim, and the claim is
+    /// "this will change". The mouth's lowest point, the trained payload and
+    /// the pull before the feet slide are constants of a robot — set them in
+    /// tabular figures and the app is telling the reader to watch a thing that
+    /// is never going to move, which is exactly the habit that makes the
+    /// schedule's timings above stop meaning anything.
+    ///
+    /// AT AN ACCESSIBILITY SIZE IT STACKS, for the reason the component gives:
+    /// two columns of text at AX5 is a fight for the width that the right-hand
+    /// one always loses, so the app would hide the number from the person who
+    /// enlarged it in order to read it. The pair is one element to VoiceOver
+    /// because it is one fact.
     private func measurement(_ name: String, _ value: String) -> some View {
-        HStack {
-            Text(name).font(.footnote)
-            Spacer()
-            Text(value).font(.footnote.monospacedDigit()).foregroundStyle(.secondary)
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: Theme.spacing(.tight)) {
+                Text(name).font(.footnote).foregroundStyle(Theme.textPrimary)
+                Spacer(minLength: Theme.spacing(.tight))
+                Text(value).font(.footnote).foregroundStyle(Theme.textSecondary)
+            }
+            VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
+                Text(name).font(.footnote).foregroundStyle(Theme.textPrimary)
+                Text(value).font(.footnote).foregroundStyle(Theme.textSecondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .accessibilityElement(children: .combine)
     }
 
 }

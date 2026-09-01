@@ -624,11 +624,57 @@ struct StageSurface: UIViewRepresentable {
     }
 }
 
+// MARK: - the numbers the legend writes down for itself
+
+/// Dimensions that are layout decisions rather than facts.
+///
+/// NOTHING HERE IS A COLOUR OR A CONTRAST, which is the line `Theme` draws and
+/// this file stays behind — the same split `DriveMetric` makes one screen over.
+/// A contrast ratio is a fact about two colours and lives in `Palette`, where
+/// `swift test` runs the WCAG formula over it. How thick to draw a rule is not
+/// a fact about anything; it is a judgement about a phone.
+private enum StageMetric {
+    /// The radius of the panel the legend sits on.
+    ///
+    /// THE CONCENTRIC RULE, TAKEN RATHER THAN CHOSEN. A stage viewport is
+    /// clipped to `Palette.Radius.group` — `DriveView` does exactly that — and
+    /// this panel is drawn inside it, so it takes the next radius down. Written
+    /// as `.group.inner` rather than as `.card`, the pair cannot drift: change
+    /// the viewport's radius and the panel's follows.
+    static let panel = Palette.Radius.group.inner
+
+    /// A hairline STROKE. One point, which on every device this ships to is one
+    /// to three pixels — the thinnest line iOS will draw crisply. Named for the
+    /// stroke because `Palette.Spacing` already has a `hairline` and it is four
+    /// points; two things called hairline that differ by 4x is how a rule ends
+    /// up drawn at the width of a gap.
+    static let hairlineStroke: CGFloat = 1
+}
+
+/// The unit the legend prints, written once.
+///
+/// ONE SPELLING, THREE ROWS. `TelemetryRow` draws the value and the unit as two
+/// pieces and joins them again for VoiceOver, so a unit typed out beside each
+/// axis is three chances for one of them to end up saying something else.
+private enum StageUnit {
+    static let millimetres = "mm"
+}
+
 /// The line of text over the stage that says what is being looked at.
 ///
 /// A 3D VIEW WITH NO NUMBERS ON IT CANNOT BE CHECKED. "It looks about right"
 /// is not a judgement anyone can act on; "it is 240 mm forward and 12 mm up,
 /// against a step whose top is at 10 mm" is.
+///
+/// IT SITS ON A REAL SURFACE NOW, AND THAT IS THE ACCESSIBILITY DECISION HERE.
+/// Every word in this legend used to be white — some of it at 65% and 45% — laid
+/// straight over a live RealityKit render. The contrast of each line was
+/// therefore whatever happened to be behind it that frame: a bright floor tile,
+/// a dark duck, a yellow step lip, three different ratios and not one of them
+/// checked by anything. `Theme.surfacePrimary` is one of the four grounds
+/// `PaletteTests` proves every text token against at 4.5:1, so putting the panel
+/// on it is what turns these readings into legible claims. It costs a strip of
+/// the picture, which is the trade `DriveView`'s readout already made.
 struct StageLegend: View {
     let pose: StagePose
     let environment: DuckIntentClip.Environment
@@ -646,7 +692,8 @@ struct StageLegend: View {
     /// button with nothing to follow, and the clearance line's "nothing should
     /// be floating" is an accusation against the RENDERER, fired at a number
     /// the pinning guarantees. Measured on the real meshes: a slider-legal
-    /// squat reads +39 mm and turns that line orange while the Checks tab says
+    /// squat reads +39 mm, which would put that line in `Theme.warning` and the
+    /// badge above it on "Floating" while the Checks tab, two taps away, says
     /// nothing is wrong.
     var rootIsPinned = false
     /// TRUE WHEN THE BODY WAS DROPPED ONTO THE FLOOR rather than left at
@@ -685,12 +732,51 @@ struct StageLegend: View {
       + "orbit, zoom and reset, which are what the drag, pinch and double-tap "
       + "printed here do for a pointer."
 
-    private var place: String {
-        guard !rootIsPinned else {
-            return StageCaption.pinnedTrunk(heightMetres: pose.root.z)
+    /// A distance in millimetres, formatted once.
+    ///
+    /// FORMATTING, NOT ARITHMETIC. The trunk's position is `DuckStance`'s and is
+    /// tested there; all this decides is how many digits of it to draw and
+    /// whether to keep the sign. The signs are kept on x and y because they are
+    /// directions — "−240" and "240" are opposite sides of the origin every clip
+    /// is de-origined to — and dropped on z because a trunk below the floor is
+    /// not a thing the stage can draw.
+    private func millimetres(_ metres: Double, signed: Bool) -> String {
+        String(format: signed ? "%+.0f" : "%.0f", metres * 1000)
+    }
+
+    /// Where the trunk is: three rows, or the one sentence that replaces them.
+    ///
+    /// ROWS RATHER THAN ONE FORMATTED LINE, for the reason `DriveView` gives
+    /// about its own readout. This was `x %+.0f · y %+.0f · z %.0f mm` — three
+    /// facts in one monospaced string, which at an accessibility text size is
+    /// wider than any phone and has nowhere to wrap that does not split a number
+    /// from its axis, and which VoiceOver reads as a single utterance nobody can
+    /// skip through. `TelemetryRow` gives each one a label that never changes
+    /// beside a value that does, and stacks the pair rather than truncating the
+    /// number — which is the whole point, because the person who most enlarged
+    /// the text is the one the old line hid the digits from.
+    ///
+    /// THE PINNED CASE IS STILL ONE SENTENCE, AND IT IS THE KIT'S. Three rows of
+    /// constants beside a camera-follow button invite the reader to look for
+    /// travel that is not there; `StageCaption.pinnedTrunk` says what the pin IS
+    /// instead, and says it where `swift test` reads it letter by letter.
+    @ViewBuilder private var trunk: some View {
+        if rootIsPinned {
+            Text(StageCaption.pinnedTrunk(heightMetres: pose.root.z))
+                .font(.caption2)
+                .foregroundStyle(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        } else {
+            TelemetryRow(label: "Trunk x",
+                         value: millimetres(pose.root.x, signed: true),
+                         unit: StageUnit.millimetres)
+            TelemetryRow(label: "Trunk y",
+                         value: millimetres(pose.root.y, signed: true),
+                         unit: StageUnit.millimetres)
+            TelemetryRow(label: "Trunk z",
+                         value: millimetres(pose.root.z, signed: false),
+                         unit: StageUnit.millimetres)
         }
-        return String(format: "x %+.0f · y %+.0f · z %.0f mm",
-                      pose.root.x * 1000, pose.root.y * 1000, pose.root.z * 1000)
     }
 
     /// WHERE THE FEET ARE, which is the number a viewer actually wants and the
@@ -702,7 +788,8 @@ struct StageLegend: View {
         // THE NUMBER IS TRUE EITHER WAY; ONLY THE VERDICT DEPENDS ON THE ROOT.
         // Keeping the reading on a pinned stage is deliberate — it is the guard
         // that would have caught the build where every clip floated at 116 mm —
-        // but nothing there is wrong, so nothing there is orange.
+        // but nothing there is wrong, so nothing there takes the warning token
+        // and the badge above it still reads "Standing".
         if restedOnFloor {
             // `metres` here is the clearance of the pose at standing height,
             // because that is the pose this legend was handed — so it IS the
@@ -732,49 +819,115 @@ struct StageLegend: View {
                              propCount: props.count)
     }
 
+    /// What the drawn body is doing, as a WORD.
+    ///
+    /// THE ORANGE USED TO BE DOING THIS JOB ON ITS OWN. A person who cannot
+    /// separate an orange line of text from a white one — roughly one man in
+    /// twelve — got the same legend whether the feet were on the floor or
+    /// 116 mm above it, because the only thing that changed was the hue of a
+    /// sentence they had to read to the end to find out. A badge puts the state
+    /// first and in one word, which is the rule the dots elsewhere in this app
+    /// follow.
+    ///
+    /// `.idle` IN BOTH CASES, AND A FLOATING DUCK IS STILL IDLE. The state is
+    /// what the drawn body is DOING and a stage holds a still pose: nothing here
+    /// is moving, nothing is being reached for, and something is very obviously
+    /// there. So VoiceOver hears "Floating, Idle", which is the same shape
+    /// `DriveView` chose deliberately when it announces "On its side, Active" —
+    /// the word is the pose and the state is the activity, and they are allowed
+    /// to be different things. What the badge must never do is claim the pose is
+    /// fine, and the word is what stops it.
+    ///
+    /// THE VERDICT IS THE KIT'S, NOT THIS VIEW'S. `ground.wrong` is
+    /// `DuckGroundClearance.isWrong` — floating is wrong, sinking is the meshes
+    /// — so the only thing decided here is which of two words to draw.
+    @ViewBuilder private var feet: some View {
+        if let ground {
+            StateBadge(text: ground.wrong ? "Floating" : "Standing", state: .idle)
+        }
+    }
+
+    /// The ground reading, in the kit's own sentence.
+    ///
+    /// NOTHING IS ADDED FOR A SCREEN READER HERE, AND THAT IS THE DECISION.
+    /// `DuckGroundClearance.summary` already puts the verdict in the words —
+    /// "nothing should be floating" — and `isWrong` only colours what the
+    /// sentence said. A spoken "warning" bolted on top would be a second
+    /// verdict, composed in a view, able to disagree with the kit's. The badge
+    /// above carries the state; this carries the number and the reason.
+    ///
+    /// `Theme.warning`, NOT `Theme.refused`. Nothing refused anything — the
+    /// bench did not say no, a renderer drew a body off the floor — and the
+    /// palette keeps a separate colour for a refusal precisely so that
+    /// distinction survives.
+    @ViewBuilder private var groundSentence: some View {
+        if let ground {
+            Text(ground.text)
+                .font(.caption2)
+                .foregroundStyle(ground.wrong ? Theme.warning : Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// The camera toggle, as a chip.
+    ///
+    /// FORTY-FOUR POINTS, WHICH IT WAS NOT. This was `.bordered` at
+    /// `.controlSize(.mini)` — a control around twenty points tall, well under
+    /// the HIG's floor, sitting on top of a live 3D render where the penalty for
+    /// missing it is that the pan recogniser underneath swings the camera
+    /// instead. `.standard` either side of a footnote and `.snug` above and
+    /// below it is comfortably past the floor in both directions, off the
+    /// spacing scale alone — the app writes 44 down as a number in exactly one
+    /// place, `DesignComponents`, and this is not it.
+    ///
+    /// THE WORD IS THE STATE, NOT THE WASH. `surfaceInteractive` differs from
+    /// its ground by about 1.02:1 in light, which `Theme` says in as many words
+    /// is a hint and not information, so the fill is not what tells anybody the
+    /// camera is following. "Fixed" and "Following" are, and the weight of the
+    /// word is a third signal for somebody who reads shape before colour.
+    ///
+    /// "FOLLOWING" ON ITS OWN NAMES NOTHING, which is why the label and the
+    /// value are split. On screen the word sits beside the trunk reading under a
+    /// stage, and that is the whole of its context; read out in a list of
+    /// controls it could be following anything. Naming the thing and letting the
+    /// state be the value is also what makes VoiceOver announce the change when
+    /// it is toggled.
+    private var cameraChip: some View {
+        Button {
+            orbit.follows.toggle()
+        } label: {
+            Label(followWord,
+                  systemImage: orbit.follows ? "location.fill" : "mappin.and.ellipse")
+                .font(.footnote.weight(orbit.follows ? .semibold : .regular))
+                .lineLimit(1)
+                .foregroundStyle(orbit.follows ? Theme.textPrimary : Theme.textSecondary)
+                .padding(.horizontal, Theme.spacing(.standard))
+                .padding(.vertical, Theme.spacing(.snug))
+                .background { if orbit.follows { Capsule().fill(Theme.surfaceInteractive) } }
+                .overlay(Capsule().strokeBorder(Theme.separator,
+                                                lineWidth: StageMetric.hairlineStroke))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text("Camera"))
+        .accessibilityValue(Text(followWord))
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 8) {
-                Text(place).font(.caption2.monospacedDigit().weight(.medium))
-                // NO TOGGLE WHERE THERE IS NOTHING TO FOLLOW. `DuckStage`
-                // follows `pose.position`, which is the root; against a pinned
-                // one the camera would ride a point that never moves, so the
-                // control is not disabled and inert here — it is absent, and
-                // the line beside it says why the root cannot move.
-                if !rootIsPinned {
-                    Button {
-                        orbit.follows.toggle()
-                    } label: {
-                        Label(followWord,
-                              systemImage: orbit.follows ? "location.fill" : "mappin.and.ellipse")
-                            .font(.caption2)
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.mini)
-                    .tint(.white)
-                    // "FOLLOWING" ON ITS OWN NAMES NOTHING. On screen the word
-                    // sits beside the trunk reading and under the stage, which
-                    // is the whole of its context; read out in a list of
-                    // controls it could be following anything. Name the thing,
-                    // and let the state be the value — which is also what makes
-                    // VoiceOver announce the change when it is toggled.
-                    .accessibilityLabel(Text("Camera"))
-                    .accessibilityValue(Text(followWord))
-                }
-            }
-            Text(context).font(.caption2).foregroundStyle(.white.opacity(0.65))
-            // NOTHING ADDED HERE, AND THAT IS THE DECISION. Orange is the only
-            // part of this line a screen reader cannot see, and it is not
-            // carrying anything on its own: `DuckGroundClearance.summary` puts
-            // the verdict in the words — "nothing should be floating" — and
-            // `isWrong` only colours what the sentence already said. A spoken
-            // "warning" bolted on top would be a second verdict, composed here,
-            // able to disagree with the kit's.
-            if let ground {
-                Text(ground.text)
-                    .font(.caption2)
-                    .foregroundStyle(ground.wrong ? Color.orange : .white.opacity(0.65))
-            }
+        VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
+            feet
+            trunk
+            groundSentence
+            // NO TOGGLE WHERE THERE IS NOTHING TO FOLLOW. `DuckStage` follows
+            // `pose.position`, which is the root; against a pinned one the
+            // camera would ride a point that never moves, so the control is not
+            // disabled and inert here — it is absent, and the sentence above it
+            // says why the root cannot move.
+            if !rootIsPinned { cameraChip }
+            Text(context)
+                .font(.caption2)
+                .foregroundStyle(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
             // THREE GESTURES, TO A READER WHO MAY BE ABLE TO MAKE NONE OF THEM.
             // The printed line is right for a finger and a dead end without
             // one, and "double-tap" means something else entirely once
@@ -783,10 +936,28 @@ struct StageLegend: View {
             // other route, because a stage with actions on it is only useful to
             // somebody who knows to look for them.
             Text("Drag to orbit · pinch to zoom · double-tap to reset")
-                .font(.caption2).foregroundStyle(.white.opacity(0.45))
+                .font(.caption2)
+                .foregroundStyle(Theme.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
                 .accessibilityLabel(Text(Self.spokenGestures))
         }
-        .padding(10)
-        .foregroundStyle(.white)
+        .padding(Theme.spacing(.snug))
+        // FULL WIDTH, AND NOT CAPPED THE WAY `DriveView`'S READOUT IS. That
+        // panel is one corner of a viewport with a centred duck behind it, so a
+        // 260-point ceiling is what keeps the duck visible. This is a caption
+        // strip along the bottom of four different stages, and the longest
+        // sentence it prints — the pinned-trunk clearance reading — is over a
+        // hundred characters. Capped, that sentence becomes a column of single
+        // words taller than the stage it is captioning at large text sizes.
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.surfacePrimary, in: panel)
+        .overlay(panel.strokeBorder(Theme.separator,
+                                    lineWidth: StageMetric.hairlineStroke))
+        .padding(Theme.spacing(.snug))
+    }
+
+    private var panel: RoundedRectangle {
+        RoundedRectangle(cornerRadius: Theme.radius(StageMetric.panel),
+                         style: .continuous)
     }
 }

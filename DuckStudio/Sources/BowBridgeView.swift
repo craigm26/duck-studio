@@ -29,24 +29,8 @@ struct BowBridgeView: View {
             BridgeContainer(referee: referee)
                 .ignoresSafeArea()
 
-            VStack(spacing: 10) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(referee.run.summary).font(.headline)
-                        Text(String(format: "%.1f s", referee.run.elapsed))
-                            .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    // How close to the rail, which is the only warning the
-                    // player gets — the duck has no railing sense of its own.
-                    Circle()
-                        .fill(referee.run.edgeProximity > 0.75 ? Color.orange : Color.green)
-                        .frame(width: 14, height: 14)
-                        .opacity(0.3 + 0.7 * referee.run.edgeProximity)
-                }
-                .padding(.horizontal, 14).padding(.vertical, 8)
-                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
-
+            VStack(spacing: Theme.spacing(.snug)) {
+                readout
                 if referee.run.outcome == .crossing {
                     HStack(alignment: .bottom) {
                         JoystickView { vector in
@@ -56,20 +40,121 @@ struct BowBridgeView: View {
                         Spacer()
                     }
                 } else {
+                    // IT PUTS A DUCK BACK AT THE FOOT OF A BRIDGE, so it is the
+                    // sixty-point variant: a control that moves the machine is
+                    // pressed by somebody looking at the machine.
                     Button("Cross again") { referee.restart() }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.primaryActionMoves)
+                        .accessibilityHint(Text("Puts the duck back at the near abutment and clears the clock."))
                 }
                 if referee.run.elapsed == 0 || referee.run.outcome != .crossing {
                     VenuePicker(venue: $referee.venue)
-                        .padding(.horizontal, 10).padding(.vertical, 6)
-                        .background(.thinMaterial, in: Capsule())
+                        .padding(.horizontal, Theme.spacing(.snug))
+                        .padding(.vertical, Theme.spacing(.tight))
+                        // Two short words that never wrap, so this one is
+                        // allowed to be a capsule — the readout above is not.
+                        .background(Theme.surfacePrimary, in: Capsule())
+                        .overlay(Capsule().strokeBorder(
+                            Theme.separator, lineWidth: BridgeMetric.hairlineStroke))
                 }
             }
-            .padding()
+            .padding(Theme.spacing(.standard))
         }
         .navigationTitle("Bow Bridge")
         .navigationBarTitleDisplayMode(.inline)
+        .task { Haptic.prepare() }
+        // THE TWO ENDINGS ARE WORLD EVENTS AND THEY FEEL DIFFERENT. Going in
+        // the lake is the duck falling, which is the one thing `Haptic.fell`
+        // exists for; getting across is something the person asked for running
+        // to the end. On the edge only — `outcome` holds its value until the
+        // crossing is restarted.
+        .onChange(of: referee.run.outcome) { _, outcome in
+            switch outcome {
+            case .crossing: break
+            case .across: Haptic.finished()
+            case .inTheLake: Haptic.fell()
+            }
+        }
     }
+
+    /// What the crossing is doing, and the two numbers that decide it.
+    ///
+    /// THE RAIL WARNING USED TO BE A COLOURED DOT AND NOTHING ELSE — orange
+    /// past a threshold, green under it, fading with proximity. That is the one
+    /// thing the design system rules out outright: roughly one man in twelve
+    /// cannot separate those two hues, and the fact being encoded is "you are
+    /// about to walk off a bridge". It is now a number with a label beside it
+    /// and a bill that fills as the duck drifts, which anybody can read.
+    ///
+    /// AND THE THRESHOLD IS GONE RATHER THAN RESTATED. `> 0.75` was a fact
+    /// about how close is too close, born in a view where nothing can check it;
+    /// `BridgeCrossing` has the geometry and no such constant. The bill grows
+    /// continuously instead, which needs no threshold at all.
+    private var readout: some View {
+        VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
+            StateBadge(text: word, state: state)
+            Text(referee.run.summary)
+                .font(.headline.monospacedDigit())
+                .foregroundStyle(Theme.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+            TelemetryRow(label: "Elapsed",
+                         value: String(format: "%.1f", referee.run.elapsed), unit: "s")
+            TelemetryRow(label: "Off the middle",
+                         value: String(format: "%.0f", referee.run.edgeProximity * 100),
+                         unit: "%")
+            BillIndicator(fill: referee.run.edgeProximity,
+                          label: "How far off the middle of the deck")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(Theme.spacing(.snug))
+        // AN OPAQUE PANEL OVER A LIVE PICTURE, the same decision `DriveView`
+        // makes about its readout: on `.thinMaterial` the contrast of every
+        // word here was whatever the lake happened to be that frame.
+        .background(Theme.surfacePrimary, in: panel)
+        .overlay(panel.strokeBorder(Theme.separator,
+                                    lineWidth: BridgeMetric.hairlineStroke))
+    }
+
+    /// The state as one word.
+    ///
+    /// THE WORDS ARE `BridgeCrossing.Outcome`'S OWN CASE NAMES, which is the
+    /// most a view is allowed to do here: the sentence about what happened is
+    /// `run.summary` and comes from the kit, and this is the same fact spelled
+    /// short enough to sit beside a dot. If the crossing ever needs a phrase
+    /// rather than a word, the phrase belongs in `BridgeCrossing` where a test
+    /// can read it — see the note in the handover.
+    private var word: String {
+        switch referee.run.outcome {
+        case .crossing: return "Crossing"
+        case .across: return "Across"
+        case .inTheLake: return "In the lake"
+        }
+    }
+
+    /// A DUCK IN THE LAKE IS NOT "OFFLINE". It is a duck that was walking and
+    /// now is not, which is `idle` — the same argument `DriveView` makes about
+    /// a fallen duck still being `active`: the state is about the machine, and
+    /// what went wrong is in the word beside it.
+    private var state: RobotState {
+        referee.run.outcome == .crossing ? .active : .idle
+    }
+
+    private var panel: RoundedRectangle {
+        RoundedRectangle(cornerRadius: Theme.radius(BridgeMetric.panel), style: .continuous)
+    }
+}
+
+/// The two numbers this screen writes down for itself.
+///
+/// NEITHER IS A COLOUR OR A CONTRAST — a ratio is a fact and lives in `Palette`
+/// where a test runs the formula over it.
+private enum BridgeMetric {
+    /// The readout panel. A card, on the scale.
+    static let panel = Palette.Radius.card
+    /// A hairline STROKE. One point, which on every device this ships to is one
+    /// to three pixels. Named for the stroke because `Palette.Spacing` already
+    /// has a `hairline` and it is four points.
+    static let hairlineStroke: CGFloat = 1
 }
 
 /// Owns the crossing and steps it at a fixed rate.

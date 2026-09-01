@@ -20,6 +20,18 @@ import StudioKit
 /// this is the only place in the app that can settle one, because the bench has
 /// physics and the phone does not. What comes back is a count AND a distance:
 /// see `PolicyBlend.Behaviour` for why either alone is misleading.
+///
+/// EVERYTHING ORANGE MAKES SOMETHING THAT DID NOT EXIST. Mix them produces a
+/// file; Send to the bench and measure produces a verdict. Saving that file to
+/// disk and picking benches do not, and they are rows. One rule, and it is the
+/// same shape as the Drive screen's "everything orange moves the duck".
+///
+/// TEAL IS THE VERDICT AND GREY IS ITS ABSENCE. `PolicyBlend.notYetMeasured`
+/// and `PolicyBlend.measured` are the same row saying two very different things
+/// — one is a file that loads and nothing more, the other is a count and a
+/// distance off a physics server — so the first is set in `textSecondary` and
+/// the second in `Theme.measured`, which is this app's colour for something a
+/// machine produced. Neither sentence is written here; both are StudioKit's.
 struct PolicyBlendView: View {
     let library: PolicyLibrary
 
@@ -73,28 +85,52 @@ struct PolicyBlendView: View {
         Form {
             Section {
                 Text(PolicyBlend.beforeYouRunIt)
-                    .font(.footnote).foregroundStyle(.secondary)
+                    .font(.footnote).foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .listRowBackground(Theme.surfacePrimary)
 
             Section("Ingredients") {
                 picker("First", selection: $first)
                 picker("Second", selection: $second)
                 if chosenPair != nil {
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
+                        // THE RATIO IS A NUMBER THAT MOVES UNDER A THUMB, which
+                        // is the whole case for tabular figures: at 45/55 and
+                        // 50/50 proportional numerals are different widths, and
+                        // the line shuffles sideways as the slider is dragged.
+                        TelemetryRow(label: "Mix", value: shares)
                         Slider(value: $towardSecond, in: 0...1, step: 0.05)
-                        Text(shares).font(.caption.monospaced()).foregroundStyle(.secondary)
+                            // AN UNLABELLED SLIDER IS "52 PERCENT, ADJUSTABLE"
+                            // AND NOTHING ELSE. A `Slider` is its own
+                            // accessibility element and never reads the row
+                            // above it, so without these the one control that
+                            // decides what a blend IS announces a raw
+                            // percentage of its own range — which is not the
+                            // ratio, and is not attached to either policy.
+                            .accessibilityLabel(Text("Toward the second policy"))
+                            .accessibilityValue(Text(shares))
                     }
+                    .padding(.vertical, Theme.spacing(.hairline))
                 }
             }
+            .listRowBackground(Theme.surfacePrimary)
 
             if let pair = chosenPair {
                 Section {
-                    Button(busy ? "Mixing…" : "Mix them") { mix(pair) }
-                        .disabled(busy)
+                    Button { mix(pair) } label: {
+                        Text(busy ? "Mixing…" : "Mix them")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.primaryAction)
+                    .disabled(busy)
                 } footer: {
                     Text(PolicyBlend.recipe(ingredients(pair)))
                         .font(.caption)
+                        .foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+                .listRowBackground(Theme.surfacePrimary)
             }
 
             if let blended {
@@ -106,16 +142,26 @@ struct PolicyBlendView: View {
                             recipe.towardSecond * 100, recipe.second.displayName))
                         .font(.caption)
                     }
-                    LabeledContent("Size", value: "\(blended.count / 1024) KB")
-                    LabeledContent("Loads here", value: (try? DuckPolicy.load(from: blended)) != nil
-                                                        ? "yes" : "no")
+                    // A SIZE THAT IS DIFFERENT FOR EVERY PAIR, IN FIGURES THAT
+                    // DO NOT MOVE.
+                    TelemetryRow(label: "Size", value: "\(blended.count / 1024)", unit: "KB")
+                    // WHETHER IT LOADS, AS A WORD IN THE PROVENANCE COLOURS.
+                    // Teal for a file this phone read back, the refusal colour
+                    // for one it could not — the same pair the Policies list
+                    // uses on the same question, so the two screens agree about
+                    // what "runnable" looks like.
+                    loadsHere(blended)
                     // THE SENTENCE THAT HAS TO SIT HERE. Everything above this
                     // row is about a file, and a file loading is the free claim.
                     Text(verdict ?? PolicyBlend.notYetMeasured)
                         .font(.footnote)
-                        .foregroundStyle(verdict == nil ? .secondary : .primary)
+                        .foregroundStyle(verdict == nil ? Theme.textSecondary : Theme.measured)
+                        .fixedSize(horizontal: false, vertical: true)
+                    // NOT ORANGE: SAVING MAKES NOTHING NEW. The bytes already
+                    // exist; this hands them to the share sheet.
                     Button("Save as .onnx") { export(blended) }
                 }
+                .listRowBackground(Theme.surfacePrimary)
 
                 // A STRING TITLE AND A FOOTER CLOSURE DO NOT COMBINE.
                 // `Section("x") { } footer: { }` is not an initializer that
@@ -129,7 +175,8 @@ struct PolicyBlendView: View {
                         }
                         Text("Blending happens on this phone. Finding out whether the result "
                            + "does anything needs physics, and that lives on another machine.")
-                            .font(.caption).foregroundStyle(.secondary)
+                            .font(.caption).foregroundStyle(Theme.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     } else {
                         Picker("Bench", selection: Binding(
                             get: { benches.selectedID },
@@ -138,9 +185,13 @@ struct PolicyBlendView: View {
                                 Text(one.name).tag(UUID?.some(one.id))
                             }
                         }
-                        Button(busy ? "Running…" : "Send to the bench and measure") {
+                        Button {
                             Task { await measure(blended) }
+                        } label: {
+                            Text(busy ? "Running…" : "Send to the bench and measure")
+                                .frame(maxWidth: .infinity)
                         }
+                        .buttonStyle(.primaryAction)
                         .disabled(benches.selected == nil || busy)
                         // ALWAYS REACHABLE, NOT ONLY WHEN EMPTY. Every one of
                         // these screens used to offer a route to bench settings
@@ -153,20 +204,35 @@ struct PolicyBlendView: View {
                     }
                     if let uploadedAs {
                         Text("The bench called it \(uploadedAs).")
-                            .font(.caption).foregroundStyle(.secondary)
+                            .font(.caption).foregroundStyle(Theme.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 } header: {
                     Text("Run it somewhere with physics")
                 } footer: {
                     Text("Six seconds, commanded forward at vx 0.5 — below about 0.3 the walking "
                        + "policy simply stands, and two ducks standing still look alike.")
+                        .foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+                .listRowBackground(Theme.surfacePrimary)
             }
 
             if let failure {
-                Section { Text(failure).foregroundStyle(.red).font(.footnote) }
+                Section {
+                    Text(failure).font(.footnote).foregroundStyle(Theme.refused)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .listRowBackground(Theme.surfacePrimary)
             }
         }
+        // THE RECESSED GROUND UNDER THE CARDS. Every coloured word on this
+        // screen — the verdict, the refusal, the loads-here answer — sits on a
+        // `surfacePrimary` row, because `Palette` documents this ground as one
+        // that carries the inks at 4.17:1 to 4.27:1, short of what body text
+        // owes. The grey headers and footers are the only words outside a card.
+        .scrollContentBackground(.hidden)
+        .background(Theme.backgroundSecondary)
         .navigationTitle("Blend policies")
         .task {
             // ONCE PER SCREEN, NOT ONCE PER APPEARANCE. `.task` re-runs every
@@ -179,11 +245,34 @@ struct PolicyBlendView: View {
             guard !seeded else { return }
             seeded = true
             if first == nil, let starting { first = starting.id }
+            // WARMED BEFORE THE FIRST ANSWER, NOT AT IT. A measure run is a
+            // minute or more of somebody else's CPU, and the first tap of a
+            // session arrives after the thing it is about unless the engine has
+            // been spun up.
+            Haptic.prepare()
         }
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $outgoing) { file in
             ShareSheet(items: [file.url]) { outgoing = nil }
         }
+    }
+
+    /// Whether the bytes this phone just produced can be read back by the same
+    /// loader that reads a downloaded policy.
+    ///
+    /// A LABELLED ROW RATHER THAN A `TelemetryRow`, because yes and no are not
+    /// a quantity and tabular figures on them would say they are about to
+    /// change. The colour is the claim and the word is the same claim for
+    /// anybody who cannot see it.
+    private func loadsHere(_ data: Data) -> some View {
+        let loads = (try? DuckPolicy.load(from: data)) != nil
+        return HStack(alignment: .firstTextBaseline, spacing: Theme.spacing(.tight)) {
+            Text("Loads here").foregroundStyle(Theme.textSecondary)
+            Spacer(minLength: Theme.spacing(.tight))
+            Text(loads ? "yes" : "no")
+                .foregroundStyle(loads ? Theme.measured : Theme.refused)
+        }
+        .accessibilityElement(children: .combine)
     }
 
     /// TAGGED BY IDENTITY, NOT BY THE ENTRY. `PolicyLibrary.Entry` is Equatable
@@ -308,6 +397,12 @@ struct PolicyBlendView: View {
                 travelled: blend.travelled, liveliestIngredientTravelled: furthest,
                 plant: DuckBench.recordedCredit(plantName: blend.plantName,
                                                 plantDigest: blend.plantDigest)))
+            // THE HYPOTHESIS HAS BEEN SETTLED, WHICH IS THE POINT OF THE SCREEN
+            // — and settling it took three uploads and four physics runs on
+            // another machine, long enough that nobody watched the whole of it.
+            // `finished` is the design system's feeling for "the thing you
+            // asked for ran to the end".
+            Haptic.finished()
         } catch let refusal as DuckBench.Refusal {
             failure = refusal.message
         } catch let refusal as BenchEndpoint.Refusal {

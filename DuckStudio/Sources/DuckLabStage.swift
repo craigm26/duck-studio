@@ -128,6 +128,17 @@ extension View {
 }
 
 /// The palette a stage is dressed in.
+///
+/// THESE ARE MESH COLOURS AND THEY ARE NOT `Theme`'S BUSINESS. Every value below
+/// is handed to `UnlitMaterial` or to `ARView.environment.background` — a sky, a
+/// floor, the rules drawn on it, and the accent a course's gates are moulded in.
+/// They are the rendered WORLD, in the same sense the duck's own bill is: what a
+/// person is looking at, not the furniture around it. `Theme` is the app's
+/// interface palette and its contrast guarantees are about ink on a surface, so
+/// running a meadow's grass through it would be a category error in both
+/// directions — the grass would stop being grass, and nothing about it would
+/// become more legible. The one SwiftUI thing in this file, `VenuePicker`, takes
+/// tokens.
 struct StageTheme: Equatable {
     let name: String
     let sky: UIColor
@@ -313,6 +324,18 @@ final class LabStage: NSObject {
     }
 }
 
+/// The one layout number the venue switch needs.
+///
+/// NOT A COLOUR AND NOT A CONTRAST, which is the line the app's whole palette
+/// rests on: a ratio is a fact and lives in `Palette` where a test runs the
+/// formula over it, and how wide to let a two-word switch grow on an iPad is a
+/// judgement about a screen.
+private enum VenueMetric {
+    /// How wide "Stage | Your floor" may get before it stops looking like a
+    /// switch and starts looking like a toolbar.
+    static let switchWidth: CGFloat = 260
+}
+
 /// The same two-way switch on every mode that has both.
 ///
 /// AND THE SAME DOOR ON EVERY ONE OF THEM. A segmented control cannot disable
@@ -325,25 +348,55 @@ final class LabStage: NSObject {
 /// `.ar` when the door is shut would build nothing at all and show a blank
 /// screen, so the binding is coerced to `.stage` rather than left pointing at a
 /// world that cannot be constructed.
+///
+/// THE REASON IS SET IN A TOKEN, NOT IN `.secondary`. The refusal underneath is
+/// composed in `CameraAvailability`, where `swift test` reads it, and it is the
+/// only thing on screen explaining why a control a person just tapped did
+/// nothing. `Theme.textSecondary` is a value `PaletteTests` proves at 4.5:1
+/// against every ground this app puts words on; the system's `.secondary` is
+/// whatever UIKit resolves it to against whatever is behind it.
 struct VenuePicker: View {
     @Binding var venue: LabVenue
     @State private var door = CameraDoor.availability
+    /// So the switch stops being capped at the sizes where a cap truncates it —
+    /// see `switchWidth`.
+    @Environment(\.dynamicTypeSize) private var typeSize
+
+    /// How wide the two-segment switch is allowed to get, or `nil` for as wide
+    /// as it is offered.
+    ///
+    /// A CAP THAT LIFTS AT ACCESSIBILITY SIZES, which is the same move
+    /// `DriveView` makes on its viewport and for the same reason. 260 points is
+    /// what stops "Stage | Your floor" from stretching the width of an iPad, and
+    /// it is also, at AX5, narrower than those two words need — and a segmented
+    /// control does not wrap, it truncates. So the cap holds where it is doing
+    /// something useful and gets out of the way exactly where it would start
+    /// hiding the words from the person who enlarged them in order to read them.
+    private var switchWidth: CGFloat? {
+        typeSize.isAccessibilitySize ? nil : VenueMetric.switchWidth
+    }
 
     var body: some View {
-        VStack(spacing: 5) {
+        VStack(spacing: Theme.spacing(.hairline)) {
             Picker("Venue", selection: $venue) {
                 ForEach(LabVenue.allCases) { v in Text(v.name).tag(v) }
             }
             .pickerStyle(.segmented)
-            .frame(maxWidth: 260)
+            .frame(maxWidth: switchWidth)
             .disabled(!door.canOfferAR)
             if let refusal = door.refusal(for: .venue) {
+                // NO WIDTH ON THE REASON. It used to be capped at 320 points,
+                // which is a fixed frame around a sentence — the one shape the
+                // design system rules out outright, because at AX5 it turns a
+                // refusal into a column of single words and the person reading
+                // it is the person who most needs it. `fixedSize` on the
+                // vertical axis is what lets it take the height it needs instead.
                 Text(refusal)
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.textSecondary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: 320)
+                    .frame(maxWidth: .infinity)
             }
         }
         // NOT `.accessibilityElement(children: .combine)`. It would read the

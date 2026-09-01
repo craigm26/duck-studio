@@ -9,6 +9,21 @@ import StudioKit
 /// and it is not really undoable — a repository can be deleted, but anything
 /// already fetched is gone — so the default is a PRIVATE repository and the
 /// button says which one it is making.
+///
+/// THE REFUSAL IS THE PRODUCT ON THIS SCREEN, so it is drawn like one. Every
+/// sentence that stands between this draft and a repository comes out of the
+/// kit — `HuggingFacePublish.Refusal` or `DuckMove.Invalid` — and both are the
+/// app's word for "no", so both take `Theme.refused` and a glyph. Nothing here
+/// says no in a colour alone: an unfilled form, a rejected token and a server
+/// that answered 500 are three different sentences, and each one is printed
+/// verbatim beside its own symbol.
+///
+/// PUBLIC IS A CAVEAT, NOT A REFUSAL, and the difference is the whole reason
+/// the palette has two yellows' worth of meaning. `Theme.warning` on the public
+/// footer says "this is about to be irreversible"; `Theme.refused` on the row
+/// above says "this will not happen at all". Drawing them the same colour —
+/// which is what a screen full of `.orange` did — makes the one a person can
+/// safely ignore look exactly like the one they cannot.
 struct PublishMotionView: View {
     let draft: IntentDraft
     @Environment(\.dismiss) private var dismiss
@@ -119,14 +134,21 @@ struct PublishMotionView: View {
                     Button("Check this token") { Task { await check() } }
                         .disabled(token.trimmingCharacters(in: .whitespaces).isEmpty || busy)
                     if let account {
+                        // A NAME THAT CAME BACK FROM THE SERVER IS A RESULT, and
+                        // the success token is the app's word for one. It is the
+                        // only green on this screen, which is the point: nothing
+                        // else here has actually happened yet.
                         Label("Publishing as \(account)", systemImage: "person.crop.circle.badge.checkmark")
                             .font(.footnote)
+                            .foregroundStyle(Theme.success)
                     }
                 } header: {
                     Text("Your Hugging Face token")
                 } footer: {
                     Text("A WRITE token, from huggingface.co/settings/tokens. It is kept in the Keychain on this device and sent only to huggingface.co, as a header — never in an address this app prints or logs.")
+                        .foregroundStyle(Theme.textSecondary)
                 }
+                .listRowBackground(Theme.surfacePrimary)
 
                 Section {
                     TextField("motion-name", text: $repositoryName)
@@ -146,16 +168,33 @@ struct PublishMotionView: View {
                         // would create — not a second copy of the rule spelled
                         // out here, which is how a preview comes to show an
                         // address that is not the one that gets made.
+                        // MONO ON AN ADDRESS, WHICH IS THE IDENTIFIER
+                        // EXEMPTION. A URL is literal text where a stray
+                        // character changes where the thing goes, and the app
+                        // sets its other identifiers — a policy's digest, a
+                        // reward term's name — the same way.
                         Text(repository.webURL)
-                            .font(.caption2.monospaced()).foregroundStyle(.secondary)
+                            .font(.caption2.monospaced())
+                            .foregroundStyle(Theme.textSecondary)
                     }
                 } header: {
                     Text("Where it goes")
                 } footer: {
-                    Text(isPrivate
-                         ? "Private: only you can see it. You can make it public on the website afterwards."
-                         : "PUBLIC: anyone can find and download it, and anything already fetched stays fetched even if you delete it later.")
+                    // PUBLIC GETS A GLYPH AND A COLOUR; PRIVATE GETS NEITHER.
+                    // The two sentences are not two states of one message — one
+                    // of them is describing something reversible and the other
+                    // is describing something that is not — and a person
+                    // skimming a form reads the shape before the words.
+                    if isPrivate {
+                        Text("Private: only you can see it. You can make it public on the website afterwards.")
+                            .foregroundStyle(Theme.textSecondary)
+                    } else {
+                        Label("PUBLIC: anyone can find and download it, and anything already fetched stays fetched even if you delete it later.",
+                              systemImage: "exclamationmark.triangle")
+                            .foregroundStyle(Theme.warning)
+                    }
                 }
+                .listRowBackground(Theme.surfacePrimary)
 
                 // WHERE THE FILE LIST WOULD HAVE BEEN. These two are the same
                 // question asked once — either there is something to publish
@@ -179,52 +218,86 @@ struct PublishMotionView: View {
                 // is what the comment on `.disabled` below claims.
                 if let stop {
                     Section {
-                        Label(stop, systemImage: "exclamationmark.triangle")
-                            .font(.footnote).foregroundStyle(.orange)
+                        // THE KIT'S OWN SENTENCE, IN THE KIT'S OWN MEANING'S
+                        // COLOUR. `Theme.refused` is documented as "a refusal,
+                        // or a limit being approached", and this is literally a
+                        // `Refusal` — the octagon says the same thing to anybody
+                        // who reads shape before hue.
+                        Label(stop, systemImage: "xmark.octagon")
+                            .font(.footnote)
+                            .foregroundStyle(Theme.refused)
                     } header: {
                         Text("Not ready to publish")
                     }
+                    .listRowBackground(Theme.surfacePrimary)
                 } else if case .success(let publication) = outcome {
                     Section {
+                        // A `TelemetryRow` BECAUSE THE BYTE COUNTS ACTUALLY
+                        // MOVE. The publication is rebuilt on every pass of this
+                        // form, so the README's size changes as the "when to
+                        // play it" sentence is typed — which is exactly the
+                        // claim monospace makes, and the reason the two columns
+                        // stack rather than truncate at an accessibility size.
+                        // The path becomes the LABEL and so loses its mono, by
+                        // the component's design: a label is a name and names do
+                        // not change.
                         ForEach(publication.files, id: \.path) { file in
-                            HStack {
-                                Text(file.path).font(.caption.monospaced())
-                                Spacer()
-                                Text("\(file.bytes) bytes").font(.caption2).foregroundStyle(.secondary)
-                            }
+                            TelemetryRow(label: file.path,
+                                         value: "\(file.bytes)", unit: "bytes")
                         }
                     } header: {
                         Text("What gets published")
                     } footer: {
                         Text("A motion, not a policy — a list of poses with times. The card says so, and says what an authored motion does not promise: driven through the standing policy in simulation, leg offsets come out shallower than authored. Nobody has measured that on a robot.")
+                            .foregroundStyle(Theme.textSecondary)
                     }
+                    .listRowBackground(Theme.surfacePrimary)
                 }
 
                 if let failure {
-                    Section { Text(failure).font(.footnote).foregroundStyle(.orange) }
+                    // A SERVER SAYING NO IS ALSO A REFUSAL, and it is drawn in
+                    // the same token as the form's own — one colour for "this
+                    // did not happen", wherever the no came from.
+                    Section {
+                        Label(failure, systemImage: "xmark.octagon")
+                            .font(.footnote)
+                            .foregroundStyle(Theme.refused)
+                    }
+                    .listRowBackground(Theme.surfacePrimary)
                 }
                 if let published {
                     Section {
                         Link(destination: URL(string: published)!) {
                             Label("Open it on Hugging Face", systemImage: "arrow.up.right.square")
                         }
-                        Text(published).font(.caption2.monospaced()).textSelection(.enabled)
+                        Text(published)
+                            .font(.caption2.monospaced())
+                            .foregroundStyle(Theme.textSecondary)
+                            .textSelection(.enabled)
                     } header: {
                         Text("Published")
                     }
+                    .listRowBackground(Theme.surfacePrimary)
                 }
 
                 Section {
                     Button {
                         Task { await publish() }
                     } label: {
-                        HStack {
+                        HStack(spacing: Theme.spacing(.tight)) {
                             Text(isPrivate ? "Create a private repository" : "Publish publicly")
                                 .frame(maxWidth: .infinity)
                             if busy { ProgressView() }
                         }
                     }
-                    .buttonStyle(.borderedProminent)
+                    // THE ACTION COLOUR AT THE HIG'S FLOOR, NOT THE SYSTEM'S
+                    // PROMINENT BLUE. Nothing on this screen moves the robot, so
+                    // this is `primaryAction` rather than `primaryActionMoves` —
+                    // and the style's disabled state keeps a real surface under
+                    // real secondary text, which matters here more than anywhere
+                    // because the button spends most of its life disabled with
+                    // the reason printed directly above it.
+                    .buttonStyle(.primaryAction)
                     // `stop != nil` IS THE SAME EXPRESSION THAT PRINTED THE
                     // REASON ABOVE. A button cannot go dead here without the
                     // sentence explaining it appearing in the same pass, which
@@ -236,7 +309,14 @@ struct PublishMotionView: View {
                     // the "Published" Section above it.
                     .disabled(busy || published != nil || stop != nil)
                 }
+                .listRowBackground(Theme.surfacePrimary)
             }
+            // A FORM ON THE PALETTE'S RECESSED GROUND, with every row on a real
+            // card. `Theme` records that the four inks land between 4.17:1 and
+            // 4.27:1 against `backgroundSecondary` — short of the 4.5:1 body
+            // text owes — so nothing is ever set on the ground itself.
+            .scrollContentBackground(.hidden)
+            .background(Theme.backgroundSecondary)
             .navigationTitle("Share this motion")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

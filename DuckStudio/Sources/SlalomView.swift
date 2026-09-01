@@ -19,38 +19,133 @@ import StudioKit
 /// spends the run braking for corners the walker takes at full pace.
 struct SlalomView: View {
     @StateObject private var model = SlalomModel()
+    /// So the gear switch stops being capped at the sizes where a cap
+    /// truncates it — see `switchWidth`.
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         ZStack(alignment: .bottom) {
             SlalomContainer(model: model).ignoresSafeArea()
-            VStack(spacing: 10) {
-                Text(model.headline).font(.headline).monospacedDigit()
-                Text(model.detail).font(.caption).foregroundStyle(.secondary)
+            VStack(spacing: Theme.spacing(.snug)) {
+                // THE CLOCK IS IN THE SENTENCE, WHICH IS WHY IT KEEPS TABULAR
+                // FIGURES. `SlalomModel.headline` is "Gate 3 of 5 · 12.4 s"
+                // while a run is going, so the digits are changing ten times a
+                // second; proportional figures make the whole line breathe in
+                // and out around them. The rule the design system states —
+                // monospace claims "this will change" — is satisfied here
+                // rather than broken, and the words beside the digits are not
+                // set in mono because they do not change.
+                Text(model.headline)
+                    .font(.headline.monospacedDigit())
+                    .foregroundStyle(Theme.textPrimary)
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(model.detail)
+                    .font(.caption)
+                    .foregroundStyle(Theme.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                if model.isPlaced {
+                    // THE TWO NUMBERS THE COURSE IS DECIDED BY, AS ROWS. They
+                    // are inside the headline as well, in a sentence; a
+                    // `TelemetryRow` gives each a label that never changes
+                    // beside a value that does, stacks the pair rather than
+                    // truncating it at an accessibility size, and gives
+                    // VoiceOver something it can step through instead of one
+                    // utterance nobody can skip into.
+                    // THE RUN'S OWN GATES, NOT THE CATALOGUE'S. `Slalom.course`
+                    // is what a default run is built from; the count that
+                    // belongs beside "gate 3 of" is the one this run is
+                    // actually driving, which is the only one that stays true
+                    // if a course is ever handed in.
+                    TelemetryRow(label: "Gate",
+                                 value: "\(min(model.run.next + 1, model.run.gates.count)) of \(model.run.gates.count)")
+                    TelemetryRow(label: "Elapsed",
+                                 value: String(format: "%.1f", model.run.time), unit: "s")
+                    TelemetryRow(label: "Missed", value: "\(model.run.missed)")
+                }
                 if model.run.elapsed == 0 || model.run.isFinished {
                     Picker("Gear", selection: $model.gear) {
                         Text("Legs").tag(SlalomModel.Gear.legs)
                         Text("Skates").tag(SlalomModel.Gear.skates)
                     }
-                    .pickerStyle(.segmented).frame(maxWidth: 240)
+                    .pickerStyle(.segmented)
+                    .frame(maxWidth: switchWidth)
                     VenuePicker(venue: $model.venue)
                 }
                 if model.isPlaced {
                     if model.run.isFinished {
+                        // IT PUTS A DUCK BACK ON A COURSE, so it is the sixty
+                        // point variant. Nobody presses this while looking at
+                        // the phone — they are looking at where the duck is
+                        // about to be.
                         Button("Run it again") { model.restart() }
-                            .buttonStyle(.borderedProminent)
+                            .buttonStyle(.primaryActionMoves)
+                            .accessibilityHint(Text("Puts the duck back at the first gate and clears the clock."))
                     } else {
-                        JoystickView { model.stick = $0 }.frame(width: 120, height: 120)
+                        JoystickView { model.stick = $0 }
+                            .frame(width: SlalomMetric.stick, height: SlalomMetric.stick)
                     }
                 }
             }
-            .padding(.horizontal, 16).padding(.vertical, 12)
-            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
-            .padding()
+            .padding(.horizontal, Theme.spacing(.standard))
+            .padding(.vertical, Theme.spacing(.snug))
+            // AN OPAQUE PANEL OVER A LIVE PICTURE, which is the same decision
+            // `DriveView` makes about its readout: on `.thinMaterial` the
+            // contrast of every word here was whatever the grass or the carpet
+            // happened to be that frame — two different numbers, neither
+            // checked. `surfacePrimary` is one of the four grounds
+            // `PaletteTests` proves every text token against at 4.5:1.
+            .background(Theme.surfacePrimary, in: panel)
+            .overlay(panel.strokeBorder(Theme.separator,
+                                        lineWidth: SlalomMetric.hairlineStroke))
+            .padding(Theme.spacing(.standard))
         }
         .navigationTitle("Slalom")
         .navigationBarTitleDisplayMode(.inline)
+        .task { Haptic.prepare() }
+        // THE RUN ENDING IS A WORLD EVENT AND THE PERSON IS WATCHING THE DUCK,
+        // not the panel — which is the one thing the taptic engine is for here.
+        // On the edge only: `isFinished` stays true until the course is reset,
+        // and a tap per frame is a phone with a fault rather than a signal.
+        .onChange(of: model.run.isFinished) { _, finished in
+            if finished { Haptic.finished() }
+        }
     }
+
+    private var panel: RoundedRectangle {
+        RoundedRectangle(cornerRadius: Theme.radius(SlalomMetric.panel), style: .continuous)
+    }
+
+    /// How wide the two-word gear switch may get, or `nil` for as wide as it is
+    /// offered.
+    ///
+    /// A CAP THAT LIFTS AT ACCESSIBILITY SIZES, the same move `VenuePicker`
+    /// makes on the switch beside it: a segmented control does not wrap, it
+    /// truncates, so a cap that is comfortable at the default size hides
+    /// "Skates" from the person who enlarged the text in order to read it.
+    private var switchWidth: CGFloat? {
+        typeSize.isAccessibilitySize ? nil : SlalomMetric.switchWidth
+    }
+}
+
+/// The numbers this screen writes down for itself.
+///
+/// NOTHING HERE IS A COLOUR OR A CONTRAST — those are facts, and they live in
+/// `Palette` where a test runs the formula over them. How wide a two-word switch
+/// may grow is a judgement about a phone.
+private enum SlalomMetric {
+    /// The HUD panel. A card, on the scale.
+    static let panel = Palette.Radius.card
+    /// How wide "Legs | Skates" may get before it stops looking like a switch.
+    static let switchWidth: CGFloat = 240
+    /// The thumb stick's side. Unchanged from the shape this screen shipped
+    /// with — it is `JointNode`-sized travel in a pad somebody's thumb rests on.
+    static let stick: CGFloat = 120
+    /// A hairline STROKE. One point, which on every device this ships to is one
+    /// to three pixels. Named for the stroke because `Palette.Spacing` already
+    /// has a `hairline` and it is four points.
+    static let hairlineStroke: CGFloat = 1
 }
 
 @MainActor

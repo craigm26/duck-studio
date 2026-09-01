@@ -20,45 +20,147 @@ import StudioKit
 /// for the engine's honesty about reach.
 struct DuckGolfView: View {
     @StateObject private var model = GolfModel()
+    /// So the stick, the power column and the kick stop sharing a width they
+    /// cannot share — see the `isAccessibilitySize` branch below.
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         ZStack(alignment: .bottom) {
             GolfContainer(model: model).ignoresSafeArea()
-            VStack(spacing: 10) {
-                Text(model.headline).font(.headline)
-                Text(model.detail).font(.caption).foregroundStyle(.secondary)
+            VStack(spacing: Theme.spacing(.snug)) {
+                Text(model.headline)
+                    .font(.headline.monospacedDigit())
+                    .foregroundStyle(Theme.textPrimary)
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(model.detail)
+                    .font(.caption)
+                    .foregroundStyle(Theme.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                if model.isPlaced {
+                    // THE SCORE AND THE RANGE, AS ROWS. Both are in the
+                    // headline as a sentence; as rows they get a label that
+                    // never changes beside a value that does, tabular figures
+                    // so the range stops jittering as the duck walks, and a
+                    // stacked pair rather than a truncated number at an
+                    // accessibility size.
+                    TelemetryRow(label: "Strokes",
+                                 value: "\(model.game.strokes) of par \(model.game.hole.par)")
+                    TelemetryRow(label: "To the cup",
+                                 value: String(format: "%.2f", model.game.toCup), unit: "m")
+                }
                 if model.game.strokes == 0 || model.game.holed {
                     VenuePicker(venue: $model.venue)
                 }
                 if model.isPlaced {
                     if model.game.holed {
+                        // IT MOVES A DUCK TO A NEW TEE, so it is the sixty
+                        // point variant like every other control here that
+                        // does.
                         Button(model.hasNextHole ? "Next hole" : "Play again") {
                             model.advanceHole()
                         }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.primaryActionMoves)
+                    } else if typeSize.isAccessibilitySize {
+                        // STACKED WHERE SIDE BY SIDE WOULD SQUEEZE. A stick, a
+                        // power column and a sixty-point button do not share
+                        // the width of a phone at AX5 — one of them loses, and
+                        // it is always the words. They take the whole width in
+                        // turn instead.
+                        JoystickView { model.stick = $0 }
+                            .frame(width: GolfMetric.stick, height: GolfMetric.stick)
+                        power
+                        kick
                     } else {
-                        HStack(spacing: 16) {
+                        HStack(spacing: Theme.spacing(.standard)) {
                             JoystickView { model.stick = $0 }
-                                .frame(width: 110, height: 110)
-                            VStack(spacing: 6) {
-                                Text("Power \(Int(model.power * 100))%")
-                                    .font(.caption2).foregroundStyle(.secondary)
-                                Slider(value: $model.power, in: 0.1...1.0).frame(width: 130)
-                                Button("Kick") { model.kick() }
-                                    .buttonStyle(.borderedProminent).tint(.orange)
+                                .frame(width: GolfMetric.stick, height: GolfMetric.stick)
+                            VStack(spacing: Theme.spacing(.tight)) {
+                                power
+                                kick
                             }
+                            .frame(maxWidth: GolfMetric.powerWidth)
                         }
                     }
                 }
             }
-            .padding(.horizontal, 16).padding(.vertical, 12)
-            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
-            .padding()
+            .padding(.horizontal, Theme.spacing(.standard))
+            .padding(.vertical, Theme.spacing(.snug))
+            // AN OPAQUE PANEL OVER A LIVE PICTURE, the same decision
+            // `DriveView` makes about its readout: on `.thinMaterial` the
+            // contrast of every word here was whatever the grass happened to be
+            // that frame. `surfacePrimary` is one of the four grounds
+            // `PaletteTests` proves every text token against at 4.5:1.
+            .background(Theme.surfacePrimary, in: panel)
+            .overlay(panel.strokeBorder(Theme.separator,
+                                        lineWidth: GolfMetric.hairlineStroke))
+            .padding(Theme.spacing(.standard))
         }
         .navigationTitle("Duck golf")
         .navigationBarTitleDisplayMode(.inline)
+        .task { Haptic.prepare() }
+        // HOLING OUT IS A WORLD EVENT — the ball went in while the person was
+        // watching the ball, not the panel. On the edge only: `holed` stays
+        // true until the next hole is laid out.
+        .onChange(of: model.game.holed) { _, holed in
+            if holed { Haptic.finished() }
+        }
     }
+
+    /// How hard the kick will be.
+    ///
+    /// THE BILL IS THE FILL, which is what `BillIndicator` is for: one end
+    /// squared where the bar is attached and one rounded where it stops, saying
+    /// "this much, from here". The slider underneath is still the control — it
+    /// is a real `Slider`, so Voice Control, Switch Control and VoiceOver's
+    /// adjustable action all keep working — and the bill and the row above it
+    /// are how the same number is read while a thumb is on the stick.
+    private var power: some View {
+        VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
+            TelemetryRow(label: "Power",
+                         value: "\(Int(model.power * 100))", unit: "%")
+            BillIndicator(fill: model.power)
+            Slider(value: $model.power, in: 0.1...1.0)
+                .accessibilityLabel(Text("Power"))
+                .accessibilityValue(Text("\(Int(model.power * 100)) per cent"))
+        }
+    }
+
+    /// THE ONE CONTROL ON THIS SCREEN THAT SWINGS A FOOT. Everything orange
+    /// moves the duck and nothing else on the screen is orange, which is
+    /// `DriveView`'s rule and the whole colour story here; `.tint(.orange)`
+    /// said the same thing in a literal the palette cannot check, and at
+    /// whatever height a `.borderedProminent` button happened to be. Sixty
+    /// points, because the person pressing it is watching the ball.
+    private var kick: some View {
+        Button("Kick") { model.kick() }
+            .buttonStyle(.primaryActionMoves)
+            .accessibilityHint(Text("Swings at the ball with the power set above. Out of range it costs no stroke."))
+    }
+
+    private var panel: RoundedRectangle {
+        RoundedRectangle(cornerRadius: Theme.radius(GolfMetric.panel), style: .continuous)
+    }
+}
+
+/// The numbers this screen writes down for itself.
+///
+/// NOTHING HERE IS A COLOUR OR A CONTRAST — a ratio is a fact and lives in
+/// `Palette`, where a test runs the formula over it. How wide to let a power
+/// slider get is a judgement about a thumb.
+private enum GolfMetric {
+    /// The HUD panel. A card, on the scale.
+    static let panel = Palette.Radius.card
+    /// The thumb stick's side, unchanged from the shape this screen shipped
+    /// with.
+    static let stick: CGFloat = 110
+    /// How wide the power column may grow beside the stick.
+    static let powerWidth: CGFloat = 150
+    /// A hairline STROKE. One point, which on every device this ships to is one
+    /// to three pixels. Named for the stroke because `Palette.Spacing` already
+    /// has a `hairline` and it is four points.
+    static let hairlineStroke: CGFloat = 1
 }
 
 @MainActor

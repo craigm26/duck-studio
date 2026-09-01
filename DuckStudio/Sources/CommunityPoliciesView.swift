@@ -13,6 +13,20 @@ import StudioKit
 ///
 /// NOTHING LEAVES THE DEVICE UNTIL ASKED, the same as the Pollen catalogue —
 /// the address is printed first and the scan is a button.
+///
+/// EVERY REPOSITORY HERE WEARS THE LAVENDER PILL, and that is the point of it.
+/// This screen and the Pollen catalogue look alike on purpose — same rows, same
+/// buttons, same manifests — so the one thing that must never blur is who
+/// published the file. `CatalogueOriginPill` says it in a word, in the colour
+/// the palette keeps for the least-frequent thing the app reports, on every row.
+/// It is not a warning. A community policy is not worse; it is differently
+/// sourced, and the sourcing is what a person needs to be able to see.
+///
+/// THE SEAL NO LONGER STANDS ALONE. The `microduck-policy` tag used to be a bare
+/// checkmark glyph in a section header — which said "this repository claims to
+/// hold a policy" to sighted people and nothing to anybody else. It is now a
+/// glyph with the word beside it, in the body of the row, under the sentence
+/// that says a tag is a courtesy rather than a proof.
 struct CommunityPoliciesView: View {
     @ObservedObject var model: LibraryModel
 
@@ -38,144 +52,287 @@ struct CommunityPoliciesView: View {
             Section {
                 Text("Anyone can train a Microduck policy and publish it. These are the ones on Hugging Face tagged for this robot.")
                     .font(.footnote)
+                    .foregroundStyle(Theme.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                // MONO BECAUSE IT IS AN ADDRESS, printed before anything is
+                // fetched and selectable, so somebody can read exactly where the
+                // request is about to go.
                 Text(listing.displayURL)
-                    .font(.caption2.monospaced()).foregroundStyle(.secondary)
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(Theme.textSecondary)
                     .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
             } header: {
                 Text("Where to look")
             }
+            .listRowBackground(Theme.surfacePrimary)
+
+            pasteSection
 
             Section {
-                HStack(spacing: 8) {
-                    TextField("huggingface.co/owner/name", text: $pastedText)
-                        .textFieldStyle(.roundedBorder)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .focused($typing)
-                        .onSubmit { Task { await open(pastedText) } }
-                    Button("Open") { Task { await open(pastedText) } }
-                        .buttonStyle(.bordered).controlSize(.small)
-                        .disabled(pastedText.trimmingCharacters(in: .whitespaces).isEmpty
-                                  || working != nil)
-                }
-            } header: {
-                Text("Paste a link")
-            } footer: {
-                Text("The repository page, an owner/name, or a link straight to the file — blob or resolve, either works. Anything that is not a policy file is taken to mean the repository it sits in.")
-            }
-
-            Section {
+                // THE THING SOMEBODY CAME HERE TO DO, so it is the capsule in
+                // the action colour and every other control on the screen is
+                // quieter than it.
                 Button {
                     Task { await scan() }
                 } label: {
-                    HStack {
-                        Label("Scan for shared policies", systemImage: "arrow.down.circle")
-                        if busy { Spacer(); ProgressView() }
-                    }
+                    Label(busy ? "Scanning…" : "Scan for shared policies",
+                          systemImage: "arrow.down.circle")
+                        .frame(maxWidth: .infinity)
                 }
+                .buttonStyle(.primaryAction)
                 .disabled(busy)
+                .listRowSeparator(.hidden)
+                .accessibilityLabel(Text("Scan for shared policies"))
+                .accessibilityValue(Text(busy ? "Scanning" : ""))
             }
+            .listRowBackground(Theme.surfacePrimary)
 
             if let failure {
-                Section { Text(failure).font(.footnote).foregroundStyle(.orange) }
+                Section {
+                    // SOMEBODY SAID NO, IN THEIR OWN WORDS. `Theme.refused` is
+                    // the provenance colour for exactly that.
+                    Text(failure)
+                        .font(.footnote)
+                        .foregroundStyle(Theme.refused)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .listRowBackground(Theme.surfacePrimary)
             }
 
             ForEach(entries) { entry in
                 Section {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(entry.name).font(.subheadline.weight(.medium))
-                            Text("by \(entry.author)\(entry.updated.map { " · \($0)" } ?? "")")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        if working == entry.id {
-                            ProgressView()
-                        } else if manifests[entry.id] == nil && !noManifest.contains(entry.id) {
-                            Button("Read") { Task { await readManifest(entry) } }
-                                .buttonStyle(.bordered).controlSize(.small)
-                        }
-                    }
+                    entryHeadline(entry)
                     if let manifest = manifests[entry.id] {
                         card(manifest, entry: entry)
                     } else if noManifest.contains(entry.id) {
                         // The honest version of "we could not import this".
+                        // SECONDARY AND NOT REFUSED: nothing refused anything,
+                        // and the sentence itself says the policy may be fine.
                         Label("No Microduck manifest in this repository, so what its command "
                               + "block means is not written down anywhere. It may still be a "
                               + "fine policy — it cannot be driven correctly from here.",
                               systemImage: "questionmark.circle")
-                            .font(.caption).foregroundStyle(.secondary)
+                            .font(.caption)
+                            .foregroundStyle(Theme.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
                         Link("Open it on Hugging Face", destination: URL(string: entry.webURL)!)
                             .font(.caption)
+                            .foregroundStyle(Theme.actionSecondary)
                     }
                 } header: {
-                    HStack {
-                        Text(entry.id).font(.caption2.monospaced())
-                        if entry.declaresPolicyTag {
-                            // A SEAL WITH NOTHING BESIDE IT. The tag is the
-                            // only thing separating a repository that says it
-                            // holds a Microduck policy from one that merely
-                            // turned up in the search, and drawn as a bare
-                            // symbol it says that to sighted people only.
-                            Image(systemName: "checkmark.seal")
-                                .foregroundStyle(.secondary)
-                                .accessibilityLabel(Text("tagged microduck-policy"))
-                        }
+                    HStack(spacing: Theme.spacing(.tight)) {
+                        // MONO BECAUSE `owner/name` IS BOTH THE ADDRESS AND THE
+                        // IDENTITY, and it is the string somebody compares
+                        // against a link they were sent.
+                        Text(entry.id)
+                            .font(.caption2.monospaced())
+                            .foregroundStyle(Theme.textSecondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Spacer(minLength: Theme.spacing(.tight))
+                        CatalogueOriginPill(origin: .community)
                     }
                 }
+                .listRowBackground(Theme.surfacePrimary)
             }
 
             Section {
                 Text("The tag is a courtesy, not a proof. What decides whether a shared network can be driven here is its manifest — Pollen's sharing format, the same one their own policies carry.")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.caption)
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .listRowBackground(Theme.surfacePrimary)
         }
+        // THE LIST SITS ON THE PALETTE'S RECESSED GROUND, NOT THE SYSTEM'S GREY,
+        // and every row keeps a real `surfacePrimary` card under it — so no word
+        // on this screen is set on `backgroundSecondary`, which the palette
+        // documents as short of 4.5:1 for the four inks.
+        .scrollContentBackground(.hidden)
+        .background(Theme.backgroundSecondary)
         .navigationTitle("Community policies")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    // MARK: - pasting one in
+
+    /// STACKED RATHER THAN A FIELD AND A BUTTON SHARING A LINE. An address field
+    /// and a 44pt capsule cannot both have the width at an accessibility text
+    /// size, and what loses is the button — which is to say the app takes the
+    /// paste and then hides the way to open it.
+    private var pasteSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
+                // MONO BECAUSE IT IS AN ADDRESS BEING RETYPED, character by
+                // character, off somebody else's screen.
+                TextField("huggingface.co/owner/name", text: $pastedText)
+                    .textFieldStyle(.plain)
+                    .font(.callout.monospaced())
+                    .foregroundStyle(Theme.textPrimary)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .focused($typing)
+                    .onSubmit { Task { await open(pastedText) } }
+                    .padding(.horizontal, Theme.spacing(.snug))
+                    .frame(maxWidth: .infinity,
+                           minHeight: ConnectivityMetric.minimumTarget,
+                           alignment: .leading)
+                    .background(field.fill(Theme.surfaceInteractive))
+                    .overlay(field.strokeBorder(Theme.separator,
+                                                lineWidth: ConnectivityMetric.hairlineStroke))
+                    .accessibilityLabel(Text("Repository address"))
+                Button("Open") { Task { await open(pastedText) } }
+                    .buttonStyle(.connectivityAction)
+                    .disabled(pastedText.trimmingCharacters(in: .whitespaces).isEmpty
+                              || working != nil)
+                    .accessibilityHint(Text("Reads the manifest at this address."))
+            }
+        } header: {
+            Text("Paste a link")
+        } footer: {
+            Text("The repository page, an owner/name, or a link straight to the file — blob or resolve, either works. Anything that is not a policy file is taken to mean the repository it sits in.")
+                .foregroundStyle(Theme.textSecondary)
+        }
+        .listRowBackground(Theme.surfacePrimary)
+    }
+
+    /// A field is a control, so it takes the control radius — one step down from
+    /// the card it sits inside, which is the concentric rule the whole app
+    /// follows rather than a corner picked to look right.
+    private var field: RoundedRectangle {
+        RoundedRectangle(cornerRadius: Theme.radius(.control), style: .continuous)
+    }
+
+    // MARK: - one repository
+
+    /// The name, who wrote it, whether it wears the tag, and the one button.
+    private func entryHeadline(_ entry: PolicyCatalogue.CommunityEntry) -> some View {
+        VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
+            Text(entry.name)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(Theme.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("by \(entry.author)\(entry.updated.map { " · \($0)" } ?? "")")
+                .font(.caption)
+                .foregroundStyle(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if entry.declaresPolicyTag {
+                // THE SEAL WITH ITS WORD BESIDE IT. The tag is the only thing
+                // separating a repository that says it holds a Microduck policy
+                // from one that merely turned up in the search; drawn as a bare
+                // symbol it said that to sighted people only.
+                Label("Tagged microduck-policy", systemImage: "checkmark.seal")
+                    .font(.caption2)
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if working == entry.id {
+                // THE WORD, NOT A SPINNER — and the two jobs this spot can be
+                // doing are different enough to name apart.
+                Text(manifests[entry.id] == nil ? "Reading…" : "Adding…")
+                    .font(.footnote)
+                    .foregroundStyle(Theme.textSecondary)
+            } else if manifests[entry.id] == nil && !noManifest.contains(entry.id) {
+                Button("Read") { Task { await readManifest(entry) } }
+                    .buttonStyle(.connectivityAction)
+                    .accessibilityLabel(Text("Read the manifest for \(entry.name)"))
+                    .accessibilityHint(Text(
+                        "Fetches the manifest that says what this policy's command block means."))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
     private func card(_ manifest: PolicyManifest, entry: PolicyCatalogue.CommunityEntry) -> some View {
         if let summary = manifest.summary {
-            Text(summary).font(.footnote)
+            Text(summary)
+                .font(.footnote)
+                .foregroundStyle(Theme.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         if let command = manifest.command, !command.twist.isEmpty {
-            VStack(alignment: .leading, spacing: 3) {
-                Text("What you send it").font(.caption.weight(.medium))
+            VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
+                Text("What you send it")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(Theme.textPrimary)
                 ForEach(Array(command.twist.enumerated()), id: \.offset) { index, meaning in
                     Text("twist[\(index)] — \(meaning)")
-                        .font(.caption2).foregroundStyle(.secondary)
+                        .font(.caption2)
+                        .foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        HStack(spacing: 10) {
-            Label("\(manifest.observationLength) → \(manifest.actionLength)", systemImage: "arrow.left.arrow.right")
-            if let hz = manifest.controlHz { Text("\(Int(hz)) Hz") }
-            if let kind = manifest.kind { Text(kind) }
+
+        // THE THREE NUMBERS THAT DECIDE WHETHER IT CAN BE DRIVEN, each as a
+        // `TelemetryRow`. They were a single `caption2` line of three chips,
+        // which at an accessibility size wrapped into a paragraph and reached
+        // VoiceOver as one utterance nobody could skip through. Every one of
+        // them is different for every policy, which is the claim monospace
+        // makes — and stacked, the label and the value each get the whole width.
+        TelemetryRow(label: "Observation → action",
+                     value: "\(manifest.observationLength) → \(manifest.actionLength)")
+        if let hz = manifest.controlHz {
+            TelemetryRow(label: "Control rate", value: "\(Int(hz))", unit: "Hz")
         }
-        .font(.caption2).foregroundStyle(.secondary)
+        if let kind = manifest.kind {
+            // NOT A `TelemetryRow`: a kind is a name, it sits still for the life
+            // of the policy, and tabular figures on it would tell the reader to
+            // watch something that is never going to move.
+            HStack(alignment: .firstTextBaseline, spacing: Theme.spacing(.tight)) {
+                Text("Kind")
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.textSecondary)
+                Spacer(minLength: Theme.spacing(.tight))
+                Text(kind)
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.textPrimary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine)
+        }
 
         if manifest.isRunnableHere {
             Button {
                 Task { await install(entry, manifest: manifest) }
             } label: {
                 Label("Add to my policies", systemImage: "square.and.arrow.down")
+                    .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.bordered).controlSize(.small)
+            .buttonStyle(.primaryAction)
             .disabled(working == entry.id)
+            .listRowSeparator(.hidden)
+            .accessibilityHint(Text(
+                "Downloads the weights and keeps the manifest beside them."))
         } else {
+            // IT CANNOT BE DRIVEN HERE, WHICH IS A REFUSAL — the app saying no,
+            // in the kit's words, for a reason the kit can name. `Theme.refused`
+            // is the colour that claim is made in everywhere else in the app.
             ForEach(manifest.incompatibilities, id: \.self) { problem in
                 Label(problem.message, systemImage: "xmark.circle")
-                    .font(.caption).foregroundStyle(.orange)
+                    .font(.caption)
+                    .foregroundStyle(Theme.refused)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
+        // THE AUTHOR'S OWN CAUTIONS, IN THE WARNING REGISTER. Nothing here said
+        // no — somebody who trained this network wrote down what breaks it, and
+        // a triangle in grey reads as a footnote rather than as the thing they
+        // took the trouble to say.
         ForEach(manifest.cautions, id: \.self) { caution in
             Label(caution, systemImage: "exclamationmark.triangle")
-                .font(.caption2).foregroundStyle(.secondary)
+                .font(.caption2)
+                .foregroundStyle(Theme.warning)
+                .fixedSize(horizontal: false, vertical: true)
         }
         if let training = manifest.training, let task = training.taskID {
             Text("Trained as \(task)\(training.run.map { " · run \($0)" } ?? "")")
-                .font(.caption2).foregroundStyle(.tertiary)
+                .font(.caption2)
+                .foregroundStyle(Theme.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 

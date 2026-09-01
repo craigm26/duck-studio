@@ -23,6 +23,14 @@ import StudioKit
 /// the surface where overclaiming would be easiest: a ghost on your carpet and a
 /// duck chasing a ball both LOOK like capability and neither is a robot doing
 /// anything. `LabCatalogue` holds the sentences so `swift test` can read them.
+///
+/// EVERY MODE IS A CARD, AND THE CARDS ARE CONCENTRIC. A mode is a name, a
+/// claim about how real it is and — often — a reason it cannot be opened, which
+/// is three lines of prose per row; drawn as system rows they ran together into
+/// a wall of grey text where nothing said where one mode stopped. The card is
+/// `Palette.Radius.card` and the symbol tile inside it is `.card.inner`, taken
+/// from the outer radius rather than chosen again, so the corner of the tile is
+/// one step down from the corner of the card it sits in.
 struct LabView: View {
     @ObservedObject var model: LibraryModel
     @ObservedObject var scenes: SceneStore
@@ -38,12 +46,22 @@ struct LabView: View {
     var body: some View {
         List {
             Section {
+                // THE HONESTY PREAMBLE IS THE FIRST THING ON THE SCREEN AND IT
+                // IS SET IN A TOKEN. It is the sentence that says nothing here
+                // is talking to a robot, which makes it the most load-bearing
+                // text in the tab; `.secondary` resolved it against whatever
+                // UIKit felt was behind it, while `Theme.textSecondary` is a
+                // value `PaletteTests` proves at 4.5:1 on every ground this app
+                // sets words on.
                 Text(LabCatalogue.preamble)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             } footer: {
                 Text(LabCatalogue.rationale)
+                    .foregroundStyle(Theme.textSecondary)
             }
+            .listRowBackground(Theme.surfacePrimary)
 
             Section {
                 ForEach(LabCatalogue.modes) { mode in
@@ -60,8 +78,16 @@ struct LabView: View {
                 // this sentence lives in `LabCatalogue` beside the others; it
                 // is left here only because it was already here.
                 Text("A mode is greyed out because nothing is behind it here yet, or because something it needs cannot be opened — this build, this phone, or a permission you have turned off. Never because it is locked. Which one it is is written under its name.")
+                    .foregroundStyle(Theme.textSecondary)
             }
         }
+        // THE LIST SITS ON THE PALETTE'S RECESSED GROUND, NOT THE SYSTEM'S
+        // GREY, and every card on it keeps a real `surfacePrimary` under its
+        // words — which is the arrangement `Theme.backgroundSecondary`
+        // documents as the only correct one, since the inks fall short of
+        // 4.5:1 against that ground and clear it on a card.
+        .scrollContentBackground(.hidden)
+        .background(Theme.backgroundSecondary)
         .refreshingCameraDoor($door)
         .navigationTitle("Lab")
         // ONE GEAR, SAME PLACE, SAME WORD, ON ALL FIVE TAB ROOTS.
@@ -91,56 +117,94 @@ struct LabView: View {
 
     /// One mode. Live rows navigate; the rest are inert AND look inert, with
     /// the reason under the name rather than in a dialog after the tap.
+    ///
+    /// THE CARD DRAWS ITSELF, so the row hands it the whole width and gets out
+    /// of the way — the same move `DriveView` makes for its pad deck, and for
+    /// the same reason: a system row background between the card and the ground
+    /// would put a third corner radius nobody chose in the middle of two that
+    /// were picked to be a step apart.
     @ViewBuilder private func row(_ mode: LabCatalogue.Mode) -> some View {
         let blocked = cameraRefusal(for: mode)
-        if mode.status == .here, blocked == nil {
-            NavigationLink {
-                destination(mode)
-            } label: {
-                label(mode, reason: nil)
+        Group {
+            if mode.status == .here, blocked == nil {
+                NavigationLink {
+                    destination(mode)
+                } label: {
+                    card(mode, reason: nil)
+                }
+            } else {
+                card(mode, reason: mode.status.reason ?? blocked)
+                    // Combined so a screen reader gets the name, what it does and
+                    // why it cannot be opened as one thing, rather than three
+                    // fragments it has to reassemble.
+                    .accessibilityElement(children: .combine)
             }
-        } else {
-            label(mode, reason: mode.status.reason ?? blocked)
-                .foregroundStyle(.secondary)
-                // Combined so a screen reader gets the name, what it does and
-                // why it cannot be opened as one thing, rather than three
-                // fragments it has to reassemble.
-                .accessibilityElement(children: .combine)
         }
+        .listRowInsets(EdgeInsets(top: Theme.spacing(.hairline),
+                                  leading: Theme.spacing(.snug),
+                                  bottom: Theme.spacing(.hairline),
+                                  trailing: Theme.spacing(.snug)))
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
     }
 
     /// `reason` is nil exactly for a row that can be opened. It is passed in
     /// rather than read off `mode.status` here because a built row can also be
-    /// shut by the camera, and the label must not have to know which of the two
+    /// shut by the camera, and the card must not have to know which of the two
     /// happened to draw the sentence.
-    private func label(_ mode: LabCatalogue.Mode, reason: String?) -> some View {
-        HStack(alignment: .top, spacing: 12) {
+    ///
+    /// A BLOCKED CARD LOSES THE ACTION COLOUR RATHER THAN BEING FADED OUT — the
+    /// argument `PrimaryActionStyle` makes about its own disabled state. Half
+    /// opacity over three lines of explanation takes the explanation to roughly
+    /// 2:1, and the explanation is the entire reason the row is still drawn.
+    private func card(_ mode: LabCatalogue.Mode, reason: String?) -> some View {
+        HStack(alignment: .top, spacing: Theme.spacing(.snug)) {
             Image(systemName: mode.symbol)
                 .font(.title3)
-                .frame(width: 28)
-                // BOTH BRANCHES ARE A `Color`. `.tertiary` here would be a
-                // HierarchicalShapeStyle, which is a different type from
-                // `Color.accentColor`, and a ternary needs one type — the kind
-                // of mistake `swiftc -parse` waves through on this box because
-                // it is a type error, not a syntax one.
-                .foregroundStyle(reason == nil ? Color.accentColor : Color.secondary)
+                // AN INK, NOT THE BRAND FILL. The glyph is a WORD-sized mark
+                // set on a surface rather than a shape filled with the action
+                // colour, and Duck Orange is 2.30:1 on cream — `actionSecondary`
+                // is the orange that sets marks and clears 4.5:1 in both schemes.
+                .foregroundStyle(reason == nil ? Theme.actionSecondary : Theme.textTertiary)
+                .frame(width: Theme.spacing(.loose), height: Theme.spacing(.loose))
+                .padding(Theme.spacing(.tight))
+                .background(Theme.surfaceInteractive, in: tile)
                 // The name is right there; the symbol is decoration.
                 .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(mode.name).font(.subheadline.weight(.semibold))
+            VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
+                Text(mode.name)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(reason == nil ? Theme.textPrimary : Theme.textSecondary)
                 Text(mode.blurb)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.textSecondary)
+                    // NO FIXED WIDTH ANYWHERE ON THIS CARD. Every string here
+                    // is a whole sentence from `LabCatalogue`, and a sentence
+                    // in a fixed frame at AX5 is a column of single words.
                     .fixedSize(horizontal: false, vertical: true)
                 if let reason {
                     Text(reason)
                         .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(Theme.textTertiary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.vertical, 2)
+        .padding(Theme.spacing(.snug))
+        .background(Theme.surfacePrimary, in: shell)
+        .overlay(shell.strokeBorder(Theme.separator, lineWidth: LabMetric.hairlineStroke))
+    }
+
+    /// The card, and the tile inside it at the next radius down. Written as
+    /// `LabMetric.card.inner` rather than as a second constant so that changing
+    /// the outer radius moves the inner one with it.
+    private var shell: RoundedRectangle {
+        RoundedRectangle(cornerRadius: Theme.radius(LabMetric.card), style: .continuous)
+    }
+
+    private var tile: RoundedRectangle {
+        RoundedRectangle(cornerRadius: Theme.radius(LabMetric.card.inner), style: .continuous)
     }
 
     /// WHERE A LIVE MODE GOES.
@@ -180,4 +244,21 @@ struct LabView: View {
                                    description: Text("\(mode.name) is listed as usable but nothing is wired to it. That is a bug in this build, not something you did."))
         }
     }
+}
+
+/// The two numbers this screen writes down for itself.
+///
+/// NEITHER IS A COLOUR OR A CONTRAST, which is the line `Theme` draws and this
+/// file stays behind: a ratio is a fact and lives in `Palette` where a test runs
+/// the formula over it. Which radius on the scale a mode card takes is a
+/// judgement about a list.
+private enum LabMetric {
+    /// A mode card. Its symbol tile takes `card.inner`, which is how the
+    /// concentric rule is expressed rather than asserted.
+    static let card = Palette.Radius.card
+
+    /// A hairline STROKE. One point, which on every device this ships to is one
+    /// to three pixels. Named for the stroke because `Palette.Spacing` already
+    /// has a `hairline` and it is four points.
+    static let hairlineStroke: CGFloat = 1
 }

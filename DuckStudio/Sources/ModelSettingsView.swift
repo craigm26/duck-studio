@@ -12,6 +12,12 @@ import StudioKit
 /// reads as a slow board rather than a broken app. Underneath that sit the
 /// timeout, the bearer token and the raw URL, for somebody who already knows
 /// what they are pointing at.
+///
+/// NOTHING ON THIS SCREEN IS ORANGE. Every row here picks a model, opens a
+/// form, or navigates — the action colour belongs to the two questions the
+/// EDITOR puts to an address, because those are the only controls in this part
+/// of the app that leave the phone. A list of things to choose between with a
+/// coloured capsule in it is a list with one row shouting.
 struct ModelSettingsView: View {
     @ObservedObject var store: EndpointStore
     @State private var editing: ModelEndpoint?
@@ -56,10 +62,16 @@ struct ModelSettingsView: View {
             // wearing the costume of a fix.
             if let note = store.unreadableNote {
                 Section {
+                    // IN `warning`, WHICH IS WHAT THIS IS: something is not as
+                    // it was left, and nothing is broken. The triangle carries
+                    // the same claim in a shape, so the notice does not depend
+                    // on anybody separating yellow from grey.
                     Label(note, systemImage: "exclamationmark.triangle")
-                        .font(.footnote).foregroundStyle(Color.orange)
+                        .font(.footnote).foregroundStyle(Theme.warning)
+                        .fixedSize(horizontal: false, vertical: true)
                     Button("Got it") { store.dismissUnreadableNote() }
                 }
+                .listRowBackground(Theme.surfacePrimary)
             }
 
             Section {
@@ -80,33 +92,48 @@ struct ModelSettingsView: View {
                             editing = store.armed(endpoint)
                         }
                     } label: {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(endpoint.name).foregroundStyle(.primary)
+                        HStack(spacing: Theme.spacing(.tight)) {
+                            VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
+                                Text(endpoint.name).foregroundStyle(Theme.textPrimary)
                                 // A KIND WITH NO ADDRESS NEEDS ITS OWN
                                 // SUBTITLE: the host branch renders
                                 // "Qwen3-0.6B-4bit · " with nothing after the
                                 // separator when baseURL is empty.
                                 Text(subtitle(for: endpoint))
-                                    .font(.caption).foregroundStyle(.secondary)
+                                    .font(.caption).foregroundStyle(Theme.textSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
-                            Spacer()
+                            Spacer(minLength: Theme.spacing(.tight))
                             if store.selectedID == endpoint.id {
                                 // The tick is the ONLY thing on this screen
                                 // that says which model the Ask panel will
                                 // use, and an unlabelled glyph says it to
                                 // nobody who cannot see it.
-                                Image(systemName: "checkmark").foregroundStyle(.tint)
+                                //
+                                // IN `brandPrimary` RATHER THAN IN THE TINT.
+                                // The tint is the orange ink every borderless
+                                // control inherits, and a selection mark is not
+                                // a control — teal is what this app draws a
+                                // thing that is simply true.
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(Theme.brandPrimary)
                                     .accessibilityLabel(Text("Selected"))
                             }
                         }
+                        .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
                     // NO FULL SWIPE. The default is true, so an unintended
                     // flick deleted an endpoint — and, for a downloaded model,
                     // up to two gigabytes of weights — without a single tap.
                     .swipeActions(allowsFullSwipe: false) {
                         if endpoint.kind != .appleOnDevice {
                             Button("Remove", role: .destructive) { removing = endpoint }
+                                // THE DESTRUCTIVE ROLE, IN THIS APP'S RED. The
+                                // role is what makes it destructive; the tint
+                                // is what makes it look like the rest of the
+                                // app rather than like the system's default.
+                                .tint(Theme.critical)
                         }
                     }
                 }
@@ -114,18 +141,21 @@ struct ModelSettingsView: View {
                 Text("Draft with")
             } footer: {
                 Text(store.selected.privacyNote)
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .listRowBackground(Theme.surfacePrimary)
 
             Section {
                 // ABOVE THE PRESETS, because it is a different act: a preset
                 // fills in a form, this downloads two gigabytes and has to say
                 // what fits first.
                 NavigationLink { PhoneModelPickerView(store: store) } label: {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
                         Label("Download a model to this phone", systemImage: "arrow.down.circle")
                         Text("Runs on the phone itself, with nothing you type leaving it. "
                            + "Needs the space — the smallest is 351 MB.")
-                            .font(.caption).foregroundStyle(.secondary)
+                            .font(.caption).foregroundStyle(Theme.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -133,18 +163,34 @@ struct ModelSettingsView: View {
                     Button {
                         editing = preset.endpoint()
                     } label: {
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
                             Label(preset.name, systemImage: preset.symbol)
-                            Text(preset.detail).font(.caption).foregroundStyle(.secondary)
+                                .foregroundStyle(Theme.textPrimary)
+                            Text(preset.detail)
+                                .font(.caption).foregroundStyle(Theme.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
                 }
             } header: {
                 Text("Add one")
             } footer: {
                 Text("Claude needs a bridge, because a subscription is a CLI on a computer rather than an HTTP endpoint and a phone cannot shell out. tools/claudebridge.mjs in this repo is that bridge: run it on a machine signed in to Claude Code and point this at it. Measured on a Raspberry Pi 5: a motion draft in 8.8 s and a training request in 26.5 s, against 766 s for a 7.5B model running locally on the same board.\n\nAnything speaking the OpenAI chat API works — Ollama, LM Studio, llama.cpp's server, vLLM. It does not have to be a big model: the app checks every number that comes back, so a small one that gets a joint name wrong is refused rather than believed.\n\nMeasured on a Raspberry Pi 5, CPU only: a 7.5B Gemma took 766 s to draft one motion; a 2B model with reasoning suppressed answered a fetch in 37 s. Small and quick beats large and correct here, because the checking is done afterwards either way.")
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .listRowBackground(Theme.surfacePrimary)
         }
+        // THE RECESSED GROUND UNDER THE CARDS, which is the one arrangement
+        // that lets a coloured word be set anywhere on this screen: `Palette`
+        // documents `backgroundSecondary` as carrying the inks at 4.17:1 to
+        // 4.27:1, short of what body text owes, so every word that is not grey
+        // sits on a `surfacePrimary` row.
+        .scrollContentBackground(.hidden)
+        .background(Theme.backgroundSecondary)
         .navigationTitle("Models")
         .navigationBarTitleDisplayMode(.inline)
         .confirmationDialog(removing.map(confirmationText) ?? "",
@@ -252,6 +298,19 @@ struct ModelSettingsView: View {
 
 /// One endpoint, with the parts a beginner needs first and the parts an expert
 /// wants last.
+///
+/// TWO CONTROLS WEAR THE ACTION COLOUR AND THEY ARE THE TWO THAT LEAVE THE
+/// PHONE WITH SOMETHING TO PROVE. "Check this address" asks whether there is an
+/// API there at all; "Try a draft" asks whether it can do the one job this app
+/// wants. Everything else on the form edits a field — including "Ask what
+/// models it has", which sends a request and then fills a text box in, which is
+/// help rather than a verdict.
+///
+/// THE VERDICT IS A WORD BEFORE IT IS A SENTENCE. It used to be a paragraph
+/// tinted green or orange, so the one-glance answer to "did that work" was a
+/// hue. `StateBadge` makes the word structural — it is the component's whole
+/// reason to exist — and the sentence under it, which is `Reachability`'s and
+/// which a test asserts, says which of sixteen causes it actually was.
 struct EndpointEditor: View {
     @ObservedObject var store: EndpointStore
     @State var endpoint: ModelEndpoint
@@ -285,18 +344,28 @@ struct EndpointEditor: View {
             Section("Name") {
                 TextField("What you will call it", text: $endpoint.name)
             }
+            .listRowBackground(Theme.surfacePrimary)
 
             Section {
                 TextField("http://192.168.1.10:11434/v1", text: $endpoint.baseURL)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .keyboardType(.URL)
+                    // MONO BECAUSE IT IS TRANSCRIBED, NOT BECAUSE IT MOVES. A
+                    // base URL is copied character by character off another
+                    // machine, and proportional figures make 1 and l, and 0 and
+                    // O, the same shape on the one field where that is fatal.
+                    .font(.body.monospaced())
                 Button {
                     Task { await list() }
                 } label: {
                     HStack {
                         Label("Ask what models it has", systemImage: "list.bullet")
-                        if busy { Spacer(); ProgressView() }
+                        // INSIDE THE LABEL HERE AND NOWHERE ELSE, because this
+                        // one is a plain row rather than a filled capsule:
+                        // there is no orange for the spinner to be drawn on and
+                        // no shape for it to stretch.
+                        if busy { Spacer(); ProgressView().tint(Theme.brandPrimary) }
                     }
                 }
                 .disabled(busy)
@@ -304,14 +373,19 @@ struct EndpointEditor: View {
                 Text("Address")
             } footer: {
                 Text("Ends in /v1. Ollama, LM Studio and llama.cpp all serve their OpenAI-compatible API there, and without it the request lands on the wrong route.")
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .listRowBackground(Theme.surfacePrimary)
 
             if available.isEmpty {
                 Section("Model") {
                     TextField("gemma4:e4b-it-qat", text: $endpoint.model)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
+                        .font(.body.monospaced())
                 }
+                .listRowBackground(Theme.surfacePrimary)
             } else {
                 Section("Model") {
                     Picker("Model", selection: $endpoint.model) {
@@ -319,62 +393,96 @@ struct EndpointEditor: View {
                     }
                     .pickerStyle(.inline).labelsHidden()
                 }
+                .listRowBackground(Theme.surfacePrimary)
             }
 
             Section {
                 Button {
                     Task { await check() }
                 } label: {
-                    HStack {
-                        Label("Check this address",
-                              systemImage: "antenna.radiowaves.left.and.right")
-                        if busy { Spacer(); ProgressView() }
-                    }
+                    Label("Check this address",
+                          systemImage: "antenna.radiowaves.left.and.right")
+                        .frame(maxWidth: .infinity)
                 }
+                .buttonStyle(.primaryAction)
                 .disabled(busy || addressIsEmpty)
+                // THE SPINNER SITS OUTSIDE THE CAPSULE. Inside it, it would be
+                // drawn in the app's tint against Duck Orange — two accents on
+                // one shape — and it would stretch the control as it appeared,
+                // moving a button under a thumb that is already on it.
+                if busy {
+                    ProgressView()
+                        .tint(Theme.brandPrimary)
+                        .frame(maxWidth: .infinity)
+                }
                 // A DISABLED CONTROL WITH NOTHING BESIDE IT IS A SILENT
                 // REFUSAL. The sentence comes from StudioKit so a test owns it.
                 if addressIsEmpty {
                     Text(Reachability.nothingToCheck)
-                        .font(.footnote).foregroundStyle(.secondary)
+                        .font(.footnote).foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 if let verdict {
-                    Text(verdict.sentence).font(.footnote)
-                        .foregroundStyle(verdict.isReady ? Color.green : Color.orange)
+                    VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
+                        StateBadge(text: standing(verdict).text,
+                                   state: standing(verdict).state)
+                        Text(verdict.sentence)
+                            .font(.footnote).foregroundStyle(Theme.textPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.vertical, Theme.spacing(.hairline))
                 }
             } header: {
                 Text("Check")
             } footer: {
                 Text("Asks the address for its list of models — the one thing a server answers without running anything, so this works before a model is named. It waits \(Int(Self.checkAllowance)) seconds rather than the timeout below, and says which of the several very different reasons an address can fail it hit: nothing listening, nothing serving an API there, a name that did not resolve, a key it wanted, a connection iOS would not make, or a machine that is simply slow.")
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .listRowBackground(Theme.surfacePrimary)
 
             Section {
                 Button {
                     Task { await test() }
                 } label: {
-                    HStack {
-                        Label("Try a draft", systemImage: "play.circle")
-                        if busy { Spacer(); ProgressView() }
-                    }
+                    Label("Try a draft", systemImage: "play.circle")
+                        .frame(maxWidth: .infinity)
                 }
+                .buttonStyle(.primaryAction)
                 .disabled(busy || endpoint.model.isEmpty)
+                // Outside the capsule, for the reason given above.
+                if busy {
+                    ProgressView()
+                        .tint(Theme.brandPrimary)
+                        .frame(maxWidth: .infinity)
+                }
                 // The other disabled control on this screen, with its reason.
                 // The refusal already exists and is already tested — it is what
                 // Save would say — so this says the same words rather than
                 // inventing a second set.
                 if endpoint.model.isEmpty {
                     Text(ModelEndpoint.Refusal.emptyModel.message)
-                        .font(.footnote).foregroundStyle(.secondary)
+                        .font(.footnote).foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 if let report {
-                    Text(report).font(.footnote).foregroundStyle(.green)
+                    // A DRAFT THAT CAME BACK AND PASSED THE CHECKER IS A
+                    // MEASUREMENT — of this machine, at this moment, in tokens
+                    // a second. Teal is this app's claim that a machine
+                    // produced what you are reading.
+                    Text(report).font(.footnote).foregroundStyle(Theme.measured)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 if let failure {
-                    Text(failure).font(.footnote).foregroundStyle(.orange)
+                    Text(failure).font(.footnote).foregroundStyle(Theme.refused)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             } footer: {
                 Text("Asks it for a real motion and puts the answer through the same checker a typed draft goes through. A small model on a small board is SLOW — the result says how slow, in tokens a second, so the wait makes sense.")
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .listRowBackground(Theme.surfacePrimary)
 
             Section {
                 DisclosureGroup("Advanced") {
@@ -385,31 +493,40 @@ struct EndpointEditor: View {
                     // seconds matter — the default allows for a board that
                     // takes 766 s to write one motion, and somebody who trims
                     // it blind gets a timeout they will read as a broken app.
-                    HStack {
-                        Text("Timeout")
-                        Spacer()
-                        Text(timeoutSeconds).foregroundStyle(.secondary)
-                    }
-                    .accessibilityHidden(true)
+                    //
+                    // A TELEMETRY ROW BECAUSE THE NUMBER MOVES UNDER A THUMB.
+                    // Tabular figures are what stop "1800 s" collapsing to
+                    // "30 s" and shifting the row while it is being dragged.
+                    TelemetryRow(label: "Timeout",
+                                 value: "\(Int(endpoint.timeout))", unit: "s")
+                        .accessibilityHidden(true)
                     Slider(value: $endpoint.timeout, in: 30...1800, step: 30)
                         .accessibilityLabel(Text("Timeout"))
                         .accessibilityValue(Text(timeoutSeconds))
                     Toggle("Forwards to a model elsewhere", isOn: $endpoint.relay)
                     Text("On for a bridge — a machine on your network that answers by asking something else, like a Claude subscription. It changes nothing about the request and everything about where your words end up, which is why the note below has to know.")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.caption).foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
                     Toggle("Suppress reasoning", isOn: $endpoint.suppressReasoning)
                     Text("A thinking model asked for a motion can spend its whole budget reasoning and answer with nothing — measured at 725 seconds and an empty reply. This sends reasoning_effort: none, which local servers honour. Turn it off only if a hosted service rejects it.")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.caption).foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
                     SecureField("Bearer token, if it needs one", text: Binding(
                         get: { endpoint.apiKey ?? "" },
                         set: { endpoint.apiKey = $0.isEmpty ? nil : $0 }))
                     Text("Measured on a Raspberry Pi 5, CPU only: a 7.5B Gemma at Q4 took 766 seconds to write one motion — about a quarter of a token a second. A 2B model on the same board is several times quicker. The default timeout allows for the slow case on purpose; the fix for the wait is a smaller model, not a shorter timeout.")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.caption).foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             } footer: {
                 Text(endpoint.privacyNote)
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .listRowBackground(Theme.surfacePrimary)
         }
+        .scrollContentBackground(.hidden)
+        .background(Theme.backgroundSecondary)
         .navigationTitle(endpoint.name.isEmpty ? "New model" : endpoint.name)
         .navigationBarTitleDisplayMode(.inline)
         // A VERDICT IS ABOUT ONE ADDRESS, AND DIES WITH IT. `check()` cleared
@@ -429,6 +546,23 @@ struct EndpointEditor: View {
                 Button("Save") { save() }
             }
         }
+    }
+
+    /// The verdict as a word and a dot.
+    ///
+    /// TWO WORDS FOR SIXTEEN CAUSES, AND THE SENTENCE CARRIES THE REST.
+    /// `Reachability.Cause` separates sixteen outcomes because sixteen of them
+    /// have different remedies; the badge collapses them at the only place a
+    /// glance actually splits — did something that speaks this API answer, or
+    /// did it not. `foundAnAPI` is exactly that line, and it is the kit's own,
+    /// so the badge and the paragraph under it can never disagree.
+    ///
+    /// `idle` FOR ONE THAT ANSWERED: powered, and standing still, which is what
+    /// a model server is between requests. It is also the teal, which is this
+    /// app's colour for something a machine said.
+    private func standing(_ verdict: Reachability.Verdict)
+        -> (text: String, state: RobotState) {
+        verdict.foundAnAPI ? ("Answered", .idle) : ("Unreachable", .offline)
     }
 
     private func save() {
@@ -567,4 +701,3 @@ struct EndpointEditor: View {
         }
     }
 }
-

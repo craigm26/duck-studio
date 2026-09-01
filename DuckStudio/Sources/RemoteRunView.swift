@@ -9,6 +9,26 @@ import StudioKit
 /// iPhone has no MuJoCo: every clip in this app was recorded on a bigger
 /// machine and baked in when the app was built. Point this at a bench on your
 /// network and an imported policy becomes something you can actually run.
+///
+/// EVERYTHING ORANGE TALKS TO THE BENCH, and nothing else on the screen is
+/// orange. That is the whole colour rule here and it is the same rule the Drive
+/// screen states about the duck: Duck Orange is the action colour, so Connect,
+/// Record it and Measure wear it and the pickers, the steppers, the twist
+/// fields and the notes do not. Keeping a recording is not orange either — it
+/// writes to this phone's own Motions and reaches nothing across the room.
+///
+/// TEAL IS WHAT THE BENCH MEASURED. The plant sentence and the success
+/// criterion are the two claims on this screen that came off another machine,
+/// and they are set in `Theme.measured` so that a person reading the figures
+/// beside them can see at a glance which words are the bench's and which are
+/// the app's. The figures themselves are `TelemetryRow`s: a core count, a tick
+/// rate, a rollout ratio and a tick count all change from bench to bench and
+/// run to run, which is what earns tabular digits.
+///
+/// THE LENS IS THE LINK, AND IT BELONGS WHERE NOTHING SCROLLS. The iris opens
+/// when the bench answers `/health`, which is the moment this screen becomes
+/// able to do anything at all — the same picture, in the same place, as the
+/// Drive screen.
 struct RemoteRunView: View {
     @ObservedObject var model: LibraryModel
     @ObservedObject var scenes: SceneStore
@@ -59,6 +79,11 @@ struct RemoteRunView: View {
     /// second keep destroys the first while reporting "Added the motion …".
     @State private var recordedName: String?
 
+    /// Whether this recording has already been kept, which is the one thing the
+    /// Keep button's word, symbol and enabled state all turn on. Written once
+    /// rather than three times, because three copies of a comparison drift.
+    private var alreadyKept: Bool { kept != nil && kept == recordedName }
+
     var body: some View {
         List {
             // THE FACT, NOT THE LAB'S SENTENCE. This screen has two entrances
@@ -68,8 +93,10 @@ struct RemoteRunView: View {
             // to a robot", which names a place the reader may not be in.
             Section {
                 Text(LabCatalogue.noRobotYet)
-                    .font(.footnote).foregroundStyle(.secondary)
+                    .font(.footnote).foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .listRowBackground(Theme.surfacePrimary)
 
             Section {
                 // THE LIST IS THE CONTROL. Picking between saved benches is a
@@ -89,47 +116,77 @@ struct RemoteRunView: View {
                         }
                     }
                     if let bench {
+                        // MONO BECAUSE IT IS TRANSCRIBED, NOT BECAUSE IT MOVES.
+                        // A host and port is copied off another machine's
+                        // terminal character by character, which is the same
+                        // argument the setup screen's command makes.
                         Text(bench.address)
-                            .font(.caption.monospaced()).foregroundStyle(.secondary)
+                            .font(.caption.monospaced())
+                            .foregroundStyle(Theme.textSecondary)
                     }
                     NavigationLink { BenchSettingsView(store: benches) } label: {
                         Label("Manage benches", systemImage: "slider.horizontal.3")
                     }
-                    Button("Connect") { Task { await connect() } }
-                        .disabled(bench == nil || busy)
+                    Button {
+                        Task { await connect() }
+                    } label: {
+                        Text("Connect").frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.primaryAction)
+                    .disabled(bench == nil || busy)
                 }
             } header: {
                 Text("Where the physics is")
             } footer: {
                 Text("A machine on your own network running duckbench.mjs. Plain http, because a Pi on a desk has no certificate — so only a private address or a tailnet one is accepted.")
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .listRowBackground(Theme.surfacePrimary)
 
             if let health {
                 Section {
+                    // A NAME IS NOT TELEMETRY. The bench's own name for itself
+                    // never changes while you are looking at it, and tabular
+                    // figures on it would tell the reader to watch something
+                    // that is not going to move.
                     LabeledContent("Bench", value: health.bench)
-                    LabeledContent("Cores", value: "\(health.cores)")
-                    LabeledContent("Rate", value: "\(Int(health.tickHz)) Hz")
-                    Text(health.plant).font(.caption).foregroundStyle(.secondary)
+                    TelemetryRow(label: "Cores", value: "\(health.cores)")
+                    TelemetryRow(label: "Rate",
+                                 value: "\(Int(health.tickHz))", unit: "Hz")
+                    Text(health.plant)
+                        .font(.caption).foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
                     // WHETHER A RESULT FROM HERE COULD EVER BE ATTRIBUTED. The
                     // line above is the bench's own prose about its world; this
                     // one says whether it identified that world well enough for
                     // a stored result to be matched against anyone else's.
                     // Composed in StudioKit, where a test asserts it.
-                    Text(health.plantSentence).font(.caption2).foregroundStyle(.secondary)
+                    //
+                    // IN `measured`, WHICH IS THE PROVENANCE CLAIM ITSELF. Teal
+                    // is what a machine said; the sentence is about whether the
+                    // machine said enough. It is on a card, which is the ground
+                    // `PaletteTests` proves the token against at 4.5:1.
+                    Text(health.plantSentence)
+                        .font(.caption2).foregroundStyle(Theme.measured)
+                        .fixedSize(horizontal: false, vertical: true)
                     if !health.graspables.isEmpty {
                         Text("Things in that world: "
                              + health.graspables.map {
                                  String(format: "%@ (%.0f g)", $0.name, $0.grams)
                                }.joined(separator: ", "))
-                            .font(.caption).foregroundStyle(.secondary)
+                            .font(.caption).foregroundStyle(Theme.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                     if !health.trains, let why = health.trainsWhy {
                         Label(why, systemImage: "info.circle")
-                            .font(.caption2).foregroundStyle(.secondary)
+                            .font(.caption2).foregroundStyle(Theme.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 } header: {
                     Text("What answered")
                 }
+                .listRowBackground(Theme.surfacePrimary)
 
                 Section {
                     Picker("Policy", selection: $chosen) {
@@ -140,6 +197,7 @@ struct RemoteRunView: View {
                 } header: {
                     Text("What to run")
                 }
+                .listRowBackground(Theme.surfacePrimary)
 
                 Section {
                     twist("From 0 s", step: $start)
@@ -148,41 +206,75 @@ struct RemoteRunView: View {
                     Text("What to command it")
                 } footer: {
                     Text("Three numbers, and what they mean is the policy's business: for alpha_walking they are forward, sideways and turn; for flamingo-cycle the first is a flag and the second picks the foot. The policy's own card says which.")
+                        .foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+                .listRowBackground(Theme.surfacePrimary)
 
                 Section {
                     Button {
                         Task { await record() }
                     } label: {
-                        HStack {
-                            Label("Record it", systemImage: "record.circle")
-                            if busy { Spacer(); ProgressView() }
-                        }
+                        Label("Record it", systemImage: "record.circle")
+                            .frame(maxWidth: .infinity)
                     }
+                    .buttonStyle(.primaryAction)
                     .disabled(chosen.isEmpty || busy)
                     Button {
                         Task { await measure() }
                     } label: {
                         Label("Measure how often it works", systemImage: "chart.bar")
+                            .frame(maxWidth: .infinity)
                     }
+                    .buttonStyle(.primaryAction)
                     .disabled(chosen.isEmpty || busy)
+                    // THE SPINNER SITS OUTSIDE THE CAPSULES, not inside one of
+                    // them. Inside, it would be drawn in the app's tint against
+                    // Duck Orange — two accents on one shape — and it would
+                    // stretch a control as it appeared, moving a button under a
+                    // thumb that is already on it.
+                    if busy {
+                        ProgressView()
+                            .tint(Theme.brandPrimary)
+                            .frame(maxWidth: .infinity)
+                    }
                 }
+                .listRowBackground(Theme.surfacePrimary)
             }
 
             if let failure {
-                Section { Text(failure).font(.footnote).foregroundStyle(.orange) }
+                Section {
+                    Text(failure).font(.footnote).foregroundStyle(Theme.refused)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .listRowBackground(Theme.surfacePrimary)
             }
 
             if let success {
                 Section {
-                    LabeledContent("Worked", value: "\(success.achieves) of \(success.rollouts)")
-                    Text(success.criterion).font(.caption).foregroundStyle(.secondary)
+                    // THE RATIO IS THE MEASUREMENT, so it is the one figure on
+                    // this screen most owed tabular digits: it is read against
+                    // the last run and against the run before that, and
+                    // proportional numerals make 8 of 8 and 3 of 8 different
+                    // widths.
+                    TelemetryRow(label: "Worked",
+                                 value: "\(success.achieves) of \(success.rollouts)")
+                    // WHAT "WORKED" MEANT, IN THE BENCH'S OWN WORDS. The ratio
+                    // above is meaningless without it — eight of eight WHAT —
+                    // and it is the bench's claim rather than the app's, which
+                    // is what the teal says.
+                    Text(success.criterion)
+                        .font(.caption).foregroundStyle(Theme.measured)
+                        .fixedSize(horizontal: false, vertical: true)
                     if let randomised = success.randomised {
-                        Text(randomised).font(.caption2).foregroundStyle(.secondary)
+                        Text(randomised)
+                            .font(.caption2).foregroundStyle(Theme.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 } header: {
                     Text("Measured on the bench")
                 }
+                .listRowBackground(Theme.surfacePrimary)
             }
 
             if let clip {
@@ -191,9 +283,15 @@ struct RemoteRunView: View {
                         IntentPlayerView(clip: clip, store: scenes, drafts: drafts,
                                          models: models)
                     } label: {
-                        Label("Watch what it did — \(clip.frames.count) ticks",
-                              systemImage: "play.circle")
+                        Label("Watch what it did", systemImage: "play.circle")
                     }
+                    // HOW LONG THE RECORDING IS, AS A ROW RATHER THAN AS A TAIL
+                    // ON THE LINK'S LABEL. It was "Watch what it did — 412
+                    // ticks", which put a number that changes on every recording
+                    // inside a navigation label that never does, and truncated
+                    // the number first at an accessibility text size.
+                    TelemetryRow(label: "Recorded", value: "\(clip.frames.count)",
+                                 unit: "ticks")
                     // KEEPING IT IS THE WHOLE POINT OF HAVING RECORDED IT.
                     // Until this button existed the footer below was simply
                     // true: a recording lasted as long as the screen, so a
@@ -202,14 +300,19 @@ struct RemoteRunView: View {
                     // the bench and never played again. Kept, it becomes a
                     // motion in the Motions tab like any other, playable with
                     // no bench and no network.
+                    //
+                    // NOT ORANGE, BECAUSE IT REACHES NOTHING. Everything in the
+                    // action colour on this screen sends a request to another
+                    // machine; this one writes a file on the phone.
                     Button {
                         keepRecording(clip)
                     } label: {
-                        Label(kept != nil && kept == recordedName ? "Kept — it is in your Motions"
-                                                : "Keep this recording",
-                              systemImage: kept != nil && kept == recordedName ? "checkmark.circle" : "tray.and.arrow.down")
+                        Label(alreadyKept ? "Kept — it is in your Motions"
+                                          : "Keep this recording",
+                              systemImage: alreadyKept ? "checkmark.circle"
+                                                       : "tray.and.arrow.down")
                     }
-                    .disabled(kept != nil && kept == recordedName)
+                    .disabled(alreadyKept)
                 } header: {
                     Text("Recorded")
                 } footer: {
@@ -217,18 +320,49 @@ struct RemoteRunView: View {
                        + "becomes a motion in your Motions — playable afterwards with no bench "
                        + "and no network, because the frames are the recording rather than a "
                        + "live run.")
+                        .foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+                .listRowBackground(Theme.surfacePrimary)
             }
         }
+        // THE LIST SITS ON THE PALETTE'S RECESSED GROUND, NOT THE SYSTEM'S
+        // GREY. `backgroundSecondary` is the token `Theme` documents as a
+        // ground for surfaces rather than for words, and every row above keeps
+        // a real `surfacePrimary` card under it — which is what makes the
+        // provenance colours legible claims rather than hopeful ones.
+        .scrollContentBackground(.hidden)
+        .background(Theme.backgroundSecondary)
         .navigationTitle("Run on your network")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                LensIndicator(state: linkState)
+            }
+        }
+        .task {
+            // WARMED BEFORE THE FIRST ANSWER, NOT AT IT. The taptic engine
+            // spins up on demand and the first tap of a session arrives after
+            // the thing it is about — which teaches the person that the buzz
+            // and the bench are unrelated.
+            Haptic.prepare()
+        }
     }
 
+    /// What the lens in the toolbar is doing. The bench has answered, is being
+    /// asked, or has not been reached.
+    private var linkState: LensIndicator.Connection {
+        if health != nil { return .connected }
+        return busy ? .connecting : .asleep
+    }
+
+    /// One command in the schedule: three numbers whose meaning is the
+    /// policy's, which is why they are numbered rather than named.
     @ViewBuilder
     private func twist(_ label: String, step: Binding<DuckBench.Step>) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(label).font(.caption).foregroundStyle(.secondary)
-            HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
+            Text(label).font(.caption).foregroundStyle(Theme.textSecondary)
+            HStack(spacing: Theme.spacing(.tight)) {
                 ForEach(["1", "2", "3"], id: \.self) { slot in
                     let value = Binding<Double>(
                         get: {
@@ -247,15 +381,32 @@ struct RemoteRunView: View {
                                 vyaw: slot == "3" ? new : s.vyaw)
                         })
                     VStack(spacing: 0) {
-                        Text(slot).font(.caption2).foregroundStyle(.tertiary)
+                        Text(slot)
+                            .font(.caption2)
+                            .foregroundStyle(Theme.textTertiary)
+                            // THE FIELD BELOW CARRIES THIS AS ITS LABEL. Read
+                            // out separately it is a lone digit in the rotor
+                            // between two things that mean something.
+                            .accessibilityHidden(true)
                         TextField("0", value: value, format: .number)
                             .textFieldStyle(.roundedBorder)
                             .keyboardType(.numbersAndPunctuation)
                             .multilineTextAlignment(.center)
+                            // MONO, BECAUSE THESE ARE THE NUMBERS THAT CHANGE.
+                            // Three fields side by side with proportional
+                            // figures put 0.5, 0.05 and -0.5 at three different
+                            // widths, and the row jogs as each is typed.
+                            .font(.body.monospacedDigit())
+                            // A NUMBERED FIELD WITH NO LABEL IS THREE IDENTICAL
+                            // "text field" ELEMENTS IN A ROW. Which schedule
+                            // step and which of its three slots is the whole of
+                            // what distinguishes them.
+                            .accessibilityLabel(Text("\(label), \(slot)"))
                     }
                 }
             }
         }
+        .padding(.vertical, Theme.spacing(.hairline))
     }
 
     // MARK: - the network
@@ -344,6 +495,12 @@ struct RemoteRunView: View {
             return try DuckBench.readHealth(data)
         }
         if let health, chosen.isEmpty { chosen = health.policies.first ?? "" }
+        // A BENCH ANSWERING IS AN EVENT ACROSS THE ROOM, which is the only kind
+        // this app spends the taptic engine on. It arrives seconds after the
+        // finger left the button — on a slow link, long enough that the person
+        // has looked away — so the tap is about the answer and never about the
+        // press. `Haptic`'s own preamble makes the argument at length.
+        if health != nil { Haptic.connected() }
     }
 
     @MainActor private func record() async {
@@ -357,7 +514,12 @@ struct RemoteRunView: View {
             return try DuckBench.readClip(data, named: chosen)
         }
         // MINTED ONCE, HERE. See `recordedName`.
-        if let clip { recordedName = Self.keepName(clip, at: Date()) }
+        if let clip {
+            recordedName = Self.keepName(clip, at: Date())
+            // SOMETHING THE PERSON ASKED FOR RAN TO THE END. Six seconds of
+            // physics on a small board is long enough to put the phone down for.
+            Haptic.finished()
+        }
     }
 
     @MainActor private func measure() async {
@@ -370,5 +532,8 @@ struct RemoteRunView: View {
                 for: DuckBench.urlRequest(for: call, token: token))
             return try DuckBench.readSuccess(data)
         }
+        // EIGHT ROLLOUTS IS A MINUTE OR MORE OF SOMEBODY ELSE'S CPU, and the
+        // tap is what says it is over to a person who stopped watching.
+        if success != nil { Haptic.finished() }
     }
 }

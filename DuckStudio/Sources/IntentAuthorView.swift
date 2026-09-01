@@ -11,6 +11,23 @@ import StudioKit
 /// the authored moves already in the corpus — `step_up` and `wall_flip` are
 /// exactly this — and those are also the ones measured at 0 of 16, which is the
 /// most useful thing anybody can know before writing another one.
+///
+/// SO THE HONESTY SURFACES ARE THE ONLY COLOURED THINGS ON IT. Four panels and
+/// a stage, and everything that is not a refusal, a caveat or a note about what
+/// was applied is set in ink on a card. What IS one of those takes a token with
+/// a meaning attached: `Theme.refused` for the kit saying no — a keyframe that
+/// cannot move there, an instruction that names a joint the duck does not have,
+/// a motion that is broken — `Theme.warning` for a limit or a scene that has
+/// gone, `Theme.asked` for the sentence the model was given, `Theme.success`
+/// for a change that actually landed. None of them appears without a glyph,
+/// because the whole screen is read by somebody deciding whether to trust it.
+///
+/// A JOINT IS DRAWN AS A JOINT. Fifteen stock sliders per keyframe say nothing
+/// about which machine they belong to and nothing about how close an angle is
+/// to the end of its travel; `JointSlider` below builds the same control out of
+/// the design system's own pieces — the bill for the filled track, the servo
+/// horn for the handle — and grows the handle as the joint is pushed toward a
+/// stop, exactly as `DriveView`'s thumb pads do.
 struct IntentAuthorView: View {
     @State var draft: IntentDraft
     @ObservedObject var scenes: SceneStore
@@ -37,6 +54,8 @@ struct IntentAuthorView: View {
     let onDiscard: (IntentDraft) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    /// So the stage can stop clipping at accessibility sizes — see `stage`.
+    @Environment(\.dynamicTypeSize) private var typeSize
     @State private var playhead: TimeInterval = 0
     @State private var isRunning = false
     @State private var orbit = OrbitState()
@@ -123,69 +142,26 @@ struct IntentAuthorView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ZStack(alignment: .bottomLeading) {
-                // PROPS ARE HALF OF WHAT A SCENE IS. Passing only
-                // `environment` dropped every one of them, because
-                // `DuckScene.environment` is DuckKit's RECORDED-world type and
-                // has no room for a Studio prop — so "Author against → Broom in
-                // the corner", the one starter scene that exists for the fetch
-                // and drag work, was a complete visual no-op. The scene editor
-                // one tap away drew all three objects, which is how somebody
-                // learns the app is inconsistent rather than that the feature
-                // is missing.
-                // DRAWN STANDING ON THE FLOOR, NOT HANGING AT 116 mm. A draft
-                // carries joints and no root, so this stage chose the height —
-                // and pinning it at standing drew `sit` with its feet 54.9 mm
-                // in the air, measured against the real meshes. That looks
-                // exactly like the published data being wrong, and it is not:
-                // every clip sits on the floor at the root physics recorded.
-                // So the body is dropped by the pose's own clearance.
-                DuckStage(pose: StagePose(jointAngles: shown, root: restingRoot(for: shown)),
-                          environment: scene?.environment ?? .bareFloor,
-                          props: scene?.props ?? [],
-                          orbit: $orbit)
-                // `rootIsPinned` because it is: the root here is a constant, by
-                // the design `IntentDraft`'s header states in capitals. The
-                // legend was built for recorded clips and reads that pin as if
-                // physics had produced it.
-                // THE LEGEND IS HANDED THE STANDING-HEIGHT POSE ON PURPOSE.
-                // Its clearance reading against that pose IS the drop, and it
-                // is the same measurement that used to be printed as a float.
-                // Measuring the rested pose instead would read zero by
-                // construction and blind the check that caught the build where
-                // every clip floated.
-                StageLegend(pose: StagePose(jointAngles: shown, root: StagePose.home.root),
-                            environment: scene?.environment ?? .bareFloor,
-                            props: scene?.props ?? [],
-                            rootIsPinned: true,
-                            restedOnFloor: true,
-                            orbit: $orbit)
-            }
-            .frame(maxHeight: 300)
+            stage
 
             // ABOVE THE TAB PICKER, BECAUSE THE THING IT IS ABOUT IS ABOVE THE
             // TAB PICKER. A warning about the floor that only appears on one
             // tab vanishes while the misleading floor stays on screen.
             if draft.sceneID != nil, scene == nil {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Label(StageCaption.sceneDeleted(.authoredAgainst), systemImage: "exclamationmark.triangle")
-                        .font(.caption).foregroundStyle(.orange)
-                    Spacer(minLength: 8)
-                    Button("Bare floor") { draft.sceneID = nil }
-                        .buttonStyle(.bordered).controlSize(.small)
-                }
-                .padding(.horizontal).padding(.top, 6)
+                sceneIsGone
             }
 
             TransportBar(duration: max(draft.duration, 0.01),
                          playhead: $playhead, isRunning: $isRunning)
-                .padding(.horizontal).padding(.vertical, 6)
+                .padding(.horizontal, Theme.spacing(.snug))
+                .padding(.vertical, Theme.spacing(.hairline))
 
             Picker("Panel", selection: $panel) {
                 ForEach(Panel.allCases) { Text($0.rawValue).tag($0) }
             }
             .pickerStyle(.segmented)
-            .padding(.horizontal).padding(.bottom, 6)
+            .padding(.horizontal, Theme.spacing(.snug))
+            .padding(.bottom, Theme.spacing(.hairline))
 
             List {
                 switch panel {
@@ -195,7 +171,16 @@ struct IntentAuthorView: View {
                 case .checks:   checks
                 }
             }
+            // THE LIST SITS ON THE PALETTE'S RECESSED GROUND, NOT THE SYSTEM'S
+            // GREY, and every section below puts a real `surfacePrimary` card
+            // under its rows. `Theme` records that the four inks land between
+            // 4.17:1 and 4.27:1 against `backgroundSecondary` — short of the
+            // 4.5:1 body text owes — so words go on a card and the card goes on
+            // the ground.
+            .scrollContentBackground(.hidden)
+            .background(Theme.backgroundSecondary)
         }
+        .background(Theme.backgroundPrimary)
         .navigationTitle(draft.name)
         .navigationBarTitleDisplayMode(.inline)
         // TWO WAYS OUT, BOTH ALWAYS PRESENT. The first version had one — a
@@ -320,6 +305,106 @@ struct IntentAuthorView: View {
         }
     }
 
+    // MARK: - the stage
+
+    /// The duck, in a card.
+    ///
+    /// A VIEWPORT WITH AN EDGE, FOR THE SAME REASON `DriveView`'S HAS ONE. The
+    /// 3D stage renders to whatever colour the scene's floor and sky happen to
+    /// be, which on the light ground is a rectangle whose boundary nobody
+    /// chose; a hairline of the palette's separator and one radius off the
+    /// scale make it a part rather than a hole. The radius is `.group` because
+    /// the legend inside it is a card, and a card inside a card takes the next
+    /// radius down.
+    ///
+    /// NOT CAPPED AT ACCESSIBILITY SIZES. The legend that floats on this stage
+    /// is text, and a fixed three-hundred-point viewport clips exactly the
+    /// reflow that text does at AX5 — which hides the words from the people who
+    /// enlarged them in order to read them. The duck shrinks to make room; the
+    /// words do not disappear. `DriveView` made the same change for the same
+    /// reason and the note there is longer.
+    private var stage: some View {
+        ZStack(alignment: .bottomLeading) {
+                // PROPS ARE HALF OF WHAT A SCENE IS. Passing only
+                // `environment` dropped every one of them, because
+                // `DuckScene.environment` is DuckKit's RECORDED-world type and
+                // has no room for a Studio prop — so "Author against → Broom in
+                // the corner", the one starter scene that exists for the fetch
+                // and drag work, was a complete visual no-op. The scene editor
+                // one tap away drew all three objects, which is how somebody
+                // learns the app is inconsistent rather than that the feature
+                // is missing.
+                // DRAWN STANDING ON THE FLOOR, NOT HANGING AT 116 mm. A draft
+                // carries joints and no root, so this stage chose the height —
+                // and pinning it at standing drew `sit` with its feet 54.9 mm
+                // in the air, measured against the real meshes. That looks
+                // exactly like the published data being wrong, and it is not:
+                // every clip sits on the floor at the root physics recorded.
+                // So the body is dropped by the pose's own clearance.
+                DuckStage(pose: StagePose(jointAngles: shown, root: restingRoot(for: shown)),
+                          environment: scene?.environment ?? .bareFloor,
+                          props: scene?.props ?? [],
+                          orbit: $orbit)
+                // `rootIsPinned` because it is: the root here is a constant, by
+                // the design `IntentDraft`'s header states in capitals. The
+                // legend was built for recorded clips and reads that pin as if
+                // physics had produced it.
+                // THE LEGEND IS HANDED THE STANDING-HEIGHT POSE ON PURPOSE.
+                // Its clearance reading against that pose IS the drop, and it
+                // is the same measurement that used to be printed as a float.
+                // Measuring the rested pose instead would read zero by
+                // construction and blind the check that caught the build where
+                // every clip floated.
+                StageLegend(pose: StagePose(jointAngles: shown, root: StagePose.home.root),
+                            environment: scene?.environment ?? .bareFloor,
+                            props: scene?.props ?? [],
+                            rootIsPinned: true,
+                            restedOnFloor: true,
+                            orbit: $orbit)
+        }
+        .frame(maxHeight: typeSize.isAccessibilitySize ? nil : AuthoringMetric.stageHeight)
+        .clipShape(viewport)
+        .overlay(viewport.strokeBorder(Theme.separator,
+                                       lineWidth: AuthoringMetric.hairlineStroke))
+        .padding(.horizontal, Theme.spacing(.snug))
+        .padding(.top, Theme.spacing(.tight))
+    }
+
+    private var viewport: RoundedRectangle {
+        RoundedRectangle(cornerRadius: Theme.radius(AuthoringMetric.viewport),
+                         style: .continuous)
+    }
+
+    /// The scene this motion was posed against is not there any more.
+    ///
+    /// A CAVEAT AND NOT A REFUSAL. Nothing has been turned away — the motion is
+    /// intact and the stage is drawing it, just against a floor nobody chose —
+    /// so this is `Theme.warning` and a triangle rather than the refusal token.
+    /// The distinction matters on this screen more than most, because four
+    /// other things in these four panels genuinely ARE refusals and a person
+    /// who cannot tell them apart learns to ignore all five.
+    ///
+    /// THE WAY OUT IS A REAL CONTROL. "Bare floor" was `.bordered` at
+    /// `.controlSize(.small)`, which is about twenty-eight points tall — under
+    /// the HIG's forty-four point floor, on the only button that resolves the
+    /// warning beside it.
+    private var sceneIsGone: some View {
+        HStack(alignment: .firstTextBaseline, spacing: Theme.spacing(.tight)) {
+            Label(StageCaption.sceneDeleted(.authoredAgainst),
+                  systemImage: "exclamationmark.triangle")
+                .font(.caption)
+                .foregroundStyle(Theme.warning)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: Theme.spacing(.tight))
+            Button("Bare floor") { draft.sceneID = nil }
+                .buttonStyle(AuthoringActionStyle())
+                .accessibilityHint(Text("Forgets the deleted scene and poses against nothing."))
+        }
+        .padding(.horizontal, Theme.spacing(.snug))
+        .padding(.top, Theme.spacing(.hairline))
+    }
+
+
     // MARK: - posing
 
     @ViewBuilder private var joints: some View {
@@ -329,12 +414,24 @@ struct IntentAuthorView: View {
             // it and the legend counts what is standing in it, but neither
             // names it, and the name is the only thing that ties what is on
             // screen to the menu item somebody tapped.
+            // NOT A `TelemetryRow`, BECAUSE A SCENE'S NAME IS A NAME. It changes
+            // when somebody picks a different one from the menu, which is not
+            // the same as changing — monospace would tell the reader to watch a
+            // word that is going to sit there for the whole session.
             LabeledContent("Posed against") {
                 Text(scene?.name ?? (draft.sceneID == nil ? "Bare floor" : "A deleted scene"))
+                    .foregroundStyle(Theme.textSecondary)
             }
             .font(.footnote)
-            Text(IntentDraft.disclaimer).font(.caption).foregroundStyle(.secondary)
+            // THE DISCLAIMER IS THE `asked` SENTENCE ON THIS PANEL. It is the
+            // kit saying that what you are about to make is a list of poses
+            // somebody wrote rather than anything a robot did — a request, not
+            // a result — and that is precisely what the yellow token means.
+            Label(IntentDraft.disclaimer, systemImage: "pencil.and.outline")
+                .font(.caption)
+                .foregroundStyle(Theme.asked)
         }
+        .listRowBackground(Theme.surfacePrimary)
 
         Section {
             Picker("Editing", selection: Binding(
@@ -373,7 +470,9 @@ struct IntentAuthorView: View {
             Text("Keyframe")
         } footer: {
             Text("Pick a moment, then move the joints. The robot above shows the keyframe you are editing. A new one holds whatever the motion was already doing at that instant — every pose stays pinned, though the curve between them re-eases, because each span is smoothed on its own.")
+                .foregroundStyle(Theme.textSecondary)
         }
+        .listRowBackground(Theme.surfacePrimary)
 
         if let key = editingKey {
             ForEach(JointGroup.all) { group in
@@ -385,8 +484,9 @@ struct IntentAuthorView: View {
                 } header: {
                     Text(group.title)
                 } footer: {
-                    group.note.map { Text($0) }
+                    group.note.map { Text($0).foregroundStyle(Theme.textSecondary) }
                 }
+                .listRowBackground(Theme.surfacePrimary)
             }
         }
     }
@@ -446,6 +546,7 @@ struct IntentAuthorView: View {
             // cannot express a list of edits.
             if models.selected.kind != .appleOnDevice {
                 Text("\(models.selected.name) is asked for a list of changes to THIS motion, not for a new one. Anything it does not mention is left exactly as it is. \(models.selected.privacyNote)")
+                    .foregroundStyle(Theme.textSecondary)
             } else {
                 // A DOOR, NOT DIRECTIONS. This told people to walk to another
                 // tab; `ModelSettingsView` is reachable from here because all
@@ -454,23 +555,36 @@ struct IntentAuthorView: View {
                     Label("Models", systemImage: "brain")
                 }
                 Text("\(models.selected.name) hands back a whole motion as a typed value, which is the shape it guarantees and the reason drafting works on it. There is no typed shape here for a list of edits, so this app does not ask it for one. Add a server here rather than picking a different model: any OpenAI-compatible address will do, and a small local one is plenty, because every angle it asks for is checked and clamped here afterwards.")
+                    .foregroundStyle(Theme.textSecondary)
             }
         }
+        .listRowBackground(Theme.surfacePrimary)
 
         if let failure = tweakFailure {
+            // THE MODEL OR THE WIRE FAILED, WHICH IS A REFUSAL AND NOT A
+            // CAVEAT: nothing was changed and the sentence in the box did not
+            // happen. It takes the octagon rather than the triangle so that it
+            // is not read as the same class of thing as the "not applied" list
+            // below, where some of what was asked for DID land.
             Section {
-                Label(failure, systemImage: "exclamationmark.triangle")
-                    .font(.footnote).foregroundStyle(.orange)
+                Label(failure, systemImage: "xmark.octagon")
+                    .font(.footnote).foregroundStyle(Theme.refused)
             }
+            .listRowBackground(Theme.surfacePrimary)
         }
 
         // ABOVE THE NOTES, NOT AFTER THEM. What was refused is the thing the
         // person has to act on; what worked they can see on the robot.
         if !tweakRefusals.isEmpty {
             Section {
+                // ONE INSTRUCTION THE KIT WOULD NOT CARRY OUT. These are
+                // `MotionTweak`'s own sentences — "wing is not a joint this
+                // robot has" — and each one is a no, so each takes the refusal
+                // token and the octagon. What separates them from the failure
+                // above is the footer, which says whether anything else landed.
                 ForEach(tweakRefusals, id: \.self) {
-                    Label($0, systemImage: "exclamationmark.triangle")
-                        .font(.footnote).foregroundStyle(.orange)
+                    Label($0, systemImage: "xmark.octagon")
+                        .font(.footnote).foregroundStyle(Theme.refused)
                 }
             } header: {
                 Text("Not applied")
@@ -485,13 +599,22 @@ struct IntentAuthorView: View {
                 Text(tweakNotes.isEmpty
                      ? "Nothing else was asked for, so the motion is exactly as it was. Say it again in other words, or change it by hand in Pose."
                      : "Everything else in the same sentence was applied. Say these again in other words, or change them by hand in Pose.")
+                    .foregroundStyle(Theme.textSecondary)
             }
+            .listRowBackground(Theme.surfacePrimary)
         }
 
         if !tweakNotes.isEmpty {
             Section {
+                // A NOTE IS A THING THAT ACTUALLY HAPPENED TO THE MOTION, which
+                // is the definition of a result — so it is the success token
+                // rather than plain ink. The refusals sit above it in the
+                // refusal token, and the two lists are never merged: that
+                // separation is why StudioKit hands them back apart.
                 ForEach(tweakNotes, id: \.self) {
-                    Label($0, systemImage: "checkmark").font(.footnote)
+                    Label($0, systemImage: "checkmark")
+                        .font(.footnote)
+                        .foregroundStyle(Theme.success)
                 }
                 if beforeTweak != nil {
                     Button(role: .destructive) {
@@ -520,7 +643,9 @@ struct IntentAuthorView: View {
                 Text(tweakMoment == nil
                      ? "Nothing new was added at a moment to jump to, so the robot above is where you left it. The keyframe list and the name are where to look."
                      : "The robot above is standing at the moment the change landed. Scrub the timeline to watch it through.")
+                    .foregroundStyle(Theme.textSecondary)
             }
+            .listRowBackground(Theme.surfacePrimary)
         }
     }
 
@@ -591,22 +716,39 @@ struct IntentAuthorView: View {
 
     @ViewBuilder private var timeline: some View {
         if let blockedRetime {
+            // THE ONE REFUSAL THE KEYFRAME PANEL CAN PRODUCE, and it is a
+            // refusal rather than a caveat: the stepper was pressed, the kit
+            // said no, and the keyframe is exactly where it was. `Theme.refused`
+            // and an octagon, so a person who tapped ten times into a neighbour
+            // is told what stopped rather than left to conclude the control is
+            // broken.
             Section {
-                Label(blockedRetime, systemImage: "exclamationmark.triangle")
-                    .font(.footnote).foregroundStyle(.orange)
+                Label(blockedRetime, systemImage: "xmark.octagon")
+                    .font(.footnote).foregroundStyle(Theme.refused)
             }
+            .listRowBackground(Theme.surfacePrimary)
         }
         Section {
             ForEach(ordered) { key in
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
+                VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
+                    HStack(spacing: Theme.spacing(.tight)) {
+                        // MONO, AND EARNED: this number is what the stepper
+                        // below moves, so it changes while somebody is looking
+                        // at it, and tabular figures are what stop the row
+                        // jogging sideways between 0.95 and 1.00.
                         Text(moment(key.time))
                             .font(.subheadline.monospacedDigit())
-                        Spacer()
+                            .foregroundStyle(Theme.textPrimary)
+                        Spacer(minLength: Theme.spacing(.tight))
                         Button("Show") {
                             playhead = key.time; isRunning = false
                         }
-                        .buttonStyle(.bordered).controlSize(.small)
+                        // A REAL TARGET, WHERE THERE WAS A TWENTY-EIGHT POINT
+                        // ONE. `.bordered` at `.controlSize(.small)` is under
+                        // the HIG's floor, and this is the control a person
+                        // presses over and over while scrubbing a motion.
+                        .buttonStyle(AuthoringActionStyle())
+                        .accessibilityHint(Text("Puts the robot above at this moment."))
                     }
                     // RETIMING WAS THE MISSING ONE. A keyframe could be added,
                     // shown and deleted, and the only way to change WHEN it
@@ -616,7 +758,7 @@ struct IntentAuthorView: View {
                         get: { key.time },
                         set: { retime(key, to: $0) }),
                             in: 0...30, step: 0.05) {
-                        Text("Move it").font(.caption).foregroundStyle(.secondary)
+                        Text("Move it").font(.caption).foregroundStyle(Theme.textSecondary)
                     }
                     // WHAT IT MOVED TO, WHICH ONLY THE ROW ABOVE SAID. A
                     // stepper announcing "Move it" and nothing else gives no
@@ -640,7 +782,9 @@ struct IntentAuthorView: View {
             Text("Keyframes")
         } footer: {
             Text("Between keyframes the robot is interpolated with smoothstep — it arrives and leaves at rest. A linear blend would change speed instantly at every keyframe, and a servo asked to do that answers with a jolt the balance controller then has to absorb.")
+                .foregroundStyle(Theme.textSecondary)
         }
+        .listRowBackground(Theme.surfacePrimary)
 
         Section {
             Button {
@@ -669,6 +813,7 @@ struct IntentAuthorView: View {
                 Label("Add half a second on the end", systemImage: "arrow.right.to.line")
             }
         }
+        .listRowBackground(Theme.surfacePrimary)
     }
 
     /// Move a keyframe to another moment, refusing a collision rather than
@@ -713,36 +858,51 @@ struct IntentAuthorView: View {
     @ViewBuilder private var checks: some View {
         let problems = draft.problems
         Section {
-            Text(draft.provenance).font(.footnote).foregroundStyle(.secondary)
+            // WHERE THE MOTION CAME FROM IS A PROVENANCE CLAIM, and the palette
+            // has a colour for exactly that. This is the sentence saying a
+            // person or a model wrote these poses — nothing measured them — so
+            // it is the yellow token rather than the grey the rest of the
+            // furniture takes.
+            Label(draft.provenance, systemImage: "pencil.and.outline")
+                .font(.footnote)
+                .foregroundStyle(Theme.asked)
         }
+        .listRowBackground(Theme.surfacePrimary)
         if problems.isEmpty {
             Section {
                 Label("Nothing to flag. Every pose is inside its travel and nothing moves faster than the recorded corpus does.",
                       systemImage: "checkmark.circle")
                     .font(.footnote)
+                    .foregroundStyle(Theme.success)
             }
+            .listRowBackground(Theme.surfacePrimary)
         } else {
             Section {
                 ForEach(problems) { problem in
                     Label {
-                        Text(problem.text).font(.footnote)
+                        Text(problem.text)
+                            .font(.footnote)
+                            .foregroundStyle(Theme.textPrimary)
                     } icon: {
                         Image(systemName: icon(problem.severity))
-                            .foregroundStyle(problem.severity == .caution ? Color.secondary : .orange)
+                            .foregroundStyle(colour(problem.severity))
                     }
                 }
             } header: {
                 Text("Checks")
             } footer: {
                 Text("These are the things a phone can check: travel, ordering, and how fast a joint is asked to move against what the recorded corpus actually does. What it cannot check is whether the robot stays up, because that needs physics.")
+                    .foregroundStyle(Theme.textSecondary)
             }
+            .listRowBackground(Theme.surfacePrimary)
         }
         Section {
             Text("Every authored move in this app — step_up, lever_up, riser_up, climb — was written this way and searched against a real step, and all four get up their flight 0 times in 16. Authoring is the easy half.")
-                .font(.caption).foregroundStyle(.secondary)
+                .font(.caption).foregroundStyle(Theme.textSecondary)
         } header: {
             Text("Before you run it")
         }
+        .listRowBackground(Theme.surfacePrimary)
     }
 
     private func icon(_ severity: IntentDraft.Problem.Severity) -> String {
@@ -750,6 +910,24 @@ struct IntentAuthorView: View {
         case .broken:     return "exclamationmark.triangle.fill"
         case .impossible: return "gauge.with.dots.needle.100percent"
         case .caution:    return "info.circle"
+        }
+    }
+
+    /// The severity as a colour — and THREE OF THEM, WHERE THERE WERE TWO.
+    ///
+    /// The old expression was `severity == .caution ? Color.secondary : .orange`,
+    /// which collapsed the two severities that matter into one and drew the
+    /// third in the system's grey. `broken` means the motion is not a legal
+    /// motion, which is the kit refusing it; `impossible` means a joint is being
+    /// asked to move faster than anything in the recorded corpus does, which is
+    /// a limit being approached rather than a no; `caution` is a note. Three
+    /// facts, three tokens — and each one already had its own glyph, so nobody
+    /// is asked to tell them apart by hue.
+    private func colour(_ severity: IntentDraft.Problem.Severity) -> Color {
+        switch severity {
+        case .broken:     return Theme.refused
+        case .impossible: return Theme.warning
+        case .caution:    return Theme.textSecondary
         }
     }
 
@@ -802,56 +980,369 @@ struct IntentAuthorView: View {
     }
 }
 
-/// One joint, with its real travel as the slider's ends.
+
+// MARK: - one joint
+
+/// One joint, with its real travel as the ends of the track.
+///
+/// A JOINT IS DRAWN AS A JOINT. The design system has exactly one picture of a
+/// servo — `JointNode`, a dark hub inside a quieter collar that grows as the
+/// joint is pushed toward a stop — and exactly one picture of "this much, from
+/// here", which is the bill. A stock `Slider` is neither: it is a system
+/// capsule that says nothing about which machine it belongs to and, worse,
+/// nothing about how close this angle is to the end of its travel. Fifteen of
+/// them per keyframe is fifteen chances to notice that and none taken.
+/// `DriveView`'s thumb pads made the same swap for the same reason, and the
+/// knob there grows for the same quantity.
+///
+/// THE ENDS ARE THE TRAVEL STOPS, WHICH IS BEHAVIOUR AND NOT DECORATION: the
+/// control cannot ask for an angle the joint does not have. A slider with
+/// generous ends and a warning underneath is a slider that teaches people to
+/// ignore warnings. That was true of the stock control and it is true of this
+/// one; nothing about what leaves this view has changed.
+///
+/// THE HANDLE IS THE ONLY THING THAT DRAGS, and that is a decision about the
+/// list rather than about the joint. These rows live inside a scrolling `List`
+/// where fifteen full-width drag targets would be fifteen places a flick
+/// upward moves a servo instead of the page. A stock slider does not respond
+/// to a tap on its track either, so nothing is lost — the handle is a
+/// forty-eight point target around a sixteen-to-twenty-four point mark, which
+/// clears the HIG's floor without this file writing that floor down.
+///
+/// IT IS STILL ADJUSTABLE WITHOUT A DRAG. A hand-drawn control that answers
+/// only to `DragGesture` is a control nobody using VoiceOver, Switch Control or
+/// Voice Control can move at all — on the one panel whose entire purpose is
+/// moving them. The step is one degree because one degree is what the readout
+/// prints: a finer step would change the motion without changing anything on
+/// screen, which is how somebody comes to believe the control is broken.
+///
+/// NO HAPTIC AT THE STOP, AND THAT IS THE DESIGN SYSTEM'S RULE RATHER THAN AN
+/// OMISSION. `Haptic.jointAtStop` is for a joint that has arrived at its stop
+/// in the WORLD — the thing a person watching the robot cannot see on the
+/// glass. Nothing moves while a motion is being written, so a tap here would be
+/// the phone reporting the person's own thumb back to them, which is precisely
+/// what `Haptic`'s preamble refuses to spend the taptic engine on.
 private struct JointSlider: View {
     let control: JointControl
     @Binding var value: Double
 
-    /// What the slider says when it is spoken instead of seen.
+    /// The angle the handle was at when this drag began.
+    ///
+    /// A DRAG IS MEASURED FROM WHERE IT STARTED, not from where the finger is.
+    /// Reading the touch's absolute position would make the handle jump to
+    /// under the thumb on contact — a two-degree correction turns into a
+    /// twenty-degree one because the finger landed slightly off the mark.
+    @State private var grabbed: Double?
+
+    /// What the control says when it is spoken instead of seen.
     ///
     /// THE TRAVEL STOPS ARE PART OF THE VALUE, NOT DECORATION. The ends of this
-    /// slider are the joint's real travel, so a thumb that will not go further
+    /// track are the joint's real travel, so a handle that will not go further
     /// has hit the joint's limit rather than a bug — and the two numbers under
     /// the track are the only thing on screen that says which. Drop them and
     /// the spoken control is strictly worse than the printed one: fifteen of
     /// these per keyframe, each stopping somewhere different, with no way to
     /// tell a stop from a stall. Every part comes from `JointControl`, the same
-    /// expressions the three visible rows use, so the spoken and printed
-    /// angles cannot round apart.
+    /// expressions the visible rows use, so the spoken and printed angles
+    /// cannot round apart.
     private var spoken: String {
         "\(control.degrees(value)), travel \(control.travelLabel.lower) to \(control.travelLabel.upper)"
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            // Hidden because the slider below now carries the name, the angle
-            // and both stops. A Slider is its own element with the adjustable
-            // trait and never reads a sibling HStack, so these rows would
-            // otherwise be spoken beside a control still announcing itself as a
-            // bare percentage.
-            HStack {
-                Text(control.name).font(.caption)
-                Spacer()
-                Text(control.degrees(value))
-                    .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-            }
-            .accessibilityHidden(true)
-            // The ends ARE the travel stops, so the slider cannot ask for an
-            // angle the joint does not have. A slider with generous ends and a
-            // warning underneath is a slider that teaches people to ignore
-            // warnings.
-            Slider(value: $value, in: control.lower...control.upper)
-                .accessibilityLabel(Text(control.name))
-                .accessibilityValue(Text(spoken))
+        VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
+            // THE NAME AND THE ANGLE ARE A TELEMETRY ROW, which is what they
+            // are: a label that does not change beside a number that does. It
+            // buys the mono digits on the angle, the SF on the name, and — the
+            // reason it is worth the swap — a stacked pair instead of a
+            // truncated one at an accessibility size, where an HStack is a
+            // fight for the width that the number always loses.
+            //
+            // HIDDEN, BECAUSE THE TRACK BELOW SAYS ALL OF IT. The track is an
+            // adjustable element carrying the name, the angle and both stops;
+            // left visible this would be a second element repeating two thirds
+            // of that immediately before it.
+            TelemetryRow(label: control.name, value: control.degrees(value))
+                .accessibilityHidden(true)
+
+            track
+
             HStack {
                 Text(control.travelLabel.lower)
                 Spacer()
                 Text(control.travelLabel.upper)
             }
-            .font(.caption2).foregroundStyle(.tertiary)
+            .font(.caption2)
+            .foregroundStyle(Theme.textTertiary)
             .accessibilityHidden(true)
+        }
+    }
+
+    /// The collar, the bill, and the horn that runs along them.
+    ///
+    /// THREE PIECES OF THE DESIGN SYSTEM AND NO FOURTH THING. The collar is a
+    /// `surfaceInteractive` capsule with the palette's hairline round it — a
+    /// wash, which `Theme` says in as many words is a hint and not information,
+    /// so it is the groove and never the signal. The bill is the signal: it is
+    /// the app's one pointing gesture and it says "this much, from here". The
+    /// horn is where the joint actually is.
+    private var track: some View {
+        GeometryReader { proxy in
+            let width = proxy.size.width
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Theme.surfaceInteractive)
+                    .overlay(Capsule().strokeBorder(
+                        Theme.separator, lineWidth: AuthoringMetric.hairlineStroke))
+                    .frame(height: Theme.spacing(.tight))
+                BillIndicator(fill: fraction, thickness: Theme.spacing(.hairline))
+                knob(in: width)
+            }
+            .frame(width: width, height: AuthoringMetric.trackHeight)
+        }
+        .frame(height: AuthoringMetric.trackHeight)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(control.name))
+        .accessibilityValue(Text(spoken))
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment: nudge(by: AuthoringMetric.oneDegree)
+            case .decrement: nudge(by: -AuthoringMetric.oneDegree)
+            @unknown default: break
+            }
+        }
+    }
+
+    /// The servo horn, at the angle, with a target around it.
+    ///
+    /// A FIXED FRAME AROUND A MARK THAT CHANGES SIZE. `JointNode` grows from
+    /// sixteen points to twenty-four with load, and a target that grew with it
+    /// would move under a finger that is already on it — the same objection
+    /// `PrimaryActionStyle` makes to a control that shrinks when pressed. The
+    /// frame is the track's own height, so the thing you can hit is constant
+    /// whatever the thing you can see is doing.
+    private func knob(in width: CGFloat) -> some View {
+        JointNode(load: towardTheStop, label: control.name)
+            // The track above is the element and carries the name and the
+            // angle; the horn inside it would be a second thing to swipe past
+            // saying "Neck yaw, moderate load" about a control that has already
+            // said where it is.
+            .accessibilityHidden(true)
+            .frame(width: AuthoringMetric.trackHeight,
+                   height: AuthoringMetric.trackHeight)
+            .contentShape(Rectangle())
+            .offset(x: centre(in: width) - AuthoringMetric.trackHeight / 2)
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { drag in
+                        let from = grabbed ?? value
+                        if grabbed == nil { grabbed = from }
+                        let moved = Double(drag.translation.width / travel(in: width))
+                        value = angle(at: position(of: from) + moved)
+                    }
+                    .onEnded { _ in grabbed = nil })
+    }
+
+    // MARK: what the numbers here are
+
+    /// How far along its travel the joint is, 0...1. Where to draw the horn and
+    /// how much of the bill to fill, and nothing else.
+    private var fraction: Double { position(of: value) }
+
+    /// The angle as a proportion of the joint's travel, and back again.
+    ///
+    /// TWO FUNCTIONS RATHER THAN ONE EXPRESSION WRITTEN TWICE, because a drag
+    /// converts in both directions on every frame — the handle's position out,
+    /// the new angle in — and a mapping that disagrees with its own inverse is
+    /// a control that drifts away from the finger holding it.
+    private func position(of angle: Double) -> Double {
+        let span = control.upper - control.lower
+        guard span > 0 else { return 0 }
+        return min(max((angle - control.lower) / span, 0), 1)
+    }
+
+    private func angle(at position: Double) -> Double {
+        control.lower + (control.upper - control.lower) * min(max(position, 0), 1)
+    }
+
+    /// How hard this joint is pushed toward a stop, 0...1 — the size of the
+    /// horn and nothing else.
+    ///
+    /// A PRESENTATION QUANTITY, NOT A CLAIM ABOUT THE ROBOT, which is the note
+    /// `DriveView`'s thumb pads carry about their own: how big to draw a dot.
+    /// What leaves this view is the binding's angle in radians, exactly as it
+    /// was set. Rest is free and either end of the travel is against the stop,
+    /// so a joint driven hard in either direction grows — which is what
+    /// `JointNode` draws and, for anybody not looking, what its spoken value
+    /// says in words.
+    private var towardTheStop: Double {
+        let rest = control.home
+        if value >= rest {
+            let span = control.upper - rest
+            return span > 0 ? min(max((value - rest) / span, 0), 1) : 0
+        }
+        let span = rest - control.lower
+        return span > 0 ? min(max((rest - value) / span, 0), 1) : 0
+    }
+
+    /// Where the horn's centre sits, inset by half its largest diameter so a
+    /// fully-loaded joint at a stop is inside the track rather than half out
+    /// of it. `ThumbPad` derives its own travel from the same two numbers.
+    private func centre(in width: CGFloat) -> CGFloat {
+        let inset = Theme.spacing(.loose) / 2
+        return inset + max(width - inset * 2, 0) * CGFloat(fraction)
+    }
+
+    /// How far the horn's centre moves between the two stops — the divisor a
+    /// drag is measured against, so the mark on the glass and the angle
+    /// underneath it cannot disagree.
+    private func travel(in width: CGFloat) -> CGFloat {
+        max(width - Theme.spacing(.loose), 1)
+    }
+
+    private func nudge(by radians: Double) {
+        value = min(max(value + radians, control.lower), control.upper)
+    }
+}
+
+// MARK: - the quieter action
+
+/// The second-loudest button on the authoring screens: a real surface, a real
+/// edge, and the same reach as the loud one.
+///
+/// IT EXISTS BECAUSE `.bordered` AT `.controlSize(.small)` IS A TWENTY-EIGHT
+/// POINT CONTROL. Three buttons on these screens were drawn that way — "Bare
+/// floor" under the stage's scene warning, "Show" beside every keyframe, and
+/// the third answer on the preference screen — and the Human Interface
+/// Guidelines' floor is forty-four points for all of them. A small control is
+/// not a quieter control; it is the same control, harder to hit, for no
+/// benefit. Here the reach comes off the spacing scale rather than being
+/// written down as a number: `.loose` either side of a footnote and `.standard`
+/// above and below it is comfortably past the floor in both directions, which
+/// is the same construction `DriveView`'s dead pad controls use.
+///
+/// QUIET IS THE ABSENCE OF THE ACTION COLOUR, NOT THE ABSENCE OF CONTRAST. The
+/// usual treatment for a secondary button is half-opacity, which takes its
+/// label to roughly two to one and leaves "what does this do" unanswerable.
+/// This keeps `surfacePrimary` under `textPrimary` — a pairing `PaletteTests`
+/// proves at 4.5:1 in both schemes — and says "not the main thing here" by
+/// having no orange in it at all. That is the same argument `PrimaryActionStyle`
+/// makes about its own disabled state.
+///
+/// PRESSED IS A STEP UP THE PALETTE. `surfaceInteractive` is the next surface
+/// along, which is exactly the size of change a press needs to be seen and no
+/// larger, and it still carries the primary ink well past 4.5:1. Nothing here
+/// scales: a control that moves out from under a committed finger is the one
+/// thing this app's button styles refuse to do.
+struct AuthoringActionStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        Surface(configuration: configuration)
+    }
+
+    /// A nested `View` rather than the style itself, because `@Environment`
+    /// only resolves inside one — a `ButtonStyle` is not a view, so a style
+    /// that needs to know whether it is enabled has to hand its body to
+    /// something that is. `PrimaryActionStyle` is built the same way and says
+    /// so at greater length.
+    private struct Surface: View {
+        let configuration: ButtonStyleConfiguration
+
+        @Environment(\.isEnabled) private var isEnabled
+        @Environment(\.isFocused) private var isFocused
+
+        var body: some View {
+            configuration.label
+                .font(.footnote.weight(.medium))
+                .multilineTextAlignment(.center)
+                .foregroundStyle(isEnabled ? Theme.textPrimary : Theme.textSecondary)
+                .padding(.horizontal, Theme.spacing(.loose))
+                .padding(.vertical, Theme.spacing(.standard))
+                .background(Capsule().fill(configuration.isPressed
+                                           ? Theme.surfaceInteractive
+                                           : Theme.surfacePrimary))
+                .overlay(Capsule().strokeBorder(
+                    Theme.separator, lineWidth: AuthoringMetric.hairlineStroke))
+                .overlay(focusRing)
+                .contentShape(Capsule())
+        }
+
+        /// Three points of teal, two points clear of the capsule — the brand
+        /// sheet's geometry, and the same ring `PrimaryActionStyle` draws. The
+        /// negative padding is what puts it OUTSIDE the shape: `strokeBorder`
+        /// draws inside its own bounds, so growing those by the offset plus the
+        /// width leaves the ring's inner edge exactly clear of the button.
+        @ViewBuilder private var focusRing: some View {
+            if isFocused {
+                Capsule()
+                    .strokeBorder(Theme.focus, lineWidth: AuthoringMetric.focusRingWidth)
+                    .padding(-(AuthoringMetric.focusRingOffset
+                               + AuthoringMetric.focusRingWidth))
+            }
         }
     }
 }
 
+// MARK: - the numbers the authoring screens write down for themselves
 
+/// Dimensions that are layout decisions rather than facts, gathered so the next
+/// person can see which ones are load-bearing — and shared across the six
+/// authoring screens so there is one of each rather than six.
+///
+/// NOTHING HERE IS A COLOUR OR A CONTRAST, which is the line `Theme` draws and
+/// this file stays behind: a ratio is a fact about two colours and lives in
+/// `Palette`, where a test runs the WCAG formula over it. How tall to let a
+/// stage get is not a fact about anything, it is a judgement about a phone.
+///
+/// NOT IN `Palette` BECAUSE `Palette` HAS NO SCALE FOR THEM YET, and inventing
+/// one from the app side would put the design system in two files. This is the
+/// same arrangement `DriveView` makes for the drive screen and `DesignComponents`
+/// makes for the components, and every one of them would move into the kit the
+/// day it grows a scale for control geometry.
+enum AuthoringMetric {
+    /// A hairline STROKE. One point, which on every device this ships to is one
+    /// to three pixels — the thinnest line iOS will draw crisply.
+    ///
+    /// Named for the stroke rather than the scale because `Palette.Spacing`
+    /// already has a `hairline` and it is four points. Two things called
+    /// hairline that differ by four times is how a rule ends up drawn at the
+    /// width of a gap.
+    static let hairlineStroke: CGFloat = 1
+
+    /// 3pt stroke, 2pt clear of the shape — the focus ring, both schemes.
+    ///
+    /// Source: the Microduck design system's own token table, which specifies
+    /// the ring's geometry alongside its colour. The offset matters as much as
+    /// the width: a ring drawn ON a control's edge reads as a heavier border
+    /// and disappears against a filled shape.
+    static let focusRingWidth: CGFloat = 3
+    static let focusRingOffset: CGFloat = 2
+
+    /// How much of the editor the duck is allowed, at ordinary text sizes.
+    /// Above this the panels stop fitting on a small phone; below it the duck
+    /// is a thumbnail of a duck. At an accessibility size the cap comes off
+    /// entirely — see `IntentAuthorView.stage`.
+    static let stageHeight: CGFloat = 300
+
+    /// The stage's card. Its legend takes `viewport.inner`, which is how the
+    /// concentric rule is expressed rather than asserted: pick a different
+    /// outer radius and the inner one follows.
+    static let viewport = Palette.Radius.group
+
+    /// How tall a joint's track is: the largest a servo horn gets, with a ring
+    /// of padding either side so the thing you drag is bigger than the thing
+    /// you see. `.loose` is `JointNode`'s diameter at a stop and `.snug` above
+    /// and below it puts the target past the Human Interface Guidelines'
+    /// forty-four point floor — which is why this file never writes that floor
+    /// down as a number.
+    static let trackHeight: CGFloat = Theme.spacing(.loose) + Theme.spacing(.snug) * 2
+
+    /// One degree, in radians.
+    ///
+    /// THE SMALLEST STEP THE READOUT CAN SHOW, which is what makes it the right
+    /// step for a swipe. `JointControl.degrees` prints whole degrees, so a
+    /// finer adjustment would move the motion and change nothing on screen —
+    /// and a control that appears not to respond is one people stop using. It
+    /// is a unit conversion rather than a fact about the robot; every angle
+    /// this app knows about still comes out of the kit.
+    static let oneDegree: Double = .pi / 180
+}

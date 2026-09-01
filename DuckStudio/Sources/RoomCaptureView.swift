@@ -50,18 +50,32 @@ struct RoomCaptureView: View {
                 scanning
             }
         }
+        // THE REFUSAL BRANCH NEEDS A GROUND OF ITS OWN. `scanning` covers the
+        // screen with a camera feed; `ContentUnavailableView` does not, and
+        // without this it would sit on whatever the system decided the window
+        // was — which is the one surface in the app no test has an opinion on.
+        .background(Theme.backgroundPrimary)
         .refreshingCameraDoor($door)
         .navigationTitle("Room capture")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $capture.showingScene) {
             NavigationStack {
                 ScrollView {
+                    // MONOSPACE IS EARNED HERE. The design system's rule is that
+                    // tabular figures are a claim the thing will change, and
+                    // this is an XML file whose every line is different from the
+                    // last — it is also the one place in the app where column
+                    // alignment is the reader's only way of scanning a
+                    // generated document.
                     Text(capture.mjcf)
                         .font(.caption2.monospaced())
+                        .foregroundStyle(Theme.textPrimary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .textSelection(.enabled)
-                        .padding()
+                        .padding(Theme.spacing(.standard))
                 }
+                .scrollContentBackground(.hidden)
+                .background(Theme.backgroundPrimary)
                 .navigationTitle("captured-room.xml")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -76,34 +90,105 @@ struct RoomCaptureView: View {
     /// The scan itself. Reached only when the door is open, so
     /// `RoomCaptureContainer` builds its `ARView` on the strength of this
     /// branch having been taken.
+    ///
+    /// THE GLASS IS GONE, AND OVER A CAMERA FEED THAT IS NOT A TASTE. Both
+    /// panels here were `.ultraThinMaterial`, which means the contrast of every
+    /// word on them was whatever the camera happened to be pointed at — a white
+    /// wall, a dark sofa, a window — changing several times a second while the
+    /// person walks the room. There is no ratio to check because there is no
+    /// second colour: the ground is the room. `Theme.surfacePrimary` is one of
+    /// the four grounds `PaletteTests` proves every text token against at 4.5:1,
+    /// and it is opaque, so the status line and the readings stay legible over
+    /// whatever the lens finds.
     private var scanning: some View {
         ZStack(alignment: .bottom) {
             RoomCaptureContainer(model: capture).ignoresSafeArea()
 
-            VStack(spacing: 10) {
+            VStack(spacing: Theme.spacing(.snug)) {
                 Text(capture.status)
                     .font(.footnote)
-                    .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(.ultraThinMaterial, in: Capsule())
+                    .foregroundStyle(Theme.textPrimary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, Theme.spacing(.standard))
+                    .padding(.vertical, Theme.spacing(.tight))
+                    .background(Theme.surfacePrimary, in: Capsule())
+                    .overlay(Capsule().strokeBorder(Theme.separator,
+                                                    lineWidth: RoomMetric.hairlineStroke))
 
-                HStack(spacing: 20) {
-                    Label("\(capture.planeCount)", systemImage: "square.stack.3d.up")
+                // THE NUMBERS ARE `TelemetryRow`S BECAUSE THEY CHANGE, which is
+                // the app's whole definition of telemetry — and both of these
+                // change several times a second while ARKit grows and merges
+                // planes. The plane count in particular used to be a bare
+                // number inside a `Label`, so VoiceOver read "seven" with
+                // nothing to say what seven was; a row gives it a name that
+                // never changes beside a value that does, and stacks the pair
+                // rather than truncating the digits when the text is large.
+                VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
+                    TelemetryRow(label: "Planes found", value: "\(capture.planeCount)")
                     if let floor = capture.floorExtent {
-                        Text(String(format: "%.1f × %.1f m", floor.0 * 2, floor.1 * 2))
-                            .font(.caption.monospacedDigit())
+                        TelemetryRow(label: "Floor",
+                                     value: String(format: "%.1f × %.1f",
+                                                   floor.0 * 2, floor.1 * 2),
+                                     unit: RoomUnit.metres)
                     }
                 }
-                .font(.caption)
-                .padding(.horizontal, 14).padding(.vertical, 8)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
+                .padding(Theme.spacing(.snug))
+                .background(Theme.surfacePrimary, in: readout)
+                .overlay(readout.strokeBorder(Theme.separator,
+                                              lineWidth: RoomMetric.hairlineStroke))
 
+                // THE CAPTURE ACTION, AT THE APP'S OWN PRIMARY. It was
+                // `.borderedProminent`, which is the system's accent and the
+                // system's height — and this is the button the whole screen
+                // exists for, pressed by somebody holding a phone up at arm's
+                // length in the middle of a room. `.primaryAction` is Duck
+                // Orange at the HIG's 44-point floor with a findable edge in
+                // light, a real surface and real secondary text when it is
+                // disabled, and a press that darkens rather than shrinking.
+                //
+                // NOT `.primaryActionMoves`. Sixty points is for a control that
+                // moves the ROBOT; this one writes a file.
                 Button("Write the scene") { capture.emit() }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.primaryAction)
                     .disabled(capture.floorExtent == nil)
+                    .accessibilityLabel(Text("Write the scene"))
+                    .accessibilityHint(Text(
+                        "Turns the floor and the obstacles found so far into a MuJoCo scene file."))
             }
-            .padding(.bottom, 24)
+            .padding(.horizontal, Theme.spacing(.snug))
+            .padding(.bottom, Theme.spacing(.loose))
         }
     }
+
+    private var readout: RoundedRectangle {
+        RoundedRectangle(cornerRadius: Theme.radius(RoomMetric.readout),
+                         style: .continuous)
+    }
+}
+
+// MARK: - the numbers and words this screen writes down for itself
+
+/// Dimensions that are layout decisions rather than facts.
+///
+/// NOTHING HERE IS A COLOUR OR A CONTRAST — a ratio is a fact and lives in
+/// `Palette`, where `swift test` runs the WCAG formula over it.
+private enum RoomMetric {
+    /// The readout's card. It floats over a camera feed rather than inside
+    /// another card, so it takes `.card` rather than a step down from anything.
+    static let readout = Palette.Radius.card
+
+    /// A hairline STROKE. One point, which on every device this ships to is one
+    /// to three pixels. Named for the stroke because `Palette.Spacing` already
+    /// has a `hairline` and it is four points.
+    static let hairlineStroke: CGFloat = 1
+}
+
+/// The unit this screen prints, written once.
+private enum RoomUnit {
+    /// A room is metres. Everything else the app measures is millimetres,
+    /// which is exactly why this is written down rather than typed twice.
+    static let metres = "m"
 }
 
 // MARK: - the session

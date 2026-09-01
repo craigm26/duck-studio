@@ -23,6 +23,13 @@ import StudioKit
 ///
 /// THE ORBIT IS SHARED FOR THE SAME REASON. Judging a bow from the front
 /// against a bow from the side is not judging the bow.
+///
+/// THREE ANSWERS, AND THE THIRD ONE IS QUIETER THAN THE OTHER TWO ON PURPOSE.
+/// A and B are the comparison, so they wear the action colour; "too close to
+/// call" is a real answer the search acts on, so it keeps a real surface, real
+/// ink and the same forty-four point reach — it is not an escape hatch and it
+/// is not faded out. What it does not have is orange, because a screen where
+/// everything is the action colour is a screen with no action colour.
 struct PreferenceSearchView: View {
     let draft: IntentDraft
     let scene: DuckScene?
@@ -53,14 +60,16 @@ struct PreferenceSearchView: View {
     var body: some View {
         VStack(spacing: 0) {
             side(left, label: "A")
-            Divider()
+            seam
             side(right, label: "B")
 
             TransportBar(duration: duration, playhead: $playhead, isRunning: $isRunning)
-                .padding(.horizontal).padding(.top, 6)
+                .padding(.horizontal, Theme.spacing(.snug))
+                .padding(.top, Theme.spacing(.hairline))
 
             controls
         }
+        .background(Theme.backgroundPrimary)
         .navigationTitle("Which is better?")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -74,6 +83,31 @@ struct PreferenceSearchView: View {
         }
     }
 
+    /// The line between the two ducks.
+    ///
+    /// A HAIRLINE IN THE PALETTE'S OWN SEPARATOR, NOT A `Divider`. The system's
+    /// divider is a system grey drawn against a system background, and this app
+    /// has neither: on Warm Cream it is the one line on the screen whose colour
+    /// nothing here chose. `separator` is the token, and the stroke is one point
+    /// because that is the thinnest line iOS draws crisply.
+    private var seam: some View {
+        Rectangle()
+            .fill(Theme.separator)
+            .frame(height: AuthoringMetric.hairlineStroke)
+    }
+
+    /// One of the two candidates, with the letter that names it.
+    ///
+    /// THE LETTER SITS ON A REAL SURFACE. It used to be set on
+    /// `.thinMaterial` — a blur of whatever the 3D stage happened to be
+    /// rendering behind it that frame, which is to say a letter whose contrast
+    /// was a different number every time the duck moved. `surfacePrimary` is one
+    /// of the four grounds `PaletteTests` proves every text token against at
+    /// 4.5:1, so an A stays an A over a bright floor and over a dark duck.
+    ///
+    /// NOT MONOSPACED ANY MORE. "A" is a name and names do not change; tabular
+    /// figures on one tell the reader to watch something that is never going to
+    /// move, which is the rule `TelemetryRow` exists to state.
     private func side(_ motion: IntentDraft, label: String) -> some View {
         ZStack(alignment: .topLeading) {
             DuckStage(pose: StagePose(jointAngles: motion.pose(at: playhead),
@@ -82,52 +116,67 @@ struct PreferenceSearchView: View {
                       props: scene?.props ?? [],
                       orbit: $orbit)
             Text(label)
-                .font(.caption.weight(.semibold).monospaced())
-                .padding(6)
-                .background(.thinMaterial, in: Capsule())
-                .padding(8)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Theme.textPrimary)
+                .padding(.horizontal, Theme.spacing(.tight))
+                .padding(.vertical, Theme.spacing(.hairline))
+                .background(Capsule().fill(Theme.surfacePrimary))
+                .overlay(Capsule().strokeBorder(Theme.separator,
+                                                lineWidth: AuthoringMetric.hairlineStroke))
+                .padding(Theme.spacing(.tight))
+                // The duck below is the answer; this only says which of the two
+                // it is, and the buttons underneath already say A and B.
                 .accessibilityHidden(true)
         }
         .frame(maxHeight: .infinity)
     }
 
     @ViewBuilder private var controls: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: Theme.spacing(.snug)) {
             // WHAT IS ACTUALLY DIFFERENT BETWEEN THEM. Without this the person
             // is asked to spot the difference as well as judge it, and a
             // comparison somebody cannot make reliably is worse than none.
             Text("Only \(search.knob.title.lowercased()) differs — it \(search.knob.effect).")
-                .font(.footnote).foregroundStyle(.secondary)
+                .font(.footnote)
+                .foregroundStyle(Theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal)
+                .padding(.horizontal, Theme.spacing(.snug))
 
-            HStack(spacing: 10) {
+            HStack(spacing: Theme.spacing(.tight)) {
                 Button { answer(.left) } label: {
                     Text("A is better").frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.primaryAction)
+                .accessibilityHint(Text("Keeps the first duck's setting and asks again."))
                 Button { answer(.right) } label: {
                     Text("B is better").frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.primaryAction)
+                .accessibilityHint(Text("Keeps the second duck's setting and asks again."))
             }
-            .padding(.horizontal)
+            .padding(.horizontal, Theme.spacing(.snug))
 
-            // A FIRST-CLASS ANSWER, NOT AN ESCAPE HATCH, and it is styled like
-            // the other two on purpose. Forcing a choice between two things
-            // somebody cannot tell apart manufactures signal, and the search
-            // treats this as information: it moves nothing and steps smaller.
+            // A FIRST-CLASS ANSWER, NOT AN ESCAPE HATCH, and it is the same
+            // size and the same width as the other two. Forcing a choice
+            // between two things somebody cannot tell apart manufactures
+            // signal, and the search treats this as information: it moves
+            // nothing and steps smaller.
             Button { answer(.cannotTell) } label: {
                 Text("Too close to call").frame(maxWidth: .infinity)
             }
-            .buttonStyle(.bordered)
-            .padding(.horizontal)
+            .buttonStyle(AuthoringActionStyle())
+            .accessibilityHint(Text("Moves nothing and narrows the next pair."))
+            .padding(.horizontal, Theme.spacing(.snug))
 
             Text(search.standing)
-                .font(.caption).foregroundStyle(.secondary)
+                .font(.caption)
+                .foregroundStyle(Theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal).padding(.bottom, 8)
+                .padding(.horizontal, Theme.spacing(.snug))
+                .padding(.bottom, Theme.spacing(.tight))
         }
+        .frame(maxWidth: .infinity)
+        .background(Theme.backgroundPrimary)
     }
 
     private func answer(_ answer: PreferenceSearch.Answer) {

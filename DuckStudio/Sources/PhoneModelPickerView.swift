@@ -14,6 +14,17 @@ import StudioKit
 /// the directory, not a re-print of the catalogue — those disagree whenever a
 /// download was partial or resumed, and the one that matters to somebody about
 /// to free space is what is actually on the disk.
+///
+/// AND EVERY ONE OF THEM IS SET IN FIGURES THAT DO NOT MOVE. A size, a download
+/// count and a rate are read against the rows above and below them, which is
+/// the whole case for tabular digits; the model's name and its note are prose
+/// and stay in SF.
+///
+/// NEVER A BARE BAR. The bill under a download is the app's one pointing
+/// gesture — "this much, from here" — and the sentence beside it is
+/// `DownloadRate.line`, which carries the percent, the megabytes, the speed and
+/// the time left. A filled shape on its own says "some", and somebody watching
+/// two gigabytes arrive over a hotel Wi-Fi needs the other four facts.
 struct PhoneModelPickerView: View {
     @ObservedObject var store: EndpointStore
     @Environment(\.dismiss) private var dismiss
@@ -49,14 +60,22 @@ struct PhoneModelPickerView: View {
         Form {
             Section {
                 Text(PhoneModel.preamble)
-                    .font(.footnote).foregroundStyle(.secondary)
+                    .font(.footnote).foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .listRowBackground(Theme.surfacePrimary)
 
             if !PhoneModelRuntime.shared.isSupported {
                 Section {
+                    // A REFUSAL, NOT A WARNING. Nothing here can be made to
+                    // work on this machine — there is no download to retry and
+                    // no setting to change — so it takes the colour this app
+                    // uses for "no", and the words say the same thing.
                     Label(PhoneModelInstall.simulatorRefusal, systemImage: "desktopcomputer")
-                        .font(.footnote).foregroundStyle(.orange)
+                        .font(.footnote).foregroundStyle(Theme.refused)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+                .listRowBackground(Theme.surfacePrimary)
             }
 
             Section {
@@ -67,47 +86,63 @@ struct PhoneModelPickerView: View {
                 Text("Tried on this app")
             } footer: {
                 Text(PhoneModelInstall.staysOpenNote + " " + PhoneModelInstall.cellularWarning)
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .listRowBackground(Theme.surfacePrimary)
 
             Section {
-                HStack {
+                HStack(spacing: Theme.spacing(.tight)) {
                     TextField("Search mlx-community", text: $search)
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
                         .onSubmit { Task { await runSearch() } }
                     Button("Find") { Task { await runSearch() } }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Theme.actionSecondary)
+                        .padding(.vertical, Theme.spacing(.snug))
+                        .padding(.leading, Theme.spacing(.snug))
+                        .contentShape(Rectangle())
                         .disabled(searching)
                 }
+                if searching {
+                    ProgressView().tint(Theme.brandPrimary)
+                }
                 if let searchFailure {
-                    Text(searchFailure).font(.footnote).foregroundStyle(.orange)
+                    Text(searchFailure).font(.footnote).foregroundStyle(Theme.warning)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 ForEach(hits) { hit in
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(hit.name).font(.subheadline)
-                            Text("\(hit.downloads) downloads")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Button("Add") { Task { await vetThenAdd(hit) } }
-                            .buttonStyle(.borderless)
-                            .disabled(busyWith != nil)
-                    }
+                    hitRow(hit)
                 }
             } header: {
                 Text("Anything else")
             } footer: {
                 Text(PhoneModelSearch.scopeNote)
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .listRowBackground(Theme.surfacePrimary)
 
             Section {
                 Text(PhoneModel.versusApple)
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.caption).foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .listRowBackground(Theme.surfacePrimary)
 
             if let failure {
-                Section { Text(failure).font(.footnote).foregroundStyle(.red) }
+                Section {
+                    Text(failure).font(.footnote).foregroundStyle(Theme.refused)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .listRowBackground(Theme.surfacePrimary)
             }
         }
+        // THE RECESSED GROUND UNDER THE CARDS. Every coloured word on this
+        // screen sits on a `surfacePrimary` row, because `Palette` documents
+        // this ground as carrying the inks short of what body text owes.
+        .scrollContentBackground(.hidden)
+        .background(Theme.backgroundSecondary)
         .navigationTitle("Download a model")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -116,71 +151,176 @@ struct PhoneModelPickerView: View {
         .task {
             budgetSnapshot = Int(os_proc_available_memory())
             refreshInstalled()
+            // WARMED BEFORE THE FIRST ARRIVAL, NOT AT IT. The taptic engine
+            // spins up on demand, and the tap that says two gigabytes finished
+            // is worth nothing if it lands after the row has already gone green.
+            Haptic.prepare()
         }
         .onDisappear { job?.cancel() }
     }
 
+    /// One model from the catalogue: what it is, what it costs, where it stands,
+    /// and the one or two things that can be done about it.
+    ///
+    /// THE ACTIONS SIT UNDER THE ROW RATHER THAN BESIDE THE NAME. They were a
+    /// pair of borderless words in the trailing corner — targets under the
+    /// HIG's forty-four points, on the control that spends two gigabytes of
+    /// somebody's data plan. Downloading is what this screen is for, so it
+    /// takes the action colour and the room a real control needs; deleting
+    /// keeps a word and the destructive colour beside it.
     @ViewBuilder private func row(_ model: PhoneModel) -> some View {
         let here = installed[model.repository]
         let fits = model.fits(budgetBytes: budget)
 
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(model.name).font(.subheadline.weight(.medium))
-                    Text("\(model.parameters) · \(model.downloadDescription)")
-                        .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-                }
-                Spacer()
-                if busyWith == model.repository {
-                    ProgressView()
-                } else if here?.state == .complete {
-                    Button(role: .destructive) { remove(model) } label: { Text("Delete") }
-                        .buttonStyle(.borderless)
-                } else {
-                    // A PARTIAL GETS BOTH. Downloading again is the resume —
-                    // files that finished are skipped — and deleting is the way
-                    // out of a download that will not finish.
-                    HStack(spacing: 12) {
-                        Button(here == nil ? "Download" : "Resume") { download(model) }
-                            .buttonStyle(.borderless)
-                            .disabled(!PhoneModelRuntime.shared.isSupported || busyWith != nil)
-                        if here != nil {
-                            Button(role: .destructive) { remove(model) } label: { Text("Delete") }
-                                .buttonStyle(.borderless)
-                        }
-                    }
-                }
+        VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
+            VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
+                Text(model.name).font(.subheadline.weight(.medium))
+                    .foregroundStyle(Theme.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                // THE SIZE IS THE FIGURE PEOPLE COMPARE ROWS BY, so it is the
+                // one part of this line in tabular digits.
+                Text("\(model.parameters) · \(model.downloadDescription)")
+                    .font(.caption.monospacedDigit()).foregroundStyle(Theme.textSecondary)
             }
 
-            Text(model.note).font(.caption).foregroundStyle(.secondary)
+            Text(model.note).font(.caption).foregroundStyle(Theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             // THE STATE LINE, AND EVERY VERSION OF IT IS A TESTED SENTENCE.
             if busyWith == model.repository, let progress {
-                VStack(alignment: .leading, spacing: 3) {
-                    ProgressView(value: min(max(progress.fraction, 0), 1))
-                    Text(rate.line(fraction: progress.fraction, totalBytes: progress.total))
-                        .font(.caption).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                downloading(progress)
             } else if let here, here.state == .complete {
                 Text(PhoneModelInstall.installed(bytes: here.bytes))
-                    .font(.caption).foregroundStyle(.green)
+                    .font(.caption).foregroundStyle(Theme.success)
+                    .fixedSize(horizontal: false, vertical: true)
             } else if let here {
                 Text(PhoneModelInstall.partlyDownloaded(bytes: here.bytes))
-                    .font(.caption).foregroundStyle(.orange)
+                    .font(.caption).foregroundStyle(Theme.warning)
                     .fixedSize(horizontal: false, vertical: true)
             } else if !fits {
+                // IT WILL NOT FIT IS A REFUSAL AND NOT A CAUTION. iOS would
+                // kill the app part-way through, which is not something the
+                // person can push past by being careful.
                 Text(PhoneModel.tooBig(model, budgetBytes: budget))
-                    .font(.caption).foregroundStyle(.orange)
+                    .font(.caption).foregroundStyle(Theme.refused)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
                 Text(PhoneModelInstall.notDownloaded(model))
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.caption).foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            actions(model, here: here)
+        }
+        .padding(.vertical, Theme.spacing(.hairline))
+    }
+
+    /// The bill, and the sentence that says what it means.
+    ///
+    /// THE FIGURE IS IN THE SENTENCE, WHICH IS WHERE IT ALREADY LIVES.
+    /// `DownloadRate.line` composes the percent, the megabytes so far, the
+    /// speed and the time remaining in one tested string; printing a second
+    /// percent beside the bar would be a second source of truth for the same
+    /// quantity, rounded in a different place.
+    private func downloading(_ progress: (fraction: Double, total: Int)) -> some View {
+        VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
+            BillIndicator(fill: progress.fraction)
+            Text(rate.line(fraction: progress.fraction, totalBytes: progress.total))
+                .font(.caption).foregroundStyle(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        // THE PAIR IS ONE THING TO HEAR. The bill draws a number the sentence
+        // states, and `BillIndicator` is silent unless it is given a label
+        // precisely so it does not become an unnamed graphic in the rotor.
+        .accessibilityElement(children: .combine)
+    }
+
+    @ViewBuilder
+    private func actions(_ model: PhoneModel,
+                         here: (state: PhoneModelInstall.InstallState, bytes: Int)?) -> some View {
+        if busyWith == model.repository {
+            ProgressView().tint(Theme.brandPrimary)
+        } else if here?.state == .complete {
+            deleteButton(model)
+        } else {
+            // A PARTIAL GETS BOTH. Downloading again is the resume —
+            // files that finished are skipped — and deleting is the way
+            // out of a download that will not finish.
+            //
+            // WIDEST FIRST. Two controls at their real sizes do not share a
+            // line on the narrowest phone still supported, and the alternative
+            // to stacking them is truncating the verb on the button that
+            // spends two gigabytes.
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: Theme.spacing(.tight)) {
+                    downloadButton(model, here: here)
+                    if here != nil { deleteButton(model) }
+                }
+                VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
+                    downloadButton(model, here: here)
+                    if here != nil { deleteButton(model) }
+                }
             }
         }
-        .padding(.vertical, 2)
+    }
+
+    private func downloadButton(_ model: PhoneModel,
+                                here: (state: PhoneModelInstall.InstallState, bytes: Int)?)
+        -> some View {
+        Button(here == nil ? "Download" : "Resume") { download(model) }
+            .buttonStyle(.primaryAction)
+            .disabled(!PhoneModelRuntime.shared.isSupported || busyWith != nil)
+            .accessibilityLabel(Text(here == nil ? "Download" : "Resume"))
+            .accessibilityValue(Text(model.name))
+    }
+
+    /// Deleting keeps a word and the app's own red, and it is not a capsule:
+    /// the design system's filled shape is for the thing you are meant to
+    /// press, and this is the thing you are meant to find when you need it.
+    private func deleteButton(_ model: PhoneModel) -> some View {
+        Button(role: .destructive) { remove(model) } label: {
+            Text("Delete")
+                .font(.body.weight(.medium))
+                .foregroundStyle(Theme.critical)
+                .padding(.horizontal, Theme.spacing(.loose))
+                .padding(.vertical, Theme.spacing(.snug))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text("Delete"))
+        .accessibilityValue(Text(model.name))
+    }
+
+    /// One search result: a repository nobody has tried on this app, and how
+    /// many people have pulled it.
+    private func hitRow(_ hit: PhoneModelSearch.Hit) -> some View {
+        HStack(spacing: Theme.spacing(.tight)) {
+            VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
+                Text(hit.name).font(.subheadline)
+                    .foregroundStyle(Theme.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                // A COUNT THAT DIFFERS BY ORDERS OF MAGNITUDE BETWEEN ROWS, and
+                // the only thing on this row a person ranks the results by — so
+                // it is in tabular digits and the word beside it is not.
+                HStack(spacing: Theme.spacing(.hairline)) {
+                    Text("\(hit.downloads)")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(Theme.textSecondary)
+                    Text("downloads")
+                        .font(.caption).foregroundStyle(Theme.textTertiary)
+                }
+            }
+            Spacer(minLength: Theme.spacing(.tight))
+            Button("Add") { Task { await vetThenAdd(hit) } }
+                .buttonStyle(.plain)
+                .foregroundStyle(Theme.actionSecondary)
+                .padding(.vertical, Theme.spacing(.snug))
+                .padding(.leading, Theme.spacing(.snug))
+                .contentShape(Rectangle())
+                .disabled(busyWith != nil)
+                .accessibilityLabel(Text("Add"))
+                .accessibilityValue(Text(hit.name))
+        }
     }
 
     // MARK: - doing it
@@ -225,6 +365,13 @@ struct PhoneModelPickerView: View {
                     }
                 }
                 add(repository: model.repository, named: model.name)
+                // TWO GIGABYTES ARRIVING IS THE PLAINEST WORLD EVENT THIS APP
+                // HAS. It takes long enough that nobody watches the whole of
+                // it, the note above says the screen has to stay open, and the
+                // taptic engine is the only channel left to somebody whose
+                // phone is face down on a desk. `finished` is the design
+                // system's feeling for "the thing you asked for ran to the end".
+                Haptic.finished()
                 // LET GO UNLESS IT IS THE CHOSEN ONE. Loading is what proves
                 // the repository actually opens — which is the whole reason
                 // `downloadedButWouldNotOpen` exists — but holding two

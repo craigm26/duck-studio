@@ -57,16 +57,95 @@ struct FollowMeView: View {
     private var walking: some View {
         ZStack(alignment: .bottom) {
             FollowContainer(model: model).ignoresSafeArea()
-            VStack(spacing: 6) {
-                Text(model.headline).font(.headline).monospacedDigit()
-                Text(model.detail).font(.caption).foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
+            VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
+                // THE HEADLINE CARRIES A RANGE THAT CHANGES AS YOU WALK, which
+                // is why the digits stay tabular: proportional figures make the
+                // whole line breathe around the number. The words beside them
+                // are not set in mono, because they do not change.
+                Text(model.headline)
+                    .font(.headline.monospacedDigit())
+                    .foregroundStyle(Theme.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if model.isPlaced {
+                    // THE DISTANCE IS THE WHOLE MODE, so it gets a row of its
+                    // own. It is the one number in the Lab that is a real
+                    // measurement of the world — ARKit's camera pose is where a
+                    // person actually is — and it is inside a sentence in the
+                    // headline where a screen reader cannot step to it.
+                    TelemetryRow(label: "You are",
+                                 value: String(format: "%.2f", model.follow.range),
+                                 unit: "m away")
+                    // NOT A DOT. Whether it has lost you is the state this
+                    // screen is about, and the badge is a word beside the mark
+                    // rather than a colour on its own.
+                    StateBadge(text: word, state: state)
+                }
+                Text(model.detail)
+                    .font(.caption)
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.horizontal, 16).padding(.vertical, 12)
-            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
-            .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, Theme.spacing(.standard))
+            .padding(.vertical, Theme.spacing(.snug))
+            // AN OPAQUE PANEL OVER THE CAMERA FEED. This is the one mode that
+            // is AR-only, so there is no rendered stage behind these words —
+            // whatever the room is, is behind them. `.thinMaterial` made every
+            // sentence here a different contrast ratio in every room;
+            // `surfacePrimary` is one of the four grounds `PaletteTests` proves
+            // every text token against at 4.5:1.
+            .background(Theme.surfacePrimary, in: panel)
+            .overlay(panel.strokeBorder(Theme.separator,
+                                        lineWidth: FollowMetric.hairlineStroke))
+            .padding(Theme.spacing(.standard))
+        }
+        .task { Haptic.prepare() }
+        // LOSING YOU IS THE LINK GOING AWAY ON ITS OWN, which is exactly what
+        // `Haptic.linkLost` means — and the person it has to reach is walking
+        // away with the phone in their hand and their back to the duck. On the
+        // edge only, so it fires when you go out of range rather than for as
+        // long as you stay there.
+        .onChange(of: model.follow.hasLostYou) { _, lost in
+            if lost { Haptic.linkLost() }
         }
     }
+
+    /// The state as one word.
+    ///
+    /// ALL THREE WORDS ARE ALREADY ON THIS SCREEN. `FollowMe` names these
+    /// states itself — `hasLostYou`, `isWalking`, `inStation` — and
+    /// `model.detail` opens with the same three words in the sentence that
+    /// explains each of them. The badge is that fact short enough to sit beside
+    /// a mark, and the sentence underneath is still where the reason lives.
+    private var word: String {
+        if model.follow.hasLostYou { return "Lost you" }
+        return model.follow.isWalking ? "Walking" : "In station"
+    }
+
+    /// A duck standing in station is `idle`; one walking after you is `active`;
+    /// one that has lost you is still powered and still standing, so it is idle
+    /// too — the word beside the dot is what separates those two, which is the
+    /// rule the badge exists to enforce.
+    private var state: RobotState {
+        model.follow.isWalking ? .active : .idle
+    }
+
+    private var panel: RoundedRectangle {
+        RoundedRectangle(cornerRadius: Theme.radius(FollowMetric.panel), style: .continuous)
+    }
+}
+
+/// The two numbers this screen writes down for itself.
+///
+/// NEITHER IS A COLOUR OR A CONTRAST — a ratio is a fact and lives in `Palette`
+/// where a test runs the formula over it.
+private enum FollowMetric {
+    /// The HUD panel. A card, on the scale.
+    static let panel = Palette.Radius.card
+    /// A hairline STROKE. One point, which on every device this ships to is one
+    /// to three pixels. Named for the stroke because `Palette.Spacing` already
+    /// has a `hairline` and it is four points.
+    static let hairlineStroke: CGFloat = 1
 }
 
 @MainActor

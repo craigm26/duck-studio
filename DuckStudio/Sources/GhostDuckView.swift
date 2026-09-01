@@ -57,6 +57,9 @@ struct GhostDuckView: View {
     /// where its door is shut. Every other row in the grid below runs on a
     /// stage and does not care whether there is a camera.
     @State private var door = CameraDoor.availability
+    /// So the mode grid stops being three columns wide at the sizes where three
+    /// columns cannot hold a word — see `columns`.
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     /// The background behind anything on this screen that holds a SENTENCE.
     ///
@@ -65,22 +68,41 @@ struct GhostDuckView: View {
     /// become half-circles that eat the first and last words. The status line
     /// here is not always short: `ensure(venue:)` below writes a whole camera
     /// refusal into it, which is four lines on a phone. A fixed radius looks
-    /// the same as a capsule on one line and survives five.
-    private static let panel = RoundedRectangle(cornerRadius: 14, style: .continuous)
+    /// the same as a capsule on one line and survives five — and it now comes
+    /// off the scale, at the step the design system calls a card.
+    private static let panel = RoundedRectangle(
+        cornerRadius: Theme.radius(GhostMetric.panel), style: .continuous)
 
     var body: some View {
         ZStack(alignment: .bottom) {
             GhostDuckContainer(model: ghost)
                 .ignoresSafeArea()
 
-            VStack(spacing: 12) {
+            VStack(spacing: Theme.spacing(.snug)) {
                 Text(ghost.status)
                     .font(.footnote)
+                    .foregroundStyle(Theme.textPrimary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: 340)
-                    .padding(.horizontal, 14).padding(.vertical, 8)
-                    .background(.ultraThinMaterial, in: Self.panel)
+                    // NO WIDTH CAP AT ACCESSIBILITY SIZES. This line carries a
+                    // whole camera refusal, and 340 points at AX5 is a column
+                    // of single words hiding the sentence from the person who
+                    // enlarged it in order to read it — the same trade
+                    // `DriveView` makes on its viewport.
+                    .frame(maxWidth: typeSize.isAccessibilitySize ? nil
+                                                                  : GhostMetric.panelWidth)
+                    .padding(.horizontal, Theme.spacing(.snug))
+                    .padding(.vertical, Theme.spacing(.tight))
+                    // AN OPAQUE PANEL OVER A LIVE CAMERA, WHICH IS THE WHOLE
+                    // ARGUMENT. `.ultraThinMaterial` made the contrast of this
+                    // sentence whatever the floor happened to be that frame —
+                    // a bright carpet and a dark one are two different numbers
+                    // and nothing checks either. `surfacePrimary` is one of the
+                    // four grounds `PaletteTests` proves every text token
+                    // against at 4.5:1, so the refusal is legible on any floor.
+                    .background(Theme.surfacePrimary, in: Self.panel)
+                    .overlay(Self.panel.strokeBorder(Theme.separator,
+                                                     lineWidth: GhostMetric.hairlineStroke))
 
                 // ONE REFUSAL ON THIS SCREEN, NOT TWO. `VenuePicker` prints its
                 // own reason when the camera door is shut, and the Follow me
@@ -100,8 +122,14 @@ struct GhostDuckView: View {
                 // control repeating a reason that is already below it.
                 if door.canOfferAR {
                     VenuePicker(venue: $ghost.venue)
-                        .padding(.horizontal, 8).padding(.vertical, 5)
-                        .background(.ultraThinMaterial, in: Capsule())
+                        .padding(.horizontal, Theme.spacing(.snug))
+                        .padding(.vertical, Theme.spacing(.tight))
+                        // The switch is two short words and never wraps, so
+                        // this one IS allowed to be a capsule — the panel above
+                        // is not, and the comment there says why.
+                        .background(Theme.surfacePrimary, in: Capsule())
+                        .overlay(Capsule().strokeBorder(Theme.separator,
+                                                        lineWidth: GhostMetric.hairlineStroke))
                 }
 
                 if ghost.isPlaced {
@@ -111,24 +139,16 @@ struct GhostDuckView: View {
                         }
                     }
                     .pickerStyle(.segmented)
-                    .padding(.horizontal)
+                    .padding(.horizontal, Theme.spacing(.standard))
 
-                    Button(ghost.isMirrored ? "Mirrored" : "As recorded") {
-                        ghost.isMirrored.toggle()
-                    }
-                    .buttonStyle(.bordered)
-                    // Only a turn has a meaningful mirror: mirroring a straight
-                    // walk gives back a straight walk, so offering the control
-                    // there would be a button that visibly does nothing.
-                    .disabled(ghost.clip != .turnLeft)
-
+                    mirrorChip
                     // NO "YOUR DUCK STUDIO MOTIONS" MENU. It was already
                     // invisible — guarded by `!celebrations.imported.isEmpty`,
                     // and that list can never fill in this build — so it was
                     // dead code that read like a live feature.
                 }
             }
-            .padding(.bottom, 24)
+            .padding(.bottom, Theme.spacing(.loose))
         }
         // OVER THE STAGE, NOT INSTEAD OF IT. `.medium` leaves the duck
         // visible above the sheet and `presentationBackgroundInteraction`
@@ -157,10 +177,11 @@ struct GhostDuckView: View {
             if ghost.isPlaced {
                 // Seven modes no longer fit across a phone in one row, so
                 // they wrap. The grid is three wide because that is what keeps
-                // "Bow Bridge" on one line at caption2.
-                VStack(spacing: 8) {
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10),
-                                             count: 3), spacing: 10) {
+                // "Bow Bridge" on one line at caption2 — and one wide at an
+                // accessibility size, where three columns cannot hold a word at
+                // all. See `columns`.
+                VStack(spacing: Theme.spacing(.tight)) {
+                    LazyVGrid(columns: columns, spacing: Theme.spacing(.tight)) {
                         // A SHEET, NOT A PUSH, AND THE REASON IS THE DUCK.
                         // Trick run and Flamingo are the only two modes here
                         // with no stage of their own: their bodies are lists,
@@ -176,22 +197,19 @@ struct GhostDuckView: View {
                         // be orbited while the run plays. The other five modes
                         // build their own stages and are still pushed.
                         Button { driving = .trickRun } label: {
-                            Label("Trick run", systemImage: "figure.gymnastics")
-                                .padding(.vertical, 10).frame(maxWidth: .infinity)
-                                .background(.thinMaterial, in: Capsule())
+                            modeCell("Trick run", symbol: "figure.gymnastics")
                         }
+                        .buttonStyle(.plain)
                         NavigationLink {
                             BowBridgeView()
                         } label: {
-                            Label("Bow Bridge", systemImage: "figure.walk")
-                                .padding(.vertical, 10).frame(maxWidth: .infinity)
-                                .background(.thinMaterial, in: Capsule())
+                            modeCell("Bow Bridge", symbol: "figure.walk")
                         }
+                        .buttonStyle(.plain)
                         Button { driving = .flamingo } label: {
-                            Label("Flamingo", systemImage: "figure.stand")
-                                .padding(.vertical, 10).frame(maxWidth: .infinity)
-                                .background(.thinMaterial, in: Capsule())
+                            modeCell("Flamingo", symbol: "figure.stand")
                         }
+                        .buttonStyle(.plain)
                         // BOBSLED IS NOT HERE, AND IT IS NOT AN OVERSIGHT. OpenCastor's
                         // bobsled is a rover game wearing a duck: it steers a sled, and
                         // the thing that makes every other game on this screen a DUCK
@@ -203,17 +221,15 @@ struct GhostDuckView: View {
                         NavigationLink {
                             SlalomView()
                         } label: {
-                            Label("Slalom", systemImage: "flag.2.crossed")
-                                .padding(.vertical, 10).frame(maxWidth: .infinity)
-                                .background(.thinMaterial, in: Capsule())
+                            modeCell("Slalom", symbol: "flag.2.crossed")
                         }
+                        .buttonStyle(.plain)
                         NavigationLink {
                             DuckGolfView()
                         } label: {
-                            Label("Golf", systemImage: "flag.filled.and.flag.crossed")
-                                .padding(.vertical, 10).frame(maxWidth: .infinity)
-                                .background(.thinMaterial, in: Capsule())
+                            modeCell("Golf", symbol: "flag.filled.and.flag.crossed")
                         }
+                        .buttonStyle(.plain)
                         // FOLLOW ME IS THE ONE ROW THAT CAN GO DEAD, and it is
                         // the only mode in the Lab with nothing to fall back to:
                         // what it follows is the phone, and ARKit's camera pose is
@@ -226,10 +242,14 @@ struct GhostDuckView: View {
                         // reason, and a reason that only appears after a tap is a
                         // control that looked alive.
                         if let refusal = door.refusal(for: .followMe) {
-                            Label("Follow me", systemImage: "figure.walk.motion")
-                                .padding(.vertical, 10).frame(maxWidth: .infinity)
-                                .background(.thinMaterial, in: Capsule())
-                                .foregroundStyle(.secondary)
+                            // SHUT, AND STILL A REAL SURFACE. Half-opacity over
+                            // a camera feed takes the word to roughly 2:1 and
+                            // makes "why can't I press this" unanswerable; this
+                            // reads as unavailable because it lost the ink the
+                            // live cells have, which is the same argument
+                            // `PrimaryActionStyle` makes about a disabled button.
+                            modeCell("Follow me", symbol: "figure.walk.motion",
+                                     isOpen: false)
                                 .accessibilityElement(children: .combine)
                                 // BOTH HALVES COME FROM StudioKit. A label
                                 // assembled here out of a word like
@@ -243,25 +263,22 @@ struct GhostDuckView: View {
                             NavigationLink {
                                 FollowMeView()
                             } label: {
-                                Label("Follow me", systemImage: "figure.walk.motion")
-                                    .padding(.vertical, 10).frame(maxWidth: .infinity)
-                                    .background(.thinMaterial, in: Capsule())
+                                modeCell("Follow me", symbol: "figure.walk.motion")
                             }
+                            .buttonStyle(.plain)
                         }
                         NavigationLink {
                             FetchView()
                         } label: {
-                            Label("Fetch", systemImage: "circle.circle")
-                                .padding(.vertical, 10).frame(maxWidth: .infinity)
-                                .background(.thinMaterial, in: Capsule())
+                            modeCell("Fetch", symbol: "circle.circle")
                         }
+                        .buttonStyle(.plain)
                     }
-                    .font(.caption2)
-                    .padding(.horizontal)
+                    .padding(.horizontal, Theme.spacing(.standard))
                     if let refusal = door.refusal(for: .followMe) {
                         Text(refusal)
                             .font(.caption2)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Theme.textSecondary)
                             .multilineTextAlignment(.center)
                             .fixedSize(horizontal: false, vertical: true)
                             // Hidden from VoiceOver because the disabled row
@@ -269,16 +286,20 @@ struct GhostDuckView: View {
                             // of its own label; announcing it twice makes the
                             // grid harder to get through, not clearer.
                             .accessibilityHidden(true)
-                            .padding(.horizontal, 12).padding(.vertical, 8)
+                            .padding(.horizontal, Theme.spacing(.snug))
+                            .padding(.vertical, Theme.spacing(.tight))
                             // Four lines of caption2 over a camera feed, so it
                             // gets the same height-independent panel the status
                             // line has rather than sitting on whatever the
-                            // camera happens to be pointing at.
-                            .background(.ultraThinMaterial, in: Self.panel)
-                            .padding(.horizontal)
+                            // camera happens to be pointing at — and the same
+                            // opaque surface, for the same contrast reason.
+                            .background(Theme.surfacePrimary, in: Self.panel)
+                            .overlay(Self.panel.strokeBorder(
+                                Theme.separator, lineWidth: GhostMetric.hairlineStroke))
+                            .padding(.horizontal, Theme.spacing(.standard))
                     }
                 }
-                .padding(.bottom, 8)
+                .padding(.bottom, Theme.spacing(.tight))
             }
         }
         .refreshingCameraDoor($door)
@@ -291,6 +312,12 @@ struct GhostDuckView: View {
         // below refuses to run an AR session either way; this is what puts the
         // duck back on the stage.
         .onAppear { standDownFromAR() }
+        // WARMED BEFORE THE FIRST TAP, NOT AT IT. The taptic engine spins up on
+        // demand and the first tap of a session arrives after the thing it is
+        // about — which teaches the person that the buzz and the duck landing on
+        // their floor are unrelated, and that is not a lesson a later
+        // `prepare()` undoes.
+        .task { Haptic.prepare() }
         .onChange(of: door) { _, _ in standDownFromAR() }
         .navigationTitle("Ghost duck")
         .navigationBarTitleDisplayMode(.inline)
@@ -298,6 +325,104 @@ struct GhostDuckView: View {
 
     private func standDownFromAR() {
         if !door.canOfferAR && ghost.venue != .stage { ghost.venue = .stage }
+    }
+
+    // MARK: - the grid
+
+    /// Three across, one at an accessibility size.
+    ///
+    /// A THREE-COLUMN GRID IS A FIXED FRAME BY ANOTHER NAME. At AX5 a third of
+    /// a phone holds about four characters of "Bow Bridge", and a cell that
+    /// truncates is a mode whose name the person who most enlarged it cannot
+    /// read. One column costs a scroll and loses nothing.
+    private var columns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: Theme.spacing(.tight)),
+              count: typeSize.isAccessibilitySize ? 1 : 3)
+    }
+
+    /// One cell in the mode grid.
+    ///
+    /// NOT A CAPSULE, FOR THE REASON THE PANEL IS NOT ONE. These wrap: "Bow
+    /// Bridge" is two lines in a third of a phone at anything above the default
+    /// text size, and a capsule's half-height ends eat the first and last word
+    /// of a wrapped line. `Palette.Radius.control` is the scale's step for
+    /// "pressable and not a pill".
+    ///
+    /// THE TARGET COMES OFF THE SPACING SCALE. `.snug` above and below a
+    /// caption leaves a cell comfortably past the forty-four points the HIG
+    /// asks of a control, so this file never writes that floor down as a
+    /// number — there is exactly one of those in the app and it is in
+    /// `DesignComponents`. These cells open a mode; they do not move the duck,
+    /// which is what the sixty-point variant is for.
+    private func modeCell(_ title: String, symbol: String,
+                          isOpen: Bool = true) -> some View {
+        Label(title, systemImage: symbol)
+            .font(.caption2)
+            .foregroundStyle(isOpen ? Theme.textPrimary : Theme.textSecondary)
+            .lineLimit(nil)
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, Theme.spacing(.tight))
+            .padding(.vertical, Theme.spacing(.snug))
+            // 44pt FLOOR, EXPLICITLY. caption2's line box plus two 12pt pads
+            // came to ~37pt — under the HIG minimum, on the tap target for all
+            // seven Lab modes, floating over a live 3D stage where a mis-hit
+            // also orbits the camera.
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .background(Theme.surfacePrimary, in: cell)
+            .overlay(cell.strokeBorder(Theme.separator,
+                                       lineWidth: GhostMetric.hairlineStroke))
+            .contentShape(cell)
+    }
+
+    private var cell: RoundedRectangle {
+        RoundedRectangle(cornerRadius: Theme.radius(GhostMetric.cell), style: .continuous)
+    }
+
+    /// As recorded, or mirrored.
+    ///
+    /// THE BILL IS THE SELECTION, NOT THE TINT, which is the rule `DriveView`'s
+    /// layer chips follow: on this palette a filled chip differs from its ground
+    /// by about 1.02:1 in light, which `Theme` says in as many words is a hint
+    /// and not information. The orange bar under the chip is the mark that
+    /// carries it, the weight of the word is a second signal, and the word
+    /// itself changes — three ways to read one state, none of them a colour.
+    ///
+    /// IT STAYS `.disabled` ON A STRAIGHT WALK. Mirroring a straight walk gives
+    /// back a straight walk, so the control genuinely does nothing there; unlike
+    /// the dead pad buttons in `DriveView` there is no sentence to be had by
+    /// pressing it, which is the test for whether disabling costs anything.
+    private var mirrorChip: some View {
+        let on = ghost.isMirrored
+        // The same condition `.disabled` is given, read here as well so the
+        // chip LOOKS inert rather than only being inert: a `.plain` button
+        // draws whatever its label draws, disabled or not.
+        let live = ghost.clip == .turnLeft
+        return Button {
+            ghost.isMirrored.toggle()
+        } label: {
+            Text(on ? "Mirrored" : "As recorded")
+                .font(.footnote.weight(on ? .semibold : .regular))
+                .lineLimit(1)
+                .foregroundStyle(live ? Theme.textPrimary : Theme.textTertiary)
+                .padding(.horizontal, Theme.spacing(.standard))
+                .padding(.vertical, Theme.spacing(.snug))
+                .background { if on { Capsule().fill(Theme.surfaceInteractive) } }
+                .background(Capsule().fill(Theme.surfacePrimary))
+                .overlay(Capsule().strokeBorder(Theme.separator,
+                                                lineWidth: GhostMetric.hairlineStroke))
+                .overlay(alignment: .bottom) {
+                    if on { BillIndicator().offset(y: Theme.spacing(.tight)) }
+                }
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        // Only a turn has a meaningful mirror: mirroring a straight
+        // walk gives back a straight walk, so offering the control
+        // there would be a button that visibly does nothing.
+        .disabled(ghost.clip != .turnLeft)
+        .accessibilityLabel(Text("Mirror the recording"))
+        .accessibilityValue(Text(on ? "on" : "off"))
     }
 
     private func label(for clip: DuckTrajectory.Clip) -> String {
@@ -313,6 +438,31 @@ struct GhostDuckView: View {
         case .skateTurn:  return "Skate turn"
         }
     }
+}
+
+// MARK: - the numbers this screen writes down for itself
+
+/// Dimensions and radii that are layout decisions rather than facts.
+///
+/// NOTHING HERE IS A COLOUR OR A CONTRAST, which is the line `Theme` draws and
+/// this file stays behind: a ratio is a fact and lives in `Palette`, where a
+/// test runs the WCAG formula over it. How wide to let a status line grow on an
+/// iPad is a judgement about a screen.
+private enum GhostMetric {
+    /// The panel behind a sentence. A card, on the scale.
+    static let panel = Palette.Radius.card
+    /// A cell in the mode grid — pressable, and not a pill.
+    static let cell = Palette.Radius.control
+
+    /// How wide the status line may grow before it stops being a caption under
+    /// a duck and starts being a paragraph across an iPad. Lifted entirely at
+    /// accessibility sizes — see `body`.
+    static let panelWidth: CGFloat = 340
+
+    /// A hairline STROKE. One point, which on every device this ships to is one
+    /// to three pixels. Named for the stroke because `Palette.Spacing` already
+    /// has a `hairline` and it is four points.
+    static let hairlineStroke: CGFloat = 1
 }
 
 // MARK: - the session
@@ -545,6 +695,15 @@ final class GhostDuckCoordinator: NSObject {
         trajectory = model.currentTrajectory()
         model.isPlaced = true
         model.status = "Life size, 25 cm at the shoulder. Walk around it."
+        // A DUCK ARRIVED ON THE FLOOR AND STARTED WALKING, which is an event in
+        // the world rather than a tap: the same tap two seconds earlier found no
+        // plane and produced the sentence above instead. `behaviourStarted` is
+        // the design system's feeling for "something is now moving", and the
+        // person is looking at their carpet rather than at the glass — which is
+        // the whole argument for spending the taptic engine at all. Nothing
+        // fires on the stage: there the duck is simply there when the screen
+        // opens, and a buzz on arriving at a screen is a buzz for a scroll.
+        Haptic.behaviourStarted()
     }
 
     func clipChanged() {

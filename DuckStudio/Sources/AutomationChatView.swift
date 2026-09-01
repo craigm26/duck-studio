@@ -23,6 +23,22 @@ import FoundationModels
 ///
 /// The rules still do not fire — `DuckToF` and `DuckState` are inbound
 /// decoders with no output channel — and the screen says so.
+///
+/// AND THE COLOUR SAYS SO TOO, WHICH IS THE POINT OF THE PALETTE'S PROVENANCE
+/// ALIASES. This is the screen where a sentence somebody typed turns into
+/// something that looks like an answer, so every card has to be legible as one
+/// of three things at a glance. `Theme.asked` — yellow — is what somebody asked
+/// for and what has not happened: a rule that resolved and cannot fire, a
+/// reading the app guessed at. `Theme.measured` is a number a machine produced.
+/// `Theme.success` is a result that exists, and `Theme.refused` is a no.
+/// Nothing wears a colour without a glyph beside it, because a seal is exactly
+/// the shape a person stops reading.
+///
+/// THE GREEN SEAL ON AN UNREAD SENTENCE IS THE BUG THIS SCREEN EXISTS NOT TO
+/// HAVE, and the drawing now backs the check that prevents it. When the reader
+/// got nothing out of a sentence the card takes the caveat token and a question
+/// mark rather than the verdict's green or red — because nothing was refused
+/// either; the reading failed, not the duck.
 struct AutomationChatView: View {
 
     @ObservedObject var drafts: DraftStore
@@ -157,14 +173,28 @@ struct AutomationChatView: View {
                 if let reading {
                     Section {
                         Label(reading, systemImage: "arrow.triangle.branch")
-                            .font(.footnote).foregroundStyle(.secondary)
+                            .font(.footnote).foregroundStyle(Theme.textSecondary)
                     }
+                    .listRowBackground(Theme.surfacePrimary)
                 }
                 Section {
-                    Text(availability.explanation)
-                        .font(.footnote)
-                        .foregroundStyle(availability.isUsable
-                            ? AnyShapeStyle(.secondary) : AnyShapeStyle(Color.orange))
+                    // A MODEL THAT CANNOT BE USED IS A CAVEAT WITH A GLYPH, not
+                    // an orange paragraph. `AnyShapeStyle` was here only to make
+                    // the system's `.secondary` and a raw `Color.orange` share a
+                    // ternary; both sides are palette tokens now, so the
+                    // erasure goes with them — and the branch buys the triangle,
+                    // which is what carries the state for somebody who reads
+                    // shape before hue.
+                    if availability.isUsable {
+                        Text(availability.explanation)
+                            .font(.footnote)
+                            .foregroundStyle(Theme.textSecondary)
+                    } else {
+                        Label(availability.explanation,
+                              systemImage: "exclamationmark.triangle")
+                            .font(.footnote)
+                            .foregroundStyle(Theme.warning)
+                    }
                     NavigationLink {
                         ModelSettingsView(store: models)
                     } label: {
@@ -172,20 +202,39 @@ struct AutomationChatView: View {
                             .font(.footnote)
                     }
                 }
+                .listRowBackground(Theme.surfacePrimary)
 
                 Section {
-                    Text(blurb).font(.caption).foregroundStyle(.secondary)
+                    Text(blurb).font(.caption).foregroundStyle(Theme.textSecondary)
                 }
+                .listRowBackground(Theme.surfacePrimary)
 
                 ForEach(entries) { entry in
                     Section {
-                        Text(entry.asked).font(.subheadline)
+                        // THE PERSON'S OWN WORDS ARE THE CARD'S HEADING, so
+                        // they are set in ink at a heading's weight rather than
+                        // in the provenance colour. Everything under them is
+                        // what the app made of them, and if the question wore
+                        // the same yellow as the answers there would be no
+                        // question and no answers, just a yellow card.
+                        Text(entry.asked)
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(Theme.textPrimary)
 
                         if let rule = entry.rule {
+                            // A RULE THAT RESOLVED AND CANNOT FIRE IS THE
+                            // PUREST "ASKED, NOT MEASURED" THING THE APP
+                            // PRODUCES. The seal is true — the sentence became a
+                            // legal when/then — and the yellow is what stops it
+                            // reading as a rule that is now running. The blurb
+                            // above says the same thing in words; this says it
+                            // in the one channel somebody skimming actually
+                            // uses.
                             Label(rule.sentence, systemImage: "checkmark.seal")
                                 .font(.footnote)
+                                .foregroundStyle(Theme.asked)
                             Text("\(rule.name) · \(rule.origin.described)")
-                                .font(.caption2).foregroundStyle(.secondary)
+                                .font(.caption2).foregroundStyle(Theme.textSecondary)
                             // THE RULE'S OTHER HALF: what it would actually
                             // do. A when/then whose "then" you can watch is a
                             // rule; one you cannot is a sentence.
@@ -203,8 +252,14 @@ struct AutomationChatView: View {
                         }
 
                         if let summary = entry.motionSummary {
+                            // A DRAFTED MOTION IS A RESULT: it is in the store,
+                            // it opens in the editor, and every slider in it is
+                            // where the sentence put it. That is the one thing
+                            // on this screen that actually happened, so it is
+                            // the only success token on the card.
                             Label(summary, systemImage: "figure.dance")
                                 .font(.footnote)
+                                .foregroundStyle(Theme.success)
                             if let id = entry.motionDraftID {
                                 Button {
                                     previewing = DraftID(id: id)
@@ -225,25 +280,48 @@ struct AutomationChatView: View {
                             // of the sentence, and `RetrieveView` makes the
                             // same check against the same enum.
                             if entry.planConfidence == .notUnderstood {
+                                // NEITHER GREEN NOR RED, BECAUSE NEITHER
+                                // HAPPENED. Nothing was refused — the duck was
+                                // never asked about anything, since no object
+                                // came out of the sentence — so this is the
+                                // caveat token and a question mark. Painting it
+                                // in the refusal colour would put a robot's
+                                // verdict on a parser's shrug, which is the
+                                // other half of the same bug as the green seal.
                                 Label(entry.planReading ?? "",
                                       systemImage: "questionmark.circle")
-                                    .font(.footnote).foregroundStyle(.orange)
+                                    .font(.footnote).foregroundStyle(Theme.warning)
                             } else {
                                 Label(plan.isPossible
                                       ? "It can do this — \(String(format: "%.0f s", plan.seconds))"
                                       : "It cannot do this",
                                       systemImage: plan.isPossible ? "checkmark.seal" : "xmark.octagon")
                                     .font(.footnote)
-                                    .foregroundStyle(plan.isPossible ? Color.green : Color.orange)
+                                    .foregroundStyle(plan.isPossible ? Theme.success : Theme.refused)
                             }
+                            // THE OBJECT'S NUMBERS ARE WHAT WAS MEASURED, or
+                            // what stands in for it — `Theme.measured` is the
+                            // palette's claim that a number came off a bench or
+                            // out of the kinematics rather than out of a
+                            // sentence, and the "Guessed" line above says which
+                            // of the two this is when it is not.
                             Text(String(format: "%@%.0f g, %.0f mm thick, %.1f m away",
                                         entry.planObject.map { "\($0): " } ?? "",
                                         plan.stick.grams, plan.stick.thicknessMillimetres,
                                         plan.stick.metresAway))
-                                .font(.caption).foregroundStyle(.secondary)
+                                .font(.caption).foregroundStyle(Theme.measured)
+                            // FATAL IS A REFUSAL AND THE REST ARE CAVEATS, and
+                            // both now carry a glyph. They were bare `Text` in
+                            // two colours, which is precisely the thing the
+                            // design system refuses: a person who cannot
+                            // separate the two hues had no way at all to tell a
+                            // "this will not work" from a "watch out for this".
                             ForEach(plan.refusals, id: \.message) { refusal in
-                                Text(refusal.message).font(.caption2)
-                                    .foregroundStyle(refusal.isFatal ? Color.orange : Color.secondary)
+                                Label(refusal.message,
+                                      systemImage: refusal.isFatal
+                                      ? "xmark.octagon" : "exclamationmark.triangle")
+                                    .font(.caption2)
+                                    .foregroundStyle(refusal.isFatal ? Theme.refused : Theme.warning)
                             }
                             // THE PLAN ON THIS CARD, NOT A DIFFERENT ONE.
                             //
@@ -297,29 +375,39 @@ struct AutomationChatView: View {
                             // was: press, nothing changes, go and look in
                             // another tab. Only the failure had a voice.
                             if kept == entry.asked {
+                                // A FILE ON THE PHONE IS A RESULT, which is the
+                                // one thing the success token is for.
                                 Label("Kept — it is in your Motions, under Plans.",
                                       systemImage: "checkmark.circle")
-                                    .font(.caption).foregroundStyle(.green)
+                                    .font(.caption).foregroundStyle(Theme.success)
                             }
                         }
 
                         if let request = entry.request {
+                            // WORTH TRAINING IS A VERDICT AND THE VERDICT IS
+                            // ABOUT A REQUEST — the same pair `TrainingRequestView`
+                            // draws on the screen this row opens, in the same two
+                            // tokens, so the card and the request cannot say
+                            // different things about the same brief.
                             Label(request.isTrainable
                                   ? "Worth training — \(request.rewards.count) rewards"
                                   : "Not worth training",
                                   systemImage: request.isTrainable
                                   ? "checkmark.seal" : "xmark.octagon")
                                 .font(.footnote)
-                                .foregroundStyle(request.isTrainable ? Color.green : Color.orange)
+                                .foregroundStyle(request.isTrainable ? Theme.success : Theme.refused)
                             Text("Forks \(request.base.rawValue)").font(.caption2)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Theme.textSecondary)
                             ForEach(request.rewards) { reward in
                                 Text("\(reward.function) × \(String(format: "%g", reward.weight)) — \(reward.reason)")
-                                    .font(.caption2).foregroundStyle(.secondary)
+                                    .font(.caption2).foregroundStyle(Theme.textSecondary)
                             }
                             ForEach(request.refusals, id: \.message) { refusal in
-                                Text(refusal.message).font(.caption2)
-                                    .foregroundStyle(refusal.isFatal ? Color.orange : Color.secondary)
+                                Label(refusal.message,
+                                      systemImage: refusal.isFatal
+                                      ? "xmark.octagon" : "exclamationmark.triangle")
+                                    .font(.caption2)
+                                    .foregroundStyle(refusal.isFatal ? Theme.refused : Theme.warning)
                             }
                             NavigationLink {
                                 TrainingRequestView(request: request)
@@ -330,16 +418,33 @@ struct AutomationChatView: View {
                         }
 
                         if let timing = entry.timing {
-                            Text(timing).font(.caption2).foregroundStyle(.secondary)
+                            // NOT MONOSPACED, THOUGH IT IS ALL NUMBERS. This is
+                            // what one finished call cost, written down once; it
+                            // never changes again, and tabular figures on it
+                            // would tell the reader to watch a stopwatch that
+                            // has already stopped.
+                            Text(timing).font(.caption2).foregroundStyle(Theme.textSecondary)
                         }
 
                         if let refusal = entry.refusal {
-                            Label(refusal, systemImage: "xmark.circle")
-                                .font(.footnote).foregroundStyle(.orange)
+                            // EVERY WAY THIS SCREEN CAN SAY NO ARRIVES HERE —
+                            // the wire, the model, the router's question, the
+                            // gate giving up — and all of them are a no, so all
+                            // of them are the refusal token.
+                            Label(refusal, systemImage: "xmark.octagon")
+                                .font(.footnote).foregroundStyle(Theme.refused)
                         }
                     }
+                    .listRowBackground(Theme.surfacePrimary)
                 }
             }
+            // EVERY CARD ON A REAL SURFACE, AND THE CARDS ON THE RECESSED
+            // GROUND. `Theme` records that the four inks land short of 4.5:1
+            // against `backgroundSecondary` and clear it against
+            // `surfacePrimary`, which is what makes every provenance colour on
+            // these cards a legible claim rather than a hopeful one.
+            .scrollContentBackground(.hidden)
+            .background(Theme.backgroundSecondary)
             .scrollDismissesKeyboard(.interactively)
             // The house pattern: present on the value, and put the sheet down
             // again when UIKit says the share is over. Hung on the list rather
@@ -351,7 +456,12 @@ struct AutomationChatView: View {
                 Button("OK") { exportFailure = nil }
             } message: { Text($0) }
 
-            HStack(spacing: 8) {
+            // THE COMPOSER IS FURNITURE AND SITS ON THE PAGE, NOT IN THE LIST.
+            // A hairline of the palette's separator along its top edge is what
+            // separates it from the cards above; without one it floats on the
+            // same ground as the list it is not part of. `DriveView`'s pinned
+            // transport is built the same way and for the same reason.
+            HStack(spacing: Theme.spacing(.tight)) {
                 // ONE PLACEHOLDER, NOT ONE PER TAB. It shows the range rather
                 // than one kind, because the point of losing the picker is that
                 // nobody has to know which kind theirs is.
@@ -364,8 +474,16 @@ struct AutomationChatView: View {
                 Button {
                     Task { await draft() }
                 } label: {
+                    // A GLYPH IS NOT A TARGET. This was a title-sized symbol
+                    // with no frame — about twenty-two points, half the Human
+                    // Interface Guidelines' floor, on the one control that
+                    // sends anything. The frame and the content shape make the
+                    // hit area the button rather than the ink.
                     Image(systemName: thinking ? "ellipsis" : "arrow.up.circle.fill")
                         .font(.title2)
+                        .frame(minWidth: Theme.spacing(.loose) + Theme.spacing(.loose),
+                               minHeight: Theme.spacing(.loose) + Theme.spacing(.loose))
+                        .contentShape(Rectangle())
                 }
                 // THE ONLY WAY OFF THIS SCREEN'S TEXT FIELD, and an
                 // icon-only one: unlabelled it announces the symbol name, and
@@ -381,8 +499,14 @@ struct AutomationChatView: View {
                 .disabled(typed.trimmingCharacters(in: .whitespaces).isEmpty
                           || !availability.isUsable || thinking || motionDraftingStopped)
             }
-            .padding()
+            .padding(Theme.spacing(.snug))
+            .background(alignment: .top) {
+                Rectangle().fill(Theme.separator)
+                    .frame(height: AuthoringMetric.hairlineStroke)
+            }
+            .background(Theme.backgroundPrimary)
         }
+        .background(Theme.backgroundPrimary)
         .navigationTitle("Draft with words")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

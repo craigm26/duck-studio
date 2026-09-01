@@ -23,24 +23,82 @@ struct FetchView: View {
     var body: some View {
         ZStack(alignment: .bottom) {
             FetchContainer(referee: referee).ignoresSafeArea()
-            VStack(spacing: 8) {
-                Text(referee.run.summary).font(.headline)
-                Text(referee.hint).font(.caption).foregroundStyle(.secondary)
+            VStack(spacing: Theme.spacing(.tight)) {
+                Text(referee.run.summary)
+                    .font(.headline.monospacedDigit())
+                    .foregroundStyle(Theme.textPrimary)
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                // THE HINT IS THE HONEST SENTENCE ON THIS SCREEN — it is where
+                // "the bearing comes from coordinates here, not from a camera"
+                // is said, and where a camera refusal lands. `.secondary`
+                // resolved it against whatever UIKit thought was behind it;
+                // `textSecondary` is a value `PaletteTests` proves at 4.5:1 on
+                // every ground this app sets words on.
+                Text(referee.hint)
+                    .font(.caption)
+                    .foregroundStyle(Theme.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                if referee.isPlaced {
+                    // THE COUNT AND THE CLOCK, AS ROWS. Both are in the summary
+                    // as a sentence; as rows each gets a label that never
+                    // changes beside a value that does, and VoiceOver can step
+                    // through them instead of hearing one utterance.
+                    TelemetryRow(label: "Fetched",
+                                 value: "\(referee.run.fetched.count) of \(referee.run.fetched.count + referee.run.pending.count)")
+                    TelemetryRow(label: "Elapsed",
+                                 value: String(format: "%.1f", referee.run.elapsed), unit: "s")
+                }
                 if referee.run.elapsed == 0 || referee.run.isFinished {
                     VenuePicker(venue: $referee.venue)
                 }
                 if referee.isPlaced && referee.run.isFinished && !referee.run.fetched.isEmpty {
-                    Button("Again") { referee.restart() }.buttonStyle(.borderedProminent)
+                    // IT SENDS THE DUCK BACK OUT, so it is the sixty-point
+                    // variant — the person pressing it is watching the floor.
+                    Button("Again") { referee.restart() }
+                        .buttonStyle(.primaryActionMoves)
+                        .accessibilityHint(Text("Clears the balls and starts the clock again."))
                 }
             }
-            .padding(.horizontal, 16).padding(.vertical, 10)
-            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
-            .padding()
+            .padding(.horizontal, Theme.spacing(.standard))
+            .padding(.vertical, Theme.spacing(.snug))
+            // AN OPAQUE PANEL OVER A LIVE PICTURE, the same decision
+            // `DriveView` makes about its readout: on `.thinMaterial` the
+            // contrast of every word here was whatever the carpet happened to
+            // be that frame — and this panel carries camera refusals.
+            .background(Theme.surfacePrimary, in: panel)
+            .overlay(panel.strokeBorder(Theme.separator,
+                                        lineWidth: FetchMetric.hairlineStroke))
+            .padding(Theme.spacing(.standard))
         }
         .navigationTitle("Fetch")
         .navigationBarTitleDisplayMode(.inline)
+        .task { Haptic.prepare() }
+        // THE LAST BALL COMING IN IS A WORLD EVENT: the person is watching the
+        // duck cross the room, not the panel. On the edge only — `isFinished`
+        // stays true until another ball is dropped.
+        .onChange(of: referee.run.isFinished) { _, finished in
+            if finished, !referee.run.fetched.isEmpty { Haptic.finished() }
+        }
     }
+
+    private var panel: RoundedRectangle {
+        RoundedRectangle(cornerRadius: Theme.radius(FetchMetric.panel), style: .continuous)
+    }
+}
+
+/// The two numbers this screen writes down for itself.
+///
+/// NEITHER IS A COLOUR OR A CONTRAST — a ratio is a fact and lives in `Palette`
+/// where a test runs the formula over it.
+private enum FetchMetric {
+    /// The HUD panel. A card, on the scale.
+    static let panel = Palette.Radius.card
+    /// A hairline STROKE. One point, which on every device this ships to is one
+    /// to three pixels. Named for the stroke because `Palette.Spacing` already
+    /// has a `hairline` and it is four points.
+    static let hairlineStroke: CGFloat = 1
 }
 
 @MainActor
