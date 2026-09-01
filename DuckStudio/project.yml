@@ -97,6 +97,11 @@ targets:
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         UILaunchScreen: {}
         ITSAppUsesNonExemptEncryption: false
+        # REQUIRED THE MOMENT A CBCentralManager IS CONSTRUCTED, and its absence
+        # is a crash rather than a refusal. The sentence is the one iOS shows in
+        # the prompt, so it says what the app will do with the radio and nothing
+        # broader: this app scans for one service UUID and talks to robots.
+        NSBluetoothAlwaysUsageDescription: Microduck Studio uses Bluetooth to find a Microduck robot on and around you, pair with it, and ask it which software it is running. It does not use Bluetooth for anything else.
         # REQUIRED because this ships to iPad as well as iPhone. iPad
         # multitasking demands all four, and App Store Connect rejects the
         # upload outright without them — "No orientations were specified" — at

@@ -89,6 +89,14 @@ struct PolicyListView: View {
                                                scenes: scenes) } label: {
                         Label("Drive one live", systemImage: "gamecontroller")
                     }
+                    // THE ONLY DOOR IN THIS APP THAT OPENS ONTO HARDWARE, and
+                    // for now the only person it is useful to is somebody
+                    // holding a Microduck. It sits here rather than behind a
+                    // setting because the first of those people to open the app
+                    // should not have to be told where it is.
+                    NavigationLink { FindDuckView() } label: {
+                        Label("Find a real duck", systemImage: "antenna.radiowaves.left.and.right")
+                    }
                     NavigationLink { RemoteRunView(model: model, scenes: scenes, drafts: drafts,
                                                    models: models, benches: benches) } label: {
                         Label("Run on your network", systemImage: "wifi")
