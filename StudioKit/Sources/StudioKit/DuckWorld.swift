@@ -360,15 +360,25 @@ public struct DuckWorld: Equatable, Sendable {
     /// one from the body's name and the caption never claims it measured it.
     /// What a camera has to hold to drive in this world: the duck and the
     /// first riser, by the same solve the editor frames a challenge scene
-    /// with. Nil for a world with no steps, which the stage frames as it
-    /// always has.
+    /// with. Nil for a world nobody set, and nil for one with no step
+    /// standing above the floor, which the stage frames as it always has.
+    ///
+    /// THE BENCH'S OWN WORLD IS NOT A FLIGHT. Its fourteen blocks boot
+    /// stacked inside each other and read back scattered from eleven metres
+    /// under the floor to a metre and a half above it (measured on the Pi
+    /// bench, 2026-09-02). Framing those put the camera nineteen metres from
+    /// a point six metres underground and the Control tab went black. A
+    /// world somebody asked for has its steps where it laid them; only those
+    /// are worth pointing a camera at, and only the ones above the floor.
     public var framing: DuckScene.Framing? {
-        guard !steps.isEmpty else { return nil }
+        guard isSet else { return nil }
+        let standing = steps.filter { $0.top > 0 }
+        guard !standing.isEmpty else { return nil }
         let scene = DuckScene(name: name ?? "world",
-                              steps: steps.map { DuckScene.Step(x: $0.x, y: $0.y, top: $0.top,
-                                                                halfDepth: $0.halfDepth,
-                                                                halfWidth: $0.halfWidth,
-                                                                halfHeight: $0.halfHeight) },
+                              steps: standing.map { DuckScene.Step(x: $0.x, y: $0.y, top: $0.top,
+                                                                   halfDepth: $0.halfDepth,
+                                                                   halfWidth: $0.halfWidth,
+                                                                   halfHeight: $0.halfHeight) },
                               walls: [], provenance: "")
         return scene.authoringFraming
     }

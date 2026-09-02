@@ -588,19 +588,50 @@ final class DuckWorldTests: XCTestCase {
         XCTAssertTrue(DriveVenue.whatABridgeWouldTake.contains("has not been built"))
     }
 
-    /// A world with steps frames like a challenge scene; one without frames
-    /// as the stage always has.
-    func testAWorldWithStepsHasAFramingAndABareOneDoesNot() throws {
+    /// A set world with standing steps frames like a challenge scene, close.
+    func testASetWorldWithStandingStepsFramesClose() throws {
         let url = try XCTUnwrap(Bundle.module.url(forResource: "world", withExtension: "json",
                                                   subdirectory: "Fixtures/bench"))
         let world = try DuckBench.readWorld(try Data(contentsOf: url))
-        if world.steps.isEmpty {
-            XCTAssertNil(world.framing)
-        } else {
-            let framing = try XCTUnwrap(world.framing)
-            XCTAssertGreaterThan(framing.distance, 0.2)
-            XCTAssertLessThan(framing.distance, 2.0)
-        }
+        XCTAssertTrue(world.isSet)
+        XCTAssertEqual(world.steps.count, 4)
+        let framing = try XCTUnwrap(world.framing)
+        XCTAssertGreaterThan(framing.distance, 0.2)
+        XCTAssertLessThan(framing.distance, 2.0)
+    }
+
+    /// THE BENCH'S OWN WORLD HAS NO FRAMING. This is the Pi bench's readback
+    /// on 2026-09-02, shortened: nobody set a world, and the fourteen blocks
+    /// have fallen through each other from far below the floor to above the
+    /// duck's head. Framing them put the camera nineteen metres away and the
+    /// Control tab went black; the answer is no framing at all.
+    func testTheBenchsOwnScatteredBlocksHaveNoFraming() throws {
+        let readback = """
+        {"world": {"set": false, "name": null},
+         "steps": [{"x": 0, "y": 1.305, "top": -11.715, "halfDepth": 0.17, "halfWidth": 0.17, "halfHeight": 0.1},
+                   {"x": 0, "y": 1.305, "top": -5.2, "halfDepth": 0.17, "halfWidth": 0.17, "halfHeight": 0.1},
+                   {"x": 0, "y": 1.305, "top": 1.618, "halfDepth": 0.17, "halfWidth": 0.17, "halfHeight": 0.1}],
+         "ball": {"x": 0.55, "y": 0.1, "z": 0.0499}, "props": [], "unexpressed": []}
+        """
+        let world = try DuckBench.readWorld(Data(readback.utf8))
+        XCTAssertFalse(world.isSet)
+        XCTAssertEqual(world.steps.count, 3, "the readback is still drawn whole")
+        XCTAssertNil(world.framing)
+    }
+
+    /// A set world frames only the steps standing above the floor: a block
+    /// the bench parked under it is not a riser.
+    func testASetWorldFramesOnlyStepsAboveTheFloor() throws {
+        let readback = """
+        {"world": {"set": true, "name": "One step"},
+         "steps": [{"x": 0.29, "y": 1.305, "top": 0.06, "halfDepth": 0.17, "halfWidth": 0.17, "halfHeight": 0.1},
+                   {"x": 1.5, "y": 1.305, "top": -5.0, "halfDepth": 0.17, "halfWidth": 0.17, "halfHeight": 0.1}],
+         "ball": null, "props": [], "unexpressed": []}
+        """
+        let world = try DuckBench.readWorld(Data(readback.utf8))
+        let framing = try XCTUnwrap(world.framing)
+        XCTAssertLessThan(framing.distance, 2.0)
+        XCTAssertLessThan(abs(framing.targetZ), 0.2, "the target is near the floor, not five metres under it")
     }
 
     /// The gesture words are the kit's, so the AR stage draws no literal.

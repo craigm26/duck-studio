@@ -1973,9 +1973,12 @@ struct DriveView: View {
             // all — and the last plan this screen made is not about it.
             predicted = []
             worldChoice = standingChoice
-            // The kit frames the world it just read; nothing to frame lets
-            // the camera go back to following the duck.
-            orbit.frame(world?.framing)
+            // THE CAMERA STAYS ON THE DUCK. A world's steps stand 1.305 m to
+            // its left and the duck has to be driven to them; framing the
+            // flight from here put the duck out of the picture (and framing
+            // the bench's own scattered blocks put the camera nineteen
+            // metres away and turned the stage black, build 46).
+            orbit.frame(nil)
         } catch {
             // NOT A MISSING ROUTE: that answered 404 above and was handled. A
             // bench that has the route and still cannot be read is shown as
