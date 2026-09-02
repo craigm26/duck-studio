@@ -236,10 +236,22 @@ trunk 4–14 mm below the tread top. Every row saturates the plant's 0.6405 N·m
 ceiling, so there is no headroom left to spend. The 80–120 mm band is closed on that
 measurement; 180 mm produced zero tread contact in 2,829 episodes and is closed.
 
-**What is left.** One lever in the 40–80 mm band: a landing that is not a single throw —
-feet servoed onto the tread over many ticks from measured trunk state — with a kill gate
-of 7 of 9 stable cells at 60 mm, below which the band is closed and the negative is the
-result (round 5, running as this is written).
+**Round five closed the 40–80 mm band.** The last lever — a landing servoed onto the tread
+from measured trunk state every tick instead of a single throw — was built as an optional
+intent field, proved inert on every existing file, and searched over 235 distinct vectors
+at 60 mm. Every servoed move cleared 0 of 9 stably; the record stayed at 4 of 9 against a
+bar of 7. The law did one new thing: its clears lined up along the plant axis (all three
+plants at exactly 60 mm) instead of scattering across rises, and it paid for that with
+uprightness through the tail. The finding that matters is why 7 was never reachable: the
+criterion needs the trunk 95 mm above the tread, and no launch searched got it there in
+more than 5 of 9 cells. Both servoed bests already converted every cell where the height
+existed. At 60 mm the binding constraint is lift, not landing, and lift is the saturated
+servo. Two caveats travel with the negative: the servo law reads tread height and edge
+from the plant, so it is an oracle upper bound and not a move the robot could run (its
+policy sees 61 proprioceptive numbers); and every clear passes through the step block by
+7–9 mm on the way up, soft contact rather than tunnelling. Roughly 50,000 attempts over
+five rounds. What is left is a different actuator or a different move class — a second
+duck, a wall, a lever — not more search of this one.
 
 **Instrument lessons, reusable.** Score only saved files, never in-memory candidates
 (export rounding moved one "best" 90 mm in x). Put robustness inside the objective, not

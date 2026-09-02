@@ -15,10 +15,12 @@ final class StepCeilingTests: XCTestCase {
         XCTAssertTrue(c.attempts.allSatisfy { $0.of == 9 && $0.cleared < c.reliableCleared },
                       "nothing reaches the reliable bar: \(c.attempts)")
         XCTAssertEqual(c.tallestAnyCell, 0.080)
-        XCTAssertEqual(c.rounds, 4)
-        XCTAssertEqual(c.episodes, 48_000)
+        XCTAssertEqual(c.rounds, 5)
+        XCTAssertEqual(c.episodes, 50_000)
         XCTAssertFalse(c.criterion.isEmpty)
-        XCTAssertTrue(c.evidence.contains("r4_judge"))
+        XCTAssertTrue(c.evidence.contains("r5_judge"))
+        XCTAssertTrue(c.bandVerdict.contains("closed against a bar of 7 of 9"))
+        XCTAssertTrue(c.bandVerdict.contains("not more search"))
         XCTAssertEqual(c.measuredOn, "2026-09-02")
         XCTAssertLessThan(c.editorRise, c.resolvableAbove)
         XCTAssertLessThan(c.resolvableAbove, c.attempts[0].rise)
@@ -42,7 +44,7 @@ final class StepCeilingTests: XCTestCase {
         XCTAssertTrue(c.canResolve(rise: 0.193))
         let said = c.verdict(rise: 0.193)
         XCTAssertTrue(said.hasPrefix("A 193 mm rise."), said)
-        XCTAssertTrue(said.contains("Nothing has got up 90 mm or taller in any of roughly 48,000 searched attempts over 4 rounds"), said)
+        XCTAssertTrue(said.contains("Nothing has got up 90 mm or taller in any of roughly 50,000 searched attempts over 5 rounds"), said)
         XCTAssertTrue(said.contains("(0 of 9 perturbed attempts)"), said)
         XCTAssertTrue(said.contains("nothing this app has can be shown to get up this one"), said)
         XCTAssertFalse(said.contains("measured at 10"), said)
@@ -89,12 +91,13 @@ final class StepCeilingTests: XCTestCase {
 
     func testTheFooterSentenceSaysEverythingAtOnce() {
         let s = StepCeiling.current.says
-        for piece in ["In simulation only", "4 rounds", "48,000", "unreliable at every height",
+        for piece in ["In simulation only", "5 rounds", "50,000", "unreliable at every height",
+                      "The 40 to 80 mm band is closed", "different actuator or a different move class",
                       "a beak-strut vault", "40 mm in 2 of 9", "60 mm in 4 of 9", "70 mm in 2 of 9",
                       "80 mm in 1 of 9", "one move scored at 3 heights",
                       "0 of 9 at 90 mm or taller", "10 of those 11 clears still upright fifty ticks later",
                       "9 of 9 for a duck placed on the tread",
-                      "0 of 9 for doing nothing", "r4_judge", "2026-09-02", "under 11 mm"] {
+                      "0 of 9 for doing nothing", "r5_judge", "2026-09-02", "under 11 mm"] {
             XCTAssertTrue(s.contains(piece), "\(piece) missing from: \(s)")
         }
         XCTAssertFalse(s.contains("0 of 54"), s)

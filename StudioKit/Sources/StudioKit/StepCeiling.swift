@@ -15,7 +15,7 @@ import Foundation
 /// replay in that audit was scored on that flight, so below 150 mm it says
 /// nothing about climbing at all. That sentence is gone.
 ///
-/// WHAT IS KNOWN NOW, after four rounds and roughly 48,000 searched attempts,
+/// WHAT IS KNOWN NOW, after five rounds and roughly 50,000 searched attempts,
 /// each claim re-scored from its saved file by an adversarial audit
 /// (duck-sounds/climb/r4_judge-results.json) on a robustness grid — the rise
 /// 10 mm either side crossed with three spawn-height and foot-friction
@@ -34,6 +34,14 @@ import Foundation
 /// everything tried buys about 38 mm of trunk lift where the criterion needs
 /// 59 mm at 80 and 99 mm at 120, with every servo saturated at the plant's
 /// 0.6405 N·m in every row. No cheat was found in any clear.
+///
+/// AND THE 40–80 mm BAND IS CLOSED, against a bar of 7 of 9 stable cells at
+/// 60 mm. Round five tried the last lever, a landing servoed onto the tread
+/// from measured trunk state every tick instead of a single throw, and every
+/// servoed move cleared 0 of 9 stably. The reason is not the landing: the
+/// criterion needs the trunk 95 mm above the tread, and no launch searched
+/// got it there in more than 5 of 9 cells, so 7 was never reachable by any
+/// way of landing. What is left is lift, and lift is the saturated servo.
 ///
 /// AND BELOW ABOUT 11 mm THE CHECK CANNOT SEE A STEP AT ALL. The criterion
 /// counts a foot as "on the tread" when it is within 5 mm of the tread's
@@ -71,6 +79,8 @@ public struct StepCeiling: Equatable, Sendable {
     public let clearsInAll: Int
     /// Cells of nine a move must clear before a rise counts as climbable.
     public let reliableCleared: Int
+    /// The band verdicts after the last round, in the audit's own words.
+    public let bandVerdict: String
     /// Rises below this the criterion cannot resolve; no number is reported
     /// for them, in either direction.
     public let resolvableAbove: Double
@@ -95,7 +105,7 @@ public struct StepCeiling: Equatable, Sendable {
 
     public init(metres: Double, attempts: [Attempt], oneVectorFrom: Double = 0,
                 stableClears: Int = 0, clearsInAll: Int = 0,
-                reliableCleared: Int, resolvableAbove: Double,
+                reliableCleared: Int, bandVerdict: String = "", resolvableAbove: Double,
                 brokenFlightSoundAbove: Double, episodes: Int, rounds: Int, move: String, flight: String,
                 grid: String, criterion: String, evidence: String, measuredOn: String, editorRise: Double) {
         self.metres = metres
@@ -104,6 +114,7 @@ public struct StepCeiling: Equatable, Sendable {
         self.stableClears = stableClears
         self.clearsInAll = clearsInAll
         self.reliableCleared = reliableCleared
+        self.bandVerdict = bandVerdict
         self.resolvableAbove = resolvableAbove
         self.brokenFlightSoundAbove = brokenFlightSoundAbove
         self.episodes = episodes
@@ -127,10 +138,17 @@ public struct StepCeiling: Equatable, Sendable {
         stableClears: 10,
         clearsInAll: 11,
         reliableCleared: 7,
+        bandVerdict: "The 40 to 80 mm band is closed against a bar of 7 of 9 stable cells at 60 mm: "
+                   + "the last lever, a landing servoed onto the tread from measured trunk state "
+                   + "every tick, cleared 0 of 9 stably, and no launch searched lifts the trunk past "
+                   + "95 mm in more than 5 of 9 cells, so 7 was never reachable by any way of "
+                   + "landing. Above 80 mm the ceiling is a lift budget of about 38 mm where 59 to "
+                   + "99 mm are needed, with every servo saturated at 0.6405 N·m. What is left is a "
+                   + "different actuator or a different move class, not more search.",
         resolvableAbove: 0.011,
         brokenFlightSoundAbove: 0.150,
-        episodes: 48_000,
-        rounds: 4,
+        episodes: 50_000,
+        rounds: 5,
         move: "a beak-strut vault",
         flight: "the simulator's four-step staircase, repaired on 2026-09-02 so its blocks stop "
               + "colliding with one another",
@@ -138,7 +156,7 @@ public struct StepCeiling: Equatable, Sendable {
         criterion: "upright, within the 340 mm-wide flight, the trunk past the riser face and more than "
                  + "95 mm above the tread, both feet resting on the tread past that same line, "
                  + "scored a second after the move ends",
-        evidence: "duck-sounds climb/r4_judge-results.json",
+        evidence: "duck-sounds climb/r5_judge-results.json",
         measuredOn: "2026-09-02",
         editorRise: 0.010)
 
@@ -227,10 +245,10 @@ public struct StepCeiling: Equatable, Sendable {
                + "step the Microduck can get onto is unreliable at every height: judged by the criterion "
                + "(%@) on a grid of %@, the best open-loop move, %@, clears %@%@, and 0 of 9 at %.0f mm or "
                + "taller%@, against 9 of 9 for a duck placed on the tread and 0 of 9 for doing nothing on "
-               + "the same plant (%@, %@). Rises under %.0f mm cannot be resolved by the check.",
+               + "the same plant (%@, %@). %@ Rises under %.0f mm cannot be resolved by the check.",
                rounds, Self.thousands(episodes), criterion, grid, move, attemptList, oneVectorClause,
                (tallestAnyCell + 0.010) * 1000, stabilityClause, evidence, measuredOn,
-               resolvableAbove * 1000)
+               bandVerdict, resolvableAbove * 1000)
     }
 
     /// Why the earlier count is gone, for anyone who saw it.
