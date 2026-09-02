@@ -561,8 +561,25 @@ public enum DuckTuner {
       + "are both terms a duck standing still maximises. Measured here at six seconds and "
       + "vx = 0.5: the standing policy scores 2.9812 on those two where the walking policy "
       + "scores 2.5287, having travelled 1 mm against 1231 mm. A search scored that way would "
-      + "climb 18% by stopping. The fix is one endpoint — /tune — on the bench, which has the "
-      + "trace and can weigh it."
+      + "climb 18% by stopping. Part of the fix is one endpoint — /tune — on the bench, which "
+      + "has the trace and can weigh all six; the rest is the walk itself, kept in the objective."
+
+    /// What `/tune` did and did not change, said where somebody might read
+    /// the not-yet's fix as the whole fix.
+    ///
+    /// MEASURED ON THE DAY THE ENDPOINT LANDED: on all six terms the standing
+    /// policy still outscores the walking one, by 35% rather than 18%, because
+    /// a duck that stands still scores almost perfectly on tracking a zero
+    /// turn rate and pays nothing on either penalty. So the endpoint makes the
+    /// reward complete and does not make it honest; the distance walked does.
+    public static let whatTuneChanges =
+        "With /tune the bench scores all six terms, and on all six a duck standing still STILL "
+      + "outscores the walking network — by 35% here, measured — because tracking a zero turn "
+      + "rate is free and both penalties are zero when nothing moves. So the reward is complete "
+      + "now and it is not honest on its own: every candidate is ranked on its reward scaled by "
+      + "how much of the walk it kept, any drop under a quarter of the baseline's distance is "
+      + "thrown out whether it ended standing or not, and the winner has to keep three quarters "
+      + "of the walk on drops the search never saw."
 
     /// The two terms that DO survive, said where somebody might read the
     /// not-yet as "nothing can be measured here".
@@ -618,12 +635,25 @@ public enum DuckTuner {
         /// reports only aggregates, and `DuckTuner.noiseFloor` returns nil for
         /// that rather than inventing one.
         public let perDrop: [[String: Double]]
+        /// The least any drop travelled; the median when a bench reports
+        /// only that.
+        public let minTravelled: Double
+        /// Episodes the bench refused to score because they diverged.
+        public let diverged: Int
 
         public init(reward: Double, travelled: Double, standing: Int, episodes: Int,
-                    terms: [String: Double], perDrop: [[String: Double]] = []) {
+                    terms: [String: Double], perDrop: [[String: Double]] = [],
+                    minTravelled: Double? = nil, diverged: Int = 0) {
             self.reward = reward; self.travelled = travelled
             self.standing = standing; self.episodes = episodes
             self.terms = terms; self.perDrop = perDrop
+            self.minTravelled = minTravelled ?? travelled; self.diverged = diverged
+        }
+
+        /// The number the search ranks on. See `DuckTuner.objective`.
+        public func objective(baselineTravelled: Double) -> Double {
+            DuckTuner.objective(reward: reward, travelled: travelled,
+                                baselineTravelled: baselineTravelled)
         }
     }
 
@@ -635,10 +665,18 @@ public enum DuckTuner {
         /// seeing: a generation where five of six went inert is a search
         /// pressing against the hole in its own reward.
         public let rejectedAsInert: Int
-        public init(index: Int, best: Score, rejectedAsInert: Int) {
+        /// Children thrown out for losing the walk on any drop, and for an
+        /// episode that diverged — counted apart from the inert guard so a
+        /// panel never files a farm under a fall.
+        public let rejectedForLosingTheWalk: Int
+        public let rejectedAsDiverged: Int
+        public init(index: Int, best: Score, rejectedAsInert: Int,
+                    rejectedForLosingTheWalk: Int = 0, rejectedAsDiverged: Int = 0) {
             self.index = index
             self.best = best
             self.rejectedAsInert = rejectedAsInert
+            self.rejectedForLosingTheWalk = rejectedForLosingTheWalk
+            self.rejectedAsDiverged = rejectedAsDiverged
         }
         public var id: Int { index }
     }
@@ -677,6 +715,11 @@ public enum DuckTuner {
     public static func noiseFloor(_ rewards: [Double]) -> Double? {
         guard rewards.count >= 2, rewards.allSatisfy(\.isFinite),
               let low = rewards.min(), let high = rewards.max() else { return nil }
+        // A SPREAD OF EXACTLY ZERO IS NOT A MEASURED FLOOR EITHER. The
+        // rollouts are deterministic, so two identical drop heights are one
+        // episode counted twice and their spread is a confident 0.0 — the
+        // smallest possible floor, which waves through any gain at all.
+        guard high > low else { return nil }
         return high - low
     }
 
@@ -687,12 +730,76 @@ public enum DuckTuner {
       + "it there is no way to say whether a gain is a gain. The result is kept and the verdict "
       + "is not, because a verdict against an invented floor is worse than none."
 
+    // MARK: - the objective, and the walk it must keep
+
+    /// What a candidate is ranked on: the reward, scaled by how much of the
+    /// baseline's walk it kept.
+    ///
+    /// THE REWARD ALONE IS FARMABLE, MEASURED. On all six terms, at the
+    /// config's own weights, a left/right gain asymmetry inside this envelope
+    /// scores +7.6% over the unchanged network while travelling 46% as far —
+    /// and the standing policy outscores the walking one by 35%. `/tune` did
+    /// not close that hole; it moved it. So the distance walked, projected
+    /// onto the commanded direction, enters the objective as a factor rather
+    /// than standing outside it as a cliff: a candidate that keeps the whole
+    /// walk is scored on its reward, one that keeps half of it on half its
+    /// reward, and one that walks a circle — a negative projection — on
+    /// nothing. Nothing above the baseline's own distance is rewarded, because
+    /// walking further than commanded is not what any term asks for.
+    public static func objective(reward: Double, travelled: Double,
+                                 baselineTravelled: Double) -> Double {
+        guard baselineTravelled > 0, reward.isFinite else { return 0 }
+        let kept = min(max(travelled / baselineTravelled, 0), 1)
+        return reward * kept
+    }
+
+    /// The walk a candidate must keep to be considered at all, on the LEAST
+    /// its drops travelled, regardless of whether it ended standing.
+    ///
+    /// UNCONDITIONAL, AND ON THE MINIMUM. `wentInert` is conditional on most
+    /// episodes ending standing — a crouch under 100 mm or a topple in the
+    /// final tick exempted a candidate from the travel check entirely — and
+    /// it reads the median, which lets one dead episode in three hide behind
+    /// two live ones while its reward is pooled in as if it walked. This asks
+    /// one question of every drop: did it go at least a quarter as far as the
+    /// baseline's weakest drop.
+    public static let walkFloor = 0.25
+    public static func keptTheWalk(minTravelled: Double, baselineMinTravelled: Double) -> Bool {
+        guard baselineMinTravelled >= 0.05 else { return true }   // the baseline does not walk either
+        return minTravelled >= baselineMinTravelled * walkFloor
+    }
+
+    /// Said beside a candidate rejected for losing the walk.
+    public static let rejectedForLosingTheWalk =
+        "Rejected: one of its drops went less than a quarter as far as the unchanged network's "
+      + "weakest, whether or not it ended standing. The reward is scaled by the walk kept, and a "
+      + "candidate this far under the floor is not ranked at all."
+
+    /// Said beside a candidate rejected because an episode diverged.
+    public static let rejectedAsDiverged =
+        "Rejected: an episode stopped being a duck — a state or action that was not finite or "
+      + "was past a thousand — and the bench named it rather than scoring the numbers beside it."
+
     /// Whether the answer survived drops the search never saw.
     ///
     /// THE ONLY QUESTION THAT MATTERS AT THE END. A gain on the three drops a
     /// candidate was selected on is a gain on three drops; the noise floor is
     /// the spread of the UNCHANGED network over the eight it did not see, and
-    /// anything under that is not a result.
+    /// anything under that is not a result. AND THE WALK, FIRST: a winner
+    /// that kept less than three quarters of the unchanged network's distance
+    /// on those drops is the farm this objective exists to refuse, and no
+    /// reward gain rescues it.
+    public static func heldOutVerdict(gain: Double, noiseFloor: Double,
+                                      walkKept: Double) -> String {
+        guard walkKept >= 0.75 else {
+            return "It did not keep the walk on the drop heights it was not selected on: "
+                 + "\(Int((walkKept * 100).rounded()))% of the unchanged network's distance, "
+                 + "whatever its reward. A gain bought by walking less is the hole in the reward, "
+                 + "not a result, and this is thrown out for it."
+        }
+        return heldOutVerdict(gain: gain, noiseFloor: noiseFloor)
+    }
+
     public static func heldOutVerdict(gain: Double, noiseFloor: Double) -> String {
         guard gain > noiseFloor else {
             return "It did not survive the drop heights it was not selected on: "

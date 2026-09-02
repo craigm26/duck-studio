@@ -206,6 +206,14 @@ struct TuneView: View {
                     .fixedSize(horizontal: false, vertical: true)
             } else if let readiness = run.readiness {
                 Text(readiness.sentence)
+                if readiness.canSearch {
+                    // WHAT THE ENDPOINT DID NOT FIX, said where the ready
+                    // sentence might read as "the reward is honest now".
+                    Text(DuckTuner.whatTuneChanges)
+                        .font(.caption2)
+                        .foregroundStyle(Theme.textTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                     // YELLOW AND NOT RED. Nothing is broken: a bench that
                     // cannot weigh a trace is a bench that has not grown an
                     // endpoint, which is a caution about what can be done here
@@ -496,11 +504,18 @@ final class TuneRun: ObservableObject {
                 duration = DuckTuner.durationSoFar(episodesDone: episodesDone,
                                                    elapsed: Date().timeIntervalSince(startedAt),
                                                    schedule: schedule)
-                return DuckTuner.Score(reward: try DuckTuner.reward(answer.terms),
+                // A DIVERGED EPISODE IS A FAILED CANDIDATE, NOT A FAILED SEARCH.
+                // The bench names it and leaves it out of the terms; the reward
+                // is not computed over what is left, because the caller below
+                // throws the candidate away before it looks at a number.
+                let reward = answer.diverged == 0 ? try DuckTuner.reward(answer.terms) : 0
+                return DuckTuner.Score(reward: reward,
                                        travelled: answer.travelled,
                                        standing: answer.standing, episodes: answer.episodes,
                                        terms: answer.terms,
-                                       perDrop: answer.perDrop.map(\.terms))
+                                       perDrop: answer.perDrop.filter { !$0.diverged }.map(\.terms),
+                                       minTravelled: answer.minTravelled,
+                                       diverged: answer.diverged)
             }
 
             // THE YARDSTICK FIRST. Every number after this is a difference from
@@ -517,38 +532,58 @@ final class TuneRun: ObservableObject {
             let floor = DuckTuner.noiseFloor(
                 try baselineHeld.perDrop.map { try DuckTuner.reward($0) })
 
+            guard baseline.diverged == 0, baselineHeld.diverged == 0 else {
+                throw DuckTuner.Refusal.noBaselineYet
+            }
             var parent = DuckTuner.TuningVector.identity
             var parentScore = baseline
+            // RANKED ON THE OBJECTIVE, NOT THE REWARD: the reward scaled by
+            // the walk kept against the baseline's own distance. Measured, the
+            // reward alone is farmable inside this envelope by walking less.
+            let yardstick = baseline.travelled
+            var parentObjective = parentScore.objective(baselineTravelled: yardstick)
             best = baseline
 
             for index in 1...schedule.generations {
                 if stopped { break }
                 var bestChild: DuckTuner.TuningVector?
                 var bestChildScore: DuckTuner.Score?
-                var inert = 0
+                var bestChildObjective = -Double.infinity
+                var inert = 0, lostTheWalk = 0, divergedCount = 0
                 for _ in 0..<schedule.lambda {
                     if stopped { break }
                     let child = DuckTuner.mutate(parent, with: schedule, using: &rng)
                     let seen = try await score(child, drops: schedule.searchDrops)
-                    // REJECTED, NOT RANKED. Five of the six terms pay for
-                    // standing still, so a candidate that has quietly stopped
-                    // would otherwise pull the whole search toward it.
+                    // THREE WAYS OUT BEFORE A NUMBER IS COMPARED, each counted
+                    // under its own name. A diverged episode; any drop under a
+                    // quarter of the baseline's weakest, standing or not; and
+                    // the older inert guard, kept for its sentence.
+                    if seen.diverged > 0 { divergedCount += 1; continue }
+                    if !DuckTuner.keptTheWalk(minTravelled: seen.minTravelled,
+                                              baselineMinTravelled: baseline.minTravelled) {
+                        lostTheWalk += 1
+                        continue
+                    }
                     if DuckTuner.wentInert(travelled: seen.travelled,
                                            baselineTravelled: baseline.travelled,
                                            standing: seen.standing, of: seen.episodes) {
                         inert += 1
                         continue
                     }
-                    if bestChildScore.map({ seen.reward > $0.reward }) ?? true {
-                        bestChild = child; bestChildScore = seen
+                    let objective = seen.objective(baselineTravelled: yardstick)
+                    if objective > bestChildObjective {
+                        bestChild = child; bestChildScore = seen; bestChildObjective = objective
                     }
                 }
-                if let bestChild, let bestChildScore, bestChildScore.reward > parentScore.reward {
+                if let bestChild, let bestChildScore, bestChildObjective > parentObjective {
                     parent = bestChild; parentScore = bestChildScore
+                    parentObjective = bestChildObjective
                 }
                 best = parentScore
                 generations.append(.init(index: index, best: parentScore,
-                                         rejectedAsInert: inert))
+                                         rejectedAsInert: inert,
+                                         rejectedForLosingTheWalk: lostTheWalk,
+                                         rejectedAsDiverged: divergedCount))
                 // SHOW THE DUCK DOING THE CURRENT BEST, on the live lane, so
                 // what is on screen is the network the numbers describe.
                 await showOnStage(parent, base: baseFile, address: address, token: token)
@@ -557,6 +592,11 @@ final class TuneRun: ObservableObject {
             // THE ONLY QUESTION THAT MATTERS: did it survive drops the search
             // never saw?
             let held = try await score(parent, drops: schedule.heldOutDrops)
+            // THE WINNER FACES THE SAME GUARDS AS EVERY CHILD, on the drops it
+            // never saw. Without this the exported file was the one candidate
+            // in the whole search that nothing had checked for the walk.
+            let walkKept = baselineHeld.travelled > 0
+                ? min(max(held.travelled / baselineHeld.travelled, 0), 1) : 1
             let export = try DuckTuner.export(
                 baseFile: baseFile, basePolicy: name, declaredActionScale: declaredScale,
                 vector: parent, schedule: schedule, seed: seed,
@@ -567,10 +607,11 @@ final class TuneRun: ObservableObject {
             duration = DuckTuner.durationMeasured(episodes: episodesDone,
                                                   elapsed: Date().timeIntervalSince(startedAt))
             result = Result(
-                verdict: floor.map {
-                    DuckTuner.heldOutVerdict(gain: held.reward - baselineHeld.reward,
-                                             noiseFloor: $0)
-                } ?? DuckTuner.noNoiseFloor,
+                verdict: held.diverged > 0 ? DuckTuner.rejectedAsDiverged
+                    : (floor.map {
+                        DuckTuner.heldOutVerdict(gain: held.reward - baselineHeld.reward,
+                                                 noiseFloor: $0, walkKept: walkKept)
+                    } ?? DuckTuner.noNoiseFloor),
                 residual: parent.described,
                 provenance: DuckTuner.provenance(
                     episodes: episodesDone, seconds: schedule.seconds,
@@ -616,14 +657,19 @@ final class TuneRun: ObservableObject {
     /// how this was found in the first place.
     private func put(_ file: Data, address: DuckBench.Address,
                      token: String?) async throws -> String {
+        let bytes = try DuckPolicy.load(from: file).canonicalParameterBytes
         if host?.kind == .phone {
-            let bytes = try DuckPolicy.load(from: file).canonicalParameterBytes
             return try DuckBench.readUploaded(
                 await ask(try DuckBench.uploadParameters(address, canonicalBytes: bytes),
                           token: token))
         }
+        // THE FILE AND ITS PARAMETERS, TOGETHER. A desk bench loads the file
+        // through onnxruntime — and reads the neutral pose it declares — but
+        // has nothing that dumps an upload's parameters, and `/tune` folds a
+        // gain into the last layer, which means holding them. Sent beside the
+        // file, the bench keeps both under the one name it hands back.
         return try DuckBench.readUploaded(
-            await ask(try DuckBench.upload(address, onnx: file), token: token))
+            await ask(try DuckBench.upload(address, onnx: file, parameters: bytes), token: token))
     }
 
     /// Drive the current best for a moment so it can be watched.

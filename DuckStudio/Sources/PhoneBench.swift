@@ -182,14 +182,16 @@ final class PhoneBenchServer: @unchecked Sendable {
     /// Ask the page. `pathAndQuery` and a JSON body in, a JSON string out.
     typealias Bridge = @Sendable (String, String) async -> String
 
-    /// THE TEN ENDPOINTS, WRITTEN OUT. Anything else is a 404 from here rather
-    /// than a question put to the page: the set is the contract this app's
-    /// client speaks, and a server that forwarded every unknown path would let
-    /// a typo in a future call look like a bench that answered.
-    static let benchRoutes: Set<String> = [
-        "/health", "/state", "/reset", "/intent", "/stop",
-        "/policy", "/record", "/measure", "/perform", "/upload",
-    ]
+    /// THE ENDPOINTS, AND THEY ARE THE KIT'S LIST. Anything else is a 404 from
+    /// here rather than a question put to the page: the set is the contract
+    /// this app's client speaks, and a server that forwarded every unknown
+    /// path would let a typo in a future call look like a bench that answered.
+    /// It used to be written out here as ten paths, and `/tune` shipped as the
+    /// eleventh factory in the kit with no entry in it — so the phone bench
+    /// 404'd the probe and the Start button never appeared on the one bench
+    /// the app carries. `DuckBench.routes` is pinned by a kit test to every
+    /// call the kit can make, which this file cannot be.
+    static let benchRoutes: Set<String> = DuckBench.routes
 
     /// A request bigger than this is refused rather than buffered. `/perform`
     /// sends keyframes and `/upload` is refused by the page anyway, so nothing
@@ -537,7 +539,7 @@ final class PhoneBenchHost: NSObject, ObservableObject {
             // every later request queued behind it. The race returns the
             // world-lost sentence after `deadline` seconds and marks the world
             // lost, so the next request reloads rather than joining the queue.
-            let answer = try await Self.race(seconds: Self.deadline) { @MainActor in
+            let answer = try await Self.race(seconds: Self.deadline(for: target, body: body)) { @MainActor in
                 try await webView.callAsyncJavaScript(
                     "return await duckbench(target, body);",
                     arguments: ["target": target, "body": body],
@@ -561,6 +563,26 @@ final class PhoneBenchHost: NSObject, ObservableObject {
     /// several times real time — so fifteen seconds is a wedged process, not a
     /// slow one.
     static let deadline: Double = 15
+
+    /// The deadline for THIS request. `/tune` runs every drop it is sent for
+    /// as many seconds as it is sent, in one request — the tuner's batch is
+    /// three drops of six seconds, eighteen seconds of physics — and on a
+    /// phone that has never been timed. A fixed fifteen seconds there would
+    /// report a slow bench as a lost world and reload it mid-search. So the
+    /// request's own numbers set the ceiling: the base, plus three seconds of
+    /// wall per second of physics per drop, which is slower than any bench
+    /// this project has measured (the Pi does a second of physics in 0.09 s)
+    /// and still a wedge, not a wait, past it.
+    static func deadline(for target: String, body: String) -> Double {
+        guard target.hasPrefix("/tune"),
+              let data = body.data(using: .utf8),
+              let top = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return deadline
+        }
+        let seconds = min(max((top["seconds"] as? Double) ?? 6, 0.2), 30)
+        let drops = max((top["drops"] as? [Any])?.count ?? 1, 1)
+        return deadline + 3 * seconds * Double(drops)
+    }
 
     private struct TimedOut: Error {}
 

@@ -2,13 +2,13 @@
   "why": "Vendored from duck-sounds by scripts/make_phone_bench.sh. Nothing here is\nauthored in this repo; check_no_studio_math.sh proves it by digest.",
   "source": "duck-sounds",
   "files": [
-    { "path": "assets/duckbench-core.mjs", "bytes": 73353, "sha256": "95b277d020f9a20a0293939eabda566551f2211ed1f52c9cd2262bec5e1d888e" },
+    { "path": "assets/duckbench-core.mjs", "bytes": 106949, "sha256": "50c292bf54ae056083f7c4951da22f59b9022db832bdb34da0bafc191d402c26" },
     { "path": "assets/duckbench-web.mjs", "bytes": 7608, "sha256": "4c15c00bdf5ef4fdc4913042d5dbb113a8c56075b0f8e7c79a211b20b1425a81" },
     { "path": "assets/duckkit-constants.json", "bytes": 1037, "sha256": "a2ba37dda4db836ade8dd6125708179fc903f96fa0f7dd7815f5cf66fa5cb987" },
     { "path": "assets/duckloop.mjs", "bytes": 4678, "sha256": "5789ee825ed7774e47c8e197a0d06af2a5adf90a6434ace6a55fa97ec918dbf5" },
     { "path": "assets/mujoco.js", "bytes": 294661, "sha256": "e583772f6b17400becf9d48622245fd06c29e52ec0135df7ba4db31646720c2e" },
     { "path": "assets/mujoco.wasm", "bytes": 8607662, "sha256": "ca22a3c3338c13bcfdbf8d9d19ebe698ac9bcab51af7cbab3d9cf57636998ea1" },
-    { "path": "assets/policyforward.mjs", "bytes": 5205, "sha256": "6c61d93f9bcd36a3e200aaec2dbe6ee71848708d552d87bfcc1447bb76a0f217" },
+    { "path": "assets/policyforward.mjs", "bytes": 9430, "sha256": "142311db55d59770f6b5ee41996b1b9e62c11a8ac7909ac06a1cbe9ec49d5368" },
     { "path": "assets/scene.mjb", "bytes": 7170061, "sha256": "3f8c9ab9b409ba74c73c30179d5f7c12b025f631693f9eec78d80dca242547be" },
     { "path": "index.html", "bytes": 10924, "sha256": "1689b193b3b3c40b60ded2b5896548335785b1473878cd01df1ea73cdb03baa2" }
   ]

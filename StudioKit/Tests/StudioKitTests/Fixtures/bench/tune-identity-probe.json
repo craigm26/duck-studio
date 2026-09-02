@@ -1,0 +1,40 @@
+{
+    "policy": "alpha_walking.onnx",
+    "duck": "duck",
+    "episodes": 1,
+    "standing": 1,
+    "criterion": "ends standing: at the last tick the trunk's own up is still up \u2014 gravity projects past \u22120.5 into the body's \u2212z, the same test /measure and /perform use \u2014 and the trunk is at least 100 mm above the floor. A duck that stood still passes it perfectly, which is why `travelled` is beside it.",
+    "travelled": 0.09491951647088066,
+    "travelledWhy": "metres, the MEDIAN over the drops, measured as RunMetrics measures \"Forward\": the net displacement from the first driven tick to the last, projected onto the direction the schedule actually asked for, expressed in the world by the heading the duck started the driven span on. A schedule that commands no linear velocity has no such direction, and the plain net displacement is reported instead.",
+    "terms": {
+        "upright": 0.9783831388362836,
+        "track_linear_velocity": 0.6712244806940961,
+        "track_angular_velocity": 0.7160189217695908,
+        "pose": 0.7982391560077292,
+        "body_ang_vel": 0.1931511772476178,
+        "action_rate_l2": 0.1091615801513476
+    },
+    "termsWhy": "per-tick means, pooled over every episode \u2014 the sums divided by the total ticks, not a mean of per-episode means, which over episodes of unequal length is the mean of nothing. `action_rate_l2` differences consecutive decisions, so its denominator is one less per episode. The WEIGHTS are the client's: this bench does not say what a reward is worth.",
+    "perDrop": [
+        {
+            "drop": 0.1231,
+            "travelled": 0.09491951647088066,
+            "standing": true,
+            "terms": {
+                "upright": 0.9783831388362836,
+                "track_linear_velocity": 0.6712244806940961,
+                "track_angular_velocity": 0.7160189217695908,
+                "pose": 0.7982391560077292,
+                "body_ang_vel": 0.1931511772476178,
+                "action_rate_l2": 0.1091615801513476
+            },
+            "netDisplacement": 0.09666191545211789,
+            "endHeight": 0.1212
+        }
+    ],
+    "refused": [],
+    "engine": "policyforward.mjs over duckkit's canonical parameter bytes, always \u2014 a fold is arithmetic on parameters, and onnxruntime runs a graph rather than offering one. Agrees with onnxruntime to 3.5e-6 per action, which is why a /tune number and a /record number about one policy are close relatives and not the same measurement.",
+    "seconds": 1,
+    "plantName": "scene.mjb",
+    "plantDigest": "3f8c9ab9b409ba74c73c30179d5f7c12b025f631693f9eec78d80dca242547be"
+}

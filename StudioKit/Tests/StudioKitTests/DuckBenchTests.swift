@@ -449,4 +449,28 @@ final class DuckBenchTests: XCTestCase {
             XCTAssertEqual($0 as? DuckBench.ReadError, .empty)
         }
     }
+
+    /// EVERY FACTORY'S PATH IS IN `routes`, AND NOTHING ELSE IS. The phone's
+    /// loopback server forwards exactly `routes`; an endpoint a factory can
+    /// name that is not in the list ships dead on that bench. `/tune` did.
+    func testEveryCallThisTypeCanMakeIsARoutablePath() throws {
+        let address = DuckBench.Address(host: "127.0.0.1", port: 1)
+        let step = [DuckBench.Step(at: 0), DuckBench.Step(at: 0.5, vx: 0.5)]
+        let calls: [DuckBench.Call] = [
+            DuckBench.health(address),
+            try DuckBench.record(address, policy: "p", seconds: 1, schedule: step),
+            try DuckBench.measure(address, policy: "p", seconds: 1, rollouts: 1, schedule: step),
+            try DuckBench.upload(address, onnx: Data([1, 2, 3])),
+            try DuckBench.upload(address, onnx: Data([1, 2, 3]), parameters: Data([4])),
+            try DuckBench.uploadParameters(address, canonicalBytes: Data([1])),
+            try DuckBench.tune(address, policy: "p", gain: [1], offset: [0], seconds: 1,
+                               drops: [0.12], schedule: step, terms: ["upright"]),
+        ]
+        for call in calls {
+            XCTAssertTrue(DuckBench.routes.contains(call.url.path),
+                          "\(call.url.path) is not a routable path — the phone bench would 404 it")
+        }
+        XCTAssertTrue(DuckBench.routes.contains("/tune"))
+        XCTAssertEqual(DuckBench.routes.count, 11)
+    }
 }

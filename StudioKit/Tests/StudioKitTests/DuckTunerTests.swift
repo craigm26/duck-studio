@@ -709,4 +709,73 @@ final class DuckTunerTests: XCTestCase {
         XCTAssertTrue(good.contains("It survived"))
         XCTAssertTrue(good.contains("bigger than the wobble"))
     }
+
+    // MARK: - the objective keeps the walk; the guards are unconditional
+
+    /// THE FARM THE REVIEW BUILT, REFUSED BY THE OBJECTIVE. A left/right gain
+    /// asymmetry inside the envelope scored 4.1817 against the identity's
+    /// 3.8863 while travelling 533 mm against 1155 mm. Scaled by the walk kept
+    /// it ranks below the unchanged network, which is the whole point.
+    func testTheMeasuredFarmRanksBelowTheBaselineOnTheObjective() {
+        let baseline = DuckTuner.objective(reward: 3.8863, travelled: 1.155, baselineTravelled: 1.155)
+        let farm = DuckTuner.objective(reward: 4.1817, travelled: 0.533, baselineTravelled: 1.155)
+        XCTAssertEqual(baseline, 3.8863, accuracy: 1e-9)
+        XCTAssertLessThan(farm, baseline)
+        // A candidate that keeps the whole walk is scored on its reward alone,
+        // and walking FURTHER than the baseline buys nothing.
+        XCTAssertEqual(DuckTuner.objective(reward: 4.0, travelled: 1.4, baselineTravelled: 1.155), 4.0)
+        // A circle — a negative projection onto the command — scores nothing.
+        XCTAssertEqual(DuckTuner.objective(reward: 4.5, travelled: -0.074, baselineTravelled: 1.155), 0)
+        // No baseline walk, no objective.
+        XCTAssertEqual(DuckTuner.objective(reward: 4.5, travelled: 1, baselineTravelled: 0), 0)
+    }
+
+    /// The walk floor asks every drop, not the median, and does not care
+    /// whether the candidate ended standing.
+    func testTheWalkFloorIsOnTheWeakestDropAndUnconditional() {
+        XCTAssertTrue(DuckTuner.keptTheWalk(minTravelled: 0.30, baselineMinTravelled: 1.134))
+        XCTAssertFalse(DuckTuner.keptTheWalk(minTravelled: 0.28, baselineMinTravelled: 1.134))
+        // One dead episode in three is what the median hid; the minimum sees it.
+        XCTAssertFalse(DuckTuner.keptTheWalk(minTravelled: 0.002, baselineMinTravelled: 1.134))
+        // A baseline that does not walk either cannot fail anyone on the walk.
+        XCTAssertTrue(DuckTuner.keptTheWalk(minTravelled: 0, baselineMinTravelled: 0.001))
+        XCTAssertFalse(DuckTuner.rejectedForLosingTheWalk.isEmpty)
+        XCTAssertTrue(DuckTuner.rejectedForLosingTheWalk.contains("whether or not it ended standing"))
+        XCTAssertTrue(DuckTuner.rejectedAsDiverged.contains("stopped being a duck"))
+    }
+
+    /// A spread of exactly zero is the absence of a floor, not a floor of zero.
+    func testANoiseFloorOfExactlyZeroIsRefused() {
+        XCTAssertNil(DuckTuner.noiseFloor([2.5, 2.5, 2.5]))
+        XCTAssertEqual(try XCTUnwrap(DuckTuner.noiseFloor([2.5, 2.6])), 0.1, accuracy: 1e-12)
+    }
+
+    /// The held-out verdict asks about the walk before it asks about the gain.
+    func testTheHeldOutVerdictThrowsOutAWinnerThatLostTheWalk() {
+        let lost = DuckTuner.heldOutVerdict(gain: 0.5, noiseFloor: 0.01, walkKept: 0.46)
+        XCTAssertTrue(lost.hasPrefix("It did not keep the walk"), lost)
+        XCTAssertTrue(lost.contains("46% of the unchanged network's distance"), lost)
+        XCTAssertFalse(lost.contains("It survived"), lost)
+        let kept = DuckTuner.heldOutVerdict(gain: 0.5, noiseFloor: 0.01, walkKept: 0.98)
+        XCTAssertTrue(kept.hasPrefix("It survived"), kept)
+    }
+
+    /// The not-yet no longer claims the endpoint is the whole fix, and the
+    /// companion sentence says what still holds the line.
+    func testTheNotYetNoLongerCallsTheEndpointTheWholeFix() {
+        XCTAssertFalse(DuckTuner.notYet.contains("The fix is one endpoint"), DuckTuner.notYet)
+        XCTAssertTrue(DuckTuner.notYet.contains("Part of the fix is one endpoint"), DuckTuner.notYet)
+        XCTAssertTrue(DuckTuner.whatTuneChanges.contains("by 35% here, measured"))
+        XCTAssertTrue(DuckTuner.whatTuneChanges.contains("scaled by how much of the walk it kept"))
+        XCTAssertTrue(DuckTuner.whatTuneChanges.contains("three quarters of the walk"))
+    }
+
+    /// A score without the new fields keeps the old meaning: the minimum is
+    /// the median and nothing diverged.
+    func testAScoreDefaultsItsWeakestDropToTheMedian() {
+        let score = DuckTuner.Score(reward: 3, travelled: 1.1, standing: 3, episodes: 3, terms: [:])
+        XCTAssertEqual(score.minTravelled, 1.1)
+        XCTAssertEqual(score.diverged, 0)
+        XCTAssertEqual(score.objective(baselineTravelled: 2.2), 1.5, accuracy: 1e-12)
+    }
 }

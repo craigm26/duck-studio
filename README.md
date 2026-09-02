@@ -361,6 +361,7 @@ not features that were removed. Nothing below exists in the shipping app.
 | `DuckStudio/Resources/` | The nine bundled policies and `PrivacyInfo.xcprivacy`, which flattens to the app-bundle root. |
 | `DuckStudio/Sources/` | SwiftUI only. No arithmetic lives here; `scripts/check_no_studio_math.sh` enforces that. |
 | `scripts/check_no_studio_math.sh` | The guard. Run it before you finish. |
+| `StudioKit/Tests/StudioKitTests/BenchTuneParityTests.swift` | The one test here that checks ANOTHER repository. The duck bench's `/tune` had to rewrite two of this kit's definitions in JavaScript — what a per-joint gain and trim mean (`DuckPolicyWriter.folding`) and what each of Pollen's six reward terms is (`RunMetrics`) — so both are pinned to artefacts rather than to care: `Fixtures/tune/trace.json` is fifty control ticks the bench recorded with the six values it computed from them, scored here through `RunMetrics` and there through the bench's own code (they agree exactly, asserted at 1e-9); and the fold test writes `StudioKit/.build/fold-fixture/` for `sim/tune_parity.mjs` to reproduce byte for byte. |
 | `scripts/make_refusal_corpus.py` | Generates the refusal fixtures. They are **synthesized, not mutated**: renaming an op is four bytes where there were three, so every enclosing length prefix has to be recomputed, and writing that is writing a protobuf encoder anyway. Building each file from nothing also means it carries exactly one defect, which is what makes it fair to assert the message names that defect. |
 | `scripts/mac_compile_check.py` | The FREE gate. Tars the tree, ships it to the build Mac over SFTP, generates the project and runs `xcodebuild ... CODE_SIGNING_ALLOWED=NO`. Unlimited, so never spend a TestFlight upload finding out whether something builds. |
 | `scripts/archive_upload.sh` | Runs on the Mac: archive, sign with an App Store Connect API key, upload to TestFlight. No Apple ID login on the machine. |
@@ -383,6 +384,10 @@ cd StudioKit && /home/craigm26/swift-6.3.3/usr/bin/swift test
 
 # The rule, before anything else:
 bash scripts/check_no_studio_math.sh
+
+# The bench's half of /tune — run in duck-sounds, AFTER `swift test`, because
+# BenchTuneParityTests writes the folded policy it compares against.
+node ~/projects/duck-sounds/sim/tune_parity.mjs
 
 # The app — needs a Mac:
 cd DuckStudio && xcodegen generate

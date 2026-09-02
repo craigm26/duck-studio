@@ -158,8 +158,15 @@ public enum DuckBench {
     /// Base64 rather than multipart because the whole client is one
     /// `JSONSerialization` call and a bench is a thing on your desk, not an
     /// upload service. It costs a third more bytes on a LAN.
-    public static func upload(_ address: Address, onnx: Data) throws -> Call {
-        let body: [String: Any] = ["onnx": onnx.base64EncodedString()]
+    /// `parameters` are the canonical parameter bytes of the SAME network,
+    /// sent beside the file so a desk bench — which loads the file through
+    /// onnxruntime and can score it, but has nothing that dumps its
+    /// parameters — can fold a gain into its last layer for `/tune`. Absent,
+    /// the bench keeps the file only, and `/tune` on that name is refused with
+    /// the reason.
+    public static func upload(_ address: Address, onnx: Data, parameters: Data? = nil) throws -> Call {
+        var body: [String: Any] = ["onnx": onnx.base64EncodedString()]
+        if let parameters { body["parameters"] = parameters.base64EncodedString() }
         return Call(method: "POST", url: URL(string: "\(address.base)/upload")!,
                     body: try JSONSerialization.data(withJSONObject: body))
     }
@@ -291,6 +298,17 @@ public enum DuckBench {
                     body: try JSONSerialization.data(withJSONObject: body))
     }
 
+    /// EVERY PATH A `Call` FROM THIS TYPE CAN NAME. The phone's own loopback
+    /// server forwards exactly this set to the page and 404s the rest, so a
+    /// new endpoint added to the bench and to a factory here but not to this
+    /// list would ship with its Start button dead on the bench the app
+    /// carries — which is how `/tune` shipped, once. A test builds one call
+    /// from every factory and checks it against this list.
+    public static let routes: Set<String> = [
+        "/health", "/state", "/reset", "/intent", "/stop",
+        "/policy", "/record", "/measure", "/perform", "/upload", "/tune",
+    ]
+
     /// What a `/tune` answer says.
     public struct Tuned: Equatable, Sendable {
         public let policy: String
@@ -317,9 +335,29 @@ public enum DuckBench {
             public let travelled: Double
             public let standing: Bool
             public let terms: [String: Double]
+            /// The plain net displacement, beside the commanded projection:
+            /// far apart, the duck walked but not where it was told.
+            public let netDisplacement: Double
+            public let diverged: Bool
+            public init(drop: Double, travelled: Double, standing: Bool, terms: [String: Double],
+                        netDisplacement: Double = 0, diverged: Bool = false) {
+                self.drop = drop; self.travelled = travelled; self.standing = standing
+                self.terms = terms; self.netDisplacement = netDisplacement; self.diverged = diverged
+            }
         }
         public let plantName: String?
         public let plantDigest: String?
+        /// Episodes that were actually scored, and the ones that diverged —
+        /// a state or action that stopped being a duck — which the bench
+        /// names in `perDrop`, counts here, and leaves OUT of `terms`. A
+        /// candidate with any is a failed candidate, never a scored one.
+        public let scored: Int
+        public let diverged: Int
+        /// The LEAST any drop travelled, for a guard that must not let one
+        /// dead episode hide behind two live ones (the median can).
+        public let minTravelled: Double
+        /// The reward config the bench scored under, when it says.
+        public let config: String?
 
         public static func == (a: Tuned, b: Tuned) -> Bool {
             a.policy == b.policy && a.episodes == b.episodes && a.standing == b.standing
@@ -328,6 +366,8 @@ public enum DuckBench {
                 && a.plantDigest == b.plantDigest
                 && a.refused.map(\.name) == b.refused.map(\.name)
                 && a.refused.map(\.why) == b.refused.map(\.why)
+                && a.scored == b.scored && a.diverged == b.diverged
+                && a.minTravelled == b.minTravelled && a.config == b.config
         }
     }
 
@@ -360,14 +400,23 @@ public enum DuckBench {
                 return Tuned.Episode(drop: drop,
                                      travelled: $0["travelled"] as? Double ?? 0,
                                      standing: $0["standing"] as? Bool ?? false,
-                                     terms: each)
+                                     terms: each,
+                                     netDisplacement: $0["netDisplacement"] as? Double ?? 0,
+                                     diverged: $0["diverged"] as? Bool ?? false)
             },
             refused: (top["refused"] as? [[String: Any]] ?? []).compactMap {
                 guard let name = $0["name"] as? String else { return nil }
                 return (name, $0["why"] as? String ?? "unstated")
             },
             plantName: top["plantName"] as? String,
-            plantDigest: top["plantDigest"] as? String)
+            plantDigest: top["plantDigest"] as? String,
+            scored: top["scored"] as? Int ?? episodes,
+            diverged: top["diverged"] as? Int ?? 0,
+            // An older bench reports only the median; the least is then
+            // unknown and the median stands in, which is the looser guard
+            // rather than a false one.
+            minTravelled: top["minTravelled"] as? Double ?? (top["travelled"] as? Double ?? 0),
+            config: top["config"] as? String)
     }
 
     /// What the bench called the file it just took.
@@ -438,9 +487,15 @@ public enum DuckBench {
     /// distance has to command them past that threshold or it is comparing two
     /// ducks standing still.
     ///
-    /// The half-second of nothing at the start is the settle: the bench drops
-    /// the duck from about 123 mm and the bounce has to die before a command
-    /// means anything.
+    /// THE HALF-SECOND OF NOTHING AT THE START IS NOT THE SETTLE. The bench
+    /// settles on its own — 25 ticks under the standing policy before the
+    /// schedule's t = 0 — so this step is an extra neutral half-second INSIDE
+    /// the measured window, under the candidate. `/tune` scores it: at six
+    /// seconds that is 25 of 300 ticks commanded (0, 0, 0), under the pose
+    /// term's tighter standing tolerances. It is kept deliberately, because a
+    /// candidate that cannot stand for half a second before walking is not
+    /// one anybody wants folded, and the fixtures behind the parity gate were
+    /// recorded with it.
     public static let walkingCommand: [Step] = [
         Step(at: 0), Step(at: 0.5, vx: 0.5),
     ]
