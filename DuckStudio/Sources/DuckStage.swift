@@ -973,47 +973,93 @@ struct StageLegend: View {
         .accessibilityValue(Text(followWord))
     }
 
+    /// Whether the readings are open. Remembered across screens, because a
+    /// person who wants the numbers wants them on every stage, and one who
+    /// wants the duck wants the duck on every stage.
+    @AppStorage("stage.legend.expanded") private var expanded = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
-            feet
-            trunk
-            groundSentence
-            // NO TOGGLE WHERE THERE IS NOTHING TO FOLLOW. `DuckStage` follows
-            // `pose.position`, which is the root; against a pinned one the
-            // camera would ride a point that never moves, so the control is not
-            // disabled and inert here — it is absent, and the sentence above it
-            // says why the root cannot move.
-            if !rootIsPinned { cameraChip }
-            Text(context)
-                .font(.caption2)
-                .foregroundStyle(Theme.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-            // THREE GESTURES, TO A READER WHO MAY BE ABLE TO MAKE NONE OF THEM.
-            // The printed line is right for a finger and a dead end without
-            // one, and "double-tap" means something else entirely once
-            // VoiceOver is on. The words on screen do not change — a sighted
-            // person is being told the truth — but what is read aloud names the
-            // other route, because a stage with actions on it is only useful to
-            // somebody who knows to look for them.
-            Text("Drag to orbit · pinch to zoom · double-tap to reset")
-                .font(.caption2)
-                .foregroundStyle(Theme.textTertiary)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityLabel(Text(Self.spokenGestures))
+            // COLLAPSED BY DEFAULT, BECAUSE THE FULL LEGEND HID THE DUCK. On a
+            // phone, in the clip player's 340-point viewport, the badge, three
+            // trunk rows, the ground sentence, the camera chip, the context
+            // line and the gesture hint stacked to two thirds of the picture —
+            // and a standing duck at the default camera distance sits exactly
+            // where that card was. Craig's screenshot of build 41 showed a
+            // grid, a legend and no robot. A stage's first job is the robot;
+            // the numbers are one tap away and stay open once opened.
+            HStack(spacing: Theme.spacing(.tight)) {
+                feet
+                if !expanded {
+                    Text(trunkZLine)
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(Theme.textSecondary)
+                        .lineLimit(1)
+                        .accessibilityLabel(Text("Trunk height"))
+                        .accessibilityValue(Text(trunkZLine))
+                }
+                Spacer(minLength: Theme.spacing(.tight))
+                if !rootIsPinned { cameraChip }
+                disclosure
+            }
+            if expanded {
+                trunk
+                groundSentence
+                Text(context)
+                    .font(.caption2)
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                // THREE GESTURES, TO A READER WHO MAY BE ABLE TO MAKE NONE OF
+                // THEM. The printed line is right for a finger and a dead end
+                // without one, and "double-tap" means something else entirely
+                // once VoiceOver is on. The words on screen do not change — a
+                // sighted person is being told the truth — but what is read
+                // aloud names the other route, because a stage with actions on
+                // it is only useful to somebody who knows to look for them.
+                Text("Drag to orbit · pinch to zoom · double-tap to reset")
+                    .font(.caption2)
+                    .foregroundStyle(Theme.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel(Text(Self.spokenGestures))
+            }
         }
         .padding(Theme.spacing(.snug))
-        // FULL WIDTH, AND NOT CAPPED THE WAY `DriveView`'S READOUT IS. That
-        // panel is one corner of a viewport with a centred duck behind it, so a
-        // 260-point ceiling is what keeps the duck visible. This is a caption
-        // strip along the bottom of four different stages, and the longest
-        // sentence it prints — the pinned-trunk clearance reading — is over a
-        // hundred characters. Capped, that sentence becomes a column of single
-        // words taller than the stage it is captioning at large text sizes.
+        // FULL WIDTH, NEVER TALL. Width is free — the duck is centred and a strip
+        // along the bottom edge does not reach it; height is what covers a
+        // robot, and the collapsed row is one badge, one number and two chips.
+        // Expanded, the longest sentence — the pinned-trunk clearance reading,
+        // over a hundred characters — still wraps across the full width rather
+        // than becoming a column of single words at large text sizes.
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.surfacePrimary, in: panel)
         .overlay(panel.strokeBorder(Theme.separator,
                                     lineWidth: StageMetric.hairlineStroke))
         .padding(Theme.spacing(.snug))
+    }
+
+    /// The one number the collapsed row keeps: how high the trunk is. Height is
+    /// the reading that says "standing" or "fallen" at a glance; x and y are
+    /// where on the floor, which the picture already shows.
+    private var trunkZLine: String {
+        "z \(millimetres(pose.root.z, signed: false)) \(StageUnit.millimetres)"
+    }
+
+    /// The chevron that opens and closes the readings. A button with a word for
+    /// VoiceOver, at the same floor every other control on the stage clears.
+    private var disclosure: some View {
+        Button {
+            withAnimation(Theme.settle) { expanded.toggle() }
+        } label: {
+            Image(systemName: expanded ? "chevron.down" : "chevron.up")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(Theme.textSecondary)
+                .frame(minWidth: StageMetric.minimumTarget,
+                       minHeight: StageMetric.minimumTarget)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text(expanded ? "Hide the readings" : "Show the readings"))
+        .accessibilityHint(Text("The trunk position, the ground clearance and how to move the camera."))
     }
 
     private var panel: RoundedRectangle {
