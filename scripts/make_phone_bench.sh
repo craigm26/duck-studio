@@ -55,6 +55,23 @@ cp "$SOURCE/sim/policyforward.mjs"      "$OUT/assets/"
 cp "$SOURCE/site/duckloop.mjs"          "$OUT/assets/duckloop.mjs"
 cp "$SOURCE/sim/duckkit-constants.json" "$OUT/assets/"
 
+# THE CLIMB SCORER AND THE THREE FILES IT IMPORTS, under the names the core
+# imports them by. The bench answers POST /climb — one cell of the stairs
+# challenge's fourteen — out of `sim/climb_score.mjs`, which is the SAME episode
+# climb/rig3.mjs and climb/robust.mjs run, so a cell scored on the phone is the
+# cell the audit published rather than one that resembles it
+# (duck-sounds sim/climb_parity.mjs is the gate that says so). It reaches its
+# staircase, its event block and its servo law through `./stairs.js`,
+# `./climb_event.mjs` and `./climb_servo.mjs`; in sim/ those are re-export shims
+# pointing at site/ and climb/, and a WebView has no `../site` or `../climb` to
+# reach into, so here they ARE the files — the same reason duckloop.mjs is taken
+# from site/. Leave one out and the app boots, /health answers, and the Stairs
+# Challenge dies on its first cell with a module-not-found.
+cp "$SOURCE/sim/climb_score.mjs"        "$OUT/assets/"
+cp "$SOURCE/site/stairs.js"             "$OUT/assets/stairs.js"
+cp "$SOURCE/climb/event.mjs"            "$OUT/assets/climb_event.mjs"
+cp "$SOURCE/climb/servo.mjs"            "$OUT/assets/climb_servo.mjs"
+
 # THE PLANT, FROM sim/. `site/scene.mjb` and `sim/scene.mjb` share a name and
 # differ in bytes (duck-sounds PLANT.md), and it is sim/'s that every clip in
 # duckkit is stamped with. Copying the wrong one is the failure this script

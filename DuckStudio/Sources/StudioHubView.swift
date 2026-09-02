@@ -106,7 +106,7 @@ struct StudioHubView: View {
                 // few hundred times, against a reward read out of Pollen's own
                 // training config. Nothing is authored and nothing is trained.
                 //
-                // NOT A `StudioDestination`. The four cases there are the
+                // NOT A `StudioDestination`. The cases there are the
                 // places another tab can send somebody to by name, and nothing
                 // routes here: this is a door off Measure and not a fifth room
                 // with an address. Adding a case for a screen no router names
@@ -115,6 +115,21 @@ struct StudioHubView: View {
                     TuneView(library: model, benches: benches)
                 } label: {
                     Label("Tune it on this phone", systemImage: "slider.horizontal.3")
+                }
+                // THE ONE PLACE IN THE APP WHERE A NUMBER THIS PHONE PRODUCES
+                // CAN BE THE SAME NUMBER SOMEBODY ELSE PUBLISHED. It is under
+                // Measure and not under Author because nothing here is
+                // authored: the moves are a published corpus and what this
+                // screen does is score one of them, on the audit's own grid,
+                // through the audit's own episode function.
+                //
+                // A `StudioDestination`, unlike Tune, because a second door
+                // names it: the Behaviours root's discover section routes here
+                // by name. See `AppRouter.pendingStudio`.
+                NavigationLink {
+                    place(.stairs)
+                } label: {
+                    Label(StairsChallenge.title, systemImage: "stairs")
                 }
             } header: {
                 SectionHeading(text: "Measure")
@@ -168,7 +183,7 @@ struct StudioHubView: View {
         .scrollContentBackground(.hidden)
         .background(Theme.backgroundSecondary)
         .refreshingCameraDoor($door)
-        // THE SECOND HOP, AND IT NEEDS NO PATH CONVERSION. The four rows above
+        // THE SECOND HOP, AND IT NEEDS NO PATH CONVERSION. The rows above
         // are still closure `NavigationLink`s — they push a view they name
         // directly, which is what a row a finger is on should do — and this
         // modifier pushes the SAME view when another tab asks for it by name.
@@ -197,7 +212,7 @@ struct StudioHubView: View {
         }
     }
 
-    /// The screen behind one of the four places another tab may name.
+    /// The screen behind one of the five places another tab may name.
     ///
     /// IT IS THE ROWS' DESTINATION TOO, WHICH IS THE POINT. A route that built
     /// its own copy of `AutomationChatView` would be a second wiring of the six
@@ -218,6 +233,9 @@ struct StudioHubView: View {
         case .measure:
             RemoteRunView(model: model, scenes: scenes, drafts: drafts,
                           models: models, benches: benches)
+        case .stairs:
+            StairsChallengeView(drafts: drafts, scenes: scenes,
+                                models: models, benches: benches)
         }
     }
 

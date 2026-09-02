@@ -573,16 +573,48 @@ final class PhoneBenchHost: NSObject, ObservableObject {
     /// wall per second of physics per drop, which is slower than any bench
     /// this project has measured (the Pi does a second of physics in 0.09 s)
     /// and still a wedge, not a wait, past it.
+    /// `/climb` GETS THE SAME KIND OF CEILING FOR THE SAME KIND OF REASON. One
+    /// cell is one whole episode: the move played from its first keyframe to
+    /// its last, then a fifty-tick tail with the standing policy on the legs —
+    /// and before any of that, the stair bank is laid out and, afterwards,
+    /// cleared again. That is more physics than a `/state` and less than a
+    /// `/tune` batch, and how much more depends entirely on the move in the
+    /// body: the corpus runs from under a second to several. A fixed fifteen
+    /// seconds would be generous for the record and tight for the longest move
+    /// on the slowest phone, and being tight here does not read as slow — it
+    /// reloads the world mid-grid and turns thirteen good cells into a partial
+    /// run. So the request's own keyframes set it, on the same three-seconds-of
+    /// -wall-per-second-of-physics allowance `/tune` uses.
     static func deadline(for target: String, body: String) -> Double {
-        guard target.hasPrefix("/tune"),
-              let data = body.data(using: .utf8),
+        guard let data = body.data(using: .utf8),
               let top = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return deadline
         }
-        let seconds = min(max((top["seconds"] as? Double) ?? 6, 0.2), 30)
-        let drops = max((top["drops"] as? [Any])?.count ?? 1, 1)
-        return deadline + 3 * seconds * Double(drops)
+        if target.hasPrefix("/tune") {
+            let seconds = min(max((top["seconds"] as? Double) ?? 6, 0.2), 30)
+            let drops = max((top["drops"] as? [Any])?.count ?? 1, 1)
+            return deadline + 3 * seconds * Double(drops)
+        }
+        // `/climb/grid` IS A GET WITH NO BODY and falls out here on the guard
+        // above, which is right: answering the cell list runs no physics.
+        if target.hasPrefix("/climb") {
+            let intent = top["intent"] as? [String: Any]
+            let keyframes = (intent?["keyframes"] as? [[String: Any]]) ?? []
+            let last = keyframes.compactMap { $0["t"] as? Double }.max() ?? 0
+            // THE EPISODE THE BENCH ACTUALLY RUNS: 25 settle ticks (0.5 s)
+            // before the track, the track to its last keyframe, 0.8 s of
+            // track tail, then the 50-tick policy tail.
+            let episode = 0.5 + min(max(last, 0), 30) + 0.8 + tailSeconds
+            return deadline + 3 * episode
+        }
+        return deadline
     }
+
+    /// The tail every climb episode runs after the move ends: fifty ticks at
+    /// the bench's control rate. It is the window `uprightTailTicks` is counted
+    /// over — 45 of 50 is what "stable" means — so it is physics that happens
+    /// on every cell whatever the move's length.
+    private static let tailSeconds: Double = 1
 
     private struct TimedOut: Error {}
 

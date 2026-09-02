@@ -307,6 +307,10 @@ public enum DuckBench {
     public static let routes: Set<String> = [
         "/health", "/state", "/reset", "/intent", "/stop",
         "/policy", "/record", "/measure", "/perform", "/upload", "/tune",
+        // The stairs challenge. `/climb` scores ONE grid cell of one intent;
+        // `/climb/grid` answers the cell list so a client never retypes it.
+        // See `DuckBenchClimb.swift`.
+        "/climb", "/climb/grid",
     ]
 
     /// What a `/tune` answer says.

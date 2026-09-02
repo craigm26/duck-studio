@@ -47,21 +47,23 @@ enum AppTab: String, CaseIterable, Identifiable {
     }
 }
 
-/// The four places inside Studio another tab is allowed to name.
+/// The five places inside Studio another tab is allowed to name.
 ///
-/// A ROUTE IS A PLACE, NOT A SCREEN. These are the four rows on the Studio root
-/// — Motions, Scenes, Draft with words, and Run on your network — and they are
-/// spelled as cases rather than as view builders so that the sender does not
-/// have to know which view a row opens, or hold the six stores that view wants.
-/// `StudioHubView` already holds all six; it is the only place that should be
-/// naming `AutomationChatView`.
+/// A ROUTE IS A PLACE, NOT A SCREEN. These are rows on the Studio root —
+/// Motions, Scenes, Draft with words, Run on your network, and the Stairs
+/// Challenge — and they are spelled as cases rather than as view builders so
+/// that the sender does not have to know which view a row opens, or hold the
+/// six stores that view wants. `StudioHubView` already holds all six; it is the
+/// only place that should be naming `AutomationChatView`.
 ///
-/// FOUR AND NOT EVERY SCREEN IN THE APP, deliberately. A destination that no
+/// FIVE AND NOT EVERY SCREEN IN THE APP, deliberately. A destination that no
 /// other tab has ever asked to reach is a destination nobody can prove works,
 /// and this enum is the list of the ones that are actually sent to. It grows
-/// when a caller appears, not before.
+/// when a caller appears, not before — `stairs` arrived with one, the row in
+/// the Behaviours root's discover section, which is the second door onto the
+/// challenge and the reason it is addressable by name at all.
 enum StudioDestination: String, Identifiable, Hashable, CaseIterable {
-    case motions, scenes, draft, measure
+    case motions, scenes, draft, measure, stairs
 
     var id: String { rawValue }
 }

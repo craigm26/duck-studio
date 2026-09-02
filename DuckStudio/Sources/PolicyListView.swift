@@ -400,6 +400,17 @@ struct PolicyListView: View {
     /// community's are different claims about provenance and neither contains
     /// the other, which is the whole posture of this app's palette. Reaching the
     /// community through Pollen's screen said the opposite.
+    ///
+    /// AND A THIRD ROW THAT IS NOT A CATALOGUE OF NETWORKS. The stairs
+    /// challenge is a published corpus of MOVES with an audit behind it, which
+    /// is a different kind of thing from a policy — but it is the same question
+    /// a person asks here, "what have other people published", and burying the
+    /// one published thing in this app that can be scored against its own
+    /// leaderboard inside another tab is how a shelf goes unread. It is the one
+    /// row in this section that leaves the tab, so it is a `Button` on the
+    /// router rather than a `NavigationLink`: pushing Studio's screen onto the
+    /// Behaviours stack would be a second copy of it, on a stack where its own
+    /// Back button lies about where you came from.
     private var discover: some View {
         Section {
             NavigationLink { CatalogueView(model: model) } label: {
@@ -413,11 +424,33 @@ struct PolicyListView: View {
                      detail: "Networks other people trained and published on Hugging Face, each with the manifest that says what its command block means.",
                      symbol: "person.2")
             }
+            .listRowBackground(cardSegment(first: false, last: false))
+            Button {
+                router.go(to: .studio, then: .stairs)
+            } label: {
+                // A BUTTON IN A LIST DRAWS NO CHEVRON, so it is put back by
+                // hand. The row leads out of this tab entirely, which is more
+                // of a journey than the two above it and not less — and a row
+                // that looks inert beside two that look tappable reads as a
+                // heading rather than as a door.
+                HStack(alignment: .center, spacing: Theme.spacing(.tight)) {
+                    door(StairsChallenge.title,
+                         detail: StairsChallenge.oneSentence,
+                         symbol: "stairs")
+                    Spacer(minLength: Theme.spacing(.tight))
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(Theme.textTertiary)
+                        // The row already says where it goes; a screen reader
+                        // announcing "chevron" adds nothing.
+                        .accessibilityHidden(true)
+                }
+            }
             .listRowBackground(cardSegment(first: false, last: true))
         } header: {
             SectionHeading(text: "Discover behaviours people have published")
         } footer: {
-            sectionFootnote("Neither fetches anything until you ask: the address is printed first and the scan is a button. What decides whether a downloaded network can be driven here is its manifest, not whose repository it sat in.")
+            sectionFootnote("Neither catalogue fetches anything until you ask: the address is printed first and the scan is a button. What decides whether a downloaded network can be driven here is its manifest, not whose repository it sat in. The stairs challenge is in Studio, and nothing in it has been run on hardware.")
         }
         .listRowSeparatorTint(Theme.separator)
     }

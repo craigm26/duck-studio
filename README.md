@@ -110,7 +110,8 @@ from your own PPO run and it will not load, this screen tells you why in one
 glance instead of sending you to Netron on a laptop you do not have with you.
 
 **Studio.** Where things are authored and measured: motions, scenes, drafts, a
-bench on your own network, and the modes that were the Lab. Nothing in these
+bench on your own network, the stairs challenge, and the modes that were the
+Lab. Nothing in these
 modes is talking to a robot — what runs is a trained policy on this phone, a
 physics bench on your network, or a recorded motion — and the screen says so
 above the list rather than leaving you to work it out.
@@ -276,6 +277,30 @@ duck-sounds repository. It reports what plant it is simulating, at what rate, on
 how many cores, and what is in that world; a run comes back as a real result the
 draft keeps. Plain http, and only a private address or a `.local` name is
 accepted, because a Pi on a desk has no certificate.
+
+## The stairs challenge
+
+**Studio → Stairs Challenge** (and a row in Behaviours → *Discover behaviours
+people have published*) is the one screen where a number this phone produces is
+the same number somebody else published. It ships the whole
+[Microduck stairs challenge](https://huggingface.co/datasets/craigm26/microduck-stairs-challenge)
+— the leaderboard and the intent file behind every row, including the two
+controls — and scores any of them on whichever bench is selected: this iPhone's
+own, or a Pi. **Score** sends the fourteen grid cells one request each to
+`/climb`, which is `climb/rig3.mjs`'s own episode function with the intent in
+the request body instead of in a file, so the verdict — *k* of 9 cleared and
+standing against a bar of 7 — is arrived at by the same code and the same plant
+digest as the audited table. Nothing here aggregates anything: the fourteen
+answers go to `StairsChallenge.Score` in StudioKit, where `swift test` checks
+them against fixtures `climb/robust.mjs` produced. **Open in the editor** turns
+a published move into a draft with its rank and hash in the provenance;
+**Submit** writes a bundle of the move, all fourteen unrounded per-cell answers,
+the bench's plant digest and the date, and offers it to the share sheet, to a
+pre-filled GitHub issue, or to a dataset under your own Hugging Face account.
+A bench without `/climb` gets a stated not-yet naming the bench and what to
+update, never a live button. And beside **Send to the duck** stands the sentence
+that governs the whole screen: on a real Microduck the app plays the move; there
+is no score, the staircase is yours, and nothing here has been run on hardware.
 
 ## Where a draft comes from
 

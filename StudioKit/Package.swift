@@ -41,7 +41,17 @@ let package = Package(
                 // to be able to say when two files are the same network, and
                 // that is a digest question, not a filename one.
                 .product(name: "DuckEvidence", package: "duckkit"),
-            ]
+            ],
+            // THE CHALLENGE TRAVELS WITH THE APP, BYTE FOR BYTE. The stairs
+            // challenge is a published dataset — a leaderboard and the intent
+            // files behind its rows — and an app that retyped either would be
+            // showing numbers nobody can trace. So the files themselves ship,
+            // copied from duck-sounds/challenge without a byte changed, and
+            // `StairsChallengeResourceTests` pins every one of them by sha256
+            // against the list the dataset publishes. `.copy` rather than
+            // `.process`: processing is free to rewrite what it recognises,
+            // and a rewritten intent file is a different intent.
+            resources: [.copy("Resources/StairsChallenge")]
         ),
         .testTarget(
             name: "StudioKitTests",

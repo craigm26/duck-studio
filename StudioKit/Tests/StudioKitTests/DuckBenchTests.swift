@@ -465,12 +465,17 @@ final class DuckBenchTests: XCTestCase {
             try DuckBench.uploadParameters(address, canonicalBytes: Data([1])),
             try DuckBench.tune(address, policy: "p", gain: [1], offset: [0], seconds: 1,
                                drops: [0.12], schedule: step, terms: ["upright"]),
+            try DuckBench.climb(address, intent: StairsChallenge.intentData(named: "ctrl_do_nothing"),
+                                rise: 0.060, cell: StairsChallenge.Grid.fallback[0]),
+            DuckBench.climbGrid(address),
         ]
         for call in calls {
             XCTAssertTrue(DuckBench.routes.contains(call.url.path),
                           "\(call.url.path) is not a routable path — the phone bench would 404 it")
         }
         XCTAssertTrue(DuckBench.routes.contains("/tune"))
-        XCTAssertEqual(DuckBench.routes.count, 11)
+        XCTAssertTrue(DuckBench.routes.contains("/climb"))
+        XCTAssertTrue(DuckBench.routes.contains("/climb/grid"))
+        XCTAssertEqual(DuckBench.routes.count, 13)
     }
 }

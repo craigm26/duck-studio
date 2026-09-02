@@ -159,6 +159,20 @@ public enum HuggingFacePublish {
     /// Who the token belongs to. Asked BEFORE anything is created, so the
     /// screen can say "publishing as …" rather than discovering the account
     /// from the address of a repository that now exists.
+    /// THE WARNING EVERY PUBLIC PUBLISH DRAWS, in one place. It used to be a
+    /// byte-copy in two views, one of them untested.
+    public static let publicWarning =
+        "PUBLIC: anyone can find and download it, and anything already fetched stays fetched "
+      + "even if you delete it later."
+    /// The failure ladder a publish sheet climbs, as sentences rather than
+    /// string literals in a view.
+    public static let tokenRefused = "Hugging Face did not accept that token."
+    public static func answered(_ status: Int) -> String { "huggingface.co answered \(status)." }
+    public static let noAccountNamed = "That answer did not name an account."
+    public static func creating(_ status: Int) -> String {
+        "Creating the repository answered \(status)."
+    }
+
     public static func whoami() -> Call {
         Call(method: "GET", url: URL(string: "https://\(host)/api/whoami-v2")!,
              contentType: nil, body: nil)
