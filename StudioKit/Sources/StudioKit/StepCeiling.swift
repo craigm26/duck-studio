@@ -3,46 +3,65 @@ import Foundation
 /// What the robot has been measured to climb, with the measurement attached.
 ///
 /// A NUMBER THAT SHIPS WITHOUT ITS COUNT IS A CLAIM, NOT A MEASUREMENT. The
-/// app carried `measuredStepCeiling = 0.010` and printed "the robot has been
-/// measured at 10 mm" under every staircase somebody drew. On 2026-09-01 the
-/// four authored stair moves were run against a four-step flight on the very
-/// plant the bench serves (`scene.mjb`, digest 3f8c9ab9b409), at every rise
-/// from 1 mm to a 170 mm code riser, from three start offsets each. Nothing
-/// cleared 10 mm. Nothing cleared 16 mm. Nothing cleared anything above it —
-/// 0 of 3, every rise, every move, and they fail by standing upright on the
-/// floor short of the riser, trunk never leaving 116 mm.
+/// app once carried `measuredStepCeiling = 0.010` and printed "the robot has
+/// been measured at 10 mm" under every staircase somebody drew. Then it
+/// carried "0 of 54 audited replays cleared anything from 20 to 180 mm". On
+/// 2026-09-02 that second sentence turned out to rest on a broken instrument:
+/// the harness's four-step flight is built from 200 mm-tall blocks whose top
+/// is the tread, so at any rise under 200 mm adjacent blocks interpenetrate,
+/// and because they collide with each other and sit on frictionless slides
+/// the solver shoves them apart. Below about 150 mm a duck simply STANDING on
+/// the first tread is thrown to the floor within ten control ticks. Every
+/// replay in that audit was scored on that flight, so below 150 mm it says
+/// nothing about climbing at all. That sentence is gone.
+///
+/// WHAT IS KNOWN NOW, from a second round scored from saved files by an
+/// adversarial audit (duck-sounds/climb/audit_r2-results.json): on a flight
+/// repaired so its blocks stop colliding with one another, and nowhere else,
+/// a beak-strut vault carried the duck from the floor onto a 40 mm step once
+/// and onto a 60 mm step once. Both are real stances — the feet finish at the
+/// same height above the tread as a duck placed there — and no cheat was
+/// found: the lateral gate held, a do-nothing control fails, a placed duck
+/// passes, servo torque never exceeds the plant's ceiling, nothing tunnels.
+/// Both are also brittle: the 40 mm move survives 1 of 7 perturbations and
+/// the 60 mm move 3 of 7; neither survives a 10 mm change of rise or a 30%
+/// change of foot friction. Nothing above 60 mm has cleared in roughly
+/// 21,000 searched attempts, and on the flight as shipped both score zero.
 ///
 /// AND BELOW ABOUT 11 mm THE CHECK CANNOT SEE A STEP AT ALL. The criterion
 /// counts a foot as "on the tread" when it is within 5 mm of the tread's
 /// height, and a foot resting on the floor has its geometry centred 5.5 mm
 /// up — so for any rise under 10.5 mm a foot on the FLOOR passes the height
-/// test, and the whole check collapses to "did the trunk drift forward". That
-/// is how earlier runs came to report 1 and 2 mm as cleared. So this type has
-/// a resolution limit, and it refuses to report a number under it rather than
-/// a flattering one.
+/// test. This type refuses to report a number under that floor rather than a
+/// flattering one.
 ///
 /// Pollen's own training config caps its stair terrain at 15 mm with the
 /// reason written beside it — "the robot can only lift its feet ~1-2 cm" —
-/// and the policies the robot loads are deliberately blind to terrain. None
-/// of that is a tuning gap. It is the size of the robot's own leg travel.
+/// and the policies the robot loads are deliberately blind to terrain.
 public struct StepCeiling: Equatable, Sendable {
-    /// The tallest rise anything cleared under `criterion`. Zero: nothing did.
+    /// The tallest rise anything cleared on the plant AS SHIPPED. Zero.
     public let metres: Double
+    /// The tallest rise anything cleared on the repaired flight, and every
+    /// rise that did, in metres. Each is one deterministic attempt from one
+    /// exact start; see `robustness`.
+    public let repairedMetres: Double
+    public let clearedRises: [Double]
+    /// How each clear fared under perturbation, in the audit's own words.
+    public let robustness: String
     /// Rises below this the criterion cannot resolve; no number is reported
     /// for them, in either direction.
     public let resolvableAbove: Double
-    /// The lowest and highest rises actually tried under a check that could
-    /// see them.
-    public let triedFrom: Double
-    public let triedTo: Double
-    /// Cleared / attempted at every tried rise, for the moves named.
-    public let cleared: Int
-    public let of: Int
-    public let moves: [String]
+    /// The rise below which the flight as shipped throws a standing duck off
+    /// the tread, so no result on it below here is a result about climbing.
+    public let shippedFlightSoundAbove: Double
+    /// Searched attempts across every round, to the nearest thousand.
+    public let episodes: Int
+    public let rounds: Int
+    public let move: String
+    public let repair: String
     public let criterion: String
-    public let plant: String
-    public let plantDigest: String
-    /// ISO date of the measurement. A string, because the kit reads no clock.
+    public let evidence: String
+    /// ISO date of the audit. A string, because the kit reads no clock.
     public let measuredOn: String
     /// The rise the scene editor starts a staircase at and adds a step by. It
     /// sits UNDER the resolvable floor on purpose: the editor's flag stays
@@ -50,19 +69,22 @@ public struct StepCeiling: Equatable, Sendable {
     /// nothing is known about it either way.
     public let editorRise: Double
 
-    public init(metres: Double, resolvableAbove: Double, triedFrom: Double, triedTo: Double,
-                cleared: Int, of: Int, moves: [String], criterion: String,
-                plant: String, plantDigest: String, measuredOn: String, editorRise: Double) {
+    public init(metres: Double, repairedMetres: Double, clearedRises: [Double], robustness: String,
+                resolvableAbove: Double, shippedFlightSoundAbove: Double, episodes: Int, rounds: Int,
+                move: String, repair: String, criterion: String, evidence: String,
+                measuredOn: String, editorRise: Double) {
         self.metres = metres
+        self.repairedMetres = repairedMetres
+        self.clearedRises = clearedRises
+        self.robustness = robustness
         self.resolvableAbove = resolvableAbove
-        self.triedFrom = triedFrom
-        self.triedTo = triedTo
-        self.cleared = cleared
-        self.of = of
-        self.moves = moves
+        self.shippedFlightSoundAbove = shippedFlightSoundAbove
+        self.episodes = episodes
+        self.rounds = rounds
+        self.move = move
+        self.repair = repair
         self.criterion = criterion
-        self.plant = plant
-        self.plantDigest = plantDigest
+        self.evidence = evidence
         self.measuredOn = measuredOn
         self.editorRise = editorRise
     }
@@ -70,30 +92,41 @@ public struct StepCeiling: Equatable, Sendable {
     /// The measurement this app ships with.
     public static let current = StepCeiling(
         metres: 0,
+        repairedMetres: 0.060,
+        clearedRises: [0.040, 0.060],
+        robustness: "the 40 mm move survives 1 of 7 perturbations and the 60 mm move 3 of 7, "
+                  + "and neither survives a 10 mm change of step height or a 30% change of foot friction",
         resolvableAbove: 0.011,
-        triedFrom: 0.020,
-        triedTo: 0.180,
-        cleared: 0,
-        of: 54,
-        // THE MOVES ARE THE SEARCHED ONES, because their replays are the evidence
-        // on disk: eighteen best tracks from three whole-body strategies — a
-        // beak hook with a wall walk, a head press with a trunk twist, and the
-        // same with forward drive — each replayed at three start offsets by an
-        // adversarial audit (duck-sounds/climb/audit_replay-results.json). The
-        // four authored stair moves scored the same zero across a ladder run
-        // whose results file was later overwritten by a finer one, so they are
-        // named here as what was tried, not as the count.
-        moves: ["eighteen searched whole-body tracks (beak hook, head press, head press with drive)",
-                "and the four authored stair moves"],
-        criterion: "upright, past the first riser, both feet at or above the first tread, "
-                 + "the trunk 95 mm above that tread, and still there a second after the move ends",
-        plant: "scene.mjb",
-        plantDigest: "3f8c9ab9b409",
-        measuredOn: "2026-09-01",
+        shippedFlightSoundAbove: 0.150,
+        episodes: 21_000,
+        rounds: 2,
+        move: "a beak-strut vault",
+        repair: "a staircase repaired so its step blocks stop colliding with one another",
+        criterion: "upright, within the 340 mm-wide flight, the trunk past the riser face and more than "
+                 + "95 mm above the tread, both feet resting on the tread past that same line, "
+                 + "scored a second after the move ends",
+        evidence: "duck-sounds climb/audit_r2-results.json",
+        measuredOn: "2026-09-02",
         editorRise: 0.010)
 
     /// Whether the check can say anything about a rise this small.
     public func canResolve(rise: Double) -> Bool { rise >= resolvableAbove - 1e-9 }
+
+    /// Whether this exact rise is one of the repaired-flight clears (to the
+    /// millimetre — a clear that dies 10 mm either side is that narrow).
+    public func clearedOnRepairedFlight(rise: Double) -> Bool {
+        clearedRises.contains { abs($0 - rise) < 0.0005 }
+    }
+
+    /// The clears, as "a 40 mm step and a 60 mm step".
+    private var clearedList: String {
+        let words = clearedRises.map { String(format: "a %.0f mm step", $0 * 1000) }
+        switch words.count {
+        case 0: return "nothing"
+        case 1: return words[0]
+        default: return words.dropLast().joined(separator: ", ") + " and " + words[words.count - 1]
+        }
+    }
 
     /// The sentence for one rise, in the words the measurement supports.
     public func verdict(rise: Double) -> String {
@@ -104,11 +137,25 @@ public struct StepCeiling: Equatable, Sendable {
                           + "measured as climbable or not.",
                           mm, resolvableAbove * 1000)
         }
-        let list = moves.joined(separator: " ")
-        return String(format: "A %.0f mm rise. %@ cleared %d of %d audited replays at rises from %.0f to %.0f mm "
-                      + "on %@ (%@, %@), so nothing this app has can be shown to get up this one.",
-                      mm, list, cleared, of, triedFrom * 1000, triedTo * 1000,
-                      plant, plantDigest, measuredOn)
+        let head = String(format: "A %.0f mm rise. ", mm)
+        let body: String
+        if clearedOnRepairedFlight(rise: rise) {
+            body = String(format: "In simulation, on %@, %@ got up this rise once, from one exact start, "
+                          + "and not at 10 mm either side; %@. On the staircase as shipped it scores zero. "
+                          + "One coincidence is not a climb the robot can be shown to have.",
+                          repair, move, robustness)
+        } else if rise <= repairedMetres + 1e-9 {
+            body = String(format: "In simulation, on %@, %@ got up %@ once each and nothing in between; "
+                          + "%@. On the staircase as shipped nothing has cleared at all, so nothing "
+                          + "this app has can be shown to get up this one.",
+                          repair, move, clearedList, robustness)
+        } else {
+            body = String(format: "Nothing above %.0f mm has cleared in roughly %@ searched attempts over "
+                          + "%d rounds, and on the staircase as shipped nothing has cleared at all, so "
+                          + "nothing this app has can be shown to get up this one.",
+                          repairedMetres * 1000, Self.thousands(episodes), rounds)
+        }
+        return head + body
     }
 
     /// The sentence under the staircase generator's default rise. It used to
@@ -119,11 +166,35 @@ public struct StepCeiling: Equatable, Sendable {
                + "the editor says what was measured.", editorRise * 1000)
     }
 
-    /// One line for a settings or scene footer.
+    /// One line for a settings or scene footer: the whole claim, with its
+    /// caveats in the same breath.
     public var says: String {
-        String(format: "Measured %@ on %@ (%@): %@ cleared %d of %d audited replays at rises from %.0f to %.0f "
-               + "mm. Rises under %.0f mm cannot be resolved by the check. Criterion: %@.",
-               measuredOn, plant, plantDigest, moves.joined(separator: " "), cleared, of,
-               triedFrom * 1000, triedTo * 1000, resolvableAbove * 1000, criterion)
+        String(format: "In simulation only, and only on %@, the duck has climbed a stair twice in roughly "
+               + "%@ searched attempts over %d rounds: %@ onto %@, each re-verified from its saved "
+               + "file (%@, %@). %@. Nothing above %.0f mm has cleared, and on the staircase as "
+               + "shipped both score zero. Rises under %.0f mm cannot be resolved by the check. "
+               + "Criterion: %@.",
+               repair, Self.thousands(episodes), rounds, move, clearedList, evidence, measuredOn,
+               robustness.prefix(1).uppercased() + robustness.dropFirst(),
+               repairedMetres * 1000, resolvableAbove * 1000, criterion)
+    }
+
+    /// Why the earlier count is gone, for anyone who saw it.
+    public var whyTheOldCountIsGone: String {
+        String(format: "An earlier audit reported 0 of 54 replays clearing rises from 20 to 180 mm. Its "
+               + "staircase pushed its own step blocks apart at every rise under %.0f mm and threw a "
+               + "standing duck to the floor, so below that it measured the staircase, not the robot.",
+               shippedFlightSoundAbove * 1000)
+    }
+
+    /// "21,000", in the kit's own words rather than a locale's.
+    private static func thousands(_ n: Int) -> String {
+        let s = String(n)
+        var out = ""
+        for (i, ch) in s.reversed().enumerated() {
+            if i > 0 && i % 3 == 0 { out.append(",") }
+            out.append(ch)
+        }
+        return String(out.reversed())
     }
 }

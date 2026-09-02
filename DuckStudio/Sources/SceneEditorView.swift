@@ -133,8 +133,17 @@ struct SceneListView: View {
                 // THE KIT'S SENTENCE, because the one that was here — "that is what the
                 // robot has been measured to clear" — was false: nothing has been
                 // measured to clear 10 mm, and the check cannot see a step that small.
-                Text(StepCeiling.current.editorSentence)
-                    .foregroundStyle(Theme.textSecondary)
+                // AND THE WHOLE CLAIM WITH ITS CAVEATS IN THE SAME BREATH, plus why
+                // the count this footer used to carry is gone: an earlier audit's
+                // staircase pushed its own blocks apart and measured itself.
+                VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
+                    Text(StepCeiling.current.editorSentence)
+                        .foregroundStyle(Theme.textSecondary)
+                    Text(StepCeiling.current.says)
+                        .foregroundStyle(Theme.textSecondary)
+                    Text(StepCeiling.current.whyTheOldCountIsGone)
+                        .foregroundStyle(Theme.textTertiary)
+                }
             }
             .listRowBackground(Theme.surfacePrimary)
         }

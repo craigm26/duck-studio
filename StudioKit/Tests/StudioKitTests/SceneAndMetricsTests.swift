@@ -20,8 +20,10 @@ final class DuckSceneTests: XCTestCase {
         let unreachable = scene.problems.filter { $0.severity == .unreachable }
         XCTAssertEqual(unreachable.count, 3, "every riser is over the ceiling")
         XCTAssertTrue(unreachable[0].text.contains("40 mm"))
-        // THE SENTENCE IS THE MEASUREMENT'S NOW, never "measured at 10 mm".
-        XCTAssertTrue(unreachable[0].text.contains("cleared 0 of 54"), unreachable[0].text)
+        // THE SENTENCE IS THE MEASUREMENT'S NOW, never "measured at 10 mm" —
+        // and at 40 mm it is the one-coincidence sentence, zero as shipped.
+        XCTAssertTrue(unreachable[0].text.contains("got up this rise once, from one exact start"), unreachable[0].text)
+        XCTAssertTrue(unreachable[0].text.contains("as shipped it scores zero"), unreachable[0].text)
         XCTAssertFalse(unreachable[0].text.contains("measured at"), unreachable[0].text)
     }
 
