@@ -368,6 +368,11 @@ not features that were removed. Nothing below exists in the shipping app.
 | `tools/claudebridge.mjs` | A Claude Code subscription behind an OpenAI-compatible endpoint, for Studio → Draft. |
 | `PLAN.md` · `GATES.md` · `docs/` | The plan, the pre-registered decision gates, and the working notes. |
 
+Gate a commit on the compile the way `scripts/mac_gate.sh` does, never on a
+display pipeline: `python3 scripts/mac_compile_check.py --worktree > build.log 2>&1;
+bash scripts/mac_gate.sh build.log && git commit …`. `grep … | head` exits 0 whatever
+the log said, and one failed build was committed that way.
+
 Depends on `github.com/craigm26/duckkit` for everything Microduck-shaped —
 `DuckModel`, `DuckObservation`, `DuckPolicy`, `DuckGait`, `DuckKinematics`,
 `DuckSimulation`, plus `DuckEvidence` for the fingerprint and the official-policy
