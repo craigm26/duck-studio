@@ -1,5 +1,6 @@
 import SwiftUI
 import StudioKit
+import DuckKit
 import DuckEvidence
 
 /// The front door: one duck, seven questions, in the order somebody asks them.
@@ -72,6 +73,16 @@ struct MyMicroduckView: View {
     /// When something last came back. `DeviceCard.Presence` turns this into the
     /// sentence; this file only records the moment.
     @State private var lastReplyAt: Date?
+    /// The newest state off the peer's stream, or nil until one arrives.
+    ///
+    /// THE STREAM IS WHAT MAKES THE CARD REAL THE DAY A TRANSPORT CARRIES A
+    /// ROBOT'S STATE. Every peer publishes `states()`; a bench's are assembled
+    /// from its replies with everything physics cannot measure left empty, and
+    /// `BenchPeer.benchStateIsSynthesised` says so under the badge. A real
+    /// duck's `robot.state` would land here the same way, and `Charge.of(_:on:)`
+    /// would then read a battery from it instead of saying no link carries one.
+    @State private var latest: DuckState?
+    @State private var listening: Task<Void, Never>?
 
     /// The clock, read here rather than in the kit.
     ///
@@ -122,6 +133,10 @@ struct MyMicroduckView: View {
         // `onChange` it cancels the previous run rather than racing it.
         .task(id: peerKey) { await open() }
         .refreshable { await open() }
+        // THE LISTENER DIES WITH THE SCREEN. `rebuildPeer` starts one per peer;
+        // a screen that has gone would otherwise keep a task reading states
+        // into a card nobody is looking at.
+        .onDisappear { listening?.cancel(); listening = nil }
     }
 
     // MARK: - 7. is anything wrong
@@ -195,12 +210,12 @@ struct MyMicroduckView: View {
                 // belong in `TelemetryRow`'s monospaced value column, where it
                 // wrapped into five lines of code-font prose. The same shape
                 // as the presence line above it.
-                Text(DeviceCard.Charge.of(peer.identity).says)
+                Text(charge(peer).says)
                     .font(.footnote)
                     .foregroundStyle(Theme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityLabel(Text("Battery"))
-                    .accessibilityValue(Text(DeviceCard.Charge.of(peer.identity).says))
+                    .accessibilityValue(Text(charge(peer).says))
                 doingRow
                 driveRow(peer)
             } else {
@@ -271,6 +286,17 @@ struct MyMicroduckView: View {
                 .font(.caption)
                 .foregroundStyle(Theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
+            // WHAT THE STATE STREAM SAID, ONCE IT HAS SAID ANYTHING. For a bench
+            // that is the sentence about assembly; for a real duck it would be
+            // the first thing the state did not carry, in the kit's words.
+            if let latest {
+                Text(peer?.identity.kind == .sim
+                     ? BenchPeer.benchStateIsSynthesised
+                     : (DeviceCard.Posture.of(latest, running: false).missing.first ?? ""))
+                    .font(.caption2)
+                    .foregroundStyle(Theme.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -467,6 +493,13 @@ struct MyMicroduckView: View {
                                   colourway: .yellow, kind: .sim)
         }
         return DeviceCard.Who.of(peer.identity, typed: benches.selected?.name)
+    }
+
+    /// The charge row's source: a state when one has arrived, the identity's
+    /// standing answer until then.
+    private func charge(_ peer: BenchPeer) -> DeviceCard.Charge {
+        latest.map { DeviceCard.Charge.of($0, on: peer.identity) }
+            ?? DeviceCard.Charge.of(peer.identity)
     }
 
     private var presence: DeviceCard.Presence {
@@ -690,9 +723,20 @@ struct MyMicroduckView: View {
         health = nil
         live = nil
         lastReplyAt = nil
+        listening?.cancel()
+        latest = nil
         do {
             let made = try benches.makePeer()
             peer = made
+            // ONE LISTENER PER PEER, replaced with the peer. The stream is the
+            // peer's own; it ends when the peer goes, and the task ends with it.
+            // `makePeer` answers nil for "no bench selected", and then there is
+            // nothing to listen to.
+            if let made {
+                listening = Task { @MainActor in
+                    for await state in made.states() { latest = state }
+                }
+            }
             return made
         } catch {
             peer = nil
