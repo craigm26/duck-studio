@@ -7,15 +7,18 @@ final class StepCeilingTests: XCTestCase {
     func testTheShippedCeilingCarriesItsProvenanceAndClearsNothingReliably() {
         let c = StepCeiling.current
         XCTAssertEqual(c.metres, 0)
-        XCTAssertEqual(c.attempts.map(\.rise), [0.040, 0.050, 0.060, 0.070])
-        XCTAssertEqual(c.attempts.map(\.cleared), [2, 2, 4, 2])
+        XCTAssertEqual(c.attempts.map(\.rise), [0.040, 0.050, 0.060, 0.070, 0.080])
+        XCTAssertEqual(c.attempts.map(\.cleared), [2, 2, 4, 2, 1])
+        XCTAssertEqual(c.oneVectorFrom, 0.060)
+        XCTAssertEqual(c.stableClears, 10)
+        XCTAssertEqual(c.clearsInAll, 11)
         XCTAssertTrue(c.attempts.allSatisfy { $0.of == 9 && $0.cleared < c.reliableCleared },
                       "nothing reaches the reliable bar: \(c.attempts)")
-        XCTAssertEqual(c.tallestAnyCell, 0.070)
-        XCTAssertEqual(c.rounds, 3)
-        XCTAssertEqual(c.episodes, 40_000)
+        XCTAssertEqual(c.tallestAnyCell, 0.080)
+        XCTAssertEqual(c.rounds, 4)
+        XCTAssertEqual(c.episodes, 48_000)
         XCTAssertFalse(c.criterion.isEmpty)
-        XCTAssertTrue(c.evidence.contains("audit_r3"))
+        XCTAssertTrue(c.evidence.contains("r4_judge"))
         XCTAssertEqual(c.measuredOn, "2026-09-02")
         XCTAssertLessThan(c.editorRise, c.resolvableAbove)
         XCTAssertLessThan(c.resolvableAbove, c.attempts[0].rise)
@@ -39,7 +42,7 @@ final class StepCeilingTests: XCTestCase {
         XCTAssertTrue(c.canResolve(rise: 0.193))
         let said = c.verdict(rise: 0.193)
         XCTAssertTrue(said.hasPrefix("A 193 mm rise."), said)
-        XCTAssertTrue(said.contains("Nothing has got up 80 mm or taller in any of roughly 40,000 searched attempts over 3 rounds"), said)
+        XCTAssertTrue(said.contains("Nothing has got up 90 mm or taller in any of roughly 48,000 searched attempts over 4 rounds"), said)
         XCTAssertTrue(said.contains("(0 of 9 perturbed attempts)"), said)
         XCTAssertTrue(said.contains("nothing this app has can be shown to get up this one"), said)
         XCTAssertFalse(said.contains("measured at 10"), said)
@@ -64,7 +67,8 @@ final class StepCeilingTests: XCTestCase {
     /// BETWEEN THE GRID'S RISES: the whole row is named and nothing is reliable.
     func testARiseBetweenTheGridsRisesNamesTheWholeRow() {
         let said = StepCeiling.current.verdict(rise: 0.045)
-        XCTAssertTrue(said.contains("gets up 40 mm in 2 of 9, 50 mm in 2 of 9, 60 mm in 4 of 9 and 70 mm in 2 of 9 perturbed attempts"), said)
+        XCTAssertTrue(said.contains("gets up 40 mm in 2 of 9, 50 mm in 2 of 9, 60 mm in 4 of 9, 70 mm in 2 of 9 and 80 mm in 1 of 9 perturbed attempts"), said)
+        XCTAssertTrue(said.contains("(the 60, 70 and 80 mm figures are one move scored at 3 heights)"), said)
         XCTAssertTrue(said.contains("and nothing reliably"), said)
         XCTAssertTrue(said.contains("nothing this app has can be shown to get up this one"), said)
     }
@@ -77,7 +81,7 @@ final class StepCeilingTests: XCTestCase {
         let flagged = DuckScene.staircase(count: 1, rise: 0.193)
         let unreachable = flagged.problems.filter { $0.severity == .unreachable }
         XCTAssertEqual(unreachable.count, 1)
-        XCTAssertTrue(unreachable[0].text.contains("Nothing has got up 80 mm or taller"), unreachable[0].text)
+        XCTAssertTrue(unreachable[0].text.contains("Nothing has got up 90 mm or taller"), unreachable[0].text)
         XCTAssertFalse(unreachable[0].text.contains("has been measured at"), unreachable[0].text)
         // The old alias still names the editor's rise, not a ceiling.
         XCTAssertEqual(DuckScene.measuredStepCeiling, StepCeiling.current.editorRise)
@@ -85,10 +89,12 @@ final class StepCeilingTests: XCTestCase {
 
     func testTheFooterSentenceSaysEverythingAtOnce() {
         let s = StepCeiling.current.says
-        for piece in ["In simulation only", "3 rounds", "40,000", "unreliable at every height",
+        for piece in ["In simulation only", "4 rounds", "48,000", "unreliable at every height",
                       "a beak-strut vault", "40 mm in 2 of 9", "60 mm in 4 of 9", "70 mm in 2 of 9",
-                      "0 of 9 at 80 mm or taller", "9 of 9 for a duck placed on the tread",
-                      "0 of 9 for doing nothing", "audit_r3", "2026-09-02", "under 11 mm"] {
+                      "80 mm in 1 of 9", "one move scored at 3 heights",
+                      "0 of 9 at 90 mm or taller", "10 of those 11 clears still upright fifty ticks later",
+                      "9 of 9 for a duck placed on the tread",
+                      "0 of 9 for doing nothing", "r4_judge", "2026-09-02", "under 11 mm"] {
             XCTAssertTrue(s.contains(piece), "\(piece) missing from: \(s)")
         }
         XCTAssertFalse(s.contains("0 of 54"), s)

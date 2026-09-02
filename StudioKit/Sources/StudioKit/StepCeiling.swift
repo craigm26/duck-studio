@@ -15,19 +15,25 @@ import Foundation
 /// replay in that audit was scored on that flight, so below 150 mm it says
 /// nothing about climbing at all. That sentence is gone.
 ///
-/// WHAT IS KNOWN NOW, after three rounds and roughly 40,000 searched attempts,
+/// WHAT IS KNOWN NOW, after four rounds and roughly 48,000 searched attempts,
 /// each claim re-scored from its saved file by an adversarial audit
-/// (duck-sounds/climb/audit_r3-results.json) on a robustness grid — the rise
+/// (duck-sounds/climb/r4_judge-results.json) on a robustness grid — the rise
 /// 10 mm either side crossed with three spawn-height and foot-friction
 /// plants, nine cells per candidate: the tallest step the duck can get onto
 /// is UNRELIABLE AT EVERY HEIGHT. The best open-loop move, a beak-strut vault
 /// (beak planted on the tread, neck locked as a strut, hips extend, the trunk
-/// pivots over the head, the feet land on the tread), clears 4 of 9 cells at
-/// a 60 mm step, 2 of 9 at 40, 50 and 70 mm, and 0 of 9 at 80 mm or taller —
-/// against 9 of 9 for a duck simply placed on the tread and 0 of 9 for doing
-/// nothing on the same plant. The rise is what kills it: it lands 10 mm short
-/// in the same direction every time, because the landing fires at an authored
-/// time rather than on a measured contact. No cheat was found in any clear.
+/// pivots over the head, the feet land on the tread), clears 2 of 9 cells at
+/// 40 mm, 2 of 9 at 50, 4 of 9 at 60, 2 of 9 at 70 and 1 of 9 at 80 — and the
+/// 60, 70 and 80 mm figures are ONE vector scored at three heights — and 0 of
+/// 9 at 90 mm or taller, against 9 of 9 for a duck simply placed on the tread
+/// and 0 of 9 for doing nothing on the same plant. Ten of those eleven clears
+/// are still upright fifty ticks later. The clears are isolated points, not a
+/// basin: one control tick of shift in the landing takes the 60 mm move from
+/// 4 of 9 to 1 of 9, and a 5 mm change of rise either side of 60 reads no.
+/// Above 80 mm the ceiling is a lift budget, measured from two directions:
+/// everything tried buys about 38 mm of trunk lift where the criterion needs
+/// 59 mm at 80 and 99 mm at 120, with every servo saturated at the plant's
+/// 0.6405 N·m in every row. No cheat was found in any clear.
 ///
 /// AND BELOW ABOUT 11 mm THE CHECK CANNOT SEE A STEP AT ALL. The criterion
 /// counts a foot as "on the tread" when it is within 5 mm of the tread's
@@ -56,6 +62,13 @@ public struct StepCeiling: Equatable, Sendable {
     public let metres: Double
     /// The best move's count at every rise it cleared any cell of, ascending.
     public let attempts: [Attempt]
+    /// The rise from which the figures are ONE vector scored at several
+    /// heights, not several moves. Zero: every rise is its own move.
+    public let oneVectorFrom: Double
+    /// How many of the clears were still upright fifty ticks after the move
+    /// ended, of how many clears.
+    public let stableClears: Int
+    public let clearsInAll: Int
     /// Cells of nine a move must clear before a rise counts as climbable.
     public let reliableCleared: Int
     /// Rises below this the criterion cannot resolve; no number is reported
@@ -80,11 +93,16 @@ public struct StepCeiling: Equatable, Sendable {
     /// nothing is known about it either way.
     public let editorRise: Double
 
-    public init(metres: Double, attempts: [Attempt], reliableCleared: Int, resolvableAbove: Double,
+    public init(metres: Double, attempts: [Attempt], oneVectorFrom: Double = 0,
+                stableClears: Int = 0, clearsInAll: Int = 0,
+                reliableCleared: Int, resolvableAbove: Double,
                 brokenFlightSoundAbove: Double, episodes: Int, rounds: Int, move: String, flight: String,
                 grid: String, criterion: String, evidence: String, measuredOn: String, editorRise: Double) {
         self.metres = metres
         self.attempts = attempts
+        self.oneVectorFrom = oneVectorFrom
+        self.stableClears = stableClears
+        self.clearsInAll = clearsInAll
         self.reliableCleared = reliableCleared
         self.resolvableAbove = resolvableAbove
         self.brokenFlightSoundAbove = brokenFlightSoundAbove
@@ -103,12 +121,16 @@ public struct StepCeiling: Equatable, Sendable {
     public static let current = StepCeiling(
         metres: 0,
         attempts: [Attempt(rise: 0.040, cleared: 2, of: 9), Attempt(rise: 0.050, cleared: 2, of: 9),
-                   Attempt(rise: 0.060, cleared: 4, of: 9), Attempt(rise: 0.070, cleared: 2, of: 9)],
+                   Attempt(rise: 0.060, cleared: 4, of: 9), Attempt(rise: 0.070, cleared: 2, of: 9),
+                   Attempt(rise: 0.080, cleared: 1, of: 9)],
+        oneVectorFrom: 0.060,
+        stableClears: 10,
+        clearsInAll: 11,
         reliableCleared: 7,
         resolvableAbove: 0.011,
         brokenFlightSoundAbove: 0.150,
-        episodes: 40_000,
-        rounds: 3,
+        episodes: 48_000,
+        rounds: 4,
         move: "a beak-strut vault",
         flight: "the simulator's four-step staircase, repaired on 2026-09-02 so its blocks stop "
               + "colliding with one another",
@@ -116,7 +138,7 @@ public struct StepCeiling: Equatable, Sendable {
         criterion: "upright, within the 340 mm-wide flight, the trunk past the riser face and more than "
                  + "95 mm above the tread, both feet resting on the tread past that same line, "
                  + "scored a second after the move ends",
-        evidence: "duck-sounds climb/audit_r3-results.json",
+        evidence: "duck-sounds climb/r4_judge-results.json",
         measuredOn: "2026-09-02",
         editorRise: 0.010)
 
@@ -131,7 +153,8 @@ public struct StepCeiling: Equatable, Sendable {
         attempts.first { abs($0.rise - rise) < 0.0005 }
     }
 
-    /// "40 mm in 2 of 9, 50 mm in 2 of 9, 60 mm in 4 of 9 and 70 mm in 2 of 9".
+    /// "40 mm in 2 of 9, 50 mm in 2 of 9, 60 mm in 4 of 9, 70 mm in 2 of 9
+    /// and 80 mm in 1 of 9".
     private var attemptList: String {
         let words = attempts.map { String(format: "%.0f mm in %d of %d", $0.rise * 1000, $0.cleared, $0.of) }
         switch words.count {
@@ -139,6 +162,24 @@ public struct StepCeiling: Equatable, Sendable {
         case 1: return words[0]
         default: return words.dropLast().joined(separator: ", ") + " and " + words[words.count - 1]
         }
+    }
+
+    /// "the 60, 70 and 80 mm figures are one move scored at three heights",
+    /// or nothing when every rise is its own move.
+    private var oneVectorClause: String {
+        guard oneVectorFrom > 0 else { return "" }
+        let rises = attempts.map(\.rise).filter { $0 >= oneVectorFrom - 1e-9 }
+        guard rises.count > 1 else { return "" }
+        let mm = rises.map { String(format: "%.0f", $0 * 1000) }
+        let list = mm.dropLast().joined(separator: ", ") + " and " + mm[mm.count - 1]
+        return String(format: " (the %@ mm figures are one move scored at %d heights)", list, rises.count)
+    }
+
+    /// "ten of those eleven clears still upright fifty ticks later".
+    private var stabilityClause: String {
+        guard clearsInAll > 0 else { return "" }
+        return String(format: ", %d of those %d clears still upright fifty ticks later",
+                      stableClears, clearsInAll)
     }
 
     /// The sentence for one rise, in the words the measurement supports.
@@ -159,9 +200,9 @@ public struct StepCeiling: Equatable, Sendable {
                           + "shown to have.",
                           flight, move, a.cleared, a.of, grid, a.of, a.of, a.of)
         } else if rise <= tallestAnyCell + 1e-9 {
-            body = String(format: "In simulation, on %@, %@ gets up %@ perturbed attempts (%@), and nothing "
-                          + "reliably, so nothing this app has can be shown to get up this one.",
-                          flight, move, attemptList, grid)
+            body = String(format: "In simulation, on %@, %@ gets up %@ perturbed attempts (%@)%@, and "
+                          + "nothing reliably, so nothing this app has can be shown to get up this one.",
+                          flight, move, attemptList, grid, oneVectorClause)
         } else {
             body = String(format: "Nothing has got up %.0f mm or taller in any of roughly %@ searched attempts "
                           + "over %d rounds (0 of 9 perturbed attempts), so nothing this app has can be "
@@ -184,11 +225,12 @@ public struct StepCeiling: Equatable, Sendable {
     public var says: String {
         String(format: "In simulation only, after %d rounds of search and roughly %@ attempts, the tallest "
                + "step the Microduck can get onto is unreliable at every height: judged by the criterion "
-               + "(%@) on a grid of %@, the best open-loop move, %@, clears %@, and 0 of 9 at %.0f mm or "
-               + "taller, against 9 of 9 for a duck placed on the tread and 0 of 9 for doing nothing on "
+               + "(%@) on a grid of %@, the best open-loop move, %@, clears %@%@, and 0 of 9 at %.0f mm or "
+               + "taller%@, against 9 of 9 for a duck placed on the tread and 0 of 9 for doing nothing on "
                + "the same plant (%@, %@). Rises under %.0f mm cannot be resolved by the check.",
-               rounds, Self.thousands(episodes), criterion, grid, move, attemptList,
-               (tallestAnyCell + 0.010) * 1000, evidence, measuredOn, resolvableAbove * 1000)
+               rounds, Self.thousands(episodes), criterion, grid, move, attemptList, oneVectorClause,
+               (tallestAnyCell + 0.010) * 1000, stabilityClause, evidence, measuredOn,
+               resolvableAbove * 1000)
     }
 
     /// Why the earlier count is gone, for anyone who saw it.
