@@ -50,8 +50,8 @@ enum AppTab: String, CaseIterable, Identifiable {
 /// The five places inside Studio another tab is allowed to name.
 ///
 /// A ROUTE IS A PLACE, NOT A SCREEN. These are rows on the Studio root —
-/// Motions, Scenes, Draft with words, Run on your network, and the Stairs
-/// Challenge — and they are spelled as cases rather than as view builders so
+/// Motions, Scenes, Draft with words, Run on your network, and the Challenges
+/// — and they are spelled as cases rather than as view builders so
 /// that the sender does not have to know which view a row opens, or hold the
 /// six stores that view wants. `StudioHubView` already holds all six; it is the
 /// only place that should be naming `AutomationChatView`.
@@ -59,11 +59,16 @@ enum AppTab: String, CaseIterable, Identifiable {
 /// FIVE AND NOT EVERY SCREEN IN THE APP, deliberately. A destination that no
 /// other tab has ever asked to reach is a destination nobody can prove works,
 /// and this enum is the list of the ones that are actually sent to. It grows
-/// when a caller appears, not before — `stairs` arrived with one, the row in
-/// the Behaviours root's discover section, which is the second door onto the
-/// challenge and the reason it is addressable by name at all.
+/// when a caller appears, not before — `challenges` arrived with one, the row
+/// in the Behaviours root's discover section, which is the second door onto the
+/// challenges and the reason they are addressable by name at all.
+///
+/// IT IS `challenges` AND NOT `stairs`, since build 46. The place behind this
+/// case used to be the stairs screen and is now the list of the two challenges;
+/// a case still called `stairs` would have named one of them as if it were the
+/// destination, which is the kind of stale address a router is worst at.
 enum StudioDestination: String, Identifiable, Hashable, CaseIterable {
-    case motions, scenes, draft, measure, stairs
+    case motions, scenes, draft, measure, challenges
 
     var id: String { rawValue }
 }

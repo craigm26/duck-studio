@@ -48,6 +48,19 @@ public enum StairsChallenge {
       + "the record is 5 of 9 at a 60 mm rise, and round six measured the trunk's peak height "
       + "as the reason 7 was never reachable at this scale."
 
+    /// THE CRITERION, VERBATIM AS `sim/climb_score.mjs` EXPORTS IT
+    /// (`CRITERION_SENTENCE`, line 245). The bench sends its own copy back
+    /// with every scored cell and `Score.criterion` carries it; this constant
+    /// exists so the app can say what it is about to ask for before the first
+    /// answer arrives, and so a second challenge can be shown beside this one
+    /// in the same words.
+    public static let criterionSentence =
+        "honest: at the scored instant the trunk is upright, past the riser at x > 120 mm, "
+      + "more than 95 mm above the tread, with at least two feet resting on a tread "
+      + "(past the riser, within 5 mm below to 45 mm above it, and within 3 mm of a step), "
+      + "and the duck never left the 340 mm-wide flight at any tick of the episode. "
+      + "stable: honest, and upright for at least 45 of the 50 tail ticks."
+
     /// How many of the nine core cells a submission has to clear stably.
     public static let bar = 7
 
@@ -86,7 +99,7 @@ public enum StairsChallenge {
     /// to a bench would have said otherwise.
     public static let realDuckCaveat =
         "This plays the move on the bench, in physics. Playing it on a real Microduck is not "
-      + "wired in this build, there is no score off a bench, and nothing here has been run on "
+      + "wired in this build, a score exists only on a bench, and nothing here has been run on "
       + "hardware."
 
     /// A bench that cannot score this. NAMES THE BENCH AND WHAT TO UPDATE,

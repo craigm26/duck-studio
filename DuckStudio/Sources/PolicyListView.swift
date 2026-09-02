@@ -401,16 +401,22 @@ struct PolicyListView: View {
     /// the other, which is the whole posture of this app's palette. Reaching the
     /// community through Pollen's screen said the opposite.
     ///
-    /// AND A THIRD ROW THAT IS NOT A CATALOGUE OF NETWORKS. The stairs
-    /// challenge is a published corpus of MOVES with an audit behind it, which
-    /// is a different kind of thing from a policy — but it is the same question
-    /// a person asks here, "what have other people published", and burying the
-    /// one published thing in this app that can be scored against its own
-    /// leaderboard inside another tab is how a shelf goes unread. It is the one
-    /// row in this section that leaves the tab, so it is a `Button` on the
-    /// router rather than a `NavigationLink`: pushing Studio's screen onto the
-    /// Behaviours stack would be a second copy of it, on a stack where its own
-    /// Back button lies about where you came from.
+    /// AND A THIRD ROW THAT IS NOT A CATALOGUE OF NETWORKS. The challenges are
+    /// published corpora with an audit behind them — the stairs a corpus of
+    /// authored MOVES, the ball a corpus that also holds trained policies under
+    /// a command schedule — which is a different kind of thing from a shelf of
+    /// networks. But it is the same question a person asks here, "what have
+    /// other people published", and burying the only published things in this
+    /// app that can be scored against their own leaderboards inside another tab
+    /// is how a shelf goes unread. It is the one row in this section that
+    /// leaves the tab, so it is a `Button` on the router rather than a
+    /// `NavigationLink`: pushing Studio's screen onto the Behaviours stack
+    /// would be a second copy of it, on a stack where its own Back button lies
+    /// about where you came from.
+    ///
+    /// ITS TWO LINES ARE THE KIT'S, ONE PER CHALLENGE. `Challenge.oneSentence`
+    /// is the same sentence the list screen draws, so this door cannot describe
+    /// a challenge differently from the screen it opens.
     private var discover: some View {
         Section {
             NavigationLink { CatalogueView(model: model) } label: {
@@ -426,7 +432,7 @@ struct PolicyListView: View {
             }
             .listRowBackground(cardSegment(first: false, last: false))
             Button {
-                router.go(to: .studio, then: .stairs)
+                router.go(to: .studio, then: .challenges)
             } label: {
                 // A BUTTON IN A LIST DRAWS NO CHEVRON, so it is put back by
                 // hand. The row leads out of this tab entirely, which is more
@@ -434,9 +440,23 @@ struct PolicyListView: View {
                 // that looks inert beside two that look tappable reads as a
                 // heading rather than as a door.
                 HStack(alignment: .center, spacing: Theme.spacing(.tight)) {
-                    door(StairsChallenge.title,
-                         detail: StairsChallenge.oneSentence,
-                         symbol: "stairs")
+                    VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
+                        Label {
+                            Text(Challenge.listTitle)
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(Theme.textPrimary)
+                        } icon: {
+                            Image(systemName: "trophy")
+                                .foregroundStyle(Theme.actionSecondary)
+                        }
+                        ForEach(Challenge.allCases) { challenge in
+                            Text("\(challenge.name) — \(challenge.oneSentence)")
+                                .font(.caption)
+                                .foregroundStyle(Theme.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .padding(.vertical, Theme.spacing(.hairline))
                     Spacer(minLength: Theme.spacing(.tight))
                     Image(systemName: "chevron.right")
                         .font(.footnote.weight(.semibold))
@@ -450,7 +470,7 @@ struct PolicyListView: View {
         } header: {
             SectionHeading(text: "Discover behaviours people have published")
         } footer: {
-            sectionFootnote("Neither catalogue fetches anything until you ask: the address is printed first and the scan is a button. What decides whether a downloaded network can be driven here is its manifest, not whose repository it sat in. The stairs challenge is in Studio, and nothing in it has been run on hardware.")
+            sectionFootnote("Neither catalogue fetches anything until you ask: the address is printed first and the scan is a button. What decides whether a downloaded network can be driven here is its manifest, not whose repository it sat in. The challenges are in Studio, and nothing in them has been run on hardware.")
         }
         .listRowSeparatorTint(Theme.separator)
     }

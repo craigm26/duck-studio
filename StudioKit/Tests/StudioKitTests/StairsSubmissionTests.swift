@@ -28,8 +28,9 @@ final class StairsSubmissionTests: XCTestCase {
     /// has in their hand.
     func testTheFilenameNamesTheMoveTheRiseAndTheDay() throws {
         XCTAssertEqual(try made().filename,
-            "microduck-stairs-a56d459fb6493855d635021dce569cc8b06b325b32b3c19e8593cf430ca442d1"
-          + "-60mm-2026-09-02.json")
+            // TWELVE CHARACTERS OF THE HASH, the leaderboard's own convention: a
+            // full digest made an 88-character attachment name.
+            "microduck-stairs-a56d459fb649-60mm-2026-09-02.json")
     }
 
     /// EVERYTHING A SECOND PERSON NEEDS TO REPEAT THE RUN. The intent byte for

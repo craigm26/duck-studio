@@ -259,7 +259,7 @@ final class StairsChallengeTests: XCTestCase {
     func testTheRealDuckCaveatSaysThePlayIsOnTheBenchAndHardwareIsNotWired() {
         XCTAssertEqual(StairsChallenge.realDuckCaveat,
             "This plays the move on the bench, in physics. Playing it on a real Microduck is not "
-          + "wired in this build, there is no score off a bench, and nothing here has been run on "
+          + "wired in this build, a score exists only on a bench, and nothing here has been run on "
           + "hardware.")
         XCTAssertFalse(StairsChallenge.realDuckCaveat.contains("Send to the duck"))
     }

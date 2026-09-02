@@ -311,6 +311,10 @@ public enum DuckBench {
         // `/climb/grid` answers the cell list so a client never retypes it.
         // See `DuckBenchClimb.swift`.
         "/climb", "/climb/grid",
+        // The ball challenge. `/chase` scores ONE grid cell of one entrant;
+        // `/chase/grid` answers the cell list so a client never retypes it.
+        // See `DuckBenchChase.swift`.
+        "/chase", "/chase/grid",
     ]
 
     /// What a `/tune` answer says.

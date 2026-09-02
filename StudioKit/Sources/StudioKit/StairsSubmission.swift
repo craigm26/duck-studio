@@ -118,7 +118,7 @@ extension StairsChallenge {
         /// `microduck-stairs-a56d459fb649-60mm-2026-09-02.json`. The hash
         /// first, because that is what somebody looking for this run has.
         public var filename: String {
-            "microduck-stairs-\(hash)-\(Int((score.rise * 1000).rounded()))mm-\(dateSaid).json"
+            "microduck-stairs-\(hash.prefix(12))-\(Int((score.rise * 1000).rounded()))mm-\(dateSaid).json"
         }
 
         public func bundle() -> Data { bundleJSON().encoded(.pretty) }

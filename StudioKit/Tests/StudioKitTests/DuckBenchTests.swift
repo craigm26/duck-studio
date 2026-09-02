@@ -468,6 +468,9 @@ final class DuckBenchTests: XCTestCase {
             try DuckBench.climb(address, intent: StairsChallenge.intentData(named: "ctrl_do_nothing"),
                                 rise: 0.060, cell: StairsChallenge.Grid.fallback[0]),
             DuckBench.climbGrid(address),
+            try DuckBench.chase(address, entrant: BallChallenge.Entrants.doNothing,
+                                cell: BallChallenge.Grid.fallback[0]),
+            DuckBench.chaseGrid(address),
         ]
         for call in calls {
             XCTAssertTrue(DuckBench.routes.contains(call.url.path),
@@ -476,6 +479,8 @@ final class DuckBenchTests: XCTestCase {
         XCTAssertTrue(DuckBench.routes.contains("/tune"))
         XCTAssertTrue(DuckBench.routes.contains("/climb"))
         XCTAssertTrue(DuckBench.routes.contains("/climb/grid"))
-        XCTAssertEqual(DuckBench.routes.count, 13)
+        XCTAssertTrue(DuckBench.routes.contains("/chase"))
+        XCTAssertTrue(DuckBench.routes.contains("/chase/grid"))
+        XCTAssertEqual(DuckBench.routes.count, 15)
     }
 }

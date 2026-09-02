@@ -72,6 +72,21 @@ cp "$SOURCE/site/stairs.js"             "$OUT/assets/stairs.js"
 cp "$SOURCE/climb/event.mjs"            "$OUT/assets/climb_event.mjs"
 cp "$SOURCE/climb/servo.mjs"            "$OUT/assets/climb_servo.mjs"
 
+# THE CHASE SCORER, AND THE ONE FILE IT SHARES WITH THE CORE. The bench also
+# answers POST /chase — one cell of the BALL challenge's fourteen — out of
+# `sim/chase_score.mjs`, which is the SAME episode `chase/chase_rig.mjs` and
+# `chase/chase_robust.mjs` run, so a cell scored on the phone is the cell the
+# package published rather than one that resembles it (duck-sounds
+# chase/chase_parity.mjs is the gate that says so). It takes the keyframe
+# interpolation curve and the 45-of-50 tail bar from `./climb_score.mjs`, copied
+# just above, and its quaternion arithmetic from `./reward_math.mjs` — which
+# duckbench-core.mjs imports as well, because /tune and /chase transcribe two
+# different Pollen configs that share three terms and must not each hold a copy
+# of one formula. Leave either out and the app boots, /health answers, and the
+# Ball Challenge dies on its first cell with a module-not-found.
+cp "$SOURCE/sim/chase_score.mjs"        "$OUT/assets/"
+cp "$SOURCE/sim/reward_math.mjs"        "$OUT/assets/"
+
 # THE PLANT, FROM sim/. `site/scene.mjb` and `sim/scene.mjb` share a name and
 # differ in bytes (duck-sounds PLANT.md), and it is sim/'s that every clip in
 # duckkit is stamped with. Copying the wrong one is the failure this script

@@ -119,17 +119,23 @@ struct StudioHubView: View {
                 // THE ONE PLACE IN THE APP WHERE A NUMBER THIS PHONE PRODUCES
                 // CAN BE THE SAME NUMBER SOMEBODY ELSE PUBLISHED. It is under
                 // Measure and not under Author because nothing here is
-                // authored: the moves are a published corpus and what this
-                // screen does is score one of them, on the audit's own grid,
+                // authored: the entrants are a published corpus and what these
+                // screens do is score one of them, on the audit's own grid,
                 // through the audit's own episode function.
+                //
+                // ONE ROW FOR BOTH CHALLENGES, since build 46. The stairs and
+                // the ball are the same habit — open a published entrant, edit
+                // it, score it, keep what helps — and two rows here would have
+                // made them two habits. The row opens the list; the list opens
+                // either one.
                 //
                 // A `StudioDestination`, unlike Tune, because a second door
                 // names it: the Behaviours root's discover section routes here
                 // by name. See `AppRouter.pendingStudio`.
                 NavigationLink {
-                    place(.stairs)
+                    place(.challenges)
                 } label: {
-                    Label(StairsChallenge.title, systemImage: "stairs")
+                    Label(Challenge.listTitle, systemImage: "trophy")
                 }
             } header: {
                 SectionHeading(text: "Measure")
@@ -233,9 +239,9 @@ struct StudioHubView: View {
         case .measure:
             RemoteRunView(model: model, scenes: scenes, drafts: drafts,
                           models: models, benches: benches)
-        case .stairs:
-            StairsChallengeView(drafts: drafts, scenes: scenes,
-                                models: models, benches: benches)
+        case .challenges:
+            ChallengeListView(drafts: drafts, scenes: scenes,
+                              models: models, benches: benches)
         }
     }
 

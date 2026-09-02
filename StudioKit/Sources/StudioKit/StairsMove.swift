@@ -115,7 +115,15 @@ extension StairsChallenge {
         /// something the person wrote, and a draft that lost where it came from
         /// is a leaderboard entry somebody is about to publish as their own by
         /// accident.
-        public func toDraft(hash: String? = nil, rank: Int? = nil) -> IntentDraft {
+        ///
+        /// `challenge` DEFAULTS TO `.stairs` AND IS NOT DECORATION. The ball
+        /// challenge's move entrants are harness intents too and reuse every
+        /// line of this conversion; what must not be reused is the sentence,
+        /// because a draft that says it came from the stairs challenge when it
+        /// came from the ball one is a provenance line that is worse than
+        /// none.
+        public func toDraft(challenge: Challenge = .stairs,
+                            hash: String? = nil, rank: Int? = nil) -> IntentDraft {
             let mouth = DuckModel.homePose[DuckModel.mouthIndex]
             let keys = keyframes.map { frame -> IntentDraft.Key in
                 var pose = [Double](repeating: 0, count: DuckModel.jointCount)
@@ -126,13 +134,14 @@ extension StairsChallenge {
                 return IntentDraft.Key(time: frame.t, pose: pose)
             }
             return IntentDraft(name: name, keys: keys,
-                               provenance: Self.provenance(name: name, family: family,
+                               provenance: Self.provenance(challenge: challenge,
+                                                           name: name, family: family,
                                                            hash: hash, rank: rank))
         }
 
-        static func provenance(name: String, family: String?,
+        static func provenance(challenge: Challenge = .stairs, name: String, family: String?,
                                hash: String?, rank: Int?) -> String {
-            var parts = ["From the Microduck Stairs Challenge"]
+            var parts = [challenge.provenanceLead]
             if let rank { parts.append("rank \(rank)") }
             if let hash { parts.append("move \(hash)") }
             var line = parts.joined(separator: ", ") + "."

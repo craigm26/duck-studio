@@ -595,6 +595,24 @@ final class PhoneBenchHost: NSObject, ObservableObject {
             let drops = max((top["drops"] as? [Any])?.count ?? 1, 1)
             return deadline + 3 * seconds * Double(drops)
         }
+        // `/chase` IS THE SAME KIND OF REQUEST WITH ITS LENGTH ALREADY IN THE
+        // BODY, and simpler for it: an entrant declares its own driven span, so
+        // there are no keyframes to read a duration out of. The episode the
+        // bench runs is 25 settle ticks under the standing policy, then the
+        // entrant driven for `seconds`, then the 50-tick tail — and, either
+        // side of all that, the ball is placed for the cell and the world is
+        // put back. Same three-seconds-of-wall-per-second-of-physics allowance.
+        //
+        // `/chase/grid` IS A GET WITH NO BODY and falls out on the guard above,
+        // which is right: answering the cell list runs no physics.
+        if target.hasPrefix("/chase") {
+            // CLAMPED THE WAY THE BENCH CLAMPS IT: `chase_score.mjs` refuses a
+            // span outside 0 < seconds <= 30, so a body claiming a thousand
+            // seconds buys no extra ceiling here either.
+            let seconds = min(max((top["seconds"] as? Double) ?? 5, 0.2), 30)
+            let episode = 0.5 + seconds + tailSeconds
+            return deadline + 3 * episode
+        }
         // `/climb/grid` IS A GET WITH NO BODY and falls out here on the guard
         // above, which is right: answering the cell list runs no physics.
         if target.hasPrefix("/climb") {
@@ -610,10 +628,11 @@ final class PhoneBenchHost: NSObject, ObservableObject {
         return deadline
     }
 
-    /// The tail every climb episode runs after the move ends: fifty ticks at
-    /// the bench's control rate. It is the window `uprightTailTicks` is counted
-    /// over — 45 of 50 is what "stable" means — so it is physics that happens
-    /// on every cell whatever the move's length.
+    /// The tail every climb AND every chase episode runs after the entrant
+    /// ends: fifty ticks at the bench's control rate. It is the window
+    /// `uprightTailTicks` is counted over — 45 of 50 is what "stable" means in
+    /// both challenges — so it is physics that happens on every cell whatever
+    /// the entrant's length.
     private static let tailSeconds: Double = 1
 
     private struct TimedOut: Error {}
