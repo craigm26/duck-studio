@@ -22,8 +22,8 @@ final class DuckSceneTests: XCTestCase {
         XCTAssertTrue(unreachable[0].text.contains("40 mm"))
         // THE SENTENCE IS THE MEASUREMENT'S NOW, never "measured at 10 mm" —
         // and at 40 mm it is the one-coincidence sentence, zero as shipped.
-        XCTAssertTrue(unreachable[0].text.contains("got up this rise once, from one exact start"), unreachable[0].text)
-        XCTAssertTrue(unreachable[0].text.contains("as shipped it scores zero"), unreachable[0].text)
+        XCTAssertTrue(unreachable[0].text.contains("gets up this rise in 2 of 9 perturbed attempts"), unreachable[0].text)
+        XCTAssertTrue(unreachable[0].text.contains("never reliably"), unreachable[0].text)
         XCTAssertFalse(unreachable[0].text.contains("measured at"), unreachable[0].text)
     }
 

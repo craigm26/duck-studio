@@ -4,20 +4,21 @@ import XCTest
 /// The step ceiling is a measurement with its count attached, and it refuses
 /// to say anything about a rise its check cannot see.
 final class StepCeilingTests: XCTestCase {
-    func testTheShippedCeilingCarriesItsProvenanceAndClearsNothingAsShipped() {
+    func testTheShippedCeilingCarriesItsProvenanceAndClearsNothingReliably() {
         let c = StepCeiling.current
         XCTAssertEqual(c.metres, 0)
-        XCTAssertEqual(c.repairedMetres, 0.060)
-        XCTAssertEqual(c.clearedRises, [0.040, 0.060])
-        XCTAssertEqual(c.rounds, 2)
-        XCTAssertEqual(c.episodes, 21_000)
+        XCTAssertEqual(c.attempts.map(\.rise), [0.040, 0.050, 0.060, 0.070])
+        XCTAssertEqual(c.attempts.map(\.cleared), [2, 2, 4, 2])
+        XCTAssertTrue(c.attempts.allSatisfy { $0.of == 9 && $0.cleared < c.reliableCleared },
+                      "nothing reaches the reliable bar: \(c.attempts)")
+        XCTAssertEqual(c.tallestAnyCell, 0.070)
+        XCTAssertEqual(c.rounds, 3)
+        XCTAssertEqual(c.episodes, 40_000)
         XCTAssertFalse(c.criterion.isEmpty)
-        XCTAssertTrue(c.evidence.contains("audit_r2"))
+        XCTAssertTrue(c.evidence.contains("audit_r3"))
         XCTAssertEqual(c.measuredOn, "2026-09-02")
         XCTAssertLessThan(c.editorRise, c.resolvableAbove)
-        XCTAssertLessThan(c.resolvableAbove, c.clearedRises[0])
-        XCTAssertGreaterThan(c.shippedFlightSoundAbove, c.repairedMetres,
-                             "the clears live below the rise where the shipped flight is sound")
+        XCTAssertLessThan(c.resolvableAbove, c.attempts[0].rise)
     }
 
     /// BELOW THE FLOOR, NO VERDICT. A foot on the floor passes the check's
@@ -32,38 +33,39 @@ final class StepCeilingTests: XCTestCase {
         XCTAssertFalse(said.contains("will not get up"), said)
     }
 
-    /// ABOVE THE REPAIRED CEILING: the count, the rounds, and "as shipped".
+    /// ABOVE EVERY CELL: the search count, the rounds, and 0 of 9.
     func testARiseAboveEverythingGetsTheSearchCountInWords() {
         let c = StepCeiling.current
         XCTAssertTrue(c.canResolve(rise: 0.193))
         let said = c.verdict(rise: 0.193)
         XCTAssertTrue(said.hasPrefix("A 193 mm rise."), said)
-        XCTAssertTrue(said.contains("Nothing above 60 mm has cleared in roughly 21,000 searched attempts over 2 rounds"), said)
-        XCTAssertTrue(said.contains("on the staircase as shipped nothing has cleared at all"), said)
+        XCTAssertTrue(said.contains("Nothing has got up 80 mm or taller in any of roughly 40,000 searched attempts over 3 rounds"), said)
+        XCTAssertTrue(said.contains("(0 of 9 perturbed attempts)"), said)
         XCTAssertTrue(said.contains("nothing this app has can be shown to get up this one"), said)
         XCTAssertFalse(said.contains("measured at 10"), said)
         XCTAssertFalse(said.contains("0 of 54"), said)
     }
 
-    /// AT A CLEARED RISE: once, from one exact start, dead 10 mm either side,
-    /// zero as shipped. Never "the robot can climb 40 mm".
-    func testAClearedRiseIsCalledACoincidenceNotAClimb() {
+    /// AT A RISE ON THE GRID: k of 9, never reliably, with both controls.
+    /// Never "the robot can climb 60 mm".
+    func testARiseOnTheGridIsCalledUnreliableNotAClimb() {
         let c = StepCeiling.current
-        XCTAssertTrue(c.clearedOnRepairedFlight(rise: 0.040))
-        XCTAssertFalse(c.clearedOnRepairedFlight(rise: 0.045))
-        let said = c.verdict(rise: 0.040)
-        XCTAssertTrue(said.hasPrefix("A 40 mm rise. In simulation, on a staircase repaired"), said)
-        XCTAssertTrue(said.contains("got up this rise once, from one exact start, and not at 10 mm either side"), said)
-        XCTAssertTrue(said.contains("On the staircase as shipped it scores zero"), said)
-        XCTAssertTrue(said.contains("One coincidence is not a climb"), said)
+        XCTAssertEqual(c.attempt(at: 0.060)?.cleared, 4)
+        XCTAssertNil(c.attempt(at: 0.065))
+        let said = c.verdict(rise: 0.060)
+        XCTAssertTrue(said.hasPrefix("A 60 mm rise. In simulation, on the simulator's four-step staircase, repaired"), said)
+        XCTAssertTrue(said.contains("gets up this rise in 4 of 9 perturbed attempts"), said)
+        XCTAssertTrue(said.contains("never reliably"), said)
+        XCTAssertTrue(said.contains("a duck placed on the tread passes 9 of 9 and doing nothing 0 of 9"), said)
+        XCTAssertTrue(said.contains("Unreliable at every height is not a climb"), said)
         XCTAssertFalse(said.contains("can climb"), said)
     }
 
-    /// BETWEEN THE FLOOR AND THE REPAIRED CEILING, but not a cleared rise:
-    /// the two clears are named and the gap between them is said to be empty.
-    func testARiseBetweenTheClearsNamesThemAndTheGap() {
-        let said = StepCeiling.current.verdict(rise: 0.050)
-        XCTAssertTrue(said.contains("got up a 40 mm step and a 60 mm step once each and nothing in between"), said)
+    /// BETWEEN THE GRID'S RISES: the whole row is named and nothing is reliable.
+    func testARiseBetweenTheGridsRisesNamesTheWholeRow() {
+        let said = StepCeiling.current.verdict(rise: 0.045)
+        XCTAssertTrue(said.contains("gets up 40 mm in 2 of 9, 50 mm in 2 of 9, 60 mm in 4 of 9 and 70 mm in 2 of 9 perturbed attempts"), said)
+        XCTAssertTrue(said.contains("and nothing reliably"), said)
         XCTAssertTrue(said.contains("nothing this app has can be shown to get up this one"), said)
     }
 
@@ -75,7 +77,7 @@ final class StepCeilingTests: XCTestCase {
         let flagged = DuckScene.staircase(count: 1, rise: 0.193)
         let unreachable = flagged.problems.filter { $0.severity == .unreachable }
         XCTAssertEqual(unreachable.count, 1)
-        XCTAssertTrue(unreachable[0].text.contains("as shipped nothing has cleared"), unreachable[0].text)
+        XCTAssertTrue(unreachable[0].text.contains("Nothing has got up 80 mm or taller"), unreachable[0].text)
         XCTAssertFalse(unreachable[0].text.contains("has been measured at"), unreachable[0].text)
         // The old alias still names the editor's rise, not a ceiling.
         XCTAssertEqual(DuckScene.measuredStepCeiling, StepCeiling.current.editorRise)
@@ -83,10 +85,10 @@ final class StepCeilingTests: XCTestCase {
 
     func testTheFooterSentenceSaysEverythingAtOnce() {
         let s = StepCeiling.current.says
-        for piece in ["In simulation only", "repaired so its step blocks stop colliding", "21,000",
-                      "a beak-strut vault onto a 40 mm step and a 60 mm step", "audit_r2", "2026-09-02",
-                      "1 of 7", "3 of 7", "Nothing above 60 mm has cleared", "as shipped both score zero",
-                      "under 11 mm", "Criterion:"] {
+        for piece in ["In simulation only", "3 rounds", "40,000", "unreliable at every height",
+                      "a beak-strut vault", "40 mm in 2 of 9", "60 mm in 4 of 9", "70 mm in 2 of 9",
+                      "0 of 9 at 80 mm or taller", "9 of 9 for a duck placed on the tread",
+                      "0 of 9 for doing nothing", "audit_r3", "2026-09-02", "under 11 mm"] {
             XCTAssertTrue(s.contains(piece), "\(piece) missing from: \(s)")
         }
         XCTAssertFalse(s.contains("0 of 54"), s)
