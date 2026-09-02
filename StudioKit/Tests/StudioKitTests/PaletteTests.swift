@@ -15,7 +15,10 @@ import XCTest
 ///   1. Requirements. Every token that sets words clears 4.5:1 on every ground
 ///      words are set on, in both schemes. Iterated over the enum, never
 ///      listed by hand — a hand-written list is a list somebody adds a token
-///      without.
+///      without. Where a pair is exempt, the exemption is a named entry with
+///      its measured ratio beside it and not a token quietly left out of the
+///      loop: leaving one out is how the recessed ground came to be skipped by
+///      the test whose name says it checks every ground.
 ///   2. Pinned FAILURES. The four brand accents must stay illegible on cream,
 ///      and the values the brief originally specified for tertiary text and
 ///      the focus ring must stay below their bars. These are what say no to
@@ -76,9 +79,18 @@ final class PaletteTests: XCTestCase {
     /// often is, because sheets and raised cards are where the secondary
     /// information goes. A pass that only checks the background is a pass that
     /// checks the easiest case.
+    ///
+    /// IT USED TO SKIP THE RECESSED GROUND ENTIRELY, and it read as though it
+    /// did not. `isTextGround` left `backgroundSecondary` out, so the loop
+    /// covered four grounds while claiming "every ground words are set on" —
+    /// and the recessed ground is precisely the one the palette already knew
+    /// was short. It is in the set now, and the pairs that fall short of the
+    /// bar there are named one by one in the next test rather than skipped by a
+    /// classification nobody would think to question.
     func testEveryTextTokenIsLegibleOnEveryGroundWordsAreSetOn() {
         for scheme in Palette.Scheme.allCases {
-            for ground in Palette.Token.allCases where ground.isTextGround {
+            for ground in Palette.Token.allCases
+            where ground.isTextGround && ground.takesEveryTextToken {
                 for token in Palette.Token.allCases where token.isText {
                     let ratio = Palette.contrast(token, on: ground, in: scheme)
                     XCTAssertGreaterThanOrEqual(
@@ -89,6 +101,51 @@ final class PaletteTests: XCTestCase {
                         """)
                 }
             }
+        }
+    }
+
+    /// AND THE EXCEPTIONS ARE A LIST WITH NUMBERS ON IT, NOT A GAP IN THE LOOP.
+    ///
+    /// EVERY TEXT TOKEN, EVERY TEXT GROUND, BOTH SCHEMES — 130 pairs — and the
+    /// seven that miss 4.5:1 are written out here with the ratio that makes
+    /// each one a miss. This is the same shape as the pinned failures below:
+    /// stating a shortfall with its measurement is what stops it being either
+    /// forgotten or quietly widened. Add a token, use an ink somewhere new, or
+    /// move a ground, and a pair that was passing appears in this list with its
+    /// own number attached rather than disappearing behind a `false`.
+    ///
+    /// ALL SEVEN ARE THE SAME FACT: an accent on the recessed ground in light,
+    /// where the four inks are 4.17 to 4.27 to one. Nothing in the app draws
+    /// one there — the words on that ground are section headers and footers,
+    /// set in the type ramp — and `takesEveryTextToken` is the rule that says
+    /// so. The list is what proves the rule is the only exception.
+    func testTheOnlyWordsShortOfTheBarAreTheAccentsOnTheRecessedGround() {
+        var short: [String] = []
+        for scheme in Palette.Scheme.allCases {
+            for ground in Palette.Token.allCases where ground.isTextGround {
+                for token in Palette.Token.allCases where token.isText {
+                    let ratio = Palette.contrast(token, on: ground, in: scheme)
+                    guard ratio < Palette.textContrastMinimum else { continue }
+                    short.append("""
+                        \(token.rawValue) on \(ground.rawValue) in \
+                        \(scheme.rawValue) is \(String(format: "%.2f", ratio)):1
+                        """)
+                }
+            }
+        }
+        XCTAssertEqual(short, [
+            "brandPrimary on backgroundSecondary in light is 4.27:1",
+            "actionSecondary on backgroundSecondary in light is 4.17:1",
+            "robotActive on backgroundSecondary in light is 4.17:1",
+            "robotIdle on backgroundSecondary in light is 4.27:1",
+            "sensorActive on backgroundSecondary in light is 4.25:1",
+            "training on backgroundSecondary in light is 4.21:1",
+            "warning on backgroundSecondary in light is 4.25:1",
+        ])
+        // And every one of them is on a ground the app knows not to set an
+        // accent word on — so the exception list and the rule agree.
+        for entry in short {
+            XCTAssertTrue(entry.contains("on backgroundSecondary"), entry)
         }
     }
 
@@ -280,26 +337,108 @@ final class PaletteTests: XCTestCase {
         XCTAssertEqual(Palette.color(.focus, in: .dark), Palette.microduckTeal)
     }
 
-    /// THE SECONDARY BACKGROUND IS A GROUND FOR SURFACES, NOT FOR WORDS, and
-    /// the inks falling short on it is what makes that a rule rather than a
-    /// preference.
+    /// THE SECONDARY BACKGROUND TAKES THE TYPE RAMP AND NOT THE INKS, which is
+    /// a sharper claim than the one this test used to make and is the reason
+    /// the ground had to be admitted into the set rather than argued out of it.
     ///
-    /// All four land between 4.17:1 and 4.27:1 on #EFE7D8. The right response
+    /// The four inks land between 4.17:1 and 4.27:1 on #EFE7D8 — near misses,
+    /// the kind that survive review because they look fine. The right response
     /// is not to re-tune four inks whose ratios on the primary ground are
-    /// pinned to two decimals — it is to put a card on the recessed ground and
-    /// the words on the card, which is what `isTextGround` encodes. This test
-    /// fails if somebody adds `backgroundSecondary` to that set without moving
-    /// the inks first.
-    func testTheSecondaryBackgroundIsNotAGroundForBodyText() {
-        XCTAssertFalse(Palette.Token.backgroundSecondary.isTextGround)
+    /// pinned to two decimals; it is to put a card on the recessed ground and
+    /// the accent words on the card. What DOES land on it directly is a
+    /// section header and a section footer, in the three-step type ramp, and
+    /// all three of those clear the bar with the tertiary the closest at
+    /// 4.59:1. Both halves are pinned: lose the first and the rule about cards
+    /// stops being enforced, lose the second and every list header in the app
+    /// is illegible with nothing to say so.
+    func testTheRecessedGroundTakesTheTypeRampAndNotTheInks() {
+        XCTAssertTrue(Palette.Token.backgroundSecondary.isTextGround,
+                      "words land on the recessed ground — a list's section "
+                    + "headers and footers are drawn straight on it")
+        XCTAssertFalse(Palette.Token.backgroundSecondary.takesEveryTextToken)
+
         let recessed = Palette.color(.backgroundSecondary, in: .light)
-        for ink in [Palette.orangeInk, Palette.yellowInk,
-                    Palette.tealInk, Palette.lavenderInk] {
-            XCTAssertLessThan(Palette.contrast(ink, on: recessed),
-                              Palette.textContrastMinimum,
-                              "\(ink.hexString) now clears 4.5:1 on the recessed ground — "
-                            + "backgroundSecondary could become a text ground")
+        for (name, ink, documented) in [("orangeInk", Palette.orangeInk, 4.17),
+                                        ("yellowInk", Palette.yellowInk, 4.25),
+                                        ("tealInk", Palette.tealInk, 4.27),
+                                        ("lavenderInk", Palette.lavenderInk, 4.21)] {
+            let ratio = Palette.contrast(ink, on: recessed)
+            XCTAssertLessThan(ratio, Palette.textContrastMinimum,
+                              "\(name) now clears 4.5:1 on the recessed ground — "
+                            + "backgroundSecondary could take every text token")
+            XCTAssertEqual(rounded(ratio), documented, accuracy: 0.001,
+                           "\(name) on the recessed ground moved to \(rounded(ratio)):1")
         }
+
+        // The words that are actually set on it, and by how much they clear.
+        for (token, documented) in [(Palette.Token.textPrimary, 14.37),
+                                    (.textSecondary, 6.24),
+                                    (.textTertiary, 4.59)] {
+            let ratio = Palette.contrast(token, on: .backgroundSecondary, in: .light)
+            XCTAssertGreaterThanOrEqual(ratio, Palette.textContrastMinimum,
+                                        "\(token.rawValue) on the recessed ground")
+            XCTAssertEqual(rounded(ratio), documented, accuracy: 0.001,
+                           "\(token.rawValue) on the recessed ground is \(rounded(ratio)):1")
+        }
+    }
+
+    // MARK: - the words drawn ON a fill
+
+    /// A LABEL ON DUCK ORANGE IS 6.76:1 AND IS FIXED IN BOTH SCHEMES, which is
+    /// the one contrast fact the app was making in a view file with nothing
+    /// checking it.
+    ///
+    /// `DesignFixed.onAction` in `DesignComponents.swift` is
+    /// `Palette.color(.textPrimary, in: .light)` — Mechanical Charcoal, asked
+    /// for in ONE named scheme rather than adaptively, and used for the label
+    /// inside every `PrimaryActionStyle` capsule and for the word on Duck
+    /// soccer's command pads. Every other ratio in this app is arithmetic a
+    /// test can run; this one was a sentence in a doc comment, on the most
+    /// pressed control in the app.
+    ///
+    /// THE SECOND ASSERTION IS THE REASON FOR THE FIRST. Duck Orange is the
+    /// same orange in both schemes, so a label on it that follows the scheme is
+    /// wrong half the time: the adaptive `textPrimary` becomes Warm Cream in
+    /// dark and lands at 2.30:1 on the fill — unreadable, on a button that
+    /// moves a robot. A colour whose GROUND does not change must not change
+    /// either, and 2.30 is the number that says so.
+    func testTheLabelOnADuckOrangeFillClearsTheBarInBothSchemes() {
+        let ink = Palette.color(.textPrimary, in: .light)
+        for scheme in Palette.Scheme.allCases {
+            let fill = Palette.color(.actionPrimary, in: scheme)
+            let ratio = Palette.contrast(ink, on: fill)
+            XCTAssertGreaterThanOrEqual(ratio, Palette.textContrastMinimum,
+                                        "the action label in \(scheme.rawValue)")
+            XCTAssertEqual(rounded(ratio), 6.76, accuracy: 0.001,
+                           "the label on Duck Orange moved to \(rounded(ratio)):1")
+        }
+        // What the adaptive token would have given in dark, and why the app
+        // pins the scheme instead of following it.
+        let followingTheScheme = Palette.contrast(Palette.color(.textPrimary, in: .dark),
+                                                  on: Palette.color(.actionPrimary, in: .dark))
+        XCTAssertLessThan(followingTheScheme, Palette.textContrastMinimum)
+        XCTAssertEqual(rounded(followingTheScheme), 2.30, accuracy: 0.001)
+    }
+
+    /// THE LENS'S CATCHLIGHT IS DECORATION, AND THE NUMBERS SAY WHICH KIND.
+    ///
+    /// `DesignFixed.catchlight` is `Palette.color(.surfaceElevated, in: .light)`
+    /// — the app's one pure white — drawn on the iris, which is `sensorActive`.
+    /// It is 5.23:1 on the light scheme's yellow ink and 1.77:1 on Lens Yellow
+    /// in dark, and that asymmetry is exactly right for a specular highlight:
+    /// obvious on the dark eye, barely there on the bright one. It is also why
+    /// the 4.5:1 bar does not apply to it — SC 1.4.11 exempts decoration, and
+    /// this is decoration in the standard's own sense, because the lens's state
+    /// is carried by the iris colour, the ring colour and the accessibility
+    /// label. The two ratios are pinned so that "it is decoration" stays a
+    /// description of what is drawn rather than a licence.
+    func testTheCatchlightIsBrightOnTheDarkEyeAndFaintOnTheBrightOne() {
+        let white = Palette.color(.surfaceElevated, in: .light)
+        XCTAssertEqual(white, Palette.RGB(hex: "#FFFFFF"))
+        XCTAssertEqual(rounded(Palette.contrast(white, on: Palette.color(.sensorActive, in: .light))),
+                       5.23, accuracy: 0.001)
+        XCTAssertEqual(rounded(Palette.contrast(white, on: Palette.color(.sensorActive, in: .dark))),
+                       1.77, accuracy: 0.001)
     }
 
     /// SELECTION IS A WASH, NOT A SIGNAL — 1.02:1 in light, 1.14:1 in dark.
@@ -400,16 +539,26 @@ final class PaletteTests: XCTestCase {
     }
 
     /// Every token is classified, and the classification is coherent: a ground
-    /// never sets words, and a token that sets words is not also a ground.
+    /// never sets words, a token that sets words is not also a ground, and
+    /// nothing takes every text token without being a text ground in the first
+    /// place.
     func testTheClassificationOfEveryTokenIsCoherent() {
         for token in Palette.Token.allCases {
             XCTAssertFalse(token.isText && token.isTextGround,
                            "\(token.rawValue) cannot be both the word and the paper")
+            if token.takesEveryTextToken {
+                XCTAssertTrue(token.isTextGround,
+                              "\(token.rawValue) takes every text token without being "
+                            + "a ground words are set on, which is not a thing")
+            }
         }
-        // Nothing has been left out of the roster the app draws from.
+        // Nothing has been left out of the roster the app draws from. Five
+        // grounds, because `backgroundSecondary` is one — four of them take any
+        // text token and the recessed one takes the type ramp.
         XCTAssertEqual(Palette.Token.allCases.count, 21)
         XCTAssertEqual(Palette.Token.allCases.filter(\.isText).count, 13)
-        XCTAssertEqual(Palette.Token.allCases.filter(\.isTextGround).count, 4)
+        XCTAssertEqual(Palette.Token.allCases.filter(\.isTextGround).count, 5)
+        XCTAssertEqual(Palette.Token.allCases.filter(\.takesEveryTextToken).count, 4)
     }
 
     // MARK: - the maths itself

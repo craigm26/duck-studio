@@ -30,6 +30,8 @@ Usage:
 
 import argparse
 import os
+import shlex
+import os
 import pathlib
 import subprocess
 import sys
@@ -39,8 +41,24 @@ import tempfile
 HOST = "LA688.macincloud.com"
 USER = "user273508"
 OP_REF = "op://Civqo/LA688.macincloud.com/password"
-REMOTE_HOME = f"/Users/{USER}"
+# THE HOME CAN MOVE. On 2026-09-01 the external volume that carries every user
+# home on LA688 came unmounted; `/Users/user273508` is a symlink into it and
+# went dead, while the Data volume remounted at a different path with the
+# keychain, the ASC key and xcodegen all intact. `DUCK_MAC_HOME` points every
+# remote path — and `$HOME` for the tools that read it — at wherever the home
+# actually is today, without editing this file under pressure.
+#
+# `$HOME` IS NOT ENOUGH, AND `CFFIXED_USER_HOME` IS THE VARIABLE THAT IS.
+# xcodebuild, SwiftPM and `security` ask Foundation for the home, and Foundation
+# asks directory services — which still answers the dead symlink — unless
+# `CFFIXED_USER_HOME` is set, which Foundation honours over both. With only
+# `$HOME` moved, package resolution died trying to create DerivedData under the
+# dead path ("The file “Users” couldn’t be saved in the folder “macOS”"); with
+# both moved, it resolved all fifteen packages. Measured 2026-09-01.
+REMOTE_HOME = os.environ.get("DUCK_MAC_HOME", f"/Users/{USER}")
 REMOTE_SRC = f"{REMOTE_HOME}/duck-studio"
+Q_HOME = shlex.quote(REMOTE_HOME)
+Q_SRC = shlex.quote(REMOTE_SRC)
 
 # Everything that must not travel: build products, the git database, and the
 # agent scratch. A 13 MB tarball goes up in seconds; a .build directory does not.
@@ -155,11 +173,12 @@ def tarball(worktree: bool) -> pathlib.Path:
 # tool 'metal' due to missing Metal Toolchain". Install once per machine with
 #     xcodebuild -downloadComponent MetalToolchain
 REMOTE_BUILD = f"""set -e
+export HOME={Q_HOME} CFFIXED_USER_HOME={Q_HOME}
 export PATH=$HOME/.local/bin:$PATH
 command -v xcodegen >/dev/null || {{ echo "xcodegen missing on the Mac — see the note in this script"; exit 127; }}
-rm -rf {REMOTE_SRC} && mkdir -p {REMOTE_SRC}
-tar xzf {REMOTE_HOME}/duck-studio-src.tgz -C {REMOTE_SRC}
-cd {REMOTE_SRC}/DuckStudio
+rm -rf {Q_SRC} && mkdir -p {Q_SRC}
+tar xzf {Q_HOME}/duck-studio-src.tgz -C {Q_SRC}
+cd {Q_SRC}/DuckStudio
 xcodegen generate >/dev/null
 set -o pipefail
 xcodebuild -project DuckStudio.xcodeproj -scheme DuckStudio \

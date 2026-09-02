@@ -46,11 +46,21 @@ enum Theme {
     static let backgroundPrimary = adaptive(.backgroundPrimary)
     /// The recessed ground under grouped content.
     ///
-    /// PUT SURFACES ON THIS, NOT WORDS. The four ink variants land between
-    /// 4.17:1 and 4.27:1 against it — short of the 4.5:1 body text owes — so
-    /// content goes on a `surfacePrimary` card and the card goes on this.
-    /// `PaletteTests` asserts that shortfall rather than leaving it to be
-    /// remembered.
+    /// PUT SURFACES ON THIS, AND ONLY THE TYPE RAMP DIRECTLY ON IT. The four
+    /// ink variants land between 4.17:1 and 4.27:1 against it — short of the
+    /// 4.5:1 body text owes — so an accent word goes on a `surfacePrimary` card
+    /// and the card goes on this.
+    ///
+    /// IT IS STILL A GROUND WORDS LAND ON, WHICH THE PALETTE USED TO DENY. A
+    /// `List` row here keeps its card, but a section's HEADER and FOOTER do
+    /// not: they are drawn straight on the list's own background, and this
+    /// token is that background in thirty-two places across twenty-seven
+    /// files. Those headers and footers are set in the
+    /// three-step type ramp, which clears it — 14.37:1, 6.24:1 and 4.59:1 — so
+    /// the arrangement was right all along and only the claim was wrong.
+    /// `Palette.Token.takesEveryTextToken` is now the narrower thing that is
+    /// true of it, and `PaletteTests` names every pair that falls short with
+    /// its measured ratio.
     static let backgroundSecondary = adaptive(.backgroundSecondary)
     /// A card.
     static let surfacePrimary = adaptive(.surfacePrimary)
@@ -196,18 +206,24 @@ enum Theme {
     /// The animation to use, given the accessibility setting.
     static func motion(reduced: Bool) -> Animation { reduced ? reducedMotion : spring }
 
-    /// Large titles.
-    ///
-    /// SF EVERYWHERE A PERSON READS, and no bundled face. The Microduck page
-    /// sets display type in Anton and body in DM Sans; shipping two font files
-    /// to echo a website costs bytes on every install and breaks Dynamic Type
-    /// unless every use is scaled by hand — and this app has people reading
-    /// long refusals on a phone. Dynamic Type matters more than a matched
-    /// face. `.heavy` is for large titles only; anything smaller set this way
-    /// stops being emphasis and starts being shouting.
-    static func display(_ size: CGFloat) -> Font {
-        .system(size: size, weight: .heavy, design: .default)
-    }
+    // MARK: - type, and why there is no font token
+    //
+    // SF EVERYWHERE A PERSON READS, AND NO BUNDLED FACE. The Microduck page
+    // sets display type in Anton and body in DM Sans; shipping two font files
+    // to echo a website costs bytes on every install and breaks Dynamic Type
+    // unless every use is scaled by hand — and this app has people reading long
+    // refusals on a phone. Dynamic Type matters more than a matched face, so
+    // every screen takes a system text style and none of them asks here.
+    //
+    // THERE WAS A `display(_:)` HELPER AND NOTHING EVER CALLED IT. It returned
+    // `.system(size:weight:.heavy)` for large titles, and no screen used it:
+    // the app sets titles with `.navigationTitle` forty-six times and
+    // `.largeTitle` twice, and there is not one `weight: .heavy` in the target.
+    // That is the correct answer and it is why the helper never found a caller.
+    // A design token nothing draws is not a spare part, it is a second opinion:
+    // the next person reads it as the app's way of setting a title and starts
+    // hand-sizing type that Dynamic Type was already handling. The reasoning is
+    // worth keeping and the function was not.
 }
 
 // MARK: - the appearance the person chose
@@ -307,6 +323,14 @@ private struct MicroduckTheme: ViewModifier {
             // tab bar reads in both and the capsule buttons, which fill their
             // own shape from `actionPrimary`, are untouched.
             .tint(Theme.actionSecondary)
+            // EVERY BARE SECTION HEADER, LIFTED OUT OF A CONTRAST FAILURE AT
+            // ONCE. A grouped list's default header is the system's secondary
+            // label, about 3.18:1 on the light ground, and some sixty of them
+            // are still plain `Text`. Increased prominence sets them in the
+            // primary label colour, which is legible everywhere; the screens
+            // that have moved to `SectionHeading` are unaffected, because a
+            // header that sets its own font and colour keeps them.
+            .headerProminence(.increased)
             .preferredColorScheme(
                 (Theme.Appearance(rawValue: stored) ?? Theme.defaultAppearance).colorScheme)
     }

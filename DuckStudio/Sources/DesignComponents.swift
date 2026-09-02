@@ -23,10 +23,11 @@ import StudioKit
 ///
 /// THE NUMBERS THAT ARE HERE ARE LAYOUT, NOT FACTS. Point sizes, stroke widths
 /// and the fractions that shape the lens are decisions about how big to draw
-/// something. The two exceptions are called out where they sit: the touch
-/// targets come from Apple's Human Interface Guidelines, and the focus ring's
-/// geometry comes from the brand sheet. Both would move into `Palette` the
-/// moment it grows a scale for them, and both cite their source below.
+/// something. The exceptions are called out where they sit: the touch targets
+/// come from Apple's Human Interface Guidelines, and would move into `Palette`
+/// the moment it grows a scale for them. The focus ring's geometry is gone from
+/// here: the ring it described never drew on iOS, which `PrimaryActionStyle`
+/// explains, and Full Keyboard Access draws the system's own.
 
 // MARK: - the dimensions the palette does not carry
 
@@ -64,16 +65,6 @@ enum DesignMetric {
     /// HIG floor is sized for a person who is looking at what they are
     /// pressing. This one is not.
     static let movingTarget: CGFloat = 60
-
-    /// 3pt stroke, 2pt clear of the shape — the focus ring, both schemes.
-    ///
-    /// Source: the Microduck design system's own token table, which specifies
-    /// the ring's geometry alongside its colour. The offset matters as much as
-    /// the width: a ring drawn ON the control's edge reads as a heavier border
-    /// and disappears against a filled shape, while a ring drawn clear of it
-    /// reads as a separate object that is pointing at the control.
-    static let focusRingWidth: CGFloat = 3
-    static let focusRingOffset: CGFloat = 2
 
     /// A hairline STROKE. One point, which on every device this ships to is one
     /// to three pixels — the thinnest line iOS will draw crisply.
@@ -204,7 +195,26 @@ struct StateBadge: View {
     let text: String
     let state: RobotState
 
+    /// ONLY WHEN IT ADDS SOMETHING, AND "NOTHING" HAS TO MEAN NO MODIFIER.
+    /// This was `.accessibilityValue(Text(spokenValue ?? ""))`, and an empty
+    /// string is not the absence of a value: the element still declares one,
+    /// and it declares that the value is nothing. What VoiceOver does with an
+    /// empty value is not something this machine can be made to demonstrate —
+    /// there is no Simulator on it — so the argument is not about the sound. It
+    /// is that the accessibility tree should say what is true. A badge whose
+    /// word already IS the state has no value to give, that is the common case,
+    /// and the branch below is the only way SwiftUI spells "do not attach this
+    /// modifier".
     var body: some View {
+        if let spokenValue = spokenValue {
+            pill.accessibilityValue(Text(spokenValue))
+        } else {
+            pill
+        }
+    }
+
+    /// The dot, the word, and the capsule that says they belong together.
+    private var pill: some View {
         HStack(spacing: Theme.spacing(.hairline)) {
             Circle()
                 .fill(state.color)
@@ -222,12 +232,11 @@ struct StateBadge: View {
                                    lineWidth: DesignMetric.hairlineStroke))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(text))
-        // ONLY WHEN IT ADDS SOMETHING. If the caller's word already is the
-        // state — the common case — announcing both reads as "Idle, idle",
-        // which is how a screen reader user learns to stop trusting values.
-        .accessibilityValue(Text(spokenValue ?? ""))
     }
 
+    /// The state as a word, or nothing when the caller's word already is the
+    /// state — the common case, where announcing both reads as "Idle, idle",
+    /// which is how a screen reader user learns to stop trusting values.
     private var spokenValue: String? {
         text.compare(state.spoken, options: .caseInsensitive) == .orderedSame
             ? nil
@@ -258,6 +267,33 @@ struct StateBadge: View {
 ///
 /// IT FIRES NO HAPTIC. A press is a tap, and `Haptic` is for events in the
 /// world — see the note there.
+///
+/// FOCUS IS THE SYSTEM'S RING, AND THIS FILE NO LONGER PRETENDS OTHERWISE.
+/// There was a hand-drawn one here — three points of `Theme.focus`, two points
+/// clear of the capsule, gated on `@Environment(\.isFocused)` — with a doc
+/// comment citing SC 2.4.11 by number. On iOS a plain `Button` does not put
+/// that value into its style's body: `isFocused` reports on a focusable
+/// ancestor, and the environment a `ButtonStyle` is handed is not one. So the
+/// ring almost certainly never drew, on any screen, for anybody. The wasted
+/// code is the small half of that. The large half is that a design system
+/// claimed an accessibility feature it did not have, in prose confident enough
+/// that nobody would go looking — and a claim like that is worse than the
+/// omission it hides, because it stops the omission being found.
+///
+/// WHAT ACTUALLY INDICATES FOCUS IS FULL KEYBOARD ACCESS, which draws its own
+/// ring around whatever it has landed on, in every app on the phone, in the
+/// shape and colour the person has set in Settings. That is the indicator a
+/// keyboard or switch user already has here. Drawing a second one on top would
+/// not add contrast; it would put a different-looking focus treatment on the
+/// handful of controls that happened to use this style and leave every other
+/// control in the app with the platform's — which teaches nobody anything and
+/// costs somebody the one visual convention they can rely on.
+///
+/// `Palette.focus` STAYS, and it is not orphaned by this. It is teal ink at
+/// 4.62:1 in light because brand teal is 1.74:1 on cream, and it is the colour
+/// the app takes for any indicator it genuinely has to draw itself — a mark on
+/// a canvas, an overlay on the AR view, somewhere iOS has nothing to say. A
+/// button is not one of those places.
 struct PrimaryActionStyle: ButtonStyle {
 
     /// How far the control has to be reachable by somebody who is not looking
@@ -298,14 +334,19 @@ struct PrimaryActionStyle: ButtonStyle {
 
     /// A nested `View` rather than the style itself, because `@Environment`
     /// only resolves inside a view. A `ButtonStyle` is not one, so a style that
-    /// needs to know whether it is enabled, focused, or in dark mode has to
-    /// hand its body to something that is.
+    /// needs to know whether it is enabled, or in dark mode, has to hand its
+    /// body to something that is.
+    ///
+    /// AND THAT IS EXACTLY AS FAR AS IT GOES. Being inside a view makes an
+    /// environment value readable; it does not make one meaningful. The ring
+    /// this file used to draw read `\.isFocused` here and got `false` forever,
+    /// which is the difference between "the code compiles" and "the code is
+    /// told anything".
     private struct Surface: View {
         let configuration: ButtonStyleConfiguration
         let reach: Reach
 
         @Environment(\.isEnabled) private var isEnabled
-        @Environment(\.isFocused) private var isFocused
         @Environment(\.colorScheme) private var scheme
 
         var body: some View {
@@ -318,7 +359,6 @@ struct PrimaryActionStyle: ButtonStyle {
                 .frame(minWidth: reach.minimum, minHeight: reach.minimum)
                 .background(fill)
                 .overlay(edge)
-                .overlay(focusRing)
                 .contentShape(Capsule())
         }
 
@@ -345,24 +385,6 @@ struct PrimaryActionStyle: ButtonStyle {
                 Capsule().strokeBorder(Theme.separator, lineWidth: DesignMetric.hairlineStroke)
             } else if let rim = Theme.actionPrimaryEdge(scheme) {
                 Capsule().strokeBorder(rim, lineWidth: DesignMetric.hairlineStroke)
-            }
-        }
-
-        /// Three points of teal, two points clear of the capsule.
-        ///
-        /// THE RING IS DRAWN OUTSIDE THE SHAPE, which is what the negative
-        /// padding is doing: `strokeBorder` draws inside its own bounds, so
-        /// growing those bounds by the offset plus the width puts the ring's
-        /// inner edge exactly `focusRingOffset` clear of the button. Focus is
-        /// teal ink in light rather than brand teal, because brand teal is
-        /// 1.74:1 on cream — a focus ring that does not exist is the one
-        /// contrast failure that removes a switch or keyboard user's only way
-        /// of knowing where they are (SC 2.4.11).
-        @ViewBuilder private var focusRing: some View {
-            if isFocused {
-                Capsule()
-                    .strokeBorder(Theme.focus, lineWidth: DesignMetric.focusRingWidth)
-                    .padding(-(DesignMetric.focusRingOffset + DesignMetric.focusRingWidth))
             }
         }
     }
@@ -861,5 +883,70 @@ enum Haptic {
     private static func impact(_ generator: UIImpactFeedbackGenerator) {
         generator.impactOccurred()
         generator.prepare()
+    }
+}
+
+// MARK: - the heading over a section
+
+/// A section's heading, in the design system rather than in the platform's.
+///
+/// THE DEFAULT WAS A CONTRAST FAILURE AND NO TEST COULD SEE IT. A bare `Text`
+/// in a grouped list header takes the system's secondary label — about 3.18:1
+/// on the light ground a list sits on, short of the 4.5:1 SC 1.4.3 asks of
+/// body text — and because the colour comes from UIKit rather than from a
+/// token, `PaletteTests` never had a chance to run the formula over it.
+/// `textTertiary` is a token, and it is the one the palette measures at 4.59:1
+/// on `backgroundSecondary`: it clears the bar on the recessed ground these
+/// headings sit on, which the four inks as a family do not.
+///
+/// THIRTEEN POINTS, BOLD, SIX PER CENT OF TRACKING — the brand sheet's heading,
+/// with the size as a `@ScaledMetric` so a heading is not the smallest thing on
+/// the screen once somebody has enlarged type, and the tracking derived from
+/// whatever size that lands on, because six per cent of 13 is not six per cent
+/// of 30. `.textCase(nil)` because SwiftUI upper-cases grouped headers by
+/// default and "STOP AND RESET" is a louder app than this one.
+///
+/// ONE COPY. Three screens carried a private, byte-identical one each while
+/// this file was not theirs to edit; it lives here now, beside the other
+/// pieces, for the reason this file gives everywhere — drawn twice, they drift
+/// within a release. The headers that still use a bare `Text` are lifted by
+/// `.headerProminence(.increased)` at the app's root (see `Theme.swift`), which
+/// puts them in the primary label colour: legible, if not yet this heading.
+struct SectionHeading: View {
+    let text: String
+
+    /// The `.footnote` point size at the person's current setting; 13 is what
+    /// that style measures at the default content size.
+    @ScaledMetric(relativeTo: .footnote) private var size: CGFloat = 13
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: size, weight: .bold))
+            .tracking(size * 0.06)
+            .textCase(nil)
+            .foregroundStyle(Theme.textTertiary)
+            .accessibilityAddTraits(.isHeader)
+    }
+}
+
+// MARK: - a value that may not exist
+
+extension View {
+    /// An accessibility value, attached only when there is one.
+    ///
+    /// AN EMPTY STRING IS NOT THE ABSENCE OF A VALUE. `.accessibilityValue(
+    /// Text(x ?? ""))` still declares that the element HAS a value and that the
+    /// value is nothing — VoiceOver pauses on it, Switch Control lists it, and
+    /// a screen-reader user learns that this app's values are noise. `StateBadge`
+    /// was rewritten to branch on `if let` for exactly this; then the same
+    /// pattern was written again one file over. This is the branch, as a
+    /// modifier, so the rule is one call rather than a shape to remember.
+    @ViewBuilder
+    func accessibilityValue(ifPresent value: String?) -> some View {
+        if let value, !value.isEmpty {
+            accessibilityValue(Text(value))
+        } else {
+            self
+        }
     }
 }

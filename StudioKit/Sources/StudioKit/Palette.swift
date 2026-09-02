@@ -314,18 +314,58 @@ public enum Palette {
         }
 
         /// Whether this token is a ground that words are set directly on, and
-        /// therefore one every text token has to be checked against.
+        /// therefore one the text tokens have to be checked against.
         ///
-        /// `backgroundSecondary` is pointedly NOT one, and the number is the
-        /// reason: the four inks land between 4.17:1 and 4.27:1 on #EFE7D8,
-        /// short of the body-text bar. That is not a defect to fix by
-        /// re-tuning four inks whose ratios on the primary ground are pinned
-        /// to two decimals — it is what a recessed ground is for. It sits
-        /// BEHIND grouped content the way `systemGroupedBackground` does on
-        /// iOS; the words go on the `surfacePrimary` cards that sit on it. A
-        /// test asserts the shortfall so the distinction is enforced rather
-        /// than remembered.
+        /// `backgroundSecondary` USED TO BE EXCLUDED, AND EXCLUDING IT MADE THE
+        /// COVERAGE TEST NARROWER THAN IT READ. The argument for leaving it out
+        /// was sound as far as it went — the four inks land between 4.17:1 and
+        /// 4.27:1 on #EFE7D8, so an ink word does not go there, it goes on a
+        /// `surfacePrimary` card that goes on it — but the conclusion drawn was
+        /// that no word lands on the recessed ground at all, and that is not
+        /// what the app does. It is the background of a `List` or a `Form` in
+        /// thirty-two places across twenty-seven files; every ROW on those
+        /// keeps its card, and a section's HEADER and FOOTER do not, because
+        /// those are drawn straight on the list's own ground. So a ground the
+        /// app sets words on was being skipped by the one test whose whole job
+        /// is to check the grounds words are set on — the narrowest possible
+        /// reading of a rule, wearing the rule's own name.
+        ///
+        /// So it is a text ground, and the narrower thing that IS true of it is
+        /// `takesEveryTextToken`. The five here are every token that appears
+        /// under `.background(Theme.…)` anywhere in the app.
         public var isTextGround: Bool {
+            switch self {
+            case .backgroundPrimary, .backgroundSecondary, .surfacePrimary,
+                 .surfaceElevated, .surfaceInteractive:
+                return true
+            case .textPrimary, .textSecondary, .textTertiary,
+                 .brandPrimary, .actionPrimary, .actionSecondary,
+                 .robotActive, .robotIdle, .robotOffline,
+                 .sensorActive, .training,
+                 .success, .warning, .critical,
+                 .separator, .focus:
+                return false
+            }
+        }
+
+        /// Of the grounds words land on, the ones where EVERY text token clears
+        /// 4.5:1 — so a screen can set an accent word on them without asking.
+        ///
+        /// THE RECESSED GROUND IS THE ONE EXCEPTION AND IT IS A MEASUREMENT,
+        /// NOT A PREFERENCE. On #EFE7D8 the four inks are 4.17, 4.25, 4.27 and
+        /// 4.21 to one — near misses, which is the kind of failure that
+        /// survives review because it looks fine. The fix is not to re-tune
+        /// four inks whose ratios on the primary ground are pinned to two
+        /// decimals; that would be moving the thing measured to satisfy the
+        /// measurement. It is that the recessed ground carries SURFACES, and
+        /// the words that do land on it directly — a section header, a footer —
+        /// are set in the three-step type ramp, which clears it at 14.37:1,
+        /// 6.24:1 and 4.59:1.
+        ///
+        /// `PaletteTests` pins every (token, ground, scheme) triple that falls
+        /// short, by name and with its ratio, so the list cannot grow by
+        /// accident and cannot be argued with by hand.
+        public var takesEveryTextToken: Bool {
             switch self {
             case .backgroundPrimary, .surfacePrimary,
                  .surfaceElevated, .surfaceInteractive:

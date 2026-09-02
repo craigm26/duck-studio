@@ -652,6 +652,24 @@ private enum StageMetric {
     /// default. This used to be a second copy, with a paragraph explaining that
     /// the first was private to its file; the first is not private any more.
     static let minimumTarget = DesignMetric.minimumTarget
+
+    /// How far the camera chip's word may shrink before it is allowed to clip.
+    ///
+    /// A LAST RESORT WITH A NUMBER ON IT, NOT A LAYOUT STRATEGY. Every other
+    /// piece of text on this panel wraps and takes the height it needs; the chip
+    /// cannot, because "Following" is one word with nowhere to break and a
+    /// capsule is not a paragraph. Seven tenths is chosen against the case that
+    /// bites: a footnote at AX5 is about forty-four points, and seven tenths of
+    /// that is around thirty — over twice the size the same word is drawn at by
+    /// default, so nobody who enlarged the type is pushed back below where they
+    /// started. Lower would buy width nobody needs at the cost of undoing the
+    /// setting; higher leaves the ellipsis it exists to prevent.
+    ///
+    /// NOT IN `DesignMetric`, AND NOT YET. One caller is a judgement about one
+    /// chip. The moment a second control needs a floor it stops being that and
+    /// becomes a token, which is the same rule this file's radius and stroke
+    /// followed on their way into the design system.
+    static let chipScaleFloor: CGFloat = 0.7
 }
 
 /// The unit the legend prints, written once.
@@ -907,6 +925,24 @@ struct StageLegend: View {
     /// controls it could be following anything. Naming the thing and letting the
     /// state be the value is also what makes VoiceOver announce the change when
     /// it is toggled.
+    ///
+    /// AND THE WORD IS THE STATE, SO THE WORD MAY NOT BE THE THING THAT GETS
+    /// CUT. This was `.lineLimit(1)` with no floor under it. A footnote at AX5
+    /// is around forty-four points; "Following" is nine characters of it beside
+    /// a symbol, and the panel it sits in has `.snug` outside and `.snug` in
+    /// again before the chip's own `.standard` either side — which on a 320-point
+    /// phone leaves the label a little over two hundred points to live in. One
+    /// line and no floor is an ellipsis, and "Follow…" against "Fixed" is a
+    /// control whose two states are told apart by the part that was cut off.
+    ///
+    /// SO IT WRAPS FIRST AND SHRINKS ONLY IF IT MUST. Dropping the line limit is
+    /// what lets a label with a break opportunity in it take a second line —
+    /// which is the case the day this word is translated, since most languages
+    /// spell this as two. "Following" has no such opportunity, so
+    /// `StageMetric.chipScaleFloor` stands behind the wrap, and that constant
+    /// carries the arithmetic for why the number is what it is. The 44-point
+    /// target is a `minWidth`/`minHeight` and untouched by either: a chip that
+    /// grows to two lines grows past the floor, never under it.
     private var cameraChip: some View {
         Button {
             orbit.follows.toggle()
@@ -914,7 +950,9 @@ struct StageLegend: View {
             Label(followWord,
                   systemImage: orbit.follows ? "location.fill" : "mappin.and.ellipse")
                 .font(.footnote.weight(orbit.follows ? .semibold : .regular))
-                .lineLimit(1)
+                .multilineTextAlignment(.leading)
+                .minimumScaleFactor(StageMetric.chipScaleFloor)
+                .fixedSize(horizontal: false, vertical: true)
                 .foregroundStyle(orbit.follows ? Theme.textPrimary : Theme.textSecondary)
                 .padding(.horizontal, Theme.spacing(.standard))
                 .padding(.vertical, Theme.spacing(.snug))

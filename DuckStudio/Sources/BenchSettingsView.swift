@@ -106,13 +106,23 @@ struct BenchSettingsView: View {
     /// One saved bench: what it is called, where it is, and whether it is the
     /// one every other screen will use.
     ///
-    /// TWO CONTROLS IN ONE ROW, AND BOTH ARE REACHABLE. The row selects and the
-    /// glyph edits, which is the shape the Models screen already uses — but the
-    /// glyph was a twenty-point image with no padding, well under the forty-four
-    /// points the HIG asks of anything a finger is aimed at. The padding comes
-    /// off the spacing scale rather than being written as a number, because the
-    /// app has exactly one place that writes that floor down and it is
-    /// `DesignComponents`.
+    /// TWO CONTROLS IN ONE ROW, AND BOTH ARE REACHABLE IN BOTH DIRECTIONS. The
+    /// row selects and the glyph edits, which is the shape the Models screen
+    /// already uses — but the glyph was a twenty-point image with no padding,
+    /// well under the forty-four points the HIG asks of anything a finger is
+    /// aimed at, and the first fix only half worked. Twelve points above and
+    /// below make it tall enough; twelve on the LEADING side alone leave it
+    /// about thirty-four wide, because there is nothing on the trailing side to
+    /// pad against. A target that clears the floor in one direction and misses
+    /// it in the other is still a miss, and this is the control that opens an
+    /// address somebody transcribed by hand.
+    ///
+    /// SO THE FLOOR IS STATED RATHER THAN ARRIVED AT. `DesignMetric.minimumTarget`
+    /// is the app's one 44 and this names it, the way `PrimaryActionStyle` and
+    /// the model picker's search buttons already do, instead of leaving the
+    /// number to be recomputed from a glyph size and a gap. The padding stays:
+    /// it is what keeps the glyph off the name beside it, which is a spacing
+    /// decision and belongs on the spacing scale.
     private func row(_ bench: BenchEndpoint) -> some View {
         HStack(spacing: Theme.spacing(.tight)) {
             Button {
@@ -158,6 +168,8 @@ struct BenchSettingsView: View {
                     .foregroundStyle(Theme.actionSecondary)
                     .padding(.vertical, Theme.spacing(.snug))
                     .padding(.leading, Theme.spacing(.snug))
+                    .frame(minWidth: DesignMetric.minimumTarget,
+                           minHeight: DesignMetric.minimumTarget)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.borderless)

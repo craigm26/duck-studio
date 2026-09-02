@@ -87,9 +87,10 @@ public enum PairingSpike {
         public var establishes: String {
             switch self {
             case .scan:
-                return "That this iPhone can see this robot at all, scanning UNFILTERED, because a "
-                     + "bonded peripheral often advertises an empty service list and CoreBluetooth "
-                     + "honours a filter strictly."
+                return "That this iPhone can see this robot at all. The scan is given no service "
+                     + "filter — CoreBluetooth honours one strictly and a bonded peripheral often "
+                     + "advertises an empty service list — so every device in range is reported to "
+                     + "the app and ranked here in software, by the three tiers in DuckLink.Tier."
             case .connect:
                 return "That a link opens — which needs no encryption, and so proves nothing yet "
                      + "about pairing."
@@ -109,8 +110,9 @@ public enum PairingSpike {
                 return "That the PIN method works over the same link — the step that has to work "
                      + "before a PIN is worth having."
             case .systemInfo:
-                return "That an authenticated call returns real data, which is the end of the "
-                     + "sequence the roadmap asks for."
+                return "That an authenticated call comes back with the robot's own name, SoC "
+                     + "serial and uptime — all three of which this report prints — which is the "
+                     + "end of the sequence the roadmap asks for."
             }
         }
 
@@ -119,8 +121,11 @@ public enum PairingSpike {
         public var failureMeans: String {
             switch self {
             case .scan:
-                return "Either the robot is not advertising or the scan was filtered. Neither says "
-                     + "anything about pairing, and a filtered scan is the likelier of the two."
+                return "Nothing was seen, and the first thing to rule out is this phone rather "
+                     + "than the duck: a radio that is switched off, or an app that has not been "
+                     + "allowed to use it, is named in the line above in those words when that is "
+                     + "what happened. Otherwise no robot advertised inside the budget. Neither "
+                     + "case says anything about pairing."
             case .connect:
                 return "A radio or range problem, or a robot already connected to something else. "
                      + "Not a pairing result."
@@ -197,6 +202,70 @@ public enum PairingSpike {
                 return "15 s. One round trip, same as hello."
             }
         }
+
+        /// The JSON-RPC id this step's request goes out under, or `nil` for a
+        /// step that sends no request.
+        ///
+        /// CLIENT-SIDE BOOKKEEPING RATHER THAN A CLAIM ABOUT THE ROBOT —
+        /// JSON-RPC lets the caller pick its own ids, and these are picked here
+        /// so that an answer can be filed against the request that asked for it
+        /// instead of against whichever step happens to be running when it
+        /// lands. That distinction is the difference between a true report and a
+        /// fabricated one the moment any step times out, which on this screen is
+        /// the expected case rather than the unlucky one.
+        ///
+        /// The first four steps are GATT operations — a scan, a connection, a
+        /// discovery, a characteristic read — and none of them is JSON-RPC at
+        /// all, so none of them has an id to be given.
+        public var requestID: Int? {
+            switch self {
+            case .hello: return 1
+            case .authenticate: return 2
+            case .systemInfo: return 3
+            case .scan, .connect, .discover, .readVersion, .subscribe: return nil
+            }
+        }
+    }
+
+    /// Which step an answer belongs to. The inverse of `Step.requestID`.
+    public static func step(forRequestID id: Int) -> Step? {
+        Step.allCases.first { $0.requestID == id }
+    }
+
+    // MARK: - when the phone is the reason, not the duck
+
+    /// Why no scan was ever started, when the reason is this iPhone.
+    ///
+    /// A SCAN THAT NEVER RAN IS NOT A DUCK THAT NEVER ANSWERED, AND THE REPORT
+    /// USED TO SAY IT WAS. With Bluetooth switched off, or with the app refused
+    /// permission to use it, `scanForPeripherals` is never called and nothing is
+    /// ever reported — so the scan step sat out its whole 40-second budget and
+    /// was written up as "TIMED OUT — no answer and no error", under a sentence
+    /// blaming the robot for not advertising. That is a fabricated observation
+    /// about somebody else's hardware, filed in their issue tracker, produced by
+    /// a phone with its radio off. These are the words that go in instead.
+    ///
+    /// They are `.refused` outcomes and not `.timedOut` ones, because a refusal
+    /// is defined here as the ending that comes with something you can show a
+    /// person — and this one can be shown to the very person holding the phone,
+    /// who can then go and fix it.
+    public enum RadioProblem: String, CaseIterable, Sendable {
+        case off, notPermitted, noLowEnergyRadio
+
+        public var reason: String {
+            switch self {
+            case .off:
+                return "Bluetooth is off on this iPhone, so no scan was ever started. Nothing "
+                     + "here is about the duck."
+            case .notPermitted:
+                return "This app is not allowed to use Bluetooth on this iPhone — Settings, "
+                     + "Privacy & Security, Bluetooth — so no scan was ever started. Nothing "
+                     + "here is about the duck."
+            case .noLowEnergyRadio:
+                return "This device has no Bluetooth LE radio, so no scan was ever started. "
+                     + "Nothing here is about the duck."
+            }
+        }
     }
 
     // MARK: - how a step can end
@@ -248,6 +317,54 @@ public enum PairingSpike {
     /// same.
     public static func seconds(_ value: Double) -> String {
         String(format: "%.2f s", value)
+    }
+
+    /// An outcome line, ended as a sentence.
+    ///
+    /// A REFUSAL CARRIES SOMEBODY ELSE'S WORDS AND THEY MAY ALREADY END. iOS
+    /// error strings and this app's own reasons are written as sentences, so
+    /// dropping a full stop after one gave the report "Nothing here is about the
+    /// duck.." — a typo in the middle of the paragraph a maintainer is being
+    /// asked to trust, and one that appears exactly when the reason is the most
+    /// carefully written.
+    public static func stopped(_ line: String) -> String {
+        line.hasSuffix(".") ? line : line + "."
+    }
+
+    /// When a run happened, in the one notation that means the same thing to
+    /// everybody who reads it.
+    ///
+    /// UTC AND ISO 8601, NOT THE TESTER'S LOCALE. The reader is in France and
+    /// the tester may be anywhere; "01/09/2026, 14:30" is two different days
+    /// depending on who is holding it, and a local time with no zone on it
+    /// cannot be lined up against a log on the robot. This takes the date it is
+    /// given and never asks the system for one — a timestamp produced inside
+    /// `report()` would be the moment somebody re-rendered the text rather than
+    /// the moment of the run, and no test could pin a function that reads a
+    /// clock.
+    public static func timestamp(_ date: Date) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        return formatter.string(from: date)
+    }
+
+    /// An uptime, in seconds and then in words.
+    ///
+    /// BOTH, BECAUSE THEY ANSWER DIFFERENT QUESTIONS. The number is the field
+    /// `system.info` actually returned and is what somebody would grep a log
+    /// for; the gloss is what tells a reader at a glance that this robot was
+    /// rebooted a minute before the run, which is the kind of thing that
+    /// explains a result.
+    public static func uptime(_ totalSeconds: Int) -> String {
+        guard totalSeconds >= 0 else { return "\(totalSeconds) s" }
+        let hours = totalSeconds / 3600
+        let minutes = (totalSeconds % 3600) / 60
+        let secs = totalSeconds % 60
+        var words = ""
+        if hours > 0 { words += "\(hours) h " }
+        if hours > 0 || minutes > 0 { words += "\(minutes) m " }
+        words += "\(secs) s"
+        return "\(totalSeconds) s (\(words))"
     }
 
     // MARK: - what the reading of a run is
@@ -322,20 +439,105 @@ public enum PairingSpike {
 
         /// The one byte the read returned, when it returned. `nil` when the read
         /// never completed — which is itself part of the finding.
+        ///
+        /// A BYTE HERE DOES NOT MEAN THE READ SUCCEEDED. It can also be a
+        /// straggler that arrived after the budget expired, and `report()` says
+        /// which of the two it was rather than printing a version beside a
+        /// reading that says nothing came back.
         public let robotAPIVersion: UInt8?
+
+        /// The PIN `system.authenticate` was actually given.
+        ///
+        /// PRINTED ONLY WHEN IT IS THE PUBLIC ONE. `factoryPIN` is in Pollen's
+        /// own repository and naming it costs nothing; a PIN somebody set on a
+        /// provisioned robot is a real secret, and this report exists to be
+        /// pasted into a public issue tracker. So the value is carried, the fact
+        /// that a PIN was tried is always stated, and the digits appear only in
+        /// the case where they are already published.
+        public let pin: String
+
+        /// When the run started.
+        ///
+        /// PASSED IN, NEVER READ HERE. The kit takes no clock reading of its own
+        /// — a report whose timestamp came from inside `report()` would be the
+        /// time somebody re-rendered it rather than the time of the run, and
+        /// nothing in `swift test` could pin a function that asks the system
+        /// what time it is.
+        public let startedAt: Date
+
+        /// How many runs this phone has made against this peripheral, this one
+        /// included. `nil` when nothing was counted.
+        ///
+        /// COUNTED AGAINST THE PERIPHERAL IDENTIFIER, WHICH IS NOT THE DUCK.
+        /// See `DuckLink.identifierIsNotAnIdentity`: the identifier survives a
+        /// rename and does not survive a change of Bluetooth address, so a duck
+        /// that changed address starts again at 1. The report says so rather
+        /// than presenting the number as a fact about the robot.
+        public let runNumber: Int?
+
+        /// Every candidate the scan window recorded, in the order first seen.
+        ///
+        /// EVERY CANDIDATE, NOT THE FIRST ONE. The scan step used to end at the
+        /// first sighting of anything, and the duck that was then tested need
+        /// not have been it — so a report could name a hang against a robot
+        /// while the row somebody actually tapped was a different device
+        /// entirely. Listing the window is what lets a reader see that.
+        public let sightings: [DuckLink.Sighting]
+
+        /// The one that was picked and run against. `nil` when the run stopped
+        /// before anybody picked.
+        public let tested: DuckLink.Sighting?
+
+        /// What `hello` answered, when it answered.
+        public let hello: DuckLink.Hello?
+
+        /// What `system.info` answered, when it answered.
+        public let info: DuckLink.SystemInfo?
+        /// Answers that arrived for a step AFTER it had ended, keyed by step.
+        ///
+        /// KEPT SO THAT "NO ANSWER AND NO ERROR" IS NEVER PRINTED ABOUT A ROBOT
+        /// THAT ANSWERED. The step keeps its timeout — the client had given up
+        /// — but the report says an answer came, and when.
+        public let lateAnswers: [Step: String]
+        /// Methods of id-less JSON-RPC lines the robot sent during the run.
+        public let notifications: [String]
+        /// Whether `system.authenticate`'s write was confirmed on the wire.
+        /// `false` when the step ended before any write — the link gone, or the
+        /// line unserialisable — so the PIN line can say the PIN was never sent.
+        public let authenticateWritten: Bool
 
         public init(outcomes: [Step: Outcome],
                     pairingPromptShown: Bool?,
                     requirePairing: Bool,
                     deviceModel: String,
                     iOSVersion: String,
-                    robotAPIVersion: UInt8?) {
+                    robotAPIVersion: UInt8?,
+                    pin: String,
+                    startedAt: Date,
+                    runNumber: Int? = nil,
+                    sightings: [DuckLink.Sighting] = [],
+                    tested: DuckLink.Sighting? = nil,
+                    hello: DuckLink.Hello? = nil,
+                    info: DuckLink.SystemInfo? = nil,
+                    lateAnswers: [Step: String] = [:],
+                    notifications: [String] = [],
+                    authenticateWritten: Bool = true) {
             self.outcomes = outcomes
             self.pairingPromptShown = pairingPromptShown
             self.requirePairing = requirePairing
             self.deviceModel = deviceModel
             self.iOSVersion = iOSVersion
             self.robotAPIVersion = robotAPIVersion
+            self.pin = pin
+            self.startedAt = startedAt
+            self.runNumber = runNumber
+            self.sightings = sightings
+            self.tested = tested
+            self.hello = hello
+            self.info = info
+            self.lateAnswers = lateAnswers
+            self.notifications = notifications
+            self.authenticateWritten = authenticateWritten
         }
 
         /// What a step did, with "never tried" as a real answer rather than a
@@ -347,6 +549,50 @@ public enum PairingSpike {
         /// The first step that did not succeed, or `nil` for a clean run.
         public var stoppedAt: Step? {
             Step.allCases.first { !outcome(for: $0).isOK }
+        }
+
+        /// What a failure at this step means IN THIS RUN.
+        ///
+        /// `Step.failureMeans` is what a failure there means in general, and for
+        /// seven of the eight steps that is the whole answer. `authenticate` is
+        /// the exception, and it was offering the reader an ambiguity this run
+        /// had already resolved: "either the PIN is wrong or the robot predates
+        /// API version 4" — when the read step, four steps earlier, printed the
+        /// robot's API version at the top of the same report. A report that asks
+        /// its reader to consider a possibility its own Setup section rules out
+        /// is teaching them not to trust the rest of it.
+        public func explanation(for step: Step) -> String {
+            // THE READ IS THE PREMISE OF EVERY SENTENCE BELOW IT, so a run in
+            // which the read did not complete may not print them. `subscribe`
+            // says "the link is up and encrypted", `hello` says "the bond
+            // already succeeded upstream", `systemInfo` says "the bond and the
+            // PIN both already proven above" — and the run this spike exists
+            // to produce, §5.5's hang, is exactly the one where all three are
+            // false: the read times out, the harness carries on past it on
+            // purpose, and every later step times out too. Those sentences
+            // were being printed under each of them.
+            if step == .readVersion, outcome(for: .readVersion) == .notReached {
+                return "The read was never issued: the link ended before it could be. Nothing about "
+                     + "§5.5 was measured here."
+            }
+            if step.rawValue > Step.readVersion.rawValue, !outcome(for: .readVersion).isOK {
+                return PairingSpike.downstreamOfAnUnfinishedRead
+            }
+            guard step == .authenticate else { return step.failureMeans }
+            guard let version = robotAPIVersion else {
+                return step.failureMeans + " This run cannot say which: the read never returned a "
+                     + "version, so the robot's age is unknown here. That is one more reason to "
+                     + "fix the read first."
+            }
+            if version < PairingSpike.authenticateAddedInAPIVersion {
+                return "The robot reported API version \(version) on the read, and "
+                     + "system.authenticate arrived in \(PairingSpike.authenticateAddedInAPIVersion) "
+                     + "— so this robot has no PIN method at all. That is the robot's age, and it "
+                     + "says nothing about the PIN or about pairing."
+            }
+            return "The robot reported API version \(version) on the read, which is at or past the "
+                 + "\(PairingSpike.authenticateAddedInAPIVersion) that added system.authenticate — "
+                 + "so this is NOT the robot's age. The PIN itself was refused or went unanswered."
         }
 
         /// What this run says about §5.5.
@@ -364,11 +610,13 @@ public enum PairingSpike {
                 return Reading(
                     verdict: .establishesNothing,
                     headline: "This run never reached the read, so it establishes nothing about §5.5.",
-                    body: "The spike stopped at \(stopper.title) — \(outcome(for: stopper).line). "
+                    body: "The spike stopped at \(stopper.title) — "
+                        + "\(PairingSpike.stopped(outcome(for: stopper).line)) "
                         + "§5.5 is a question about exactly one operation, the encrypted read of the "
                         + "API version, and that operation was never issued here. Nothing in this run "
                         + "supports flipping --require-pairing on, and nothing in it contradicts "
-                        + "doing so either. \(stopper.failureMeans) Fix that and run it again.")
+                        + "doing so either. \(explanation(for: stopper)) Fix that and run it "
+                        + "again.")
 
             case .timedOut(let after):
                 // THE FLAG IS THE EXPERIMENTAL CONDITION, SO IT IS CHECKED IN
@@ -455,10 +703,11 @@ public enum PairingSpike {
                          + promptSentenceForSuccess
                 if let later = firstFailureAfterTheRead {
                     body += " The run did not finish, though: \(later.title) — "
-                            + "\(outcome(for: later).line). That is a separate defect from §5.5 and "
+                            + "\(PairingSpike.stopped(outcome(for: later).line)) That is a separate "
+                            + "defect from §5.5 and "
                             + "does not weaken the read result above, but nothing here can be quoted "
                             + "as a working end-to-end phone flow until it is understood. "
-                            + "\(later.failureMeans)"
+                            + "\(explanation(for: later))"
                 }
                 return Reading(
                     verdict: .flagCanDefaultOn,
@@ -529,21 +778,31 @@ public enum PairingSpike {
             out += PairingSpike.whatThisIsFor + "\n\n"
 
             out += "Setup\n-----\n"
+            out += "Run started: \(PairingSpike.timestamp(startedAt))\n"
+            if let runNumber {
+                out += "Run count: this is run \(runNumber) from this phone against this "
+                     + "peripheral. The count is kept against the identifier iOS gives the "
+                     + "peripheral, which survives a rename and does not survive a change of "
+                     + "Bluetooth address — so a duck that changed address starts again at 1.\n"
+            }
             out += "Phone: \(deviceModel), iOS \(iOSVersion)\n"
             out += "Robot: btd started with --require-pairing "
-            out += requirePairing ? "ON\n" : "OFF\n"
+            out += requirePairing ? "ON" : "OFF"
+            out += " — as answered by whoever launched it. Nothing in the advertisement, the GATT "
+                 + "table or the RPC surface says which way, so this line is a person's answer and "
+                 + "not a measurement.\n"
             out += "iOS pairing prompt: "
             switch pairingPromptShown {
             case .some(true): out += "shown\n"
             case .some(false): out += "not shown\n"
             case .none: out += "NOT OBSERVED (nobody was watching the screen)\n"
             }
-            if let version = robotAPIVersion {
-                out += "Robot API version: \(version), read as one byte off the RPC characteristic\n"
-            } else {
-                out += "Robot API version: unknown — the read never returned one\n"
-            }
+            out += pinLine + "\n"
+            out += apiVersionLine + "\n"
             out += "Service \(DuckLink.serviceUUID), characteristic \(DuckLink.rpcUUID)\n\n"
+
+            out += "What the scan saw\n-----------------\n"
+            out += scanSection
 
             out += "Steps\n-----\n"
             for step in Step.allCases {
@@ -557,17 +816,196 @@ public enum PairingSpike {
                 case .ok, .notReached:
                     break
                 case .refused, .timedOut:
-                    out += "   \(step.failureMeans)\n"
+                    if let late = lateAnswers[step] {
+                        out += "   LATE ANSWER: \(PairingSpike.stopped(late)) The line above is "
+                             + "the client's view — it had given up — and not a silence on the "
+                             + "robot's side.\n"
+                    }
+                    out += "   \(explanation(for: step))\n"
                     out += "   Budget: \(step.timeoutRationale)\n"
                 }
             }
             out += "\n"
 
+            out += "What the robot said\n-------------------\n"
+            out += robotSection + "\n"
+
             let reading = self.reading
             out += "Reading\n-------\n"
             out += reading.headline + "\n\n"
-            out += reading.body + "\n"
+            out += reading.body + "\n\n"
+            out += PairingSpike.oneRunIsOneObservation + "\n"
             return out
+        }
+
+        /// The PIN line, which names the PIN only when the PIN is public — and
+        /// only says it was TRIED when the step that would have tried it ran.
+        ///
+        /// A RUN THAT STOPS AT THE SCAN HAS TRIED NO PIN AT ALL. The value is
+        /// carried from the moment the person picks a duck, so a report that
+        /// said "PIN tried: 000000" under a run that never reached
+        /// `system.authenticate` would be describing a write that was never put
+        /// on any wire — the small, plausible kind of false sentence that costs
+        /// a maintainer an hour looking for a refusal nobody received.
+        private var pinLine: String {
+            let neverOnTheWire: String? = {
+                if outcome(for: .authenticate) == .notReached {
+                    return "PIN never tried — the run stopped before system.authenticate. It would "
+                         + "have used"
+                }
+                // REFUSED BEFORE THE WRITE IS NOT TRIED EITHER. "The link was gone
+                // before the write" and a serialisation failure both end the
+                // step as a refusal with nothing on any wire; the harness
+                // records whether the write was confirmed, and this reads it.
+                if !authenticateWritten {
+                    return "PIN never put on the wire — system.authenticate ended before its "
+                         + "write was confirmed. It would have used"
+                }
+                return nil
+            }()
+            let heading = neverOnTheWire ?? "PIN tried:"
+            guard pin == PairingSpike.factoryPIN else {
+                return "\(heading) a PIN of this robot's own, \(pin.count) characters, NOT printed "
+                     + "here — a provisioned PIN is a real secret and this report is written to be "
+                     + "pasted in public. Only the factory one is safe to quote."
+            }
+            return "\(heading) \(pin) — the factory PIN, published in Pollen's own repository, "
+                 + "which is exactly why §5.5 calls a robot with the flag off \"readable by a "
+                 + "bystander\". Printing it here leaks nothing."
+        }
+
+        /// The API-version line, which refuses to print a version beside a
+        /// reading that says nothing came back.
+        ///
+        /// A LATE BYTE IS NOT A READ THAT WORKED, AND THIS REPORT SAID IT WAS.
+        /// The harness keeps a read answer that lands after its own deadline —
+        /// which version a robot runs is worth knowing however late it arrived,
+        /// and recognising it also keeps a stray unframed byte out of the line
+        /// reassembler — but the step keeps its `.timedOut`, and the report was
+        /// printing "Robot API version: 16, read as one byte off the RPC
+        /// characteristic" at the top of a document whose Reading said the read
+        /// never answered at all. Two sentences in the same report, one of them
+        /// false, in the outcome Pollen most need to believe.
+        private var apiVersionLine: String {
+            guard let version = robotAPIVersion else {
+                return "Robot API version: unknown — the read never returned one"
+            }
+            guard case .timedOut(let after) = outcome(for: .readVersion) else {
+                return "Robot API version: \(version), read as one byte off the RPC characteristic"
+            }
+            return "Robot API version: \(version) — but that byte arrived AFTER the read's "
+                 + "\(PairingSpike.seconds(after)) budget had already run out. A client had given "
+                 + "up by then, so the read step below is still a hang; this only says which "
+                 + "version the robot runs."
+        }
+
+        /// Which duck was tested and what else was in the room.
+        private var scanSection: String {
+            guard !sightings.isEmpty else {
+                return "Nothing was seen.\n\n"
+            }
+            // HEARD AND REMEMBERED ARE TWO LISTS. iOS hands back a peripheral for
+            // any identifier it is asked about, and a report that put those
+            // under "seen in the window" would be describing a radio event
+            // that never happened.
+            let heard = sightings.filter(\.heard)
+            let remembered = sightings.filter { !$0.heard }
+            var out = ""
+            if heard.isEmpty {
+                out += "NOTHING WAS HEARD ON THE RADIO in this window. What follows was offered "
+                     + "from this phone's memory by identifier, which iOS does for any identifier "
+                     + "it is given — switched off, out of range, or in another building.\n"
+            }
+            if let tested {
+                out += "Tested: \(tested.line)\n"
+            } else {
+                out += "Tested: nothing — the run stopped before a duck was picked.\n"
+            }
+            let others = heard.filter { $0 != tested }
+            if others.isEmpty {
+                if !heard.isEmpty { out += "Nothing else was heard in the scan window.\n" }
+            } else {
+                out += "Also heard in the same window:\n"
+                for other in others { out += "  - \(other.line)\n" }
+            }
+            let rememberedOnly = remembered.filter { $0 != tested }
+            if !rememberedOnly.isEmpty {
+                out += "Remembered from an earlier run and NOT heard this time:\n"
+                for one in rememberedOnly { out += "  - \(one.line)\n" }
+            }
+            out += "This is a list of CANDIDATES, not a census of the room: the scan is given no "
+                 + "service filter, and a device matching none of the three tiers is never "
+                 + "recorded. \"Serves our characteristic\" is the only authoritative identity "
+                 + "test and it is knowable solely after connecting.\n\n"
+            return out
+        }
+
+        /// What `hello` and `system.info` actually came back with.
+        ///
+        /// PRINTED BECAUSE THE REPORT USED TO CLAIM IT WITHOUT LOOKING. The
+        /// systemInfo step said it established "that an authenticated call
+        /// returns real data" while the harness parsed nothing but the JSON-RPC
+        /// id off the line — so "real data" was a claim about a field nobody had
+        /// read. Either the report shows the data or it must not use the word.
+        private var robotSection: String {
+            var out = ""
+            if let hello {
+                let build = hello.daemonVersion.map { "btd \($0)" } ?? "an unnamed btd build"
+                let revision = hello.revision.map { "revision \($0)" }
+                    ?? "no revision — a build that did not come from CI"
+                out += "hello: \(build), \(revision), API version \(hello.apiVersion)\n"
+            } else {
+                out += "hello: \(nothingSaid(by: .hello))\n"
+            }
+            if let info {
+                out += "system.info: name \"\(info.name)\", serial \"\(info.serial)\", up "
+                     + "\(PairingSpike.uptime(info.uptimeSeconds))\n"
+                out += "The serial is the durable identity of this duck — it outlives a rename and "
+                     + "a change of Bluetooth address, neither of which the peripheral identifier "
+                     + "this app keys on survives.\n"
+            } else {
+                out += "system.info: \(nothingSaid(by: .systemInfo)) Nothing here names the robot.\n"
+            }
+            if !notifications.isEmpty {
+                out += "The robot also sent \(notifications.count) notification(s) during the run — "
+                     + "id-less lines the protocol allows and this app owes no answer to: "
+                     + "\(notifications.joined(separator: ", ")).\n"
+            }
+            return out
+        }
+
+        /// Why a step produced no answer to print.
+        ///
+        /// A SILENCE AND AN UNREADABLE ANSWER ARE THE ONE DISTINCTION THIS WHOLE
+        /// DOCUMENT EXISTS TO KEEP, so this section may not blur them either.
+        /// "No answer this app could read" was printed under a step that had
+        /// timed out — where nothing arrived at all — which is the same
+        /// substitution, made in a quieter place.
+        private func nothingSaid(by step: Step) -> String {
+            switch outcome(for: step) {
+            case .notReached:
+                return "not asked — the run stopped before this step."
+            case .timedOut(let after):
+                // A LATE ANSWER IS NOT A SILENCE. The step keeps its timeout —
+                // a client that had given up is what this report describes —
+                // but "no answer at all" is the one sentence this document may
+                // never print about a robot that answered.
+                guard let late = lateAnswers[step] else {
+                    return "no answer at all inside \(PairingSpike.seconds(after))."
+                }
+                return "no answer inside \(PairingSpike.seconds(after)) — but one ARRIVED LATE: "
+                     + "\(PairingSpike.stopped(late)) The step keeps its timeout; the robot did "
+                     + "answer, slowly."
+            case .refused(_, let why):
+                return "refused — \(PairingSpike.stopped(why))"
+            case .ok:
+                // The harness only files an `ok` here once the line has parsed,
+                // so this is unreachable in a run this app produced. It is
+                // written out rather than defaulted, because the day it does
+                // happen the report must say something true.
+                return "recorded as answered, but nothing was kept — report this, it is a bug in "
+                     + "this app rather than a finding about the robot."
+            }
         }
     }
 
@@ -576,6 +1014,18 @@ public enum PairingSpike {
     /// It names whose blocker this is and that a failure is a result, because a
     /// tester who thinks a hang means they did something wrong will quietly retry
     /// instead of reporting the most valuable outcome available.
+    /// What a failed step after an unfinished read is allowed to say.
+    ///
+    /// ONE SENTENCE FOR ALL OF THEM, because in that run they all mean the same
+    /// thing, which is nothing on their own.
+    public static let downstreamOfAnUnfinishedRead =
+        "Downstream of a read that did not complete, so this says nothing on its own. The "
+      + "sentence this step would normally earn presupposes a bond proven by the read, and no "
+      + "such thing was proven here. The run carries on past the read on purpose — so that a "
+      + "robot which answers late, or answers only some calls, is still described — and in the "
+      + "§5.5 outcome every step after the read is expected to end this way. The finding is "
+      + "the read, above."
+
     public static let whatThisIsFor =
         "This is not a feature. It runs one experiment that Pollen Robotics' own roadmap says is "
       + "blocking their phone app: scan, connect, read, hello, authenticate and system.info against "
@@ -587,4 +1037,26 @@ public enum PairingSpike {
       + "blocker clears. If it hangs here too, that is strong evidence the cause is an absent bond "
       + "rather than the platform — which is the more useful finding of the two. A step that times "
       + "out is a result, not a mistake: do not retry it quietly, report it."
+
+    /// The last line of every report.
+    ///
+    /// IT ASKS FOR THE RUN TO BE DONE AGAIN, AND THAT IS NOT MODESTY. Everything
+    /// above it is one phone, one robot, one room and one moment, and the two
+    /// answers this spike exists to tell apart — a hang and a completed read —
+    /// are both things a radio can produce by accident once. A report that
+    /// stopped at its own verdict invites a maintainer to act on a single
+    /// sample; naming the sample size is the difference between evidence and an
+    /// anecdote with a timestamp on it.
+    ///
+    /// It also names the two variations worth the most, because a second
+    /// identical run is worth much less than a run from a different phone or a
+    /// run that forgets the bond first.
+    public static let oneRunIsOneObservation =
+        "One run is one observation. This is one phone, one robot, one room and one moment — and "
+      + "both of the answers this spike can produce are things a radio will do by accident once. "
+      + "Run it again before anybody acts on it, and if you can, vary the two things that matter "
+      + "most: a different iPhone model, and a run after Settings › Bluetooth › Forget This Device, "
+      + "which is the only way to see the first-run pairing prompt a second time. Send every run, "
+      + "including the ones that disagree with this one — a disagreement between two runs is a "
+      + "finding, and quietly keeping the tidier of the two is how a real one gets lost."
 }

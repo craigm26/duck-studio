@@ -231,7 +231,12 @@ struct PairingSpikeView: View {
                 // ONE RUN AT A TIME. Picking a second duck mid-run would leave
                 // half a report attributed to the wrong robot.
                 .disabled(scanner.spikeStep != nil || scanner.spikeFinished)
-                .accessibilityLabel(Text(duck.sighting.name))
+                // THE KIT'S WHOLE LINE, because an explicit label on a Button
+                // REPLACES what its subtree would have said: with the name
+                // alone, the address, the signal and the evidence tier — the
+                // things a person picking between three rows before spending a
+                // sixty-second read budget needs — were absorbed and discarded.
+                .accessibilityLabel(Text(duck.sighting.line))
                 .accessibilityHint(Text("Runs the whole spike against this duck."))
             }
 
@@ -300,6 +305,16 @@ struct PairingSpikeView: View {
             Text(address(duck.address))
                 .font(.caption.monospaced())
                 .foregroundStyle(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            // WHAT GOT THIS ROW ONTO THE LIST, IN THE KIT'S WORDS. The scan is
+            // unfiltered and the ranking happens in software, so a row here can
+            // be anything from "advertises the robot's service UUID" to "a
+            // duck-ish name and nothing else" — and the person about to spend a
+            // 60-second read budget on one of them is entitled to know which.
+            // The report prints the same sentence for the duck that was tested.
+            Text(duck.tier.evidence)
+                .font(.caption2)
+                .foregroundStyle(Theme.textTertiary)
                 .fixedSize(horizontal: false, vertical: true)
             // RSSI IS TELEMETRY IN THE STRICT SENSE: different on every
             // advertisement, which is the claim monospace makes, and tabular
@@ -407,7 +422,14 @@ struct PairingSpikeView: View {
                         .font(.caption)
                         .foregroundStyle(ink)
                         .fixedSize(horizontal: false, vertical: true)
-                    Text(step.failureMeans)
+                    // THE RUN'S SENTENCE ONCE THERE IS A RUN, so the screen and
+                    // the report cannot say two different things about the same
+                    // step. `explanation(for:)` is `failureMeans` for seven of
+                    // the eight; for `authenticate` it resolves the wrong-PIN
+                    // versus old-robot ambiguity out of the API version the read
+                    // step already recorded, which the general sentence cannot
+                    // do because it has no run to look at.
+                    Text(run?.explanation(for: step) ?? step.failureMeans)
                         .font(.caption2)
                         .foregroundStyle(Theme.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)

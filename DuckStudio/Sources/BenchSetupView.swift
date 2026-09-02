@@ -83,13 +83,26 @@ struct BenchSetupView: View {
                         // is telling somebody what to type on another machine.
                         .fixedSize(horizontal: false, vertical: true)
                         .multilineTextAlignment(.leading)
-                        // THE HIG'S FLOOR, TAKEN OFF THE SPACING SCALE. A
-                        // caption glyph with `.snug` above and below it is a
-                        // shape past forty-four points, so this file never
-                        // writes that number down — there is exactly one of
-                        // those in the app and it is in `DesignComponents`.
+                        // THE HIG'S FLOOR, STATED — BECAUSE THE ARITHMETIC DID
+                        // NOT REACH IT. This claimed that a caption with
+                        // `.snug` above and below was already past forty-four
+                        // points; it is not. A caption is thirteen points and
+                        // its line box about sixteen, so twelve either side
+                        // makes forty on a one-line command, and less again at
+                        // the smaller text sizes — a shortfall nobody was going
+                        // to notice, on the one control on this screen that
+                        // does anything.
+                        //
+                        // The frame names `DesignMetric.minimumTarget`, which
+                        // is the app's one 44, rather than writing the number
+                        // again or hoping a font metric supplies it. The
+                        // padding stays: it is what keeps the command clear of
+                        // the step's prose, which is a spacing decision and
+                        // belongs on the spacing scale.
                         .padding(.vertical, Theme.spacing(.snug))
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(maxWidth: .infinity,
+                               minHeight: DesignMetric.minimumTarget,
+                               alignment: .leading)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)

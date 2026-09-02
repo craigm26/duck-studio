@@ -124,6 +124,29 @@ struct DuckSoundsView: View {
     /// which `Theme` says in as many words is a hint and not information. The
     /// orange bar under the playing call is the mark that carries it, and the
     /// accessibility value says it in a word.
+    ///
+    /// A GESTURE IS NOT A BUTTON UNTIL IT SAYS IT IS. These faces carried a
+    /// label and a value and stopped there, which made them read as text: no
+    /// `.isButton` trait, so VoiceOver never said "button" and Voice Control
+    /// had no verb to attach to the name; no action, so a double tap did
+    /// nothing and Switch Control could not fire one. Everything on this screen
+    /// was reachable and none of it was operable — seven calls that could only
+    /// be played by a finger held on the glass. The trait and the action are
+    /// what a `Button` would have brought, and a `Button` is exactly what this
+    /// cannot be: the held call needs a `DragGesture` to learn when a finger
+    /// LIFTS, which is `DuckSound.isHeld`, the robot's own hold semantics.
+    ///
+    /// `children: .ignore` FIRST, OR THE LABEL LANDS TWICE. The tile holds two
+    /// `Text`s — the name and the word "hold" — and a label set on a container
+    /// that is not itself an element is handed down to each child instead,
+    /// which is the same trap `DuckSoccerView` documents for a segmented
+    /// picker's segments. One element, one label, one action.
+    ///
+    /// AND THE ACTION TOGGLES ON THE ONE HELD CALL, exactly as `HoldButton`
+    /// does on the soccer pads: a double tap starts `wheee` and a second lets
+    /// it go, and letting go is the real release — `letGo` plays the decay
+    /// rather than cutting the loop off mid-breath. The six fire-and-forget
+    /// calls just start, which is all a press does to them anyway.
     private func button(for sound: DuckSound) -> some View {
         let isActive = playing == sound
         let live = !gaits.isEmpty
@@ -150,8 +173,61 @@ struct DuckSoundsView: View {
         .contentShape(face)
         .gesture(gesture(for: sound))
         .disabled(gaits.isEmpty)
+        .accessibilityElement(children: .ignore)
+        .accessibilityAddTraits(.isButton)
         .accessibilityLabel(Text(sound.isHeld ? "\(sound.tag), press and hold" : sound.tag))
-        .accessibilityValue(Text(isActive ? "playing" : ""))
+        .accessibilityValue(ifPresent: spokenState(of: sound))
+        .accessibilityHint(Text(spokenHint(for: sound)))
+        .accessibilityAction { activate(sound) }
+    }
+
+    /// What the tile is doing, in the one word the state actually knows.
+    ///
+    /// "held" IS NOT "playing" AND THE DIFFERENCE IS THE WHOLE CONTROL. On the
+    /// six fire-and-forget calls there is nothing to say but that a call is
+    /// under way; on `wheee` the loop is running because something is still
+    /// holding it, and somebody who started it with a double tap has no other
+    /// way to learn that a second one is what ends it.
+    private func spokenState(of sound: DuckSound) -> String? {
+        guard playing == sound else { return nil }
+        return sound.isHeld && holding ? "held" : "playing"
+    }
+
+    /// What a press will do, for whoever is being read to rather than looking.
+    ///
+    /// THE HELD ONE NEEDS THE SENTENCE AND THE OTHER SIX DO NOT, but they get
+    /// one anyway, because it costs nothing and a screen where one tile has a
+    /// hint and six do not reads as six tiles with something missing. The held
+    /// one earns it: `children: .ignore` is what stops the label being said
+    /// twice, and it also takes the little "hold" printed under the name out of
+    /// what is spoken. The hint is where that word goes back, and it is the
+    /// only place the double-tap-to-release behaviour is stated at all.
+    private func spokenHint(for sound: DuckSound) -> String {
+        sound.isHeld
+            ? "Double tap to start it, and double tap again to let it go."
+            : "Plays the call once — the voice and the movement together."
+    }
+
+    /// A press, arriving from a finger or from an assistive technology.
+    ///
+    /// THE GUARD IS HERE RATHER THAN ASSUMED. The tile is `.disabled` while the
+    /// recorded gaits are missing, and a custom accessibility action is not the
+    /// thing `disabled` reliably takes away — so the one state in which these
+    /// calls are deliberately inert is checked in the action itself, not left
+    /// to a modifier two lines up.
+    ///
+    /// AND IT MIRRORS THE GESTURE EXACTLY. `gesture(for:)` refuses to restart a
+    /// call that is already playing and only releases a held one that is
+    /// actually being held; a second path into the same two functions that
+    /// disagreed about either would be a call that behaves differently
+    /// depending on which input method started it.
+    private func activate(_ sound: DuckSound) {
+        guard !gaits.isEmpty else { return }
+        if sound.isHeld, playing == sound, holding {
+            letGo(sound)
+        } else if playing != sound {
+            start(sound)
+        }
     }
 
     private var face: RoundedRectangle {

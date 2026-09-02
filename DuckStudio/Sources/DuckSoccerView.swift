@@ -881,6 +881,18 @@ struct JoystickView: View {
     @State private var offset: CGSize = .zero
     @Environment(\.colorScheme) private var scheme
 
+    /// Whether the knob is against the travel ring, so the rigid tap fires once
+    /// on arrival rather than on every frame of a thumb held at the edge.
+    ///
+    /// THE FLAG IS THE WHOLE FEATURE. `DragGesture` delivers a change per frame,
+    /// so firing on the condition alone would buzz sixty times a second for as
+    /// long as somebody asked for full speed — which is not a signal, it is the
+    /// phone vibrating, and the first thing anybody would do about it is stop
+    /// noticing haptics in this app entirely. `ThumbPad` in `DriveView` carries
+    /// the same flag for the same reason; this is that behaviour on the other
+    /// four screens.
+    @State private var atLimit = false
+
     var body: some View {
         ZStack {
             Circle().fill(Theme.surfaceInteractive)
@@ -897,6 +909,16 @@ struct JoystickView: View {
                 .offset(offset)
         }
         .frame(width: side, height: side)
+        // THE ENGINE IS WARMED BY THE STICK, NOT BY THE SCREEN AROUND IT.
+        // Bow Bridge, Golf and Slalom each call `Haptic.prepare()` in their own
+        // `.task`; Duck soccer did not, so the same control gave a late first
+        // tap on one of the four screens it is drawn on and a prompt one on the
+        // other three — the kind of inconsistency that reads as the phone being
+        // unreliable rather than as a screen missing a line. A shared control
+        // that produces haptics should be the thing that prepares for them.
+        // `prepare()` is idempotent, so the three screens that already ask lose
+        // nothing by asking twice.
+        .task { Haptic.prepare() }
         .gesture(
             DragGesture()
                 .onChanged { value in
@@ -905,6 +927,7 @@ struct JoystickView: View {
                 }
                 .onEnded { _ in
                     offset = .zero
+                    atLimit = false
                     onChange(.zero)
                 })
         .accessibilityElement(children: .ignore)
@@ -934,6 +957,7 @@ struct JoystickView: View {
         // until it was nudged back. This is the release.
         .accessibilityAction(named: Text("Centre")) {
             offset = .zero
+            atLimit = false
             onChange(.zero)
         }
     }
@@ -957,10 +981,33 @@ struct JoystickView: View {
     /// ONE PLACE, SO THE GLASS AND THE ENGINE CANNOT DISAGREE. The drag and the
     /// three accessibility actions all arrive here, which is what makes the ring
     /// drawn above the boundary the mapping actually uses.
+    ///
+    /// AND THEREFORE THE ONE PLACE THAT KNOWS THE STICK HAS HIT THE RING. A
+    /// STICK AT ITS LIMIT IS A WALL, AND `.rigid` IS WHAT A WALL FEELS LIKE:
+    /// pushing further does nothing, the duck is already going as fast as it
+    /// will go, and the person is watching the pitch rather than the pad — so
+    /// the only channel left for "that is all of it" is the one under their
+    /// thumb. Because the clamp lives here, so does the tap, and the swipe
+    /// actions get it as well as the drag. Once, on arrival: `atLimit` is what
+    /// makes it an event rather than a vibration.
+    ///
+    /// `@MainActor` BECAUSE THE TAPTIC ENGINE IS UIKit'S AND UIKit IS. Every
+    /// caller is a gesture or accessibility closure written inside `body`, so
+    /// each already runs there; saying so is what lets a `Haptic` call sit in a
+    /// method rather than only inside those closures. `DriveView.press` carries
+    /// the annotation for the same reason.
+    @MainActor
     private func settle(width: CGFloat, height: CGFloat) {
         var dx = width, dy = height
         let limit = Stick.travel
         let length = max((dx * dx + dy * dy).squareRoot(), 1)
+        // Measured from the RAW length rather than from the clamped offset: the
+        // clamp puts every pinned knob at exactly `limit`, so asking the
+        // question afterwards is asking whether two divisions came out equal.
+        // This is the same number the clamp itself tests, one line down.
+        let now = length >= limit
+        if now, !atLimit { Haptic.stickAtLimit() }
+        atLimit = now
         if length > limit { dx *= limit / length; dy *= limit / length }
         offset = CGSize(width: dx, height: dy)
         onChange(vector(for: offset))

@@ -174,7 +174,7 @@ struct RunChart: View {
         // only to somebody looking at it. The word is the kit's; this places it.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(track.name))
-        .accessibilityValue(Text(track.reference?.label ?? ""))
+        .accessibilityValue(ifPresent: track.reference?.label)
     }
 
     /// The faint grid. Drawn in `separator`, which `Palette` calls decoration

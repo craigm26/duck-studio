@@ -339,6 +339,33 @@ struct EndpointEditor: View {
     /// Printed and spoken from one expression, so the two cannot round apart.
     private var timeoutSeconds: String { "\(Int(endpoint.timeout)) s" }
 
+    /// The one spinner on this form, wherever it turns.
+    ///
+    /// ONE TREATMENT, IN ONE PLACE. This screen drew three `ProgressView`s and
+    /// each carried its own `.tint`, which is one edit away from two colours
+    /// for the same waiting — the drift is invisible until somebody sees two of
+    /// them at once, and on this screen `busy` guarantees they do.
+    ///
+    /// AND NONE OF THE THREE CARRIED A WORD. An unlabelled `ProgressView` has
+    /// no accessibility label, so it is not an element and VoiceOver never
+    /// stops on it — while the button that was just pressed goes dim in the
+    /// same frame. A dimmed control with nothing beside it does not sound like
+    /// waiting, it sounds like a refusal, which is the opposite of what
+    /// happened.
+    ///
+    /// THE WORD IS GENERAL BECAUSE THE FLAG IS. `busy` is one boolean, set by
+    /// "Ask what models it has", by "Check this address" and by "Try a draft"
+    /// alike, so every spinner on the form turns while any one of them runs.
+    /// "Checking" would be wrong two times in three — and a wrong verb read
+    /// aloud is worse than a plain one, because it tells somebody who cannot
+    /// see the screen which button they pressed and names the wrong one.
+    /// "Working" is the whole of what this state actually knows.
+    private var waiting: some View {
+        ProgressView()
+            .tint(Theme.brandPrimary)
+            .accessibilityLabel(Text("Working"))
+    }
+
     var body: some View {
         List {
             Section("Name") {
@@ -364,8 +391,13 @@ struct EndpointEditor: View {
                         // INSIDE THE LABEL HERE AND NOWHERE ELSE, because this
                         // one is a plain row rather than a filled capsule:
                         // there is no orange for the spinner to be drawn on and
-                        // no shape for it to stretch.
-                        if busy { Spacer(); ProgressView().tint(Theme.brandPrimary) }
+                        // no shape for it to stretch. Being inside the label is
+                        // also why its word lands on the BUTTON rather than
+                        // beside it — a button's label is composed from its
+                        // subtree, so this row reads "Ask what models it has,
+                        // Working" while the request is out, which is the
+                        // sentence somebody who cannot see the spinner needs.
+                        if busy { Spacer(); waiting }
                     }
                 }
                 .disabled(busy)
@@ -411,9 +443,7 @@ struct EndpointEditor: View {
                 // one shape — and it would stretch the control as it appeared,
                 // moving a button under a thumb that is already on it.
                 if busy {
-                    ProgressView()
-                        .tint(Theme.brandPrimary)
-                        .frame(maxWidth: .infinity)
+                    waiting.frame(maxWidth: .infinity)
                 }
                 // A DISABLED CONTROL WITH NOTHING BESIDE IT IS A SILENT
                 // REFUSAL. The sentence comes from StudioKit so a test owns it.
@@ -452,9 +482,7 @@ struct EndpointEditor: View {
                 .disabled(busy || endpoint.model.isEmpty)
                 // Outside the capsule, for the reason given above.
                 if busy {
-                    ProgressView()
-                        .tint(Theme.brandPrimary)
-                        .frame(maxWidth: .infinity)
+                    waiting.frame(maxWidth: .infinity)
                 }
                 // The other disabled control on this screen, with its reason.
                 // The refusal already exists and is already tested — it is what

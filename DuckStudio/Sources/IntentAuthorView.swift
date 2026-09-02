@@ -1142,10 +1142,18 @@ private struct JointSlider: View {
 /// the third answer on the preference screen — and the Human Interface
 /// Guidelines' floor is forty-four points for all of them. A small control is
 /// not a quieter control; it is the same control, harder to hit, for no
-/// benefit. Here the reach comes off the spacing scale rather than being
-/// written down as a number: `.loose` either side of a footnote and `.standard`
-/// above and below it is comfortably past the floor in both directions, which
-/// is the same construction `DriveView`'s dead pad controls use.
+/// benefit.
+///
+/// AND THE FLOOR IS ASSERTED, NOT ARRIVED AT. This was the last button style in
+/// the app that did not name `DesignMetric.minimumTarget` out loud: it reached
+/// forty-four by putting `.loose` either side of a footnote and `.standard`
+/// above and below it, which is arithmetic that holds at the default text size
+/// and thins out at the small ones — a footnote's line box is about sixteen
+/// points at Large and shorter than that at xSmall, and nothing anywhere would
+/// have said so. A target that depends on a font metric is a target nobody can
+/// check. `PrimaryActionStyle` states its minimum in a frame and this now does
+/// the same, off the app's one 44. The padding stays, because it is what makes
+/// the capsule a shape rather than a floor.
 ///
 /// QUIET IS THE ABSENCE OF THE ACTION COLOUR, NOT THE ABSENCE OF CONTRAST. The
 /// usual treatment for a secondary button is half-opacity, which takes its
@@ -1174,7 +1182,6 @@ struct AuthoringActionStyle: ButtonStyle {
         let configuration: ButtonStyleConfiguration
 
         @Environment(\.isEnabled) private var isEnabled
-        @Environment(\.isFocused) private var isFocused
 
         var body: some View {
             configuration.label
@@ -1183,27 +1190,19 @@ struct AuthoringActionStyle: ButtonStyle {
                 .foregroundStyle(isEnabled ? Theme.textPrimary : Theme.textSecondary)
                 .padding(.horizontal, Theme.spacing(.loose))
                 .padding(.vertical, Theme.spacing(.standard))
+                .frame(minWidth: DesignMetric.minimumTarget,
+                       minHeight: DesignMetric.minimumTarget)
                 .background(Capsule().fill(configuration.isPressed
                                            ? Theme.surfaceInteractive
                                            : Theme.surfacePrimary))
                 .overlay(Capsule().strokeBorder(
                     Theme.separator, lineWidth: AuthoringMetric.hairlineStroke))
-                .overlay(focusRing)
+                // NO HAND-DRAWN FOCUS RING. One was here, gated on
+                // `@Environment(\.isFocused)`, which a `ButtonStyle` body on iOS
+                // is never handed — so it never drew, and `PrimaryActionStyle`
+                // says why at length. Full Keyboard Access draws the system's
+                // own ring on a focused button, and that one is real.
                 .contentShape(Capsule())
-        }
-
-        /// Three points of teal, two points clear of the capsule — the brand
-        /// sheet's geometry, and the same ring `PrimaryActionStyle` draws. The
-        /// negative padding is what puts it OUTSIDE the shape: `strokeBorder`
-        /// draws inside its own bounds, so growing those by the offset plus the
-        /// width leaves the ring's inner edge exactly clear of the button.
-        @ViewBuilder private var focusRing: some View {
-            if isFocused {
-                Capsule()
-                    .strokeBorder(Theme.focus, lineWidth: AuthoringMetric.focusRingWidth)
-                    .padding(-(AuthoringMetric.focusRingOffset
-                               + AuthoringMetric.focusRingWidth))
-            }
         }
     }
 }
@@ -1233,15 +1232,6 @@ enum AuthoringMetric {
     /// hairline that differ by four times is how a rule ends up drawn at the
     /// width of a gap.
     static let hairlineStroke = DesignMetric.hairlineStroke
-
-    /// 3pt stroke, 2pt clear of the shape — the focus ring, both schemes.
-    ///
-    /// Source: the Microduck design system's own token table, which specifies
-    /// the ring's geometry alongside its colour. The offset matters as much as
-    /// the width: a ring drawn ON a control's edge reads as a heavier border
-    /// and disappears against a filled shape.
-    static let focusRingWidth: CGFloat = 3
-    static let focusRingOffset: CGFloat = 2
 
     /// How much of the editor the duck is allowed, at ordinary text sizes.
     /// Above this the panels stop fitting on a small phone; below it the duck

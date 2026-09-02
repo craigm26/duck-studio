@@ -72,12 +72,107 @@ public enum DuckLink {
         public let rssi: Int?
         /// What the advertisement said about the robot's address.
         public let address: Address
+        /// Which of the three tiers of evidence got this device onto the list.
+        public let tier: Tier
+        /// Whether the radio heard this device in the window, or iOS handed it
+        /// back from memory by identifier.
+        ///
+        /// RETRIEVED IS NOT SEEN. `retrievePeripherals(withIdentifiers:)`
+        /// returns a peripheral for every identifier it is given — switched off,
+        /// out of range, in another building — with no advertisement behind
+        /// it. A report that listed those under "seen in the scan window" would
+        /// be describing a radio event that never happened, and a scan step
+        /// that turned green on one would be a forty-second silence written up
+        /// as a success. So a sighting says which it is, and the report keeps
+        /// the two apart.
+        public let heard: Bool
 
-        public init(name: String, rssi: Int?, address: Address) {
+        public init(name: String, rssi: Int?, address: Address, tier: Tier, heard: Bool = true) {
             self.name = name
             self.rssi = rssi
             self.address = address
+            self.tier = tier
+            self.heard = heard
         }
+
+        /// The one line the report prints for a sighting.
+        ///
+        /// SIGNAL IS PRINTED OR ITS ABSENCE IS, never a zero. iOS withholds RSSI
+        /// often enough that a report reading "0 dBm" would be read as a very
+        /// close duck by somebody who has never seen this app.
+        public var line: String {
+            let signal = rssi.map { "\($0) dBm" } ?? "no signal reading"
+            let base = "\(name), \(signal) — \(tier.evidence)"
+            return heard ? base
+                : base + "; offered from this phone's memory and NOT heard in this window"
+        }
+    }
+
+    /// How strong the evidence is that a sighting is a duck.
+    ///
+    /// THREE TIERS, NONE OF THEM PROOF, AND THE APP HAS TO RANK THEM SOMEWHERE.
+    /// `app-path-design.md` is precise about the two facts that force this: the
+    /// advertised service UUID is the best hint a scan can carry, and a BONDED
+    /// peripheral "frequently advertises with an empty service list" — so the
+    /// duck somebody has already paired with, the one they most want back, is
+    /// exactly the one that hint goes missing for. A filtered scan drops it
+    /// entirely, so the scan runs unfiltered and the ranking happens here, in
+    /// software, on whatever each advertisement actually carried.
+    ///
+    /// NONE OF THESE IS THE IDENTITY TEST. "Serves our characteristic" is "the
+    /// only authoritative identity test — it is knowable solely after
+    /// connecting", so every tier below describes a CANDIDATE and the handshake
+    /// is what settles it.
+    public enum Tier: Int, CaseIterable, Sendable {
+        /// The advertisement named the robot's service. The strongest thing a
+        /// scan can see without connecting.
+        case advertisedService
+        /// This phone has completed a handshake with this peripheral before, so
+        /// its identifier is stored — which is how a bonded duck advertising
+        /// nothing is still found.
+        case knownBefore
+        /// Nothing but a duck-ish Local Name. Deliberately generous: the cost of
+        /// a wrong guess is one refused connection and the cost of a miss is a
+        /// duck that cannot be found.
+        case nameOnly
+
+        /// What got it onto the list, for the report.
+        public var evidence: String {
+            switch self {
+            case .advertisedService: return "advertises the robot's service UUID"
+            case .knownBefore: return "this phone has handshaked with it before"
+            case .nameOnly: return "a duck-ish name and nothing else"
+            }
+        }
+
+        /// Whether this is evidence enough to stop listening.
+        ///
+        /// ONLY THE FIRST TIER IS. A name match may be somebody's headphones and
+        /// a stored identifier may be a duck that has since changed address, so
+        /// a scan that stopped at either would routinely test the wrong device;
+        /// a scan that stops at an advertised service UUID has the best evidence
+        /// the radio can carry and nothing is gained by listening longer.
+        public var endsTheScan: Bool { self == .advertisedService }
+    }
+
+    /// Rank one advertisement, or reject it.
+    ///
+    /// THE FILTER THAT IS NOT ON THE SCAN CALL. `scanForPeripherals` is given no
+    /// service list — see `Tier` for why — so every device in radio range is
+    /// reported to the app, and this is what decides which of them are
+    /// candidates. Written here rather than in the scanner because a rule about
+    /// what counts as a duck is a claim about Pollen's protocol, and a claim
+    /// like that in the app target is one no `swift test` can see.
+    ///
+    /// - Returns: The tier, or `nil` for a device that is not a candidate at
+    ///   all — somebody's headphones, a laptop, a car.
+    public static func tier(advertisesService: Bool,
+                            knownBefore: Bool,
+                            name: String?) -> Tier? {
+        if advertisesService { return .advertisedService }
+        if knownBefore { return .knownBefore }
+        if let name, looksLikeADuck(name) { return .nameOnly }
+        return nil
     }
 
     /// What an advertisement said about where the robot is on the network.
@@ -231,8 +326,42 @@ public enum DuckLink {
     /// newline inside a string as `\n`, so a raw `0x0A` never appears inside a
     /// serialised JSON object."
     public static func helloRequest(id: Int = 1) throws -> Data {
-        let body: [String: Any] = ["jsonrpc": "2.0", "id": id, "method": "hello",
-                                   "params": ["api_version": apiVersion]]
+        try framed(["jsonrpc": "2.0", "id": id, "method": "hello",
+                    "params": ["api_version": apiVersion]])
+    }
+
+    /// `system.authenticate`, framed and ready to write.
+    ///
+    /// THE PIN METHOD, AND THE ONE CALL IN THIS FILE THAT CARRIES A SECRET. Its
+    /// params are a single `pin` member and the value is a STRING, not a number:
+    /// a factory PIN of `000000` read as an integer is `0`, and a client that
+    /// sent `{"pin": 0}` would be refused by a robot that is working perfectly.
+    /// That is precisely the kind of invention this used to be — built inline in
+    /// the app target where no test could see it — and it is here so the exact
+    /// bytes are pinned by `swift test` instead.
+    public static func authenticateRequest(pin: String, id: Int) throws -> Data {
+        try framed(["jsonrpc": "2.0", "id": id,
+                    "method": "system.authenticate", "params": ["pin": pin]])
+    }
+
+    /// `system.info`, framed and ready to write.
+    ///
+    /// NO `params` MEMBER AT ALL, WHICH IS NOT THE SAME AS AN EMPTY ONE. JSON-RPC
+    /// 2.0 says `params` MAY be omitted, and `DuckCall.parameters()` already
+    /// states this project's rule in as many words: "an empty object is a claim
+    /// that the method takes parameters and got none — which is a different thing
+    /// to say to a strict deserialiser". This call takes none, so it sends none.
+    public static func systemInfoRequest(id: Int) throws -> Data {
+        try framed(["jsonrpc": "2.0", "id": id, "method": "system.info"])
+    }
+
+    /// One JSON object, sorted, with the newline that frames it.
+    ///
+    /// SORTED KEYS SO THE BYTES ARE A CONSTANT. A dictionary has no order, so
+    /// without `.sortedKeys` the same request would serialise differently from
+    /// run to run and a test could only ever check it by parsing it back —
+    /// which would pass on a line the robot rejects.
+    private static func framed(_ body: [String: Any]) throws -> Data {
         var data = try JSONSerialization.data(withJSONObject: body, options: [.sortedKeys])
         data.append(0x0A)
         return data
@@ -321,8 +450,14 @@ public enum DuckLink {
         }
     }
 
-    /// Read a `hello` answer off one NDJSON line.
-    public static func hello(fromLine line: Data) throws -> Hello {
+    /// The `result` member of one NDJSON line, or the refusal it carried.
+    ///
+    /// ONE PLACE THAT KNOWS WHAT A JSON-RPC ANSWER LOOKS LIKE, so every reader
+    /// below treats a refusal the same way. A robot's `error` is not an absence
+    /// of data — it is the most useful thing on the line — and a reader that
+    /// checked for `result` first would report "nothing came back" about a duck
+    /// that said exactly why it was saying no.
+    private static func result(ofLine line: Data) throws -> [String: Any] {
         guard let top = try? JSONSerialization.jsonObject(with: line) as? [String: Any] else {
             throw LinkError.notJSON
         }
@@ -330,14 +465,133 @@ public enum DuckLink {
             throw LinkError.robot(code: error["code"] as? Int ?? 0,
                                   message: error["message"] as? String ?? "no reason given")
         }
-        guard let result = top["result"] as? [String: Any],
-              let version = result["api_version"] as? UInt32
+        guard let result = top["result"] as? [String: Any] else {
+            throw LinkError.unexpected("A JSON-RPC line with neither a result nor an error in it.")
+        }
+        return result
+    }
+
+    /// Read a `hello` answer off one NDJSON line.
+    public static func hello(fromLine line: Data) throws -> Hello {
+        let result = try result(ofLine: line)
+        guard let version = result["api_version"] as? UInt32
                          ?? (result["api_version"] as? Int).map(UInt32.init) else {
             throw LinkError.unexpected("A reply with no api_version in it.")
         }
         return Hello(apiVersion: version,
                      daemonVersion: result["daemon_version"] as? String,
                      revision: result["revision"] as? String)
+    }
+
+    // MARK: - who the robot is
+
+    /// What `system.info` said the robot is.
+    ///
+    /// THE SERIAL IS THE ONLY DURABLE IDENTITY A DUCK HAS, and this is where it
+    /// arrives. `app-path-design.md` §8.6 calls it "the durable handle a client
+    /// should key on. It outlives a rename, and it outlives a change of
+    /// Bluetooth address" — and warns, about this app's exact shortcut, that "an
+    /// app that remembers a robot by its peripheral identifier alone will lose
+    /// it". See `identifierIsNotAnIdentity`, which says the same thing to a
+    /// person.
+    public struct SystemInfo: Equatable, Sendable {
+        /// The hostname, which is what a rename changes and the serial does not.
+        public let name: String
+        /// The SoC serial. The identity.
+        public let serial: String
+        /// How long the robot has been up. Seconds, as the field is spelled.
+        public let uptimeSeconds: Int
+
+        public init(name: String, serial: String, uptimeSeconds: Int) {
+            self.name = name
+            self.serial = serial
+            self.uptimeSeconds = uptimeSeconds
+        }
+    }
+
+    /// Read a `system.info` answer off one NDJSON line.
+    ///
+    /// EVERY FIELD IS REQUIRED, AND A MISSING ONE IS AN ERROR RATHER THAN A
+    /// BLANK. The spike's report says what the robot answered; a `SystemInfo`
+    /// with an empty serial in it would print as a robot that named itself and
+    /// then be read as one. If the line is not the shape `SystemInfoResult`
+    /// describes, this says so and the step is reported as a refusal with those
+    /// words in it — which is a finding about this app, and belongs in the
+    /// report as one.
+    public static func systemInfo(fromLine line: Data) throws -> SystemInfo {
+        let result = try result(ofLine: line)
+        guard let name = result["name"] as? String,
+              let serial = result["serial"] as? String else {
+            throw LinkError.unexpected(
+                "A system.info result with no name and serial in it. Those two are the answer.")
+        }
+        // AN INT OR A JSON NUMBER THAT HAPPENS TO CARRY A POINT. `serde_json`
+        // serialises a `u64` without one, but a robot that ever grew a
+        // fractional uptime would otherwise read as a robot with no uptime at
+        // all — which would be reported as a malformed answer from a duck that
+        // answered perfectly well.
+        let raw = result["uptime_seconds"]
+        guard let uptime = raw as? Int ?? (raw as? Double).map(Int.init) else {
+            throw LinkError.unexpected("A system.info result with no uptime_seconds in it.")
+        }
+        return SystemInfo(name: name, serial: serial, uptimeSeconds: uptime)
+    }
+
+    // MARK: - filing an answer against the request that asked for it
+
+    /// What a robot's answer was for, and whether it was a refusal.
+    ///
+    /// BY ID, NOT BY "WHATEVER IS IN FLIGHT". They are the same thing right up
+    /// until a request times out, and then they are the difference between a
+    /// true report and a fabricated one: a `hello` answer arriving while
+    /// `system.authenticate` is in flight would, under dispatch-by-whatever-is-
+    /// running, be recorded as an authenticate that succeeded.
+    public struct Reply: Equatable, Sendable {
+        public let id: Int
+        /// The refusal in words, or `nil` for an answer. A robot that says no
+        /// has told you the single most useful thing on the line, so it is
+        /// carried rather than collapsed into a bool.
+        public let trouble: String?
+
+        public init(id: Int, trouble: String?) {
+            self.id = id
+            self.trouble = trouble
+        }
+    }
+
+    /// Read the id and any refusal off one NDJSON line.
+    ///
+    /// - Returns: `nil` for a line this app cannot read at all, which a caller
+    ///   must report rather than discard: a line that ARRIVED is not silence,
+    ///   and dropping it lets a step run out its budget and be written up as
+    ///   "no answer and no error" about a robot that answered.
+    public static func reply(fromLine line: Data) -> Reply? {
+        guard let top = try? JSONSerialization.jsonObject(with: line) as? [String: Any],
+              let id = top["id"] as? Int else { return nil }
+        guard let error = top["error"] as? [String: Any] else { return Reply(id: id, trouble: nil) }
+        let refusal = LinkError.robot(code: error["code"] as? Int ?? 0,
+                                      message: error["message"] as? String ?? "no reason given")
+        return Reply(id: id, trouble: refusal.message)
+    }
+
+    /// The method of a JSON-RPC NOTIFICATION, or `nil` for anything else.
+    ///
+    /// NOT GARBAGE, AND NOT AN ANSWER TO ANYTHING. JSON-RPC 2.0 defines a
+    /// well-formed object with a `method` and no `id` as a notification: the
+    /// sender owes no reply and expects none. `reply(fromLine:)` returns `nil`
+    /// for it because it carries no id, and the spike used to report that `nil`
+    /// as "the duck answered and this app could not read the answer" and refuse
+    /// whichever step happened to be in flight — a fabricated refusal about a
+    /// robot doing exactly what the protocol allows, filed by whatever was
+    /// running, which is the dispatch rule `route` condemns. The BLE subset
+    /// Pollen document includes update progress, which is exactly the shape
+    /// that arrives this way. A caller asks this first; only a line that is
+    /// neither a notification nor a reply is unreadable.
+    public static func notificationMethod(fromLine line: Data) -> String? {
+        guard let top = try? JSONSerialization.jsonObject(with: line) as? [String: Any],
+              top["id"] == nil,
+              let method = top["method"] as? String else { return nil }
+        return method
     }
 
     /// What to tell somebody about a version difference.

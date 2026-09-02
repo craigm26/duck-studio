@@ -38,6 +38,30 @@ struct FindDuckView: View {
     /// to open on every row at once — which would say that four ducks answered
     /// when one did. This changes nothing about what is sent: it is set beside
     /// the same `handshake(with:)` call the button always made.
+    ///
+    /// AN ATTEMPT'S NAME HAS TO END WHEN THE ATTEMPT DOES, and this was set on
+    /// tap and never cleared. `startIfReady()` empties `found` and refills it
+    /// from a fresh scan, and a peripheral identifier survives that — so a duck
+    /// re-sighted after a finished attempt came back still wearing it, and the
+    /// row inherited a lens belonging to an attempt that was over. Three
+    /// transitions clear it, and they are the three the scanner actually
+    /// publishes: a failure, a return to idle, and a new scan starting. It also
+    /// clears when the screen goes away, because `onDisappear` cancels the
+    /// connection — after that no row is being reached, whatever `progress`
+    /// still says.
+    ///
+    /// SUCCESS DELIBERATELY DOES NOT CLEAR IT. `.done` is the one state where
+    /// the row's iris is supposed to be open: that duck answered, and clearing
+    /// here would put the lens back to sleep at the exact moment the thing it
+    /// exists to show happened.
+    ///
+    /// WHAT WOULD BE BETTER IS THE SCANNER SAYING WHOSE ATTEMPT IT IS. A
+    /// published peripheral identifier alongside `progress` would make this
+    /// derived rather than mirrored, and the mirror can still be wrong in one
+    /// way the screen cannot see: the everyday path has no deadline — only the
+    /// spike arms one — so a handshake that hangs stays `.running` until the
+    /// link drops, and the row narrows its iris for as long as that takes. A
+    /// timeout belongs in `DuckLinkScanner`, which this change does not own.
     @State private var reaching: UUID?
 
     var body: some View {
@@ -86,10 +110,32 @@ struct FindDuckView: View {
         .task { Haptic.prepare() }
         // A ROBOT ANSWERED, WHICH IS A THING THAT HAPPENED IN THE WORLD — the
         // one category `Haptic` exists for. Nothing here fires on a tap.
+        //
+        // AND THE SAME TRANSITION IS WHERE THE ROW'S NAME IS LET GO. Every way
+        // the everyday path can end lands here: `didFailToConnect` and a
+        // mid-handshake disconnect both come through as `.failed`, and `.done`
+        // is the one ending that keeps its row lit — see `reaching`.
         .onChange(of: scanner.progress) { _, now in
-            if case .done = now { Haptic.connected() }
+            switch now {
+            case .done: Haptic.connected()
+            case .failed, .idle: reaching = nil
+            case .running: break
+            }
         }
-        .onDisappear { scanner.stop() }
+        // A NEW SCAN IS A NEW QUESTION. `begin()` empties `found` and listens
+        // again, so whatever was being reached for before is history — and this
+        // fires only on the way up, because `handshake(with:)` stops the scan
+        // itself and would otherwise clear the row it had just set.
+        .onChange(of: scanner.scanning) { _, nowScanning in
+            if nowScanning { reaching = nil }
+        }
+        // `stop()` CANCELS THE CONNECTION, so nothing is being reached once
+        // this has run — including the duck that answered, whose lens would
+        // otherwise still be open on the way back from the spike screen.
+        .onDisappear {
+            scanner.stop()
+            reaching = nil
+        }
     }
 
     // MARK: - what the radio says about itself
@@ -120,11 +166,13 @@ struct FindDuckView: View {
                     row(duck)
                 }
                 .buttonStyle(.plain)
-                // THE NAME IS THE LABEL, THE LENS IS THE VALUE, AND WHAT THE ROW
-                // DOES IS THE HINT — rather than one run-on utterance nobody can
-                // skim past in a rotor. The address and the signal are read from
-                // the row's own text and `TelemetryRow`'s value.
-                .accessibilityLabel(Text(duck.sighting.name))
+                // THE SIGHTING IS THE LABEL, THE LENS IS THE VALUE, AND WHAT THE
+                // ROW DOES IS THE HINT. An explicit label on a Button REPLACES
+                // what its subtree would have said — so with the name alone the
+                // address, the signal and the evidence tier were absorbed and
+                // discarded, for the one person who cannot read them off the
+                // row. The kit's line carries all three.
+                .accessibilityLabel(Text(duck.sighting.line))
                 .accessibilityValue(Text(lens(for: duck).spoken))
                 .accessibilityHint(Text("Connects to this duck and runs the handshake."))
             }
@@ -469,9 +517,15 @@ enum ConnectivityMetric {
     /// the 60pt floor `PrimaryActionStyle` keeps for controls that do.
     static let minimumTarget = DesignMetric.minimumTarget
 
-    /// The focus ring's geometry, the app's one pair.
-    static let focusRingWidth = DesignMetric.focusRingWidth
-    static let focusRingOffset = DesignMetric.focusRingOffset
+    // THE FOCUS RING'S GEOMETRY IS GONE FROM HERE, and it is not coming back to
+    // this file. It aliased `DesignMetric.focusRingWidth` and `.focusRingOffset`
+    // for a ring `ConnectivityActionStyle` drew on `@Environment(\.isFocused)`
+    // — a value a `ButtonStyle` on iOS is never handed, so the ring never drew,
+    // and Full Keyboard Access draws the system's own around whatever it lands
+    // on anyway. `DesignComponents` says those two constants are "kept only
+    // until their last caller in `FindDuckView` goes"; this was that caller.
+    // They now have one left, `AuthoringMetric` in `IntentAuthorView`, for a
+    // ring with exactly the same defect.
 }
 
 /// The second-loudest button on these four screens.
@@ -493,6 +547,25 @@ enum ConnectivityMetric {
 /// the next surface along, which is the size of change a press needs to be seen
 /// and no larger; a control that moves out from under a committed finger is the
 /// one thing this app's button styles refuse to do.
+///
+/// IT IS NOT `PrimaryActionStyle` UNDER ANOTHER NAME, and the difference is the
+/// whole point of it rather than a detail: that style fills its capsule with
+/// `Theme.actionPrimary` and sets the label in `DesignFixed.onAction` at
+/// `.headline`, because it is the one thing on a screen somebody came to press.
+/// This one has no orange in it at all, sets a `.footnote` in `Theme.textPrimary`
+/// on `surfacePrimary`, and exists so that a screen can carry FIVE inline doors
+/// without five of them shouting. Both keep the same 44pt floor, and a screen
+/// that used this for its main action would be a screen with no main action.
+///
+/// THE ONE THAT IS A DUPLICATE IS `AuthoringActionStyle`, in `IntentAuthorView`.
+/// It is this style with two different paddings and its own metric enum — same
+/// font, same inks, same surfaces, same press, same floor. One of the two should
+/// go, into `DesignComponents` beside `PrimaryActionStyle`, with the padding as
+/// a `Reach`-shaped parameter; that is a single style serving both, not a
+/// preference between them. It is not done here because this change owns the
+/// four connectivity screens and not the authoring ones, and a style deleted out
+/// from under a file somebody else is editing is a merge conflict rather than a
+/// cleanup. Written down so the next person finds the pair rather than the half.
 struct ConnectivityActionStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         Surface(configuration: configuration)
@@ -500,14 +573,26 @@ struct ConnectivityActionStyle: ButtonStyle {
 
     /// A nested `View` rather than the style itself, because `@Environment` only
     /// resolves inside one — a `ButtonStyle` is not a view, so a style that
-    /// needs to know whether it is enabled or focused has to hand its body to
-    /// something that is. `PrimaryActionStyle` is built the same way and says so
-    /// at greater length.
+    /// needs to know whether it is enabled has to hand its body to something
+    /// that is. `PrimaryActionStyle` is built the same way and says so at
+    /// greater length.
+    ///
+    /// AND BEING INSIDE A VIEW MAKES A VALUE READABLE, NOT MEANINGFUL. This
+    /// read `\.isFocused` here too, and drew three points of teal around the
+    /// capsule when it was true. It was never true: `isFocused` reports on a
+    /// focusable container, and iOS hands a plain `Button` nothing to put in a
+    /// style's body, so the ring was a claim rather than a feature. What
+    /// actually indicates focus here is Full Keyboard Access, which draws the
+    /// system's ring — in the shape and colour the person set in Settings —
+    /// around whatever it has landed on, in every app on the phone. A second,
+    /// hand-drawn ring on the handful of controls that happened to use this
+    /// style would not have added contrast; it would have taught somebody that
+    /// focus looks like two different things. `PrimaryActionStyle` had the same
+    /// ring removed for the same reason and argues it at length.
     private struct Surface: View {
         let configuration: ButtonStyleConfiguration
 
         @Environment(\.isEnabled) private var isEnabled
-        @Environment(\.isFocused) private var isFocused
 
         var body: some View {
             configuration.label
@@ -523,22 +608,7 @@ struct ConnectivityActionStyle: ButtonStyle {
                                            : Theme.surfacePrimary))
                 .overlay(Capsule().strokeBorder(Theme.separator,
                                                 lineWidth: ConnectivityMetric.hairlineStroke))
-                .overlay(focusRing)
                 .contentShape(Capsule())
-        }
-
-        /// Three points of teal, two points clear of the capsule — the brand
-        /// sheet's geometry, and the same ring `PrimaryActionStyle` draws. The
-        /// negative padding is what puts it OUTSIDE the shape: `strokeBorder`
-        /// draws inside its own bounds, so growing those by the offset plus the
-        /// width leaves the ring's inner edge exactly clear of the button.
-        @ViewBuilder private var focusRing: some View {
-            if isFocused {
-                Capsule()
-                    .strokeBorder(Theme.focus, lineWidth: ConnectivityMetric.focusRingWidth)
-                    .padding(-(ConnectivityMetric.focusRingOffset
-                               + ConnectivityMetric.focusRingWidth))
-            }
         }
     }
 }

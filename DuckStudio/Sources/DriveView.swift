@@ -30,6 +30,28 @@ import DuckEvidence
 /// scrolling to it while the duck was walking. It is now in a bar that never
 /// scrolls, and it is on the VoiceOver magic tap as well, so it can be reached
 /// without finding it first. See `transport`.
+///
+/// AND THE STOP IS NEVER DISABLED. It used to go dead whenever any other call
+/// was in flight — a health read, a policy swap, a reset — which means the one
+/// control on this screen that exists for the moment something is going wrong
+/// was unavailable for exactly as long as the screen was busy. It now pre-empts
+/// instead: it cancels whatever errand is in flight and sends its own stop on a
+/// path that does not look at `busy` at all. See `halt`.
+///
+/// WHAT A DUCK CAN HEAR GOES THROUGH THE PEER; WHAT ONLY A BENCH CAN DO STAYS A
+/// BENCH CALL. This screen used to post to `/intent` and `/stop` itself, which
+/// made it a bench screen wearing a robot's vocabulary: everything a person
+/// learnt driving here was knowledge about `duckbench.mjs` rather than about a
+/// Microduck. `DuckPeer` is the app's one vocabulary and `BenchPeer` is the
+/// adapter that speaks it to a bench, so the four things a duck can hear —
+/// `hello`, `robot.move`, `robot.stop`, `studio.state` — now leave this screen
+/// as calls in that vocabulary and the peer decides what they become on the
+/// wire. Three things do not, because no duck has them: `/health` lists the
+/// policies a bench holds, `/policy` loads one into the slot a face button
+/// names, and `/reset` picks the duck up. Those stay `DuckBench.Call`s, said so
+/// in `ask`. The dividing line is the point of the arrangement: drop a WebRTC
+/// peer in and the drive loop changes by one initialiser, while the three bench
+/// calls stay honestly bench-shaped rather than pretending to be robot ones.
 struct DriveView: View {
     @ObservedObject var model: LibraryModel
     @ObservedObject var benches: BenchStore
@@ -44,6 +66,20 @@ struct DriveView: View {
     @State private var touchSticks = DuckDrive.Sticks.centred
     @State private var running = false
     @State private var busy = false
+    /// Whether a STOP is in flight.
+    ///
+    /// SEPARATE FROM `busy`, AND THAT SEPARATION IS THE SAFETY FIX. `busy` is
+    /// what every other errand raises, and Stop used to be disabled by it —
+    /// so the button that exists for the moment a duck is walking somewhere it
+    /// should not be went dead for the length of any other call. Stop now runs
+    /// on its own path and raises only this, which nothing disables: the lens
+    /// reads it so the link still looks live, and pressing Stop twice sends two
+    /// stops, which is a duck told twice to do the thing it is already doing.
+    @State private var stopping = false
+    /// Set by `halt()` just before it cancels the errand in flight, so the
+    /// catch that receives the cancellation can tell Stop from the screen
+    /// going away. Consumed by `report`.
+    @State private var cutOffByStop = false
     @State private var failure: String?
     @State private var orbit = OrbitState.defaults
     /// Round trips completed since Drive was pressed, and the sim seconds they
@@ -71,6 +107,35 @@ struct DriveView: View {
     /// `PadReader` makes the same argument about a held button: the event is
     /// the arrival, not the state.
     @State private var wasNearALimit = false
+
+    /// The bench, spoken to in the robot's own vocabulary.
+    ///
+    /// ONE PEER FOR THE BENCH THAT IS SELECTED, REBUILT WHEN THAT CHANGES OR
+    /// THE TOKEN DOES — see `peerKey`. It is held rather than made per call
+    /// because a peer is a connection and not a value: `DuckPeer` is `AnyObject`
+    /// for exactly that reason, and `BenchPeer` keeps the last state block and
+    /// the id counter, both of which a fresh instance per request would throw
+    /// away every request.
+    @State private var peer: BenchPeer?
+
+    /// The bench errand in flight, kept so STOP CAN CUT IT OFF.
+    ///
+    /// ONE SLOT, HOLDING THE NEWEST. Everything except a stop goes in it —
+    /// connect, the drive loop, a reset, a policy swap — and `halt` cancels
+    /// whatever is there before sending its own. Without the handle, Stop could
+    /// only ask the loop to finish its current round trip, and a request to a
+    /// bench that has stopped answering is allowed two minutes to give up
+    /// (`DuckBench.urlRequest` sets the timeout); two minutes is not a stop.
+    ///
+    /// THE NEWEST RATHER THAN ALL OF THEM, which is honest about what this
+    /// screen can do at once: Drive and Reset are two presses and each clears
+    /// `running` first, so there is never a second loop underneath. A dropped
+    /// handle is a request already on its way back.
+    @State private var flight: Task<Void, Never>?
+
+    /// What `studio.state` last said, or nil when the peer has nothing to say.
+    /// Shown in the `link` layer — see `askWhatItSaw`.
+    @State private var stateSaid: String?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -110,8 +175,15 @@ struct DriveView: View {
         // user still has to swipe to it, and the swipes happen while the duck
         // is walking. The magic tap is two fingers double-tapped ANYWHERE on
         // the screen, which is the only stop that costs nothing to reach.
+        //
+        // AND IT NO LONGER REFUSES WHILE THE SCREEN IS BUSY. It used to guard
+        // on `!busy`, so the stop that costs nothing to reach did nothing at
+        // all for as long as any other call was out — silently, because a magic
+        // tap that returns early looks exactly like one the system did not
+        // deliver. A bench is the only thing it needs, and `halt` cuts off
+        // whatever else is in flight on its way past.
         .accessibilityAction(.magicTap) {
-            guard bench != nil, !busy else { return }
+            guard bench != nil else { return }
             Task { await halt() }
         }
         .task {
@@ -123,13 +195,24 @@ struct DriveView: View {
             // thing it is about — which teaches the person that the buzz and
             // the stick are unrelated.
             Haptic.prepare()
-            await connect()
+            flight = Task { await connect() }
         }
+        // THE PEER IS POINTED AT ONE BENCH WITH ONE TOKEN, and both can change
+        // while this screen is open — the picker changes the first, Manage
+        // benches the second. Rebuilding on either is what stops a peer holding
+        // an address the person has stopped using or a token they have replaced.
+        .onChange(of: peerKey) { _, _ in rebuildPeer() }
         .onDisappear {
             pad.stop()
             // LEAVING THE SCREEN STOPS THE LOOP. Without this the task keeps
             // sending intents at a bench for a screen nobody is looking at.
             running = false
+            // AND CUTS OFF THE REQUEST ALREADY OUT. `running` ends the loop at
+            // the top of its next turn, which is after the round trip in
+            // progress comes back; the cancel is what stops that one too. Not
+            // a Stop, so the flag says so.
+            cutOffByStop = false
+            flight?.cancel()
         }
         .alert("The bench refused", isPresented: Binding(
             get: { failure != nil }, set: { if !$0 { failure = nil } })) {
@@ -202,9 +285,13 @@ struct DriveView: View {
                 Text(policyLine).font(.caption2).foregroundStyle(Theme.measured)
             }
             if layers.contains(.link) {
-                Text(linkLine)
-                    .font(.caption2.monospacedDigit())
-                    .foregroundStyle(Theme.textSecondary)
+                // EVERY LINE HERE IS THE PEER'S ANSWER, NOT THIS SCREEN'S
+                // CLAIM. See `linkLines`.
+                ForEach(linkLines, id: \.self) { line in
+                    Text(line)
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(Theme.textSecondary)
+                }
             }
             if layers.contains(.limits), let live {
                 // ONLY THE ONES ABOUT TO CLIP. A list of fourteen joints is
@@ -224,8 +311,13 @@ struct DriveView: View {
                 }
             }
             if layers.contains(.joints), let live {
-                Text(jointGrid(live.stance.jointAngles))
-                    .font(.system(size: 9).monospaced())
+                // A TEXT STYLE, NOT A POINT SIZE. This was `.system(size: 9)`,
+                // which is below anything the platform will let a person choose
+                // and deaf to Dynamic Type in both directions — the layer is
+                // information, and information that ignores the setting a
+                // person made in order to read is not being shown to them.
+                Text(jointGrid(live.stance.jointAngles, columns: jointColumns))
+                    .font(.caption2.monospaced())
                     .foregroundStyle(Theme.textTertiary)
             }
             if let lastAction {
@@ -252,7 +344,13 @@ struct DriveView: View {
         .background(Theme.surfacePrimary, in: readoutPanel)
         .overlay(readoutPanel.strokeBorder(Theme.separator,
                                            lineWidth: DriveMetric.hairlineStroke))
-        .frame(maxWidth: DriveMetric.readoutWidth, alignment: .leading)
+        // UNCAPPED AT ACCESSIBILITY SIZES, for the reason `stage` gives about
+        // its own height: a width chosen so the duck is never behind the panel
+        // is the wrong constraint once the panel's job is to hold words
+        // somebody has asked to be twice as big. The duck gives up the corner;
+        // the numbers stay whole.
+        .frame(maxWidth: typeSize.isAccessibilitySize ? nil : DriveMetric.readoutWidth,
+               alignment: .leading)
         .padding(Theme.spacing(.snug))
     }
 
@@ -305,7 +403,10 @@ struct DriveView: View {
     /// asked, or has not been reached.
     private var linkState: LensIndicator.Connection {
         if health != nil { return .connected }
-        return busy ? .connecting : .asleep
+        // A STOP IS A CALL LIKE ANY OTHER AS FAR AS THE LENS IS CONCERNED. It
+        // keeps its own flag so that nothing can disable the button — see
+        // `stopping` — but the eye should still show the link being used.
+        return busy || stopping ? .connecting : .asleep
     }
 
     private var policyLine: String {
@@ -313,28 +414,79 @@ struct DriveView: View {
         return "policy \(chosen)"
     }
 
-    private var linkLine: String {
-        trips == 0 ? "no round trips yet" : "\(trips) trips"
+    /// What the link is, in the PEER'S own words.
+    ///
+    /// READ OFF THE PEER, NEVER ASSERTED HERE. Every line below comes from the
+    /// object that would have to be replaced to change the answer: the
+    /// transport's own label, `reach` — which `BenchPeer` takes straight from
+    /// `DuckMethod.reach(for: .bench)` rather than listing a second time — and
+    /// the refusal `BenchPeer` publishes for a call it cannot carry. A screen
+    /// that wrote "Bench · move, stop" in a string would keep saying it after
+    /// the routing table changed its mind, and the person reading it would be
+    /// looking at a control that is dead for a reason nothing on the glass
+    /// admits.
+    ///
+    /// PER CONTROL, BECAUSE THAT IS THE QUESTION SOMEBODY HAS. "Is this link
+    /// any good" is not answerable; "will Stop work" is, and it is the one that
+    /// gets asked while a duck is walking.
+    private var linkLines: [String] {
+        // TWO CAUSES, AND THIS CANNOT TELL THEM APART, SO IT NAMES BOTH.
+        // There is no peer when nothing is selected and there is no peer when
+        // the selected bench's address will not resolve; picking one of them to
+        // print would be the guess `DuckBench.plantSaid` refuses to make about
+        // its own three cases. The refusal with the real reason arrives the
+        // moment somebody presses something — see `requirePeer`.
+        guard let peer else {
+            return ["no peer — nothing selected, or its address will not resolve"]
+        }
+        var lines = ["\(peer.transportKind.label) · "
+                     + (trips == 0 ? "no round trips yet" : "\(trips) trips")]
+        if let stateSaid { lines.append(stateSaid) }
+        lines.append(reachLine("Drive", .move, peer))
+        lines.append(reachLine("Stop", .stop, peer))
+        lines.append(reachLine("Read", .state, peer))
+        // RESET IS NOT IN THE VOCABULARY AND THE PEER SAYS WHY. `robot.init` is
+        // the nearest method and `BenchPeer` refuses it by name — the bench's
+        // `/reset` teleports the duck upright, which is not the initial pose,
+        // and mapping one onto the other would hide a fall behind it. So the
+        // button stays a bench call, and this line reads that refusal's
+        // existence off the peer rather than restating the reason.
+        lines.append("Reset \(DuckMethod.initPose.rawValue) — "
+                     + (BenchPeer.refusal(for: .initPose) == nil
+                        ? "carried" : "refused, so Reset stays a bench call"))
+        return lines
     }
 
-    /// Fourteen numbers in two rows, small enough to sit over the picture.
+    private func reachLine(_ control: String, _ method: DuckMethod,
+                           _ peer: BenchPeer) -> String {
+        "\(control) \(method.rawValue) — "
+            + (peer.reach.contains(method) ? "carried" : "not carried")
+    }
+
+    /// Fourteen numbers in a grid, reflowing rather than shrinking.
     ///
-    /// THE ONE THING ON THIS SCREEN THAT DOES NOT SCALE WITH DYNAMIC TYPE, and
-    /// it is left that way knowingly. Seven `%7.3f` columns is a fixed-width
-    /// dump: at any size a person could read comfortably it is wider than a
-    /// phone, so growing the type would replace a legible small table with an
-    /// illegible clipped one. The layer is a tester's, it is off by default,
-    /// and every fact in it that matters — which joints are about to clip —
-    /// is in the `limits` layer at a readable size.
-    private func jointGrid(_ angles: [Double]) -> String {
+    /// THE COLUMN COUNT IS WHAT GIVES WHEN THE TYPE GROWS. Seven `%7.3f`
+    /// columns is a fixed-width dump, and at an accessibility size seven of
+    /// them are wider than any phone — which is the argument that used to pin
+    /// this layer at nine points. It is an argument for fewer columns, not for
+    /// type nobody can read: the table folds onto more, shorter rows, the panel
+    /// stops capping its width at the same moment (see `hud`), and every number
+    /// stays whole. `DriveMetric` holds both counts.
+    private func jointGrid(_ angles: [Double], columns: Int) -> String {
         var rows: [String] = []
         var row = ""
         for slot in 0..<DuckModel.policyJointCount {
             row += String(format: "%7.3f", angles[DuckModel.jointOfPolicySlot(slot)])
-            if (slot + 1) % 7 == 0 { rows.append(row); row = "" }
+            if (slot + 1) % columns == 0 { rows.append(row); row = "" }
         }
         if !row.isEmpty { rows.append(row) }
         return rows.joined(separator: "\n")
+    }
+
+    /// How many joints go on a line at the text size in force.
+    private var jointColumns: Int {
+        typeSize.isAccessibilitySize ? DriveMetric.jointColumnsEnlarged
+                                     : DriveMetric.jointColumns
     }
 
     // MARK: - the layers
@@ -379,13 +531,22 @@ struct DriveView: View {
                 .font(.footnote.weight(on ? .semibold : .regular))
                 .lineLimit(1)
                 .foregroundStyle(on ? Theme.textPrimary : Theme.textSecondary)
-                // `.standard` and `.snug` around a footnote is a target over
-                // fifty points tall and sixty wide, which clears the HIG's
-                // floor from the spacing scale alone — the app already has
-                // exactly one place that writes that floor down as a number,
-                // and this is not it.
+                // THE SPACING SCALE DID NOT REACH THE FLOOR ON ITS OWN, WHICH
+                // IS WHY THE MINIMUM IS NAMED HERE. `.snug` above and below a
+                // footnote is twelve and twelve around a line box of eighteen:
+                // forty-two points, measured, against a floor of forty-four.
+                // The old comment asserted "over fifty points tall" and was
+                // simply wrong — an assertion about a number is not a number,
+                // and this one was two points short on every chip on the
+                // screen. `DesignMetric.minimumTarget` is the app's one copy of
+                // the floor, taken in both directions the way
+                // `PrimaryActionStyle` takes its own; the frame goes on before
+                // the background so the capsule, the bill and the hit area are
+                // all the same shape.
                 .padding(.horizontal, Theme.spacing(.standard))
                 .padding(.vertical, Theme.spacing(.snug))
+                .frame(minWidth: DesignMetric.minimumTarget,
+                       minHeight: DesignMetric.minimumTarget)
                 .background { if on { Capsule().fill(Theme.surfaceInteractive) } }
                 .overlay(Capsule().strokeBorder(Theme.separator,
                                                 lineWidth: DriveMetric.hairlineStroke))
@@ -497,9 +658,22 @@ struct DriveView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(Theme.spacing(.snug))
-        .background(Theme.surfacePrimary,
-                    in: RoundedRectangle(cornerRadius: Theme.radius(DriveMetric.deck),
-                                         style: .continuous))
+        .background(Theme.surfacePrimary, in: deckCard)
+        // THE SAME HAIRLINE EVERY OTHER CARD ON THIS SCREEN HAS. The viewport,
+        // the readout panel, the chips and the thumb pads inside this very deck
+        // all take a `separator` edge; the deck alone did not, so the one card
+        // that fills the width was the one card with no edge — and on a palette
+        // whose grounds sit within about 1.1:1 of each other, an edge is the
+        // only thing that says where a surface starts. It is not a decoration
+        // here, it is the boundary.
+        .overlay(deckCard.strokeBorder(Theme.separator,
+                                       lineWidth: DriveMetric.hairlineStroke))
+    }
+
+    /// The deck's shape, drawn once so its fill and its edge cannot disagree
+    /// about the corner.
+    private var deckCard: RoundedRectangle {
+        RoundedRectangle(cornerRadius: Theme.radius(DriveMetric.deck), style: .continuous)
     }
 
     // MARK: - the controls
@@ -543,7 +717,7 @@ struct DriveView: View {
                         .font(.footnote)
                         .foregroundStyle(Theme.textSecondary)
                 } header: {
-                    Text("Stop and Reset")
+                    SectionHeading(text: "Stop and Reset")
                 }
                 .listRowBackground(Theme.surfacePrimary)
 
@@ -559,7 +733,7 @@ struct DriveView: View {
                             ForEach(health.policies, id: \.self) { Text($0).tag($0) }
                         }
                         .onChange(of: chosen) { _, now in
-                            Task { await swap(to: now) }
+                            flight = Task { await swap(to: now) }
                         }
                     }
                     NavigationLink { BenchSettingsView(store: benches) } label: {
@@ -580,7 +754,7 @@ struct DriveView: View {
                             .foregroundStyle(Theme.textSecondary)
                     }
                 } header: {
-                    Text("Controller")
+                    SectionHeading(text: "Controller")
                 }
                 .listRowBackground(Theme.surfacePrimary)
 
@@ -615,6 +789,14 @@ struct DriveView: View {
     /// ALL THREE MOVE THE ROBOT, so all three are the sixty-point variant.
     /// Drive starts a gait, Stop zeroes the command and lets it settle, Reset
     /// picks it up. None of them is a control you look at while you press it.
+    ///
+    /// EACH ONE IS DISABLED BY A DIFFERENT THING, AND STOP BY THE LEAST. Drive
+    /// waits for a policy to have been chosen, because there is nothing to drive
+    /// until one is loaded. Reset waits for the screen to stop being busy, which
+    /// is right: a second reset on top of one already going out is a request the
+    /// person cannot follow. Stop waits for nothing except a bench being
+    /// selected — it pre-empts instead, cancelling whatever is in flight before
+    /// sending its own. See `halt`.
     ///
     /// THREE SHAPES, WIDEST FIRST. Icon and word where the width is there, word
     /// alone on a narrow phone, stacked when the type is at an accessibility
@@ -652,8 +834,14 @@ struct DriveView: View {
 
     private func driveButton(icons: Bool, expands: Bool) -> some View {
         Button {
+            // PAUSE CUTS OFF THE TRIP IN FLIGHT, AND DRIVE NEVER STARTS A
+            // SECOND LOOP. Clearing `running` alone left a loop suspended in
+            // its round trip; pressed again before it returned, a second loop
+            // was started beside it — two intent streams at one bench, and
+            // Stop able to cancel only the one `flight` still held.
+            flight?.cancel()
             running.toggle()
-            if running { Task { await drive() } }
+            if running { flight = Task { await drive() } }
         } label: {
             transportLabel(running ? "Pause" : "Drive",
                            symbol: running ? "pause.circle" : "play.circle",
@@ -671,7 +859,15 @@ struct DriveView: View {
             transportLabel("Stop", symbol: "stop.circle", icons: icons, expands: expands)
         }
         .buttonStyle(.primaryActionMoves)
-        .disabled(busy || bench == nil)
+        // A BENCH IS THE ONLY THING IT NEEDS. This was `busy || bench == nil`,
+        // which meant the stop was dead for the whole of every health read,
+        // every policy swap and every reset — and those are precisely the
+        // moments when a duck is moving under a command somebody has changed
+        // their mind about. A control that stops a machine has no business
+        // being unavailable because the software is doing something else; if it
+        // cannot be pressed it is not a stop, it is a suggestion. What is left
+        // is the one case where the button would have nothing to talk to.
+        .disabled(bench == nil)
         .accessibilityHint(Text("Zeroes the command and lets the duck settle under it."))
         // FIRST IN THE BAR FOR A SCREEN READER, whatever order it is drawn in.
         // Sort priority is the only way to say "reach this one first" without
@@ -680,7 +876,7 @@ struct DriveView: View {
     }
 
     private func resetButton(icons: Bool, expands: Bool) -> some View {
-        Button { Task { await putBack() } } label: {
+        Button { flight = Task { await putBack() } } label: {
             transportLabel("Reset", symbol: "arrow.counterclockwise",
                            icons: icons, expands: expands)
         }
@@ -724,9 +920,15 @@ struct DriveView: View {
                 lastAction = "\(control.face): this bench has no \(slot.title) policy loaded."
                 return
             }
+            // ONE SWAP, THROUGH THE PICKER. Setting `chosen` fires the picker's
+            // `onChange`, which puts the swap in `flight` where Stop can cut
+            // it off. A face button used to ALSO start its own swap here — two
+            // `/policy` posts per press, and only the later one cancellable, so
+            // a stop pressed after a face button could still be followed by a
+            // network landing on the servos. Pressing the slot that is already
+            // loaded changes nothing and so swaps nothing, which is right.
             chosen = policy
             lastAction = "\(control.face) → \(slot.title): \(policy)"
-            await swap(to: policy)
         case .drive:
             break
         case .stop:
@@ -734,7 +936,7 @@ struct DriveView: View {
             await halt()
         case .reset:
             lastAction = "\(control.face) → reset"
-            await putBack()
+            flight = Task { await putBack() }
         case .unsupported(let why):
             // NOT SILENCE. A tester pressing a button they know from the robot
             // gets told why it does nothing here rather than concluding the
@@ -761,6 +963,14 @@ struct DriveView: View {
 
     // MARK: - talking to it
 
+    /// One request to the bench, with its bearer token on it.
+    ///
+    /// NARROWER THAN IT WAS, AND THE NARROWING IS THE POINT. Everything a duck
+    /// can hear leaves through `peer` now. What still goes out this way is the
+    /// three things a duck has no word for: `/health`, which lists the policies
+    /// this bench holds; `/policy`, which loads one of them into the slot a face
+    /// button names; and `/reset`, which picks the duck up — and a robot that
+    /// could put itself back on its feet would not need somebody to press it.
     @MainActor private func ask(_ call: DuckBench.Call) async throws -> Data {
         try await URLSession.shared.data(
             for: DuckBench.urlRequest(for: call, token: token)).0
@@ -771,37 +981,227 @@ struct DriveView: View {
         return try benches.armed(bench).resolved()
     }
 
+    /// The peer for the bench selected now, built if there is not one yet.
+    ///
+    /// IT THROWS THE SAME SENTENCES `requireBench` DOES, which is why the peer
+    /// is built here rather than only in `rebuildPeer`: an address that cannot
+    /// be reached is worth a paragraph at the moment somebody presses Drive,
+    /// and worth nothing at all while they are still typing it.
+    @MainActor private func requirePeer() throws -> BenchPeer {
+        if let peer { return peer }
+        let made = try makePeer()
+        peer = made
+        return made
+    }
+
+    /// Point a peer at the selected bench.
+    ///
+    /// THE ERRAND IS ALL THE APP TARGET LENDS IT. `BenchPeer` takes a closure
+    /// rather than a `URLSession` so the kit can be tested on a machine with no
+    /// phone and no network — its own preamble says so — which means the bearer
+    /// token, the session and the timeouts stay here, where they already were,
+    /// and the peer stays a thing `swift test` can drive.
+    ///
+    /// THE TOKEN IS READ PER REQUEST, OFF THE MAIN ACTOR, AS `ask` ALWAYS DID.
+    /// A snapshot at construction was tried and was wrong twice over: it keyed
+    /// the peer on the token, which put a Keychain read into every render, and
+    /// a token replaced in Settings stayed stale until something else rebuilt
+    /// the peer. One `SecItemCopyMatching` per call on the errand's own thread
+    /// is what the old path cost and it never showed in the intent rate.
+    @MainActor private func makePeer() throws -> BenchPeer {
+        let address = try requireBench()
+        let name = bench?.name
+        let id = bench?.id
+        let hasToken = bench?.hasToken ?? false
+        return try BenchPeer(address: address, name: name, errand: { call in
+            let token = hasToken ? id.flatMap { BenchKeyStore.load(for: $0) } : nil
+            return try await URLSession.shared.data(
+                for: DuckBench.urlRequest(for: call, token: token)).0
+        })
+    }
+
+    /// Throw the peer away and build the one this bench and token need.
+    @MainActor private func rebuildPeer() {
+        // `try?` BECAUSE THE ONE THING THE INITIALISER REFUSES CANNOT HAPPEN
+        // HERE. It throws for a NaN hold and nothing else, and the hold is
+        // `DuckDrive.holdSeconds`. An address that will not resolve is a
+        // different matter and is not silently swallowed: there is simply no
+        // peer until `requirePeer` is asked for one, and that call throws the
+        // refusal with the sentence somebody can act on.
+        peer = try? makePeer()
+        // THE NEW PEER HAS SEEN NOTHING. Carrying the old one's state line over
+        // would put the last bench's sim clock under the new bench's name.
+        stateSaid = nil
+    }
+
+    /// What the peer is pointed at, as one value `onChange` can compare.
+    ///
+    /// THE ADDRESS IS IN HERE, AND THE TOKEN IS NOT. Manage benches edits an
+    /// address in place under the same id, so a key made of the id alone left
+    /// the peer dialling a host the person had replaced while `/health` went
+    /// to the new one — Stop posting to a dead machine. The token is left out
+    /// for the opposite reason: a first cut put it here, which evaluated a
+    /// synchronous Keychain read on every SwiftUI render, several times per
+    /// round trip of the drive loop, and still missed a replaced token. The
+    /// errand reads it per request instead (see `makePeer`), so this key only
+    /// needs to know whether there is one.
+    private var peerKey: String {
+        guard let bench else { return "" }
+        return "\(bench.id.uuidString)·\(bench.address)·\(bench.hasToken)"
+    }
+
+    /// Put a thrown thing on the glass in the words its own type wrote.
+    ///
+    /// ONE FUNNEL, BECAUSE THE SENTENCES ARE THE PRODUCT. Every refusal this
+    /// app can suffer is a paragraph somebody wrote in the kit — what a bench
+    /// does not have and why, what an address is not, which method a link does
+    /// not carry — and the only way one of them reaches a person is for the
+    /// catch that receives it to ask its own type for its `message`. Anything
+    /// falling through to `localizedDescription` prints "The operation couldn't
+    /// be completed", which is this app admitting it did not know what it
+    /// caught. The list grew when the peer arrived: a peer refuses in three
+    /// vocabularies of its own.
+    ///
+    /// A CALL STOP CUT OFF IS NOT A FAILURE, AND IT IS NOT SILENCE EITHER. It
+    /// goes to `lastAction`, where the buttons report themselves, rather than
+    /// into the alert — an alert apologising for a cancelled request over a duck
+    /// that was just asked to stop is the app apologising for doing as it was
+    /// told. Saying nothing at all would be worse: the trip count stops moving
+    /// and nothing explains why.
+    @MainActor private func report(_ error: Error) {
+        if stopCutItOff(error) {
+            // ONLY WHEN IT WAS STOP. Leaving the screen cancels the same errand
+            // the same way, and the sentence was being written for that too —
+            // a readout claiming a stop on a screen where nobody pressed one.
+            if cutOffByStop { lastAction = "Stop cut off the call that was in flight." }
+            cutOffByStop = false
+            return
+        }
+        switch error {
+        case let refusal as DuckBench.ReadError: failure = refusal.message
+        case let refusal as DuckBench.Refusal: failure = refusal.message
+        case let refusal as BenchEndpoint.Refusal: failure = refusal.message
+        case let refusal as BenchPeer.Refusal: failure = refusal.message
+        case let misuse as BenchPeer.Misuse: failure = misuse.message
+        case let misuse as DuckCall.Misuse: failure = misuse.message
+        case let refusal as DuckDrive.Refusal: failure = refusal.message
+        default: failure = error.localizedDescription
+        }
+    }
+
+    /// Whether this failure is one Stop caused on purpose.
+    ///
+    /// BOTH SPELLINGS, BECAUSE THE CANCEL CROSSES A LIBRARY BOUNDARY. A task
+    /// cancelled while it is inside `URLSession` comes back as
+    /// `URLError.cancelled` — Foundation's word for it — and one cancelled
+    /// anywhere else comes back as Swift's `CancellationError`. Checking only
+    /// the second would put "cancelled (-999)" in an alert on the one path that
+    /// actually happens.
+    private func stopCutItOff(_ error: Error) -> Bool {
+        if error is CancellationError { return true }
+        if let url = error as? URLError, url.code == .cancelled { return true }
+        return false
+    }
+
+    /// What the peer says it last saw, in `studio.state`'s own words.
+    ///
+    /// A READ THAT TOUCHES NOTHING, WHICH IS THE ONLY REASON A DRIVING LOOP CAN
+    /// AFFORD IT. `BenchPeer` answers `studio.state` out of the block the last
+    /// command came back with and posts nothing at all, because every endpoint
+    /// this bench has advances physics to answer — so a read that went to the
+    /// wire would be a measurement that changed what it was measuring. The cost
+    /// here is an actor hop.
+    ///
+    /// THE CLOCK IS THE PEER'S WORD AND NOT THIS SCREEN'S. `t` is sim seconds,
+    /// and the reply carries `clock` beside it precisely so that nobody prints
+    /// it as elapsed real time; this reads both out rather than captioning the
+    /// number itself.
+    ///
+    /// IT GOES QUIET RATHER THAN GUESSING. Before anything has been commanded
+    /// the peer refuses — nothing has happened on this link yet — and after a
+    /// `/reset` or a policy load, which are bench calls the peer never made, its
+    /// memory is behind this screen's. Both end with no line rather than a stale
+    /// one.
+    @MainActor private func askWhatItSaw() async {
+        // CLEARED BEFORE THE GUARD, so a layer switched off and on again shows
+        // nothing rather than the sim clock from whenever it was last on.
+        stateSaid = nil
+        guard layers.contains(.link), let peer else { return }
+        guard let reply = try? await peer.call(.state), reply.succeeded,
+              let clock: String = reply.field("clock"),
+              let t: Double = reply.field("t") else { return }
+        stateSaid = String(format: "%@ clock %.2f s", clock, t)
+    }
+
     @MainActor private func connect() async {
         busy = true
         defer { busy = false }
+        rebuildPeer()
         do {
-            let address = try requireBench()
+            let peer = try requirePeer()
+            // WHO IS ON THE OTHER END, ASKED IN THE ROBOT'S OWN WORD. `hello`
+            // is the one call every transport in the vocabulary carries, and
+            // asking it here is what makes this screen's first move a peer's
+            // rather than a bench's.
+            //
+            // IT LANDS ON `/health`, WHICH THE NEXT LINE ASKS AGAIN FOR A
+            // DIFFERENT REASON, and that is two GETs where there used to be
+            // one. It is worth the second: `/health` is a status read that
+            // advances no physics, on a machine on the same desk, and the two
+            // questions are genuinely different — "who are you" is answerable
+            // by every peer this app will ever hold, and "which policies do you
+            // hold" is answerable by none of them but this one. Collapsing them
+            // would mean the handshake was bench-shaped again, which is the
+            // thing this change exists to end.
+            let greeting = try await peer.call(.hello)
+            if let refusal = greeting.failure {
+                failure = DuckBench.ReadError.bench(refusal.message).message
+                return
+            }
             health = try DuckBench.readHealth(
-                await ask(DuckBench.health(address)))
+                await ask(DuckBench.health(try requireBench())))
+            await askWhatItSaw()
+            // LAST, BECAUSE IT HANDS `flight` TO THE PICKER. Setting `chosen`
+            // fires the picker's `onChange`, which stores a swap task in the
+            // slot this connect is running in; done as the final act, nothing
+            // of connect is left running unowned.
             if chosen.isEmpty { chosen = health?.policies.first ?? "" }
-        } catch let refusal as DuckBench.Refusal { failure = refusal.message }
-        catch let error as DuckBench.ReadError { failure = error.message }
-        catch { failure = error.localizedDescription }
+        } catch { report(error) }
     }
 
     /// The loop. One command in flight at a time, and physics only advances
     /// while one is — so this IS the clock, not a timer running beside it.
+    ///
+    /// IT NOTIFIES RATHER THAN CALLS, WHICH IS THE ROBOT'S OWN DIRECTION FOR A
+    /// TWIST. `robot.move` is a continuous intent: sent as a notification at
+    /// 20–50 Hz, last-writer-wins, and on hardware it EXPIRES. `BenchPeer.notify`
+    /// still awaits a round trip, because a bench answers everything and
+    /// answering is how it reports the physics it just ran — but it hands back
+    /// nothing, so a loop written here stays valid against a peer that really
+    /// does not reply. The pacing is unchanged: one intent at a time, holding
+    /// `DuckDrive.holdSeconds` of sim, the round trip as the clock.
+    ///
+    /// THE STANCE COMES BACK OFF THE PEER, NOT OUT OF THE REPLY. Fifteen joint
+    /// angles and a root quaternion are not something anybody reads back with
+    /// `DuckReply.field(_:)`, and `BenchPeer` says why it keeps them whole
+    /// instead: re-serialising them into a reply would be a second spelling of
+    /// `DuckDrive.Live` for the drawing code to parse again. `live` is the
+    /// accessor `BenchPeerTests` pins, and it is the one thing a second peer
+    /// would have to answer to drive this screen.
     @MainActor private func drive() async {
         while running {
             do {
-                let address = try requireBench()
-                live = try DuckDrive.readLive(
-                    await ask(try DuckDrive.intent(address, twist)))
+                let peer = try requirePeer()
+                try await peer.notify(.move(twist))
+                live = await peer.live
                 trips += 1
                 noticeJoints()
-            } catch let error as DuckBench.ReadError {
-                failure = error.message
-                running = false
-            } catch let refusal as DuckBench.Refusal {
-                failure = refusal.message
-                running = false
+                await askWhatItSaw()
             } catch {
-                failure = error.localizedDescription
+                // A CANCELLED TRIP IS THE LOOP BEING TOLD TO END — by Pause,
+                // by Stop, or by the screen going away — and the loop ending
+                // is the whole of what there is to say about it.
+                if !stopCutItOff(error) { report(error) }
                 running = false
             }
         }
@@ -823,20 +1223,53 @@ struct DriveView: View {
         wasNearALimit = near
     }
 
+    /// Stop: zero the command and let the duck settle under it.
+    ///
+    /// THE ONE ERRAND THAT PRE-EMPTS. Three things happen before a byte goes
+    /// out, in this order and for three different reasons. `running` stops the
+    /// loop from starting another turn. The sticks go to centre so that a thumb
+    /// still on the glass is not the next command. And the errand in flight is
+    /// CANCELLED — which is the part that was missing: without it a stop
+    /// pressed during a round trip could only queue behind it, and a request to
+    /// a bench that has gone quiet is allowed two minutes to give up. A stop
+    /// somebody has to wait two minutes for is not a stop.
+    ///
+    /// IT RAISES `stopping` AND NOT `busy`, so nothing it does can disable the
+    /// button that started it. Press it twice and the bench is told twice to do
+    /// what it is already doing, which is the correct answer to somebody who is
+    /// not sure it heard.
+    ///
+    /// A DISCRETE CALL, BECAUSE THE CALLER NEEDS TO KNOW IT LANDED. `robot.stop`
+    /// is a request in Pollen's contract for exactly that reason — "I asked it
+    /// to stop" is not the same claim as "it stopped" — so this is `call` and
+    /// not `notify`, and a bench that refuses gets its own sentence rather than
+    /// a thrown error that would read like a broken network.
     @MainActor private func halt() async {
         running = false
         touchSticks = .centred
-        busy = true
-        defer { busy = false }
+        if let flight, !flight.isCancelled { cutOffByStop = true }
+        flight?.cancel()
+        stopping = true
+        defer { stopping = false }
         do {
-            live = try DuckDrive.readLive(await ask(try DuckDrive.stop(try requireBench())))
+            let peer = try requirePeer()
+            let answer = try await peer.call(.stop)
+            if let refusal = answer.failure {
+                // THE BENCH'S OWN WORDS, IN THE READER'S OWN WRAPPER. A refusal
+                // that came back in a reply rather than as a throw is still the
+                // bench saying no, and it is the same sentence `/stop` produced
+                // before the peer existed.
+                failure = DuckBench.ReadError.bench(refusal.message).message
+                return
+            }
+            live = await peer.live
             // A DUCK CAN ARRIVE AT A STOP WHILE IT SETTLES, and a stop that
             // ends with a joint clipped is the same finding as one found while
             // driving. The other reason to call it here is bookkeeping: without
             // it the edge would still hold the reading from before the stop.
             noticeJoints()
-        } catch let error as DuckBench.ReadError { failure = error.message }
-        catch { failure = error.localizedDescription }
+            await askWhatItSaw()
+        } catch { report(error) }
     }
 
     @MainActor private func putBack() async {
@@ -851,8 +1284,12 @@ struct DriveView: View {
             // more, and the next joint that arrives at one should be felt as an
             // arrival rather than swallowed as "still there".
             wasNearALimit = false
-        } catch let error as DuckBench.ReadError { failure = error.message }
-        catch { failure = error.localizedDescription }
+            // AND THE PEER DID NOT SEE IT HAPPEN. `/reset` is a bench call —
+            // `robot.init` is refused here, and for a good reason — so the block
+            // the peer is holding is now older than the duck on the screen. The
+            // link layer says nothing rather than saying that.
+            stateSaid = nil
+        } catch { report(error) }
     }
 
     /// Hot-swap the network the bench is running.
@@ -871,14 +1308,22 @@ struct DriveView: View {
     /// AFTER THE ANSWER, NOT AFTER THE PRESS. The tap means the bench swapped,
     /// which is the fact worth feeling; a refused swap produces the alert and
     /// no tap at all.
+    /// A BENCH CALL, AND IT STAYS ONE. Loading a network into a slot is not
+    /// something a duck can be asked to do: `robotd` owns the switching on the
+    /// robot and the pad's face buttons trigger skills through it, so there is
+    /// no method in the vocabulary for "put this file on the servos". `/policy`
+    /// is the bench's own door and this is the app's one caller of it.
     @MainActor private func swap(to policy: String) async {
         guard !policy.isEmpty else { return }
         do {
             live = try DuckDrive.readLive(
                 await ask(try DuckDrive.load(try requireBench(), policy: policy)))
             Haptic.behaviourStarted()
-        } catch let error as DuckBench.ReadError { failure = error.message }
-        catch { failure = error.localizedDescription }
+            // THE PEER DID NOT SEE THIS EITHER — see `putBack`. A different
+            // network is on the servos and the block the peer is holding came
+            // from the one before it.
+            stateSaid = nil
+        } catch { report(error) }
     }
 }
 
@@ -910,6 +1355,17 @@ private enum DriveMetric {
     /// constraint exactly when it would have been.
     static let readoutWidth: CGFloat = 260
 
+    /// How many joints the `joints` layer puts on one line.
+    ///
+    /// SEVEN IS HALF THE DRIVEN JOINTS, so the ordinary grid is two rows a
+    /// reader can compare down a column. At an accessibility size seven columns
+    /// of `%7.3f` are wider than any phone, and a table running off the glass is
+    /// a table with numbers missing from it — so the layer folds onto more,
+    /// shorter rows instead. Two, not three, because the type at those sizes is
+    /// nearly three times as wide per character as it is here.
+    static let jointColumns = 7
+    static let jointColumnsEnlarged = 2
+
     /// A hairline STROKE, the app's one.
     static let hairlineStroke = DesignMetric.hairlineStroke
 
@@ -919,6 +1375,7 @@ private enum DriveMetric {
     /// Bluetooth.
     static let pressDelta = DesignMetric.pressDelta
 }
+
 
 /// A control that is on the pad and does nothing against a bench.
 ///

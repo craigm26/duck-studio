@@ -13,34 +13,6 @@ import StudioKit
 /// other layout constant the design system already carries.
 private let hairlineStroke = DesignMetric.hairlineStroke
 
-/// A section heading, in the one heading style this design system has.
-///
-/// THIRTEEN POINTS, BOLD, SIX PER CENT OF TRACKING, TERTIARY. That is the brand
-/// sheet's heading, and the only interesting decision here is that the size is
-/// `@ScaledMetric` rather than the literal 13. A heading pinned to a point size
-/// is a heading that does not grow when somebody enlarges type, so at AX5 the
-/// section headings are the smallest text on a screen where everything else has
-/// doubled — and the tracking has to be derived from whatever size that lands
-/// on, because six per cent of 13 is not six per cent of 30.
-///
-/// `.textCase(nil)` because SwiftUI upper-cases grouped section headers by
-/// default, and "RELEASED BY POLLEN ROBOTICS" is a different, louder app.
-private struct SectionHeading: View {
-    let text: String
-
-    /// The `.footnote` point size at the person's current setting; 13 is what
-    /// that style measures at the default content size.
-    @ScaledMetric(relativeTo: .footnote) private var size: CGFloat = 13
-
-    var body: some View {
-        Text(text)
-            .font(.system(size: size, weight: .bold))
-            .tracking(size * 0.06)
-            .textCase(nil)
-            .foregroundStyle(Theme.textTertiary)
-            .accessibilityAddTraits(.isHeader)
-    }
-}
 
 /// The explanatory line under a section.
 ///

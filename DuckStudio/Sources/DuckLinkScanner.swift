@@ -25,6 +25,24 @@ final class DuckLinkScanner: NSObject, ObservableObject {
         let peripheral: CBPeripheral
     }
 
+    /// Why a scan cannot start, when the reason is this phone.
+    ///
+    /// `nil` FOR `.unknown` AND `.resetting`, WHICH ARE NOT ANSWERS YET. A
+    /// manager reports `.unknown` until its first callback and `.resetting`
+    /// while the stack comes back, and both are followed by another update —
+    /// so treating either as a refusal would file a phone-side failure against
+    /// a radio that was about to work. The step's own budget covers the wait.
+    // `nonisolated` BECAUSE THE DISCONNECT CALLBACK ASKS IT OFF THE MAIN ACTOR:
+    // a pure function of a plain enum has no state to protect.
+    nonisolated private static func problem(for state: CBManagerState) -> PairingSpike.RadioProblem? {
+        switch state {
+        case .poweredOff: return .off
+        case .unauthorized: return .notPermitted
+        case .unsupported: return .noLowEnergyRadio
+        default: return nil
+        }
+    }
+
     /// Where the handshake has got to, so the screen can show the steps rather
     /// than a spinner. A failed step keeps its reason.
     enum Progress: Equatable {
@@ -124,16 +142,75 @@ final class DuckLinkScanner: NSObject, ObservableObject {
     /// The PIN the person typed, held from the moment the run starts.
     private var pin = PairingSpike.factoryPIN
 
+    /// When the run started, read HERE and never in the kit.
+    ///
+    /// The app target owns the clock for the same reason it owns the radio:
+    /// `PairingSpike` has to stay a thing `swift test` can assert on Linux, and
+    /// a function that asks the system what time it is is not that.
+    private var spikeStartedAt = Date()
+
+    /// Which duck was picked, so the report can name the one it is about.
+    ///
+    /// THE IDENTIFIER AND NOT THE SIGHTING, so that the report's "tested" line
+    /// is the SAME VALUE as the entry in the list of everything seen. A sighting
+    /// copied at the moment of the tap can be one advertisement out of date —
+    /// the row refreshes on every advertisement, and a signal reading that moved
+    /// between the last redraw and the finger landing would leave the report
+    /// listing the tested duck a second time under "also seen".
+    private var spikeTestedID: UUID?
+
+    /// How many runs this phone has made against the picked peripheral, this
+    /// one included.
+    private var spikeRunNumber: Int?
+
+    /// What `hello` and `system.info` actually answered.
+    ///
+    /// READ NOW, WHICH IT WAS NOT BEFORE. The harness parsed the JSON-RPC id off
+    /// each line and threw the rest away, while the report claimed system.info
+    /// "returns real data" — a sentence about fields nobody had looked at. The
+    /// robot's daemon build and its SoC serial are the two most useful things
+    /// the whole sequence produces, and they were being discarded one line
+    /// before the report was written.
+    private var spikeHello: DuckLink.Hello?
+    private var spikeInfo: DuckLink.SystemInfo?
+
+    /// How many spike runs this phone has made against each peripheral.
+    ///
+    /// KEYED ON THE PERIPHERAL IDENTIFIER, WHICH IS NOT THE DUCK — see
+    /// `DuckLink.identifierIsNotAnIdentity`. It survives a rename and does not
+    /// survive a change of Bluetooth address, so this count is a lower bound and
+    /// the report says as much rather than presenting it as a fact about the
+    /// robot. Cheap enough to be worth having anyway: a maintainer reading "run
+    /// 7" knows the tester is not reporting their first attempt.
+    private var runCounts: [String: Int] {
+        get { UserDefaults.standard.dictionary(forKey: Self.runCountKey) as? [String: Int] ?? [:] }
+        set { UserDefaults.standard.set(newValue, forKey: Self.runCountKey) }
+    }
+    private static let runCountKey = "duck.link.spike.runs"
+
     private var central: CBCentralManager?
     private var connected: CBPeripheral?
     private var pipe: CBCharacteristic?
     private var reassembler = DuckLink.Reassembler()
     /// Set once a scan has been asked for but the radio was not ready yet.
     private var wantsScan = false
-    /// The step whose write is in flight, so a late failure is blamed on the
-    /// step that caused it rather than on whichever one happens to be running.
-    /// A stored property, so it lives on the class rather than in an extension.
-    private var wroteFor: PairingSpike.Step?
+    /// The step behind each write still awaiting its callback, oldest first.
+    ///
+    /// A QUEUE, NOT A VARIABLE. A first cut kept one step and reassigned it at
+    /// the top of every `send`, which made the guard on the write callback
+    /// inert: by the time hello's late chunk error landed, the variable already
+    /// said authenticate, and the check "is this the step in flight?" passed —
+    /// filing hello's refusal against authenticate, the exact substitution the
+    /// comment beside it claimed to prevent. Writes on one characteristic
+    /// complete in the order they were issued, so a queue with one entry per
+    /// chunk names the step that wrote, whatever is running now.
+    private var writesInFlight: [PairingSpike.Step] = []
+    /// Answers that landed after their step had ended — see `route`.
+    private var spikeLate: [PairingSpike.Step: String] = [:]
+    /// Id-less lines the robot sent during the run — see `route`.
+    private var spikeNotifications: [String] = []
+    /// Whether the authenticate write was confirmed on the wire.
+    private var spikeAuthWritten = false
     /// Peripherals this app has connected to before.
     ///
     /// STORED AFTER A SUCCESSFUL HANDSHAKE, NOT AFTER A SIGHTING. An identifier
@@ -176,6 +253,11 @@ final class DuckLinkScanner: NSObject, ObservableObject {
 
     private func startIfReady() {
         guard wantsScan, let central, central.state == .poweredOn else { return }
+        // A RADIO THAT COMES BACK MID-RUN MUST NOT WIPE THE RUN. `poweredOn`
+        // can be reported again after a toggle or a stack reset, and clearing
+        // `found` here under a connected spike made the report say "Tested:
+        // nothing" about a robot it had read from and written to.
+        if spiking, spikeStep != .scan { return }
         found.removeAll()
         scanning = true
 
@@ -184,8 +266,13 @@ final class DuckLinkScanner: NSObject, ObservableObject {
         // advertisement at all, which turns reconnection from "wait for the
         // radio to be heard" into latency. It does nothing for a FIRST
         // connection — that still needs the scan below.
+        // FROM MEMORY, AND SAID SO. iOS returns one of these for every identifier
+        // it is given, present or not; `heard: false` keeps them out of "seen
+        // in the window" and out of the scan step's success until the radio
+        // actually reports them.
         for known in central.retrievePeripherals(withIdentifiers: Array(remembered)) {
-            note(known, name: known.name ?? "Microduck", manufacturer: nil, rssi: nil)
+            note(known, name: known.name ?? "Microduck", manufacturer: nil, rssi: nil,
+                 tier: .knownBefore, heard: false)
         }
 
         // 🔴 UNFILTERED, AND THIS IS NOT A PREFERENCE. Pollen measured it and
@@ -243,6 +330,19 @@ extension DuckLinkScanner: CBCentralManagerDelegate {
                 radio = "Bluetooth is not ready yet."
             }
             if central.state != .poweredOn { scanning = false }
+            // A SCAN THAT NEVER STARTED IS NOT A DUCK THAT NEVER ANSWERED, and
+            // this is the line that stops the report saying it was. With the
+            // radio off or the app refused permission, `startIfReady` returns
+            // without calling `scanForPeripherals` at all — so nothing was ever
+            // going to be reported, and the scan step used to sit out its whole
+            // 40-second budget and be written up as a silence, under a sentence
+            // blaming the robot for not advertising. The reason is on this
+            // phone, it is in `PairingSpike.RadioProblem`'s words, and the
+            // person holding the phone is the one who can fix it.
+            if spiking, spikeStep == .scan, let problem = Self.problem(for: central.state) {
+                let why = problem.reason
+                complete(.scan) { .refused(seconds: $0, why) }
+            }
         }
     }
 
@@ -260,10 +360,17 @@ extension DuckLinkScanner: CBCentralManagerDelegate {
         let rssi = RSSI.intValue == 127 || RSSI.intValue == -127 ? nil : RSSI.intValue
         let servesUs = advertised.contains(Self.service)
         Task { @MainActor in
-            guard servesUs || self.remembered.contains(peripheral.identifier)
-                    || (name.map(DuckLink.looksLikeADuck) ?? false) else { return }
+            // THE RANKING IS THE KIT'S, NOT THIS FILE'S. Which of the three
+            // tiers an advertisement earns is a claim about Pollen's protocol —
+            // and it was written here, where no `swift test` could see it, while
+            // the report told its reader the scan was unfiltered. The scan IS
+            // unfiltered; the filtering is this, and `DuckLink.tier` is now
+            // where it is stated and pinned.
+            guard let tier = DuckLink.tier(advertisesService: servesUs,
+                                           knownBefore: self.remembered.contains(peripheral.identifier),
+                                           name: name) else { return }
             self.note(peripheral, name: name ?? "Microduck",
-                      manufacturer: manufacturer, rssi: rssi)
+                      manufacturer: manufacturer, rssi: rssi, tier: tier)
         }
     }
 
@@ -276,21 +383,39 @@ extension DuckLinkScanner: CBCentralManagerDelegate {
     /// solely after connecting". So a listing is a list of CANDIDATES, and the
     /// handshake is what settles it.
     @MainActor private func note(_ peripheral: CBPeripheral, name: String,
-                                 manufacturer: Data?, rssi: Int?) {
+                                 manufacturer: Data?, rssi: Int?, tier: DuckLink.Tier,
+                                 heard: Bool = true) {
         let address = manufacturer.map(DuckLink.address(fromManufacturerData:)) ?? .notBroadcast
-        let sighting = DuckLink.Sighting(name: name, rssi: rssi, address: address)
         let id = peripheral.identifier
+        // ONCE HEARD, HEARD. A remembered duck arrives first from memory and
+        // then, if it is really there, from the radio; the second note must not
+        // demote it back to "offered from memory".
+        let alreadyHeard = found.first { $0.id == id }?.sighting.heard ?? false
+        let sighting = DuckLink.Sighting(name: name, rssi: rssi, address: address, tier: tier,
+                                         heard: heard || alreadyHeard)
         if let i = found.firstIndex(where: { $0.id == id }) {
             found[i] = Found(id: id, sighting: sighting, peripheral: peripheral)
         } else {
             found.append(Found(id: id, sighting: sighting, peripheral: peripheral))
         }
-        // THE SPIKE'S SCAN STEP ENDS AT THE FIRST SIGHTING, NOT AT THE PICK.
+        // THE SPIKE'S SCAN STEP ENDS AT THE FIRST-TIER SIGHTING, NOT AT THE
+        // FIRST SIGHTING OF ANYTHING, AND NOT AT THE PICK.
+        //
+        // It used to end at the first candidate of any tier — which need not be
+        // the duck that was then tested, so the number in the report could be
+        // the time it took to hear somebody's headphones with a duck-ish name
+        // while the row a person actually tapped appeared eleven seconds later.
+        // Only `advertisedService` is evidence the radio cannot improve on, so
+        // that is what stops the clock; a weaker tier leaves the window open and
+        // `timedOut` closes it as an `ok` if anything at all was seen.
+        //
         // What is worth timing here is the radio: Pollen measured advertising
         // silences of 9, 14, 17 and once 31 seconds on the old default. How long
         // a person then takes to read the list and tap a row is not a fact about
         // the robot, so it is kept out of the number.
-        if spiking, spikeStep == .scan { complete(.scan) { .ok(seconds: $0) } }
+        if spiking, spikeStep == .scan, tier.endsTheScan, heard {
+            complete(.scan) { .ok(seconds: $0) }
+        }
     }
 
     nonisolated func centralManager(_ central: CBCentralManager,
@@ -316,6 +441,9 @@ extension DuckLinkScanner: CBCentralManagerDelegate {
                                     didDisconnectPeripheral peripheral: CBPeripheral,
                                     error: Error?) {
         let why = error?.localizedDescription
+        // READ ON THIS THREAD: the manager is not Sendable and must not cross
+        // the hop; its state is a plain value and can.
+        let radio = Self.problem(for: central.state)
         Task { @MainActor in
             pipe = nil
             if spiking {
@@ -325,7 +453,12 @@ extension DuckLinkScanner: CBCentralManagerDelegate {
                 // would read like eight findings. The step in flight keeps the
                 // disconnect as its reason and the report stops there.
                 guard !spikeFinished else { return }
-                let reason = why ?? "the duck disconnected"
+                // THE PHONE BEFORE THE DUCK. Bluetooth switched off, or the
+                // permission revoked, after the connect step tears the link
+                // down with no error object — and "the duck disconnected" would
+                // blame the robot for a phone-side condition, just outside the
+                // window `RadioProblem` guards on the scan step.
+                let reason = why ?? radio?.reason ?? "the duck disconnected"
                 if let step = spikeStep { finish(step) { .refused(seconds: $0, reason) } }
                 return endSpike()
             }
@@ -478,8 +611,7 @@ extension DuckLinkScanner: CBPeripheralDelegate {
     nonisolated func peripheral(_ peripheral: CBPeripheral,
                                 didWriteValueFor characteristic: CBCharacteristic,
                                 error: Error?) {
-        guard let error else { return }
-        let why = error.localizedDescription
+        let why = error?.localizedDescription
         Task { @MainActor in
             if spiking {
                 // A REFUSED WRITE IS THE OTHER HALF OF POLLEN'S QUESTION. If the
@@ -490,13 +622,27 @@ extension DuckLinkScanner: CBPeripheralDelegate {
                 // BLAMED ON THE STEP THAT WROTE, NOT THE ONE IN FLIGHT. A write
                 // is chunked at the MTU, so several callbacks land per step and
                 // a late one can arrive after the step that issued it has timed
-                // out and the next has begun — filing hello's refusal against
-                // authenticate. `route` already refuses to dispatch by "whatever
-                // is running" for the same reason and says so; this is the same
-                // rule on the write side.
-                guard let step = wroteFor, step == spikeStep else { return }
-                return complete(step) { .refused(seconds: $0, why) }
+                // out and the next has begun. The queue names the writer: one
+                // entry was pushed per chunk, callbacks come back in order, and
+                // the front of the queue is the step this callback is about —
+                // whatever `spikeStep` says now.
+                guard !writesInFlight.isEmpty else { return }
+                let step = writesInFlight.removeFirst()
+                guard let why else {
+                    // CONFIRMED ON THE WIRE. The PIN line in the report is
+                    // allowed to say "tried" only once this is true.
+                    if step == .authenticate { spikeAuthWritten = true }
+                    return
+                }
+                if step == spikeStep {
+                    return complete(step) { .refused(seconds: $0, why) }
+                }
+                // THE WRITER HAS ALREADY ENDED. Not dropped: it goes beside the
+                // step it belongs to, as a late fact about that step.
+                spikeLate[step] = "a write for this step was refused after the step had ended: \(why)"
+                return
             }
+            guard let why else { return }
             if case .done = progress { return }
             fail(.hello, why)
         }
@@ -565,9 +711,28 @@ extension DuckLinkScanner {
         pairingPrompt = nil
         askingAboutPairingPrompt = false
         apiByte = nil
+        spikeTestedID = nil
+        spikeRunNumber = nil
+        spikeHello = nil
+        spikeInfo = nil
+        spikeLate = [:]
+        spikeNotifications = []
+        spikeAuthWritten = false
+        writesInFlight = []
+        spikeStartedAt = Date()
         reassembler = DuckLink.Reassembler()
         begin()
         start(.scan)
+        // ASKED SYNCHRONOUSLY TOO, NOT ONLY IN THE DELEGATE. A manager that has
+        // already reported its state does not report it again, so a SECOND run
+        // begun with Bluetooth still switched off would get no callback at all
+        // and would sit out the scan budget in the silence this whole harness
+        // exists to stop misattributing. The first run is covered by the
+        // delegate, because a freshly created manager is `.unknown` here.
+        if let central, let problem = Self.problem(for: central.state) {
+            let why = problem.reason
+            complete(.scan) { .refused(seconds: $0, why) }
+        }
     }
 
     /// Connect to the duck the person picked and run the rest of the spike.
@@ -579,11 +744,26 @@ extension DuckLinkScanner {
     func runSpike(with duck: Found, pin: String) {
         guard spiking, !spikeFinished, let central else { return }
         self.pin = pin
+        // THE SCAN STEP IS CLOSED BEFORE THE NEXT ONE OPENS. It no longer ends
+        // at the first sighting of anything, so it can still be in flight when a
+        // person taps a weaker-tier row — and `start(.connect)` would then have
+        // left the scan with no outcome at all, which the report reads as a step
+        // nobody reached. It found the duck that is about to be tested; that is
+        // an `ok`, and the elapsed number is the time the radio took.
+        if spikeStep == .scan { finish(.scan) { .ok(seconds: $0) } }
         central.stopScan()
         scanning = false
         reassembler = DuckLink.Reassembler()
         connected = duck.peripheral
         duck.peripheral.delegate = self
+        // WHICH DUCK, AND HOW MANY TIMES. Recorded at the pick rather than at
+        // the end, because the report has to name the robot it is about even
+        // when the run stops one step later.
+        spikeTestedID = duck.id
+        let key = duck.id.uuidString
+        let count = (runCounts[key] ?? 0) + 1
+        runCounts[key] = count
+        spikeRunNumber = count
         start(.connect)
         central.connect(duck.peripheral, options: nil)
     }
@@ -625,7 +805,24 @@ extension DuckLinkScanner {
                          requirePairing: requirePairing,
                          deviceModel: deviceModel,
                          iOSVersion: iOSVersion,
-                         robotAPIVersion: apiByte)
+                         robotAPIVersion: apiByte,
+                         pin: pin,
+                         startedAt: spikeStartedAt,
+                         runNumber: spikeRunNumber,
+                         // EVERYTHING THE WINDOW SAW, IN THE ORDER IT WAS FIRST
+                         // SEEN. `found` is already the deduplicated, ordered
+                         // list — one entry per peripheral, refreshed with the
+                         // latest signal reading — so the report lists the room
+                         // rather than the one row somebody happened to tap.
+                         sightings: found.map(\.sighting),
+                         tested: spikeTestedID.flatMap { id in
+                             found.first { $0.id == id }?.sighting
+                         },
+                         hello: spikeHello,
+                         info: spikeInfo,
+                         lateAnswers: spikeLate,
+                         notifications: spikeNotifications,
+                         authenticateWritten: spikeAuthWritten)
     }
 
     // MARK: the clock
@@ -681,6 +878,19 @@ extension DuckLinkScanner {
     private func timedOut(_ step: PairingSpike.Step) {
         guard spiking, spikeStep == step else { return }
         if step == .readVersion { readTimedOut = true }
+        // THE SCAN WINDOW CLOSING IS NOT A SILENCE IF SOMETHING WAS SEEN. The
+        // scan now runs until a first-tier candidate appears or the budget ends,
+        // so a window that only ever produced a name match reaches this line
+        // with a list in hand — and `.timedOut` says "no answer and no error",
+        // which would be false and would also end the run before the person
+        // could tap the row they are looking at.
+        // HEARD, NOT MERELY REMEMBERED: a list made only of peripherals iOS
+        // handed back by identifier is a forty-second silence, and it ends the
+        // step as one.
+        if step == .scan, found.contains(where: { $0.sighting.heard }) {
+            finish(step) { .ok(seconds: $0) }
+            return advance(after: step)
+        }
         finish(step) { .timedOut(afterSeconds: $0) }
         advance(after: step)
     }
@@ -749,15 +959,15 @@ extension DuckLinkScanner {
             // hearing the answer will time out, and that timeout is still
             // evidence about the link rather than about this app.
             start(.hello)
-            send(failing: .hello) { try DuckLink.helloRequest(id: SpikeWire.id(for: .hello)) }
+            send(.hello) { try DuckLink.helloRequest(id: $0) }
 
         case .hello:
             start(.authenticate)
-            send(failing: .authenticate) { try SpikeWire.authenticate(pin: self.pin) }
+            send(.authenticate) { try DuckLink.authenticateRequest(pin: self.pin, id: $0) }
 
         case .authenticate:
             start(.systemInfo)
-            send(failing: .systemInfo) { try SpikeWire.systemInfo() }
+            send(.systemInfo) { try DuckLink.systemInfoRequest(id: $0) }
 
         case .systemInfo:
             endSpike()
@@ -765,13 +975,26 @@ extension DuckLinkScanner {
     }
 
     /// Build a line and put it on the wire in MTU-sized pieces.
-    private func send(failing step: PairingSpike.Step, request: () throws -> Data) {
-        wroteFor = step
+    ///
+    /// THE REQUEST SHAPES ARE THE KIT'S NOW. All three used to be assembled in
+    /// this file, in a private type that admitted in its own doc comment that it
+    /// was in the wrong target: a `params` member spelled here is a claim about
+    /// Pollen's protocol that no `swift test` can see, and the one thing this
+    /// spike must never do is report a robot's refusal of a line this app got
+    /// wrong as a fact about pairing.
+    ///
+    /// - Parameter request: Given the JSON-RPC id, the line. The id comes from
+    ///   `Step.requestID` so that `route` can file the answer against the
+    ///   request that asked for it rather than against whatever is in flight.
+    private func send(_ step: PairingSpike.Step, request: (Int) throws -> Data) {
+        guard let id = step.requestID else {
+            return complete(step) { .refused(seconds: $0, "This step sends no request.") }
+        }
         guard let peripheral = connected, let pipe else {
             return complete(step) { .refused(seconds: $0, "The link was gone before the write.") }
         }
         do {
-            let line = try request()
+            let line = try request(id)
             // THE MTU IS ASKED FOR, NOT ASSUMED — the same reason as the everyday
             // path: CoreBluetooth already reports the usable payload for each
             // write type, so a good link earns its bigger writes and a phone
@@ -779,6 +1002,7 @@ extension DuckLinkScanner {
             // without this file inventing a number.
             let mtu = peripheral.maximumWriteValueLength(for: .withResponse)
             for chunk in DuckLink.chunks(line, mtu: mtu) {
+                writesInFlight.append(step)
                 peripheral.writeValue(chunk, for: pipe, type: .withResponse)
             }
         } catch {
@@ -807,7 +1031,14 @@ extension DuckLinkScanner {
         // A READ THAT ANSWERS AFTER ITS OWN CLOCK RAN OUT. The byte is kept —
         // knowing which version the robot runs is worth having however late it
         // arrived — but the step keeps its `.timedOut`, because a client that
-        // had given up is what the report is describing. Recognising it here
+        // had given up is what the report is describing.
+        //
+        // THE REPORT NOW SAYS WHICH OF THE TWO THIS WAS. Keeping the byte was
+        // right and printing it was not: the Setup section read "Robot API
+        // version: 16, read as one byte off the RPC characteristic" above a
+        // Reading that said the read never answered at all. `Run` derives the
+        // difference from this step's own outcome, so nothing has to be
+        // remembered here beyond the byte itself. Recognising it here
         // also keeps a stray unframed byte out of the reassembler, where it
         // would have corrupted the next real answer. Only trusted before the
         // subscription exists: once notifications flow, CoreBluetooth delivers
@@ -848,7 +1079,16 @@ extension DuckLinkScanner {
     /// id is what stops this harness from inventing the one thing it exists to
     /// measure honestly.
     private func route(_ line: Data) {
-        guard let reply = SpikeWire.reply(fromLine: line) else {
+        // A NOTIFICATION IS NOT AN ANSWER AND NOT GARBAGE. An id-less line with
+        // a method is the protocol's own shape for "nothing is owed back" —
+        // update progress arrives this way — and it was being reported as an
+        // unreadable answer and refusing whatever step was running. It is
+        // noted for the report and answered by nobody.
+        if let method = DuckLink.notificationMethod(fromLine: line) {
+            spikeNotifications.append(method)
+            return
+        }
+        guard let reply = DuckLink.reply(fromLine: line) else {
             // A LINE THAT ARRIVED IS NOT SILENCE, AND THIS IS THE ONE
             // SUBSTITUTION THE SPIKE EXISTS TO PREVENT. Discarding a reply this
             // harness cannot parse let the step run out its budget and be
@@ -863,7 +1103,7 @@ extension DuckLinkScanner {
             }
             return
         }
-        guard let step = SpikeWire.step(forID: reply.id) else {
+        guard let step = PairingSpike.step(forRequestID: reply.id) else {
             // An id we did not issue. Same rule: something answered.
             if let waiting = spikeStep {
                 complete(waiting) { .refused(seconds: $0,
@@ -871,94 +1111,36 @@ extension DuckLinkScanner {
             }
             return
         }
-        // A reply to a step that already ended is dropped — see `spikeOutcomes`.
-        guard spikeStep == step else { return }
-        switch reply.trouble {
-        case .some(let why): complete(step) { .refused(seconds: $0, why) }
-        case .none: complete(step) { .ok(seconds: $0) }
+        // A REPLY TO A STEP THAT ALREADY ENDED IS FILED, NOT DROPPED. The
+        // outcome stands — first outcome wins, see `spikeOutcomes` — but the
+        // report must not say "no answer and no error" about a robot that
+        // answered late, and a slow link is the expected condition here.
+        guard spikeStep == step else {
+            let started = startedAt[step] ?? Self.clock()
+            spikeLate[step] = String(
+                format: "an answer for %@ arrived %.2f s after the step began, past its %.2f s budget",
+                step.title, Self.clock() - started, step.timeoutSeconds)
+            return
         }
-    }
-}
-
-/// The two JSON-RPC calls this spike makes that `DuckLink` does not yet build,
-/// and the id-and-error read that files their answers.
-///
-/// 🔴 THIS BELONGS IN `PairingSpike`, IN StudioKit, AND IS HERE ONLY BECAUSE IT
-/// IS NOT THERE YET. Every rule this project has says so: StudioKit computes and
-/// holds every sentence, the app target draws, and a claim about the protocol
-/// written here is a claim no `swift test` can pin. `DuckLink` already owns
-/// `helloRequest` and the NDJSON framing for exactly that reason, and
-/// `PairingSpike` owns the step order and the report — but neither ships a
-/// builder for `system.authenticate` or `system.info`, and neither reads a
-/// JSON-RPC id off a line. Without those two the roadmap's sequence stops at
-/// `hello` and the spike does not answer the question it was written for.
-///
-/// So this is the smallest thing that closes the gap, kept in one type, doing
-/// nothing but the three calls the kit is missing. MOVE IT: when `PairingSpike`
-/// grows `authenticateRequest(pin:id:)`, `systemInfoRequest(id:)` and a reply
-/// reader, delete this and point the three call sites at them. Nothing else in
-/// this file knows the protocol.
-///
-/// The method names are `system.authenticate` and `system.info` — the ones the
-/// roadmap's M6 sentence names, with `system.authenticate` the PIN method added
-/// in API_VERSION v4. The framing is `DuckLink`'s: one JSON object per line,
-/// newline-terminated, chunked at the MTU by `DuckLink.chunks`.
-private enum SpikeWire {
-
-    /// Which id each request goes out under.
-    ///
-    /// CLIENT-SIDE BOOKKEEPING RATHER THAN A CLAIM ABOUT THE ROBOT — JSON-RPC
-    /// lets the caller choose its own ids. These exist so an answer can be
-    /// matched to the request that asked for it; see `route`.
-    static func id(for step: PairingSpike.Step) -> Int {
-        switch step {
-        case .hello: return 1
-        case .authenticate: return 2
-        case .systemInfo: return 3
-        default: return 0
+        if let why = reply.trouble { return complete(step) { .refused(seconds: $0, why) } }
+        // THE RESULT IS READ BEFORE THE STEP IS CALLED OK, because two of these
+        // steps claim something about what came back. `hello` establishes "the
+        // robot names its own API version back" and `system.info` establishes
+        // that the call returns the robot's name, serial and uptime — and the
+        // report prints all four. A step that answered with a shape this app
+        // cannot read has not established either of those, and saying so is a
+        // finding about this app rather than a green tick over a blank.
+        do {
+            switch step {
+            case .hello: spikeHello = try DuckLink.hello(fromLine: line)
+            case .systemInfo: spikeInfo = try DuckLink.systemInfo(fromLine: line)
+            default: break
+            }
+        } catch {
+            let why = (error as? DuckLink.LinkError)?.message ?? error.localizedDescription
+            return complete(step) { .refused(seconds: $0,
+                "the duck answered \(step.title) and this app could not read the result: \(why)") }
         }
-    }
-
-    static func step(forID id: Int) -> PairingSpike.Step? {
-        switch id {
-        case 1: return .hello
-        case 2: return .authenticate
-        case 3: return .systemInfo
-        default: return nil
-        }
-    }
-
-    /// `system.authenticate`, framed and ready to write.
-    static func authenticate(pin: String) throws -> Data {
-        try line(["jsonrpc": "2.0", "id": id(for: .authenticate),
-                  "method": "system.authenticate", "params": ["pin": pin]])
-    }
-
-    /// `system.info`, framed and ready to write.
-    static func systemInfo() throws -> Data {
-        try line(["jsonrpc": "2.0", "id": id(for: .systemInfo),
-                  "method": "system.info", "params": [String: String]()])
-    }
-
-    private static func line(_ body: [String: Any]) throws -> Data {
-        var data = try JSONSerialization.data(withJSONObject: body, options: [.sortedKeys])
-        data.append(0x0A)
-        return data
-    }
-
-    /// What a robot's answer was for, and whether it was a refusal.
-    ///
-    /// DELIBERATELY DOES NOT READ THE RESULT. What `system.info` returns is not
-    /// what this spike is measuring — the question is whether an authenticated
-    /// call crosses a bonded link at all — and parsing fields nothing here
-    /// displays would be inventing protocol knowledge in the wrong target twice
-    /// over.
-    static func reply(fromLine line: Data) -> (id: Int, trouble: String?)? {
-        guard let top = try? JSONSerialization.jsonObject(with: line) as? [String: Any],
-              let id = top["id"] as? Int else { return nil }
-        guard let error = top["error"] as? [String: Any] else { return (id, nil) }
-        let message = error["message"] as? String ?? "no reason given"
-        let code = error["code"] as? Int ?? 0
-        return (id, "The duck refused: \(message) (\(code))")
+        complete(step) { .ok(seconds: $0) }
     }
 }

@@ -133,7 +133,16 @@ struct PhoneModelPickerView: View {
                     .disabled(searching)
                 }
                 if searching {
-                    ProgressView().tint(Theme.brandPrimary)
+                    // A SPINNER WITH NO WORD ON IT IS NOT SOMETHING VOICEOVER
+                    // STOPS ON. An unlabelled `ProgressView` has no
+                    // accessibility label, so it is not an element, so the only
+                    // signal that the search is running reaches nobody who is
+                    // being read to — while "Find" beside it goes dim at the
+                    // same moment, which sounds exactly like a control that
+                    // refused. The label is what separates those two.
+                    ProgressView()
+                        .tint(Theme.brandPrimary)
+                        .accessibilityLabel(Text("Searching"))
                 }
                 if let searchFailure {
                     Text(searchFailure).font(.footnote).foregroundStyle(Theme.warning)
@@ -267,7 +276,30 @@ struct PhoneModelPickerView: View {
     private func actions(_ model: PhoneModel,
                          here: (state: PhoneModelInstall.InstallState, bytes: Int)?) -> some View {
         if busyWith == model.repository {
-            ProgressView().tint(Theme.brandPrimary)
+            // THE ROW'S ONLY CONTROLS ARE GONE WHILE IT WORKS, and what stood
+            // in for them said nothing at all. An unlabelled `ProgressView` is
+            // not an accessibility element, so a swipe through this row went
+            // name, size, note, state sentence, and then straight on into the
+            // next model — the one row that is actually doing something was the
+            // one that announced the least.
+            //
+            // THE LABEL IS THE VERB AND THE VALUE IS WHICH MODEL, which is the
+            // pair Download, Resume, Delete and Add on this screen already use.
+            // That is what keeps the row identifiable at the moment its buttons
+            // are away: the name is spoken by the control that replaced them,
+            // not only by the line four elements earlier.
+            //
+            // "WORKING" AND NOT "DOWNLOADING", BECAUSE `busyWith` CANNOT TELL
+            // THOSE APART. It is set by `download` and again by `vetThenAdd`,
+            // and a search hit is free to name a repository that is also in the
+            // catalogue — so the specific verb would be wrong some of the time,
+            // and a wrong verb read aloud is worse than a general one. The bill
+            // and its sentence above say downloading when downloading is what
+            // it is; this says only what this flag knows.
+            ProgressView()
+                .tint(Theme.brandPrimary)
+                .accessibilityLabel(Text("Working"))
+                .accessibilityValue(Text(model.name))
         } else if here?.state == .complete {
             deleteButton(model)
         } else {

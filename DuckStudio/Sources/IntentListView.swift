@@ -27,36 +27,11 @@ private let hairlineStroke = DesignMetric.hairlineStroke
 /// same three helpers `private` at file scope, which in Swift means file-local,
 /// so there is nothing to import and nothing that can collide. Two screens
 /// drawing the same heading from two identical declarations is drift waiting to
-/// happen and it is written down here so the next person sees it: these three —
-/// `SectionHeading`, `sectionFootnote`, `cardSegment` — belong in
-/// `DesignComponents`, beside `StateBadge` and `TelemetryRow`, for exactly the
-/// reason that file already gives ("drawn twice, they drift within a release").
-/// They are not moved here because that file is not this change's to edit.
-///
-/// THIRTEEN POINTS, BOLD, SIX PER CENT OF TRACKING, TERTIARY — the brand
-/// sheet's heading, with the size as a `@ScaledMetric` so that a section
-/// heading is not the smallest text on the screen once somebody has enlarged
-/// type, and with the tracking derived from whatever size that lands on,
-/// because six per cent of 13 is not six per cent of 30.
-///
-/// `.textCase(nil)` because SwiftUI upper-cases grouped section headers by
-/// default, and "FROM POLLEN'S POLICIES" is a different, louder app.
-private struct SectionHeading: View {
-    let text: String
-
-    /// The `.footnote` point size at the person's current setting; 13 is what
-    /// that style measures at the default content size.
-    @ScaledMetric(relativeTo: .footnote) private var size: CGFloat = 13
-
-    var body: some View {
-        Text(text)
-            .font(.system(size: size, weight: .bold))
-            .tracking(size * 0.06)
-            .textCase(nil)
-            .foregroundStyle(Theme.textTertiary)
-            .accessibilityAddTraits(.isHeader)
-    }
-}
+/// happen and it is written down here so the next person sees it: these two —
+/// `sectionFootnote`, `cardSegment` — still belong in `DesignComponents`,
+/// beside `StateBadge` and `TelemetryRow`, for exactly the reason that file
+/// already gives ("drawn twice, they drift within a release"). `SectionHeading`
+/// has made that move and the private copy this file carried is gone.
 
 /// The explanatory line under a section, and the long sentences this screen
 /// leads with.
@@ -1341,16 +1316,78 @@ private struct ReadingRow: View {
 }
 
 /// One joint at the playhead: where it is, and which way it is moving.
+///
+/// THREE THINGS SHARED ONE ROW'S WIDTH AND THE LAST OF THEM WAS PINNED TO 74
+/// POINTS. A joint's name, its rate and its angle in one line is already the
+/// arrangement `TelemetryRow` refuses to keep at accessibility sizes, and this
+/// row was worse than the two-column case it was written against: at AX5 the
+/// name takes the width, the rate takes what is left, and the angle — the one
+/// number the section header promises ("Right now") — is squeezed into a fixed
+/// column sized for the default text size and truncates inside it. So the app
+/// hid the reading from the people who had most enlarged the type in order to
+/// read it, which is the exact failure `TelemetryRow` is written down to avoid.
+///
+/// SO IT REFLOWS ON THE SAME SIGNAL, AND THE COLUMN IS A FLOOR RATHER THAN A
+/// WIDTH. Stacked at `isAccessibilitySize`, each of the three gets the whole
+/// width and nothing is dropped. Below that the row stays one line, and the
+/// angle asks for a `@ScaledMetric` 74 as a MINIMUM: it still lines the column
+/// up down the section at any one text size, and a reading that outgrows it
+/// pushes the column wider instead of losing digits. Tabular figures are what
+/// make the alignment hold — every digit is the same width, so only the number
+/// of characters can vary.
 private struct JointMomentRow: View {
     let moment: RunSeries.JointMoment
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    /// The angle column's floor. Seventy-four points is what the widest reading
+    /// this format can produce measures at the default text size — a sign, two
+    /// digits, a point, two more and the unit — and `@ScaledMetric` is what
+    /// keeps that true at the other sizes rather than only at the one it was
+    /// measured on. A bare 74 is a column that fits at Large and clips at xxL.
+    @ScaledMetric(relativeTo: .caption) private var angleColumn: CGFloat = 74
+
     var body: some View {
-        HStack(spacing: Theme.spacing(.tight)) {
-            Text(moment.name)
-                .font(.caption)
-                .foregroundStyle(Theme.textSecondary)
-            Spacer()
-            if moment.isMoving {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
+                    name
+                    rate
+                    angle
+                }
+            } else {
+                HStack(spacing: Theme.spacing(.tight)) {
+                    name
+                    Spacer(minLength: Theme.spacing(.tight))
+                    rate
+                    angle
+                        .frame(minWidth: angleColumn, alignment: .trailing)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        // One joint at one instant is one thing to hear: which joint, how fast,
+        // and where it is.
+        .accessibilityElement(children: .combine)
+    }
+
+    private var name: some View {
+        Text(moment.name)
+            .font(.caption)
+            .foregroundStyle(Theme.textSecondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// How fast, and which way.
+    ///
+    /// THE ARROW AND ITS NUMBER ARE ONE THING, so they travel together into
+    /// either layout and sit a hairline apart rather than at the row's own
+    /// spacing — a glyph that is the sign of the number beside it has to read as
+    /// attached to it, and at an accessibility size a stack that split them
+    /// across two lines would leave a lone arrow meaning nothing.
+    @ViewBuilder private var rate: some View {
+        if moment.isMoving {
+            HStack(spacing: Theme.spacing(.hairline)) {
                 // THE ARROW CARRIES THE DIRECTION AND THE COLOUR NO LONGER
                 // TRIES TO. This drew a positive rate in the accent colour and
                 // a negative one in orange, which is a hue standing in for a
@@ -1374,17 +1411,21 @@ private struct JointMomentRow: View {
                 Text(String(format: "%+.1f rad/s", moment.velocity))
                     .font(.caption.monospaced().monospacedDigit())
                     .foregroundStyle(Theme.textPrimary)
-            } else {
-                Text("holding").font(.caption2).foregroundStyle(Theme.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            Text(String(format: "%+.2f rad", moment.angle))
-                .font(.caption.monospaced().monospacedDigit())
-                .foregroundStyle(Theme.textSecondary)
-                .frame(width: 74, alignment: .trailing)
+        } else {
+            Text("holding")
+                .font(.caption2)
+                .foregroundStyle(Theme.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        // One joint at one instant is one thing to hear: which joint, how fast,
-        // and where it is.
-        .accessibilityElement(children: .combine)
+    }
+
+    private var angle: some View {
+        Text(String(format: "%+.2f rad", moment.angle))
+            .font(.caption.monospaced().monospacedDigit())
+            .foregroundStyle(Theme.textSecondary)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
 
