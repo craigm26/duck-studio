@@ -124,6 +124,9 @@ struct DriveView: View {
     /// going away. Consumed by `report`.
     @State private var cutOffByStop = false
     @State private var failure: String?
+    @State private var failureTitle = DriveView.benchRefusedTitle
+    private static let benchRefusedTitle = "The bench refused"
+    private static let worldRefusedTitle = "This world cannot be built"
     @State private var orbit = OrbitState.defaults
     /// Round trips completed since Drive was pressed, and the sim seconds they
     /// bought. THE RATE IS THE ONE NUMBER THAT TELLS YOU WHETHER THIS IS
@@ -180,6 +183,52 @@ struct DriveView: View {
     /// Shown in the `link` layer — see `askWhatItSaw`.
     @State private var stateSaid: String?
 
+    // MARK: - where you are driving, and what you are driving in
+
+    /// Sim, your own floor, or a robot. See `venueSwitch`.
+    @State private var venue: DriveVenue = .sim
+
+    /// What the camera can be asked for, refreshed on the way back from
+    /// Settings by `refreshingCameraDoor`.
+    @State private var cameraDoor = CameraDoor.availability
+
+    /// The picker's selection. IT IS ALWAYS WHAT IS ACTUALLY STANDING, not
+    /// what was asked for — every write and every read ends by setting this
+    /// from `standingChoice`, so a refused world snaps the control back to the
+    /// world the bench is really in rather than leaving a lie in a picker.
+    @State private var worldChoice: WorldChoice = .benchOwn
+
+    /// The bench's answer to `GET /world` — the READBACK, which is what the
+    /// stage draws. Nil before the first read.
+    @State private var world: DuckWorld?
+
+    /// True once the bench has said it has no `/world`. The picker goes dead
+    /// and `DuckWorld.noWorldRoute` is printed where the control was, which is
+    /// the `/tune` idiom: a blocked surface says why, in the place it is
+    /// blocked.
+    @State private var worldRouteMissing = false
+
+    /// What the kit worked out about the world that is standing, kept because
+    /// SOME OF IT THE BENCH CANNOT SAY.
+    ///
+    /// THE WIRE IS `{x, top}` AND NOTHING ELSE, which is the whole reason this
+    /// exists. `POST /world` carries a block's centre and the height of its
+    /// upper face; it has no field for the y a scene drew, none for how tall
+    /// the scene wanted the block, and none for a ball a scene left out. The
+    /// bench only comments on what it was told, so it answers a four-step
+    /// staircase with one note about a wall and says nothing at all about the
+    /// flight having landed 1.3 m to the duck's left at 200 mm a block — which
+    /// is the most surprising thing that just happened.
+    /// `DuckWorld.plan(for:on:)` knows, because it read the scene. So the
+    /// readback is printed first and in full, and then exactly the predictions
+    /// the wire gave the bench no way to make. See `worldNotes`.
+    @State private var predicted: [DuckWorld.Unexpressed] = []
+
+    /// One line about the last world request, when the request itself has
+    /// something to say that the readback cannot — picking the bench's own
+    /// world after something else is already standing, which sends nothing.
+    @State private var worldNote: String?
+
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// A REAL PAD WINS WHILE IT IS BEING HELD. Both inputs are live at once —
@@ -197,9 +246,14 @@ struct DriveView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            stage
-            layerChips
-            controls
+            venueSwitch
+            venueStage
+            // NOT IN THE ROBOT VENUE, because there is no picture there for a
+            // layer to go on top of. Every chip switches an overlay drawn over
+            // a duck this app is rendering, and the robot venue renders none:
+            // the chips would be nine controls that change nothing.
+            if venue != .real { layerChips }
+            venueControls
         }
         .background(Theme.backgroundPrimary)
         // THE TAB'S NAME, NOT THE VERB. This screen was pushed from a menu row
@@ -240,6 +294,11 @@ struct DriveView: View {
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) { transport }
+        // THE WORLD IS RE-READ WHEN THE BENCH CHANGES, for the same reason the
+        // peer is rebuilt: the answer belongs to one machine. A picker still
+        // showing the last bench's staircase would be describing a world this
+        // bench has never been in.
+        .onChange(of: peerKey) { _, _ in flight = Task { await refreshWorld() } }
         // A STOP THAT DOES NOT HAVE TO BE FOUND. The bar below is always on
         // screen, but "always on screen" is a sighted guarantee: a VoiceOver
         // user still has to swipe to it, and the swipes happen while the duck
@@ -284,10 +343,109 @@ struct DriveView: View {
             cutOffByStop = false
             flight?.cancel()
         }
-        .alert("The bench refused", isPresented: Binding(
+        .alert(failureTitle, isPresented: Binding(
             get: { failure != nil }, set: { if !$0 { failure = nil } })) {
             Button("OK", role: .cancel) {}
         } message: { Text(failure ?? "") }
+    }
+
+    // MARK: - where you are driving it
+
+    /// Sim, your own floor, or a robot — above the picture, because it decides
+    /// what the picture IS.
+    ///
+    /// THREE SEGMENTS AND ONLY TWO OF THEM DRIVE, which is the whole reason
+    /// this is a switch and not two screens. "Robot" is on the same control as
+    /// the two that work so that the thing this app cannot do is in the place
+    /// somebody looks for it, said in `DriveVenue.robotIsNotDrivenYet` rather
+    /// than left to be discovered as an absence. `DriveVenue.notYet` is what
+    /// makes that a sentence a test can read.
+    ///
+    /// THE COERCION IS THE KIT'S AND IT RUNS THREE TIMES. `DriveVenue.coerce`
+    /// decides where a screen may be given what the camera says; it is asked on
+    /// appear, whenever the door changes underneath (somebody walks to Settings
+    /// and switches the camera off while this is on screen), and on every pick.
+    /// A view writing `if !door.canOfferAR { venue = .sim }` inline would be
+    /// the same rule with nothing asserting it.
+    private var venueSwitch: some View {
+        VStack(spacing: Theme.spacing(.hairline)) {
+            Picker("Where", selection: $venue) {
+                ForEach(DriveVenue.allCases.filter { $0.canBeEntered(camera: cameraDoor) }) {
+                    one in Text(one.label).tag(one)
+                }
+            }
+            .pickerStyle(.segmented)
+            // THE CAP LIFTS AT ACCESSIBILITY SIZES, which is `VenuePicker`'s
+            // argument about its own two-segment switch and applies harder to
+            // three: a segmented control truncates rather than wrapping, so a
+            // width that keeps "Sim | Your floor | Robot" off the edges of an
+            // iPad is the width that hides them at AX5.
+            .frame(maxWidth: typeSize.isAccessibilitySize ? nil : DriveMetric.venueSwitchWidth)
+            Text(venue.oneLine)
+                .font(.caption2)
+                .foregroundStyle(Theme.textSecondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity)
+            // THE REFUSAL IS DRAWN WHERE THE CONTROL IS, whether or not "Your
+            // floor" is the segment in force. It is `CameraAvailability`'s
+            // sentence and not this file's, and not `DriveVenue`'s either —
+            // one place decides whether a camera can be opened, and a second
+            // copy of that reasoning would be a second answer.
+            if let refusal = cameraDoor.refusal(for: .venue) {
+                Text(refusal)
+                    .font(.caption2)
+                    .foregroundStyle(Theme.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+        .padding(.horizontal, Theme.spacing(.snug))
+        .padding(.top, Theme.spacing(.tight))
+        .onAppear { venue = DriveVenue.coerce(venue, camera: cameraDoor) }
+        .refreshingCameraDoor($cameraDoor)
+        .onChange(of: cameraDoor) { _, _ in
+            venue = DriveVenue.coerce(venue, camera: cameraDoor)
+        }
+        .onChange(of: venue) { _, now in entered(now) }
+    }
+
+    /// What a change of venue does to the drive that is already running.
+    ///
+    /// NOTHING, EXCEPT ON THE WAY TO THE ROBOT. Sim and "Your floor" are the
+    /// same drive drawn two ways — the loop, the peer, the pad and the bar are
+    /// untouched, so a duck being steered keeps being steered while the floor
+    /// under it changes. The robot venue draws no transport bar at all, and a
+    /// loop left running under a bar that is no longer on screen is exactly the
+    /// arrangement `transport` exists to end: a duck walking with the Stop out
+    /// of reach. So that one move sends a real stop, in the same words the
+    /// button does, rather than merely pausing.
+    @MainActor private func entered(_ now: DriveVenue) {
+        let allowed = DriveVenue.coerce(now, camera: cameraDoor)
+        if allowed != now { venue = allowed; return }
+        if allowed == .real, running { Task { await halt() } }
+    }
+
+    /// The picture, or the absence of one.
+    @ViewBuilder private var venueStage: some View {
+        switch venue {
+        case .sim: stage
+        case .ar: arStage
+        // NOTHING, AND NOT A PLACEHOLDER. There is no link to a robot, so
+        // there is no pose to draw; a rendered duck under the word "Robot"
+        // would be the simulator wearing the hardware's name, which is the one
+        // confusion this whole venue exists to prevent.
+        case .real: EmptyView()
+        }
+    }
+
+    /// The list under the picture.
+    @ViewBuilder private var venueControls: some View {
+        switch venue {
+        case .sim, .ar: controls
+        case .real: robotControls
+        }
     }
 
     // MARK: - the duck
@@ -301,8 +459,20 @@ struct DriveView: View {
     /// stacked rectangles; two radii a step apart read as one machined part.
     private var stage: some View {
         ZStack(alignment: .topLeading) {
-            DuckStage(pose: pose, environment: .bareFloor, orbit: $orbit)
+            // THE READBACK, NOT THE REQUEST. `world` is what `GET /world`
+            // answered, so the blocks on the stage are where the bench's own
+            // qpos says they are — at y = 1.305 and 200 mm tall whatever the
+            // scene asked for, and, on a bench nobody has given a world to,
+            // scattered down a column because fourteen 200 kg bodies do not
+            // stay in the stack they boot in. Drawing the request instead
+            // would draw a staircase that is not there.
+            DuckStage(pose: pose,
+                      environment: world?.asEnvironment ?? .bareFloor,
+                      props: drawnProps,
+                      orbit: $orbit,
+                      rolling: rollingBall)
             if hasReadout { hud }
+            if worldRouteMissing { floorCaption }
         }
         // NOT CAPPED AT ACCESSIBILITY SIZES. `TelemetryRow` exists so a
         // stacked label-over-value survives large text — and a fixed 300pt
@@ -315,6 +485,73 @@ struct DriveView: View {
                                        lineWidth: DriveMetric.hairlineStroke))
         .padding(.horizontal, Theme.spacing(.snug))
         .padding(.top, Theme.spacing(.tight))
+    }
+
+    /// What the stage draws standing in the world, with the ball where the
+    /// drive loop last saw it.
+    ///
+    /// THE BALL IS THE ONE THING THAT MOVES BETWEEN READS. `GET /world` is
+    /// asked once per change of world; `/state` comes back on every round trip
+    /// and carries the ball's position, because a duck kicking a ball is the
+    /// most visible thing a drive does. So the readback supplies the ball's
+    /// existence, its mass and its size, and the live answer supplies where it
+    /// is. Without this the ball would sit at the place the world put it while
+    /// the duck shoved it across the room.
+    /// The world's props as read back, with the ball where the world put
+    /// it. The ball's live position goes through `rollingBall` instead, so a
+    /// ball rolling under a drive does not change this list on every round
+    /// trip and rebuild every step and wall with it. A bench without a world
+    /// route still reports its ball on every round trip; that ball is drawn
+    /// at the floor's origin and then moved by `rollingBall` like any other.
+    private var drawnProps: [DuckScene.Prop] {
+        if let world { return world.asProps }
+        guard live?.ball != nil else { return [] }
+        return [DuckScene.ball(x: 0, y: 0)]
+    }
+
+    private var rollingBall: SIMD2<Double>? {
+        live?.ball.map { SIMD2($0.x, $0.y) }
+    }
+
+    /// A bench without a world route: the floor drawn here is the stage's
+    /// own, and the caption says so on the picture, held to two lines so the
+    /// duck stays in view.
+    private var floorCaption: some View {
+        Text(DuckWorld.floorIsNotAReadback)
+            .font(.caption2)
+            .foregroundStyle(Theme.textSecondary)
+            .lineLimit(2)
+            .padding(Theme.spacing(.hairline))
+            .background(Theme.surfacePrimary.opacity(DriveMetric.captionBacking),
+                        in: RoundedRectangle(cornerRadius: Theme.radius(Palette.Radius.card),
+                                             style: .continuous))
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+            .padding(Theme.spacing(.tight))
+            .allowsHitTesting(false)
+    }
+
+    /// The same drive, drawn on the floor you are standing on.
+    ///
+    /// THE READOUT COMES WITH IT, AT THE OTHER END OF THE PICTURE. Every chip
+    /// under the stage switches an overlay drawn from `live` — the sim clock,
+    /// the command, the joints, the link — and none of those stops being true
+    /// because the floor is a camera feed. Leaving them behind would make nine
+    /// chips into nine controls that change nothing, which is the shape this
+    /// app does not ship. `ARDriveStage` keeps the top corner for what is real
+    /// and what is not; this takes the bottom one.
+    private var arStage: some View {
+        ZStack(alignment: .bottomLeading) {
+            ARDriveStage(pose: pose, world: world, ball: live?.ball,
+                         benchIsThisPhone: bench?.isThisPhone == true,
+                         trips: trips, tickMillis: health?.host?.tickMillis)
+            if hasReadout { hud }
+        }
+            .frame(maxHeight: typeSize.isAccessibilitySize ? nil : DriveMetric.viewportHeight)
+            .clipShape(viewport)
+            .overlay(viewport.strokeBorder(Theme.separator,
+                                           lineWidth: DriveMetric.hairlineStroke))
+            .padding(.horizontal, Theme.spacing(.snug))
+            .padding(.top, Theme.spacing(.tight))
     }
 
     private var viewport: RoundedRectangle {
@@ -483,6 +720,12 @@ struct DriveView: View {
     /// What the lens in the toolbar is doing. The bench has answered, is being
     /// asked, or has not been reached.
     private var linkState: LensIndicator.Connection {
+        // THE IRIS IS ABOUT THE LINK THE SCREEN IS USING, AND IN THE ROBOT
+        // VENUE THERE ISN'T ONE. An open eye up there while "Robot" is the
+        // segment in force would read as a robot that has answered, which is
+        // the single claim this venue exists to avoid making. The bench is
+        // still connected and nothing on that screen is talking to it.
+        if venue == .real { return .asleep }
         if health != nil { return .connected }
         // A STOP IS A CALL LIKE ANY OTHER AS FAR AS THE LENS IS CONCERNED. It
         // keeps its own flag so that nothing can disable the button — see
@@ -809,6 +1052,7 @@ struct DriveView: View {
                             Text(one.name).tag(UUID?.some(one.id))
                         }
                     }
+                    worldPicker
                     if let health {
                         Picker("Policy", selection: $chosen) {
                             ForEach(health.policies, id: \.self) { Text($0).tag($0) }
@@ -873,6 +1117,376 @@ struct DriveView: View {
         .background(Theme.backgroundSecondary)
     }
 
+    // MARK: - the robot venue
+
+    /// What the Robot segment draws: a door that works, a card that is honest
+    /// about a link nobody has, and NO DRIVE CONTROL.
+    ///
+    /// THE ABSENCE IS THE FEATURE. `DuckMethod.reach(for: .ble)` denies
+    /// `robot.move`, `robot.stop` and `studio.state` — Pollen's own split puts
+    /// provisioning, status and firmware on Bluetooth and says payloads never
+    /// traverse it — so a stick drawn here would produce calls a duck refuses
+    /// by name, and a refusal by name is indistinguishable from a robot that
+    /// does not have the feature. What is offered instead is everything that
+    /// DOES work over that link: find one, pair with it, ask who it is.
+    ///
+    /// EVERY SENTENCE ON IT IS THE KIT'S. The three reach lines are
+    /// `DeviceCard.Control`'s, which reads them off the routing table rather
+    /// than listing them a second time; the charge line is
+    /// `DeviceCard.Charge.linkCarriesNoCharge`; the presence line is
+    /// `DeviceCard.Presence`'s; and the four paragraphs about what does not
+    /// exist yet are `DriveVenue`'s, where a test reads them letter by letter.
+    private var robotControls: some View {
+        List {
+            Section {
+                Text(DriveVenue.robotIsNotDrivenYet)
+                    .font(.footnote)
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                NavigationLink { PairingSpikeView() } label: {
+                    Label("Find and pair a duck", systemImage: "dot.radiowaves.left.and.right")
+                }
+            } header: {
+                SectionHeading(text: "Robot")
+            }
+            .listRowBackground(Theme.surfacePrimary)
+
+            Section {
+                // A CARD FOR A DUCK NOBODY HAS ANSWERED FROM, WHICH IS WHY
+                // BOTH LINES SAY SO. `lastReplyAt` is nil because this app has
+                // never had a reply over Bluetooth — pairing is a spike on its
+                // own screen and it does not leave a peer behind — and
+                // `Presence` turns that nil into a sentence rather than into a
+                // green dot. The charge line is the other absence, and it is a
+                // different one: there IS a cell, and nothing in this
+                // vocabulary asks it anything.
+                Text(robotPresence.says(now: Date()))
+                    .font(.footnote)
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel(Text("Connection"))
+                    .accessibilityValue(Text(robotPresence.says(now: Date())))
+                Text(DeviceCard.Charge.notReported(DeviceCard.Charge.linkCarriesNoCharge).says)
+                    .font(.footnote)
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel(Text("Battery"))
+                ForEach(robotReach, id: \.self) { line in
+                    Text(line)
+                        .font(.footnote)
+                        .foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            } header: {
+                SectionHeading(text: "This link")
+            }
+            .listRowBackground(Theme.surfacePrimary)
+
+            Section {
+                Text(DriveVenue.whatTheKitHasTowardIt)
+                    .font(.footnote)
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                DisclosureGroup("What a Pi bridge would take") {
+                    Text(DriveVenue.whatABridgeWouldTake)
+                        .font(.footnote)
+                        .foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                DisclosureGroup("Why there is no WebRTC client") {
+                    VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
+                        Text(DuckWebRTC.whyThereIsNoClient)
+                        Text(DuckWebRTC.fiveThingsNobodyHereKnows)
+                    }
+                    .font(.footnote)
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+            } header: {
+                SectionHeading(text: "What it would take")
+            }
+            .listRowBackground(Theme.surfacePrimary)
+        }
+        .scrollContentBackground(.hidden)
+        .background(Theme.backgroundSecondary)
+    }
+
+    /// What Bluetooth has said lately, which is nothing.
+    private var robotPresence: DeviceCard.Presence {
+        DeviceCard.Presence(lastReplyAt: nil, transport: .ble)
+    }
+
+    /// The three driving methods, each answered by the routing table.
+    ///
+    /// READ OFF `DuckMethod.reach(for:)` AND NEVER LISTED HERE. A screen that
+    /// wrote "Bluetooth does not carry move" in a string would keep saying it
+    /// after the table changed its mind, and would keep saying it in words
+    /// nothing tests.
+    private var robotReach: [String] {
+        let carried = DuckMethod.reach(for: .ble)
+        return [DuckMethod.move, .stop, .state].compactMap { method in
+            DeviceCard.Control.of(method, over: .ble, reach: carried).reason
+        }
+    }
+
+    // MARK: - the world the bench is standing in
+
+    /// The World picker, and every sentence that belongs under it.
+    ///
+    /// A MENU AND NOT A SEGMENTED CONTROL, because the list is the bench's own
+    /// world, a bare floor, eight staircases, the ball, five built-in scenes
+    /// and everything the person has drawn — which is a menu on any phone.
+    /// `BenchView` makes the same choice for the same reason.
+    ///
+    /// THE FIRST ENTRY SENDS NOTHING AND THAT IS THE POINT OF IT. Every number
+    /// this app has published from a bench was measured in the world the bench
+    /// booted in, and the way to keep a drive comparable with those is to leave
+    /// it alone. It is also the honest default: the alternative — laying a bare
+    /// floor on connect — would silently park fourteen 200 kg blocks that have
+    /// been colliding under every drive this app has ever done, which is a
+    /// change to the physics and not a tidy-up. `DuckWorld.bareFloorIsAChange`
+    /// says so where the choice is made.
+    ///
+    /// THE SELECTION IS ALWAYS WHAT IS STANDING. Every path through `stand`
+    /// ends with `worldChoice = standingChoice`, read out of `GET /world`, so a
+    /// refused request leaves the control showing the world the bench is
+    /// really in. A picker that kept the refused choice would be the one lie
+    /// this screen cannot afford: the stage draws the readback, so the two
+    /// would disagree about the same room.
+    @ViewBuilder private var worldPicker: some View {
+        Picker("World", selection: $worldChoice) {
+            ForEach(worldEntries) { entry in
+                Text(entry.label).tag(entry.choice)
+            }
+        }
+        .pickerStyle(.menu)
+        // DEAD ONLY WHEN THE BENCH HAS NO ROUTE, and the reason is printed
+        // directly underneath — a disabled control with no sentence beside it
+        // is the thing this app does not ship.
+        .disabled(worldRouteMissing || bench == nil)
+        .onChange(of: worldChoice) { _, now in
+            // NOT FOR THE WORLD ALREADY STANDING. `stand` sets this from the
+            // readback when it finishes, which fires this again; without the
+            // guard that is a second request per change, and after a refusal it
+            // would be a loop.
+            guard now != standingChoice else { return }
+            // A world change under a drive is a stop first: the drive loop is
+            // cut off and the duck told to stand before the world moves.
+            flight?.cancel()
+            flight = Task {
+                if running { await halt() }
+                await stand(in: now)
+            }
+        }
+        // BY POSITION, NOT BY THE SENTENCE. Two `unexpressed` rows can compose
+        // the same line — the same field on two steps, said the same way — and
+        // `id: \.self` would then draw one of them and drop the other, which is
+        // a list of what the world could not say quietly saying less than it
+        // was given.
+        ForEach(Array(worldNotes.enumerated()), id: \.offset) { _, line in
+            Text(line).font(.footnote).foregroundStyle(Theme.textSecondary)
+        }
+    }
+
+    /// Everything there is to say under the picker, in the order it is worth
+    /// reading. Each line is a kit string a test reads letter by letter.
+    private var worldNotes: [String] {
+        // A BENCH WITHOUT THE ROUTE HAS ONE THING TO SAY AND NOTHING ELSE IS
+        // TRUE OF IT. There is no readback to list, no world to reset and no
+        // change to warn about.
+        if worldRouteMissing { return [DuckWorld.noWorldRoute] }
+        var lines: [String] = []
+        if let worldNote { lines.append(worldNote) }
+        if world?.isSet != true {
+            // Nothing has been asked for yet, so both halves of the choice are
+            // worth having in front of somebody before they make it: what the
+            // bench's own world is, and what leaving it costs.
+            lines.append(DuckWorld.benchOwnWorld)
+            lines.append(DuckWorld.bareFloorIsAChange)
+            lines.append(DuckWorld.ballNeedsAWorld)
+        } else {
+            // The bench's own world is the row above this one, and it cannot
+            // be gone back to: the sentence sits with the choice that ended it.
+            lines.append(DuckWorld.oneWayUntilRestart)
+            if worldChoice == .bareFloor { lines.append(DuckWorld.bareFloorIsAChange) }
+            lines.append(DuckWorld.resetKeepsTheWorld)
+        }
+        if case .saved(let id, _) = worldChoice,
+           !scenes.scenes.contains(where: { $0.id == id }) {
+            lines.append(StageCaption.sceneDeleted(.drivenIn))
+        }
+        if let world, world.isSet {
+            // THE BENCH'S OWN ROWS FIRST AND WHOLE. Where it and the kit both
+            // speak — a wall this world has not got, a prop this plant lacks, a
+            // run that leaves daylight — the bench wins, because it is the one
+            // that actually laid the blocks.
+            let said = world.unexpressed
+            // AND THEN ONLY WHAT THE WIRE GAVE IT NO WAY TO SAY. `{x, top}`
+            // carries no y, no size and no ball, so `step` and `ball` are the
+            // two kinds of note the bench structurally cannot produce and the
+            // kit can. Anything else from the prediction would be a second
+            // wording of a row already above it, which is the failure this
+            // whole package is built against.
+            let missing = predicted.filter { $0.what == "step" || $0.what == "ball" }
+            if let heading = DuckWorld.couldNotExpress(said + missing) {
+                lines.append(heading)
+            }
+            lines.append(contentsOf: DuckWorld.groupedSayings(said + missing))
+            // THE WALLS ARE REAL AND THEY ARE NOT IN THE PICTURE, said
+            // wherever the picture is being drawn from a world.
+            lines.append(DuckWorld.arenaIsNotDrawn)
+        }
+        return lines
+    }
+
+    /// One row of the World picker.
+    private struct WorldEntry: Identifiable {
+        let choice: WorldChoice
+        let label: String
+        var id: WorldChoice { choice }
+    }
+
+    /// Which world a row asks for.
+    ///
+    /// THE CASES CARRY INDICES AND IDS RATHER THAN SCENES because a `Picker`
+    /// tag has to be `Hashable` and cheap to compare on every render, and
+    /// because a scene is a value somebody can edit underneath this screen. The
+    /// name travels with a saved scene's id for one reason: a scene deleted
+    /// while this tab is open must still have a row to be selected in, or the
+    /// picker goes blank at exactly the moment `StageCaption.sceneDeleted`
+    /// has something to say.
+    private enum WorldChoice: Hashable {
+        /// Send nothing. What every published number ran in.
+        case benchOwn
+        /// A world the bench is standing in that this list has no other row
+        /// for — one built from a scene since deleted, or by another client.
+        case standing(String)
+        case bareFloor
+        /// An index into `StairsChallenge.rises`.
+        case stairs(Int)
+        case ballAhead
+        /// An index into `DuckScene.starters`.
+        case starter(Int)
+        /// A scene of the person's own, and the name it had when it was picked.
+        case saved(UUID, String)
+    }
+
+    private var worldEntries: [WorldEntry] {
+        var out: [WorldEntry] = [.init(choice: .benchOwn, label: "The bench's own world")]
+        if case .standing(let name) = worldChoice {
+            out.append(.init(choice: worldChoice, label: name.isEmpty ? "Standing now" : name))
+        }
+        if case .saved(let id, let name) = worldChoice,
+           !scenes.scenes.contains(where: { $0.id == id }) {
+            out.append(.init(choice: worldChoice, label: name))
+        }
+        out.append(.init(choice: .bareFloor, label: bareFloorLabel))
+        for (slot, rise) in StairsChallenge.rises.enumerated() {
+            out.append(.init(choice: .stairs(slot), label: stairsScene(rise).name))
+        }
+        // The ball can be moved once a world is standing and not before:
+        // the bench refuses a first world that says nothing about its steps.
+        if world?.isSet == true {
+            out.append(.init(choice: .ballAhead, label: ballAheadLabel))
+        }
+        // THE BUILT-IN "BARE FLOOR" IS LEFT OUT BECAUSE THE ROW ABOVE IS IT.
+        // `DuckScene.bareFloor()` is named exactly what `Plan.bareFloor()` is
+        // named, and two rows with one label is a menu where the selection
+        // cannot be read back: `standingChoice` matches on the name the world
+        // was sent with, so one of the two could never be the resting choice.
+        // The dedicated row is the better of the pair — it sends `clear: true`
+        // rather than `steps: []` and carries `bareFloorIsAChange` under it.
+        // The INDEX is what `scene(for:)` resolves, so filtering the rows does
+        // not shift what any row means.
+        for (slot, scene) in DuckScene.starters.enumerated()
+        where scene.name != bareFloorLabel {
+            out.append(.init(choice: .starter(slot), label: scene.name))
+        }
+        for scene in scenes.scenes {
+            out.append(.init(choice: .saved(scene.id, scene.name), label: scene.name))
+        }
+        return out
+    }
+
+    /// The bare-floor row's word, taken off the plan the row sends rather than
+    /// written twice.
+    private var bareFloorLabel: String { DuckWorld.Plan.bareFloor().name ?? "Bare floor" }
+
+    /// The ball row's word. The distance is the one the plan carries, so the
+    /// row and the request cannot disagree about where the ball is going.
+    private var ballAheadLabel: String {
+        "Ball, \(String(format: "%.2f", DriveMetric.ballAhead)) m straight ahead"
+    }
+
+    /// The challenge's own flight at one rise — the same builder the Stairs
+    /// challenge screen uses, so "60 mm" here is the 60 mm that was scored.
+    private func stairsScene(_ rise: Double) -> DuckScene {
+        DuckScene.stairsChallenge(rise: rise)
+    }
+
+    /// The scene a row stands for, or nil for the two rows that send nothing.
+    private func scene(for choice: WorldChoice) -> DuckScene? {
+        switch choice {
+        case .benchOwn, .standing, .bareFloor, .ballAhead: return nil
+        case .stairs(let slot):
+            guard StairsChallenge.rises.indices.contains(slot) else { return nil }
+            return stairsScene(StairsChallenge.rises[slot])
+        case .starter(let slot):
+            guard DuckScene.starters.indices.contains(slot) else { return nil }
+            return DuckScene.starters[slot]
+        case .saved(let id, _):
+            return scenes.scenes.first { $0.id == id }
+        }
+    }
+
+    /// The request a row makes, or nil when the row sends nothing.
+    ///
+    /// `plan(for:on:graspables:)` IS THE KIT'S AND SO IS EVERY REFUSAL IN IT.
+    /// A scene with fifteen steps, or a flight that reaches through `wall_e`,
+    /// comes back carrying a refusal and `DuckBench.setWorld` throws it before
+    /// a byte goes out — the bench would answer 400 with the same reason, and a
+    /// round trip to be told what was already known is a person made to wait to
+    /// be refused.
+    private func planFor(_ choice: WorldChoice) -> DuckWorld.Plan? {
+        switch choice {
+        case .benchOwn, .standing: return nil
+        case .bareFloor: return .bareFloor()
+        case .ballAhead:
+            // Moving the ball keeps the standing world's name: the world is
+            // still the one that was picked, with its ball somewhere else.
+            return .moveTheBall(to: DuckWorld.Point(x: DriveMetric.ballAhead, y: 0))
+        case .stairs, .starter, .saved:
+            guard let scene = scene(for: choice) else { return nil }
+            return DuckWorld.plan(for: scene, on: world?.bank ?? .pinned,
+                                  graspables: health?.graspables ?? [])
+        }
+    }
+
+    /// Which row the bench is actually standing in.
+    ///
+    /// MATCHED BY THE NAME THE WORLD WAS SENT WITH, which is the only handle
+    /// there is: `/world` answers a name and a layout, not a row in this
+    /// picker. A world whose name matches nothing here — one another client
+    /// built, or one from a scene since renamed — gets its own row rather than
+    /// being rounded to the nearest entry, because rounding it would put a
+    /// staircase in the control that is not the staircase on the stage.
+    private var standingChoice: WorldChoice {
+        guard let world, world.isSet else { return .benchOwn }
+        let name = world.name ?? ""
+        // A saved scene keeps its row even after it has been deleted, so the
+        // sentence about the deletion has somewhere to be read from.
+        if case .saved(_, let picked) = worldChoice, picked == name { return worldChoice }
+        if name == bareFloorLabel { return .bareFloor }
+        for (slot, rise) in StairsChallenge.rises.enumerated()
+        where stairsScene(rise).name == name { return .stairs(slot) }
+        for (slot, scene) in DuckScene.starters.enumerated()
+        where scene.name == name { return .starter(slot) }
+        for scene in scenes.scenes where scene.name == name {
+            return .saved(scene.id, scene.name)
+        }
+        return .standing(name)
+    }
+
     // MARK: - the transport
 
     /// Drive, Stop and Reset, in a bar that never scrolls.
@@ -900,7 +1514,12 @@ struct DriveView: View {
     /// size — `ViewThatFits` picks. The alternative is a truncated verb on the
     /// button that stops a robot.
     @ViewBuilder private var transport: some View {
-        if !benches.benches.isEmpty {
+        // NOT IN THE ROBOT VENUE. Drive, Stop and Reset are three calls to a
+        // bench, and the robot venue is on screen precisely because there is no
+        // link to a robot to make them over; drawing them there would be the
+        // simulator's bar under the hardware's name. `entered` sends a real
+        // stop on the way in, so nothing is left walking behind it.
+        if !benches.benches.isEmpty, venue != .real {
             ViewThatFits(in: .horizontal) {
                 transportRow(icons: true)
                 transportRow(icons: false)
@@ -1007,6 +1626,12 @@ struct DriveView: View {
     /// back from the world, in `swap`, `drive` and `halt`. `Haptic`'s own
     /// preamble makes the argument at length.
     @MainActor private func press(_ control: DuckPad.Control) async {
+        // The robot venue drives nothing yet. The pad is drawn there so the
+        // layout is the same everywhere; a press on it is an explicit not-yet.
+        if venue == .real {
+            lastAction = DriveVenue.robotIsNotDrivenYet
+            return
+        }
         guard let binding = DuckPad.binding(for: control) else { return }
         switch binding.here {
         case .loadSlot(let slot):
@@ -1081,6 +1706,22 @@ struct DriveView: View {
     @MainActor private func ask(_ call: DuckBench.Call) async throws -> Data {
         try await URLSession.shared.data(
             for: DuckBench.urlRequest(for: call, token: token)).0
+    }
+
+    /// The same request, with the STATUS CODE KEPT.
+    ///
+    /// `/world` IS THE ONE CALL WHERE THE CODE IS THE ANSWER. Every other
+    /// endpoint this screen uses either exists on every bench in the family or
+    /// says what is wrong in its body; `/world` is new, so an older bench 404s
+    /// the path — and a 404 is a fact about the BUILD, not a refusal about a
+    /// world. Told apart, it disables the picker and prints
+    /// `DuckWorld.noWorldRoute`; conflated with a 400 it would read as "the
+    /// bench refused that staircase", which is a sentence about a machine that
+    /// was never asked.
+    @MainActor private func askStatus(_ call: DuckBench.Call) async throws -> (Data, Int) {
+        let (data, response) = try await URLSession.shared.data(
+            for: DuckBench.urlRequest(for: call, token: token))
+        return (data, (response as? HTTPURLResponse)?.statusCode ?? 200)
     }
 
     @MainActor private func requireBench() throws -> DuckBench.Address {
@@ -1190,6 +1831,11 @@ struct DriveView: View {
             cutOffByStop = false
             return
         }
+        // THE TITLE SAYS WHO REFUSED. A world this bank cannot hold is refused
+        // by this app before anything is sent, and calling that a bench
+        // refusal blames a bench that never heard about it.
+        failureTitle = error is DuckWorld.Refusal ? Self.worldRefusedTitle
+                                                  : Self.benchRefusedTitle
         switch error {
         case let refusal as DuckBench.ReadError: failure = refusal.message
         case let refusal as DuckBench.Refusal: failure = refusal.message
@@ -1198,6 +1844,11 @@ struct DriveView: View {
         case let misuse as BenchPeer.Misuse: failure = misuse.message
         case let misuse as DuckCall.Misuse: failure = misuse.message
         case let refusal as DuckDrive.Refusal: failure = refusal.message
+        // A WORLD THIS BANK CANNOT HOLD, REFUSED BEFORE IT WAS SENT. Fifteen
+        // steps, a flight that reaches through a wall, a ball outside the
+        // arena: `DuckWorld.Refusal` writes each of those in its own words and
+        // `DuckBench.setWorld` throws rather than posting.
+        case let refusal as DuckWorld.Refusal: failure = refusal.message
         default: failure = error.localizedDescription
         }
     }
@@ -1285,7 +1936,116 @@ struct DriveView: View {
             // already names, so this fills the picker without a request. With
             // no record, `chosen` stays empty and Drive waits for a pick.
             if chosen.isEmpty, let known = benches.lastLoaded(for: bench?.id) { chosen = known }
+            // AND WHAT ROOM IT IS STANDING IN, which is the other half of "what
+            // am I looking at". `/health` says which policies the bench holds;
+            // this says where the duck is, and the stage draws the answer. An
+            // older bench 404s it and the picker goes dead with the reason
+            // under it — see `readWorld`.
+            await readWorld(try requireBench())
         } catch { report(error) }
+    }
+
+    /// What world the bench says it is in, and what to do when it has no
+    /// opinion because it has no route.
+    ///
+    /// A FAILED READ IS NOT A FAILED SCREEN. This is called on connect, after
+    /// every write and whenever the bench changes, and none of those is a
+    /// moment to put an alert in front of somebody: `/health` has already
+    /// answered, so a 404 here is the build and a thrown reader is the same
+    /// bench answering an unknown path in its own words. Both mean the same
+    /// thing to this screen and both end with the picker dead and
+    /// `DuckWorld.noWorldRoute` printed where the control was. A transport
+    /// failure — the link dropping between the two calls — changes nothing at
+    /// all, because "the network went away" is not evidence about a route.
+    @MainActor private func readWorld(_ address: DuckBench.Address) async {
+        do {
+            let (data, status) = try await askStatus(DuckBench.world(address))
+            guard status != 404 else {
+                worldRouteMissing = true
+                world = nil
+                return
+            }
+            world = try DuckBench.readWorld(data)
+            worldRouteMissing = false
+            worldNote = nil
+            // NOBODY PREDICTED THIS ONE. A read finds whatever is standing —
+            // laid by a previous session, by another client, or by nothing at
+            // all — and the last plan this screen made is not about it.
+            predicted = []
+            worldChoice = standingChoice
+            // The kit frames the world it just read; nothing to frame lets
+            // the camera go back to following the duck.
+            orbit.frame(world?.framing)
+        } catch {
+            // NOT A MISSING ROUTE: that answered 404 above and was handled. A
+            // bench that has the route and still cannot be read is shown as
+            // unread, with its reason in the footnote, and the picture is
+            // left as it was.
+            world = nil
+            worldNote = (error as? DuckBench.ReadError)?.message ?? error.localizedDescription
+        }
+    }
+
+    /// Ask again, from scratch, because the bench changed underneath.
+    @MainActor private func refreshWorld() async {
+        // THE VERDICT IS THROWN AWAY FIRST. `worldRouteMissing` is a fact about
+        // one machine, and carrying the last bench's answer over would leave
+        // the picker dead against a bench that has the route.
+        worldRouteMissing = false
+        worldNote = nil
+        world = nil
+        predicted = []
+        worldChoice = .benchOwn
+        guard let address = try? requireBench() else { return }
+        await readWorld(address)
+    }
+
+    /// Stand the bench in the world a row asks for.
+    ///
+    /// THE ANSWER TO THE WRITE IS THE READBACK, so nothing here has to ask
+    /// again on the happy path: `POST /world` and `GET /world` return the same
+    /// block on purpose. What does ask again is the refusal path — a 400 leaves
+    /// the world the bench found, and this screen has to find out what that was
+    /// rather than assume the request half-landed.
+    ///
+    /// TWO ROWS SEND NOTHING, AND THEY ARE NOT INERT. "The bench's own world"
+    /// is a real choice with a real consequence — it is the one that keeps a
+    /// drive comparable with every published number — and picking it after
+    /// something else is standing re-reads and says so, in
+    /// `DuckWorld.benchOwnWorld`, rather than pretending to have put the bank
+    /// back. Nothing can put it back: `WORLD.set` is one-way on the bench until
+    /// the process restarts, and claiming otherwise would be this screen
+    /// inventing an endpoint.
+    @MainActor private func stand(in choice: WorldChoice) async {
+        worldNote = nil
+        busy = true
+        defer { busy = false }
+        do {
+            let address = try requireBench()
+            guard let plan = planFor(choice) else {
+                await readWorld(address)
+                if case .benchOwn = choice, world?.isSet == true {
+                    worldNote = DuckWorld.oneWayUntilRestart
+                }
+                worldChoice = standingChoice
+                return
+            }
+            let (data, status) = try await askStatus(try DuckBench.setWorld(address, plan))
+            guard status != 404 else {
+                worldRouteMissing = true
+                world = nil
+                return
+            }
+            world = try DuckBench.readWorld(data)
+            worldRouteMissing = false
+            predicted = plan.predicted
+            worldChoice = standingChoice
+        } catch {
+            report(error)
+            // THE PICKER GOES BACK TO WHAT IS THERE, NOT TO WHAT WAS ASKED FOR.
+            if let address = try? requireBench() { await readWorld(address) }
+            worldChoice = standingChoice
+        }
     }
 
     /// The loop. One command in flight at a time, and physics only advances
@@ -1459,6 +2219,8 @@ struct DriveView: View {
 /// can run the formula over it. How tall to let a viewport get is not a fact
 /// about anything, it is a judgement about a phone.
 private enum DriveMetric {
+    /// How solid the caption's card is over the stage.
+    static let captionBacking = 0.85
     /// The viewport card. Its readout takes `viewport.inner`, which is how the
     /// concentric rule is expressed rather than asserted — pick a different
     /// outer radius and the inner one follows.
@@ -1469,6 +2231,19 @@ private enum DriveMetric {
     /// How much of the screen the duck is allowed. Above this the controls stop
     /// fitting on a small phone; below it the duck is a thumbnail of a duck.
     static let viewportHeight: CGFloat = 300
+
+    /// How wide the three-segment venue switch is allowed to get. The same
+    /// argument `VenuePicker` makes about its two: wide enough that "Sim |
+    /// Your floor | Robot" is not stretched across an iPad, and lifted
+    /// entirely at accessibility sizes, where a segmented control truncates
+    /// rather than wrapping.
+    static let venueSwitchWidth: CGFloat = 320
+
+    /// Where the ball goes when somebody picks the ball row: straight ahead of
+    /// the duck's spawn, comfortably inside the 1.45 m arena and far enough to
+    /// be walked at. One number, so the row's label and the request it sends
+    /// cannot disagree.
+    static let ballAhead = 0.80
 
     /// How wide the readout may grow. Wide enough for a telemetry label beside
     /// its value at the default text size, narrow enough that the duck — which

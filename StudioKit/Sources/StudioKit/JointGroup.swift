@@ -63,6 +63,17 @@ public struct JointControl: Equatable, Sendable, Identifiable {
     /// Where a joint sits when nothing is asking it to be anywhere.
     public var home: Double { DuckModel.homePose[index] }
 
+    /// The joint's plain word — "left knee", not "left_knee".
+    ///
+    /// THE DOOR OUT OF THE PACKAGE FOR ONE VOCABULARY. The words live in
+    /// `MotionProposal.jointVocabulary`, which is what drafting and tweaking
+    /// both read, and `MotionTweak.plainName` is how the rest of this package
+    /// asks for one. That stays internal — a second public spelling of the
+    /// same lookup is how two vocabularies start — and a control, which is
+    /// already the thing a screen holds when it needs a joint's label, is the
+    /// door instead. Falls back to the wire name rather than to nothing.
+    public var plainName: String { MotionTweak.plainName(name) }
+
     public func degrees(_ radians: Double) -> String {
         String(format: "%+.0f°", radians * 180 / .pi)
     }

@@ -107,6 +107,57 @@ struct IntentAuthorView: View {
     /// stack nobody asked for, and Cancel already puts back the whole session.
     @State private var beforeTweak: IntentDraft?
 
+    // MARK: - the handles on the stage
+
+    /// The joint the handles and the sliders are both pointed at, or none.
+    @State private var focusedJoint: Int?
+    /// Which group of handles is on the stage, by title.
+    ///
+    /// ONE GROUP AT A TIME, WHICH IS THE WHOLE REASON THE CHIPS EXIST.
+    /// Fourteen targets forty-four points across, on a stage three hundred
+    /// points tall holding a duck about a hundred and twenty points tall, is
+    /// not a picture of a robot with handles on it — it is a pile of circles.
+    /// Five is a leg.
+    @State private var handleGroup = JointGroup.all[0].title
+    /// Where the stage put those handles on the glass, republished by its own
+    /// frame callback whenever they move.
+    @State private var projections = StageProjections()
+    /// The joint whose label a long press pinned up.
+    @State private var pinnedJoint: Int?
+    /// The cluster target that has been opened out into a list of names.
+    @State private var openedCluster: Int?
+    /// Why the last drag on a handle was turned away.
+    @State private var handleRefusal: String?
+    /// Counts taps on the stage's handles, so tapping the same joint twice
+    /// scrolls its slider back into view both times.
+    @State private var handleTaps = 0
+
+    /// The joints the chosen group holds.
+    private var handleGroupJoints: Set<Int> {
+        Set(JointGroup.all.first { $0.title == handleGroup }?.joints ?? [])
+    }
+
+    /// The grabbable joints of that group, at the pose on screen.
+    ///
+    /// FROM THE KIT, EVERY PASS, AND NOT CACHED. `handles(at:)` walks the
+    /// kinematic chain, which is what makes the pivot and the axis true of the
+    /// duck as it is drawn rather than of the duck at home. Caching it is how a
+    /// handle ends up on the shank a person moved a second ago.
+    private var stageHandles: [JointHandles.Handle] {
+        JointHandles.handles(at: shown).filter { handleGroupJoints.contains($0.joint) }
+    }
+
+    /// Whether the playhead is standing ON the keyframe being edited.
+    ///
+    /// WITHIN HALF A TICK, ON THE SAME CLOCK THE TRANSPORT MOVES IT. Anywhere
+    /// else the pose on screen is interpolated between two keyframes and there
+    /// is nothing under a handle to write to — which is the state the kit has a
+    /// sentence for.
+    private var onEditingKeyframe: Bool {
+        guard let key = editingKey else { return false }
+        return abs(playhead - key.time) < 0.5 / DuckModel.tickHz
+    }
+
     /// The keyframe being edited, falling back to the first. A selection can go
     /// stale — the keyframe it named was deleted — and the right answer then is
     /// to edit something rather than to show an empty panel.
@@ -140,7 +191,39 @@ struct IntentAuthorView: View {
                                                                    root: pinned))
     }
 
+    /// How far below standing this pose puts the body — the reading the legend
+    /// used to print, kept as a row now that the legend has gone.
+    ///
+    /// MEASURED AT THE PINNED ROOT, NOT AT THE RESTED ONE, for the reason
+    /// `StageCaption.restedGround` states: the drop IS the clearance of the
+    /// pose at standing height, and measuring it after the drop has been
+    /// applied reads zero by construction — which would blind the one number
+    /// that caught the build where every clip floated at 116 mm.
+    private var restedDrop: Double {
+        guard let probe = StageLegend.clearance else { return 0 }
+        return probe.clearance(jointAngles: shown, root: StagePose.home.root)
+    }
+
+    /// What is standing in the place, in the legend's own words and off the
+    /// environment the stage is actually drawing — so a scene picked from the
+    /// menu and the line describing it cannot disagree.
+    private var stageContents: String {
+        let place = scene?.environment ?? .bareFloor
+        return StageCaption.context(gridMetres: StageSurface.gridMetres,
+                                    stepCount: place.steps.count,
+                                    tallestStepMetres: place.steps.map(\.top).max() ?? 0,
+                                    wallCount: place.walls.count,
+                                    propCount: scene?.props.count ?? 0)
+    }
+
     var body: some View {
+        // THE READER WRAPS THE WHOLE SCREEN AND NOT JUST THE LIST, because the
+        // thing that asks for a scroll is above the list: a handle tapped on the
+        // stage has to bring its slider row into view, and the proxy is only in
+        // scope inside this closure. Watching `focusedJoint` rather than calling
+        // `scrollTo` from the tap is what lets the stage stay a plain view with
+        // no scroll machinery in it.
+        ScrollViewReader { rows in
         VStack(spacing: 0) {
             stage
 
@@ -259,7 +342,17 @@ struct IntentAuthorView: View {
         } message: {
             Text("It goes from the list and from this iPhone. This cannot be undone.")
         }
-        .onAppear { if original == nil { original = draft } }
+        .onAppear {
+            if original == nil { original = draft }
+            frameForAuthoring()
+            // OPEN ON THE KEYFRAME BEING EDITED. The handles are live only
+            // there, and the first thing this screen is for is grabbing one.
+            if let key = editingKey { playhead = key.time }
+        }
+        // A DIFFERENT SCENE IS A DIFFERENT THING TO LOOK AT. Picking one from
+        // the Author-against menu is a deliberate act, so re-aiming the camera
+        // is not the app moving on its own.
+        .onChange(of: draft.sceneID) { _, _ in frameForAuthoring() }
         .sheet(isPresented: $preferring) {
             NavigationStack {
                 PreferenceSearchView(draft: draft, scene: scene) { chosen in
@@ -303,6 +396,19 @@ struct IntentAuthorView: View {
             blockedRetime = nil
             onSave(new)
         }
+        // TAPPING A HANDLE MOVES THE LIST, WHICH IS THE HALF OF THE GESTURE
+        // THAT MAKES IT AN EDITOR. A target on the duck that only lit up would
+        // leave the person hunting down fifteen sliders for the one they just
+        // touched; the row arrives under the stage with the handle still lit.
+        .onChange(of: focusedJoint) { _, joint in
+            guard let joint else { return }
+            withAnimation(Theme.settle) { rows.scrollTo(joint, anchor: .center) }
+        }
+        .onChange(of: handleTaps) { _, _ in
+            guard let joint = focusedJoint else { return }
+            withAnimation(Theme.settle) { rows.scrollTo(joint, anchor: .center) }
+        }
+        }
     }
 
     // MARK: - the stage
@@ -317,12 +423,23 @@ struct IntentAuthorView: View {
     /// the legend inside it is a card, and a card inside a card takes the next
     /// radius down.
     ///
-    /// NOT CAPPED AT ACCESSIBILITY SIZES. The legend that floats on this stage
-    /// is text, and a fixed three-hundred-point viewport clips exactly the
-    /// reflow that text does at AX5 — which hides the words from the people who
-    /// enlarged them in order to read them. The duck shrinks to make room; the
-    /// words do not disappear. `DriveView` made the same change for the same
-    /// reason and the note there is longer.
+    /// NOT CAPPED AT ACCESSIBILITY SIZES. The panels below this reflow at AX5
+    /// and a fixed three-hundred-point viewport would take the room they need
+    /// out of them. The duck shrinks to make way; nothing below disappears.
+    /// `DriveView` made the same change for the same reason and the note there
+    /// is longer.
+    ///
+    /// THE LEGEND IS NOT ON THIS STAGE ANY MORE, AND THAT IS SPACE RATHER THAN
+    /// A DELETION. `StageLegend` is a card 76 points tall over a viewport 300
+    /// points tall — a quarter of the picture, on the one screen in the app
+    /// where the picture is the thing being edited rather than the thing being
+    /// watched. Its two readings that mean anything to an authored draft, the
+    /// contents of the place and where the feet are, moved into the Pose
+    /// panel's first section as rows; the other three were about a RECORDED
+    /// trunk and were already saying so in a sentence beginning "a draft
+    /// carries joints, not where the body went". Every other stage in the app
+    /// — the bench, the scene editor, the intent list — still draws the legend,
+    /// because on those the picture is the answer and not the workbench.
     private var stage: some View {
         ZStack(alignment: .bottomLeading) {
                 // PROPS ARE HALF OF WHAT A SCENE IS. Passing only
@@ -344,30 +461,78 @@ struct IntentAuthorView: View {
                 DuckStage(pose: StagePose(jointAngles: shown, root: restingRoot(for: shown)),
                           environment: scene?.environment ?? .bareFloor,
                           props: scene?.props ?? [],
-                          orbit: $orbit)
-                // `rootIsPinned` because it is: the root here is a constant, by
-                // the design `IntentDraft`'s header states in capitals. The
-                // legend was built for recorded clips and reads that pin as if
-                // physics had produced it.
-                // THE LEGEND IS HANDED THE STANDING-HEIGHT POSE ON PURPOSE.
-                // Its clearance reading against that pose IS the drop, and it
-                // is the same measurement that used to be printed as a float.
-                // Measuring the rested pose instead would read zero by
-                // construction and blind the check that caught the build where
-                // every clip floated.
-                StageLegend(pose: StagePose(jointAngles: shown, root: StagePose.home.root),
-                            environment: scene?.environment ?? .bareFloor,
-                            props: scene?.props ?? [],
-                            rootIsPinned: true,
-                            restedOnFloor: true,
-                            orbit: $orbit)
+                          orbit: $orbit,
+                          handles: stageHandles,
+                          onProject: { projections = $0 })
+                // ABOVE THE STAGE AND NOT INSIDE IT. A SwiftUI sibling in this
+                // ZStack never touches the ARView's three recognisers: a touch
+                // on a handle is taken here, and a touch anywhere else falls
+                // through to orbit, pinch and double-tap-to-reset exactly as it
+                // did before this layer existed.
+                JointHandleOverlay(
+                    handles: stageHandles,
+                    projections: projections,
+                    drawn: handleGroupJoints,
+                    editable: onEditingKeyframe,
+                    focused: focusedJoint,
+                    pinned: $pinnedJoint,
+                    opened: $openedCluster,
+                    refusal: $handleRefusal,
+                    select: { joint in
+                        panel = .joints
+                        isRunning = false
+                        focusedJoint = joint
+                        handleTaps += 1
+                    },
+                    write: { joint, value in
+                        guard let key = editingKey else { return }
+                        binding(joint: joint, of: key.id).wrappedValue = value
+                    },
+                    goToEditingKeyframe: {
+                        guard let key = editingKey else { return }
+                        isRunning = false
+                        playhead = key.time
+                    })
         }
+        .overlay(alignment: .topLeading) { groupCapsule }
         .frame(maxHeight: typeSize.isAccessibilitySize ? nil : AuthoringMetric.stageHeight)
         .clipShape(viewport)
         .overlay(viewport.strokeBorder(Theme.separator,
                                        lineWidth: AuthoringMetric.hairlineStroke))
         .padding(.horizontal, Theme.spacing(.snug))
         .padding(.top, Theme.spacing(.tight))
+    }
+
+    /// Point the camera at the thing being authored.
+    ///
+    /// THE KIT PICKS THE POINT; THIS TURNS IT INTO A CAMERA. `authoringFraming`
+    /// answers where to look, how far back and how far down for the duck and
+    /// the FIRST riser to be on screen together — about half a metre on the
+    /// challenge's 60 mm flight. The scene's frame is the model's, x forward
+    /// and z up with the duck at the origin, and RealityKit's is (x, z, −y);
+    /// the target sits on the centreline, so its y is nothing and the swap is
+    /// this one line rather than a conversion worth a function.
+    ///
+    /// A SCENE WITH NOTHING IN IT KEEPS THE STAGE'S OWN DEFAULT, which is
+    /// already right for a duck on bare floor and is what `nil` means here.
+    /// WHICH GROUP'S HANDLES ARE ON THE STAGE, said on the picture. The
+    /// chips that choose it sit below the sliders and are off screen for
+    /// most of an edit; without this the six handles have no caption.
+    private var groupCapsule: some View {
+        Text(handleGroup)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(Theme.textSecondary)
+            .padding(.horizontal, Theme.spacing(.tight))
+            .padding(.vertical, Theme.spacing(.hairline))
+            .background(Capsule().fill(Theme.surfacePrimary
+                                         .opacity(AuthoringMetric.capsuleBacking)))
+            .padding(Theme.spacing(.tight))
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+
+    private func frameForAuthoring() {
+        orbit.frame(scene?.authoringFraming)
     }
 
     private var viewport: RoundedRectangle {
@@ -423,6 +588,23 @@ struct IntentAuthorView: View {
                     .foregroundStyle(Theme.textSecondary)
             }
             .font(.footnote)
+            // THE TWO READINGS THE LEGEND USED TO CARRY, AS ROWS. Taking the
+            // legend off the stage bought a quarter of the picture back and
+            // would have cost these if they had gone with it: what is standing
+            // in the place, which is the difference between authoring against
+            // a step and authoring against nothing, and where the feet are,
+            // which is the number that catches a duck drawn floating. They are
+            // the kit's own sentences, from the same functions the legend
+            // called, so the stage in the scene editor and this row cannot
+            // start describing the same place differently.
+            Text(stageContents)
+                .font(.caption)
+                .foregroundStyle(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(StageCaption.restedGround(dropMetres: restedDrop))
+                .font(.caption)
+                .foregroundStyle(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
             // THE DISCLAIMER IS THE `asked` SENTENCE ON THIS PANEL. It is the
             // kit saying that what you are about to make is a list of poses
             // somebody wrote rather than anything a robot did — a request, not
@@ -474,12 +656,26 @@ struct IntentAuthorView: View {
         }
         .listRowBackground(Theme.surfacePrimary)
 
+        handleGroups
+
         if let key = editingKey {
             ForEach(JointGroup.all) { group in
                 Section {
                     ForEach(group.joints, id: \.self) { joint in
                         JointSlider(control: JointControl(index: joint),
                                     value: binding(joint: joint, of: key.id))
+                            // THE SCROLL TARGET FOR A TAP ON THE STAGE. A
+                            // handle writes `focusedJoint` and the reader round
+                            // the whole screen brings this row to the middle.
+                            .id(joint)
+                            // AND THE ROW SAYS SO WHEN IT ARRIVES. A list that
+                            // scrolled somewhere without marking where is a list
+                            // that moved for no visible reason; `surfaceInteractive`
+                            // is the palette's own token for a row under a
+                            // pointer, so this is not a colour argued about here.
+                            .listRowBackground(joint == focusedJoint
+                                               ? Theme.surfaceInteractive
+                                               : Theme.surfacePrimary)
                     }
                 } header: {
                     SectionHeading(text: group.title)
@@ -489,6 +685,63 @@ struct IntentAuthorView: View {
                 .listRowBackground(Theme.surfacePrimary)
             }
         }
+    }
+
+    /// Which handles are on the duck.
+    ///
+    /// CHIPS AND NOT A SEGMENTED PICKER. Four segments holding "Left leg",
+    /// "Right leg", "Neck and head" and "Mouth" is a control where the longest
+    /// label decides, and at any enlarged text size the two that matter most
+    /// truncate to "Left…" and "Righ…". Chips take the width their words need
+    /// and scroll when they run out of it.
+    @ViewBuilder private var handleGroups: some View {
+        Section {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: Theme.spacing(.tight)) {
+                    ForEach(JointGroup.all) { group in
+                        chip(group)
+                    }
+                }
+                .padding(.vertical, Theme.spacing(.hairline))
+            }
+            // THE ONE GROUP WITH NOTHING TO GRAB SAYS SO. Picking Mouth and
+            // getting an empty duck would read as the handles being broken; it
+            // is a fact about the policies, and the kit owns the sentence.
+            if stageHandles.isEmpty, handleGroupJoints.contains(DuckModel.mouthIndex) {
+                Label(JointHandles.noMouthHandleSaid, systemImage: "info.circle")
+                    .font(.caption)
+                    .foregroundStyle(Theme.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        } header: {
+            SectionHeading(text: "Handles on the stage")
+        }
+        .listRowBackground(Theme.surfacePrimary)
+    }
+
+    private func chip(_ group: JointGroup) -> some View {
+        let chosen = group.title == handleGroup
+        return Button {
+            handleGroup = group.title
+            openedCluster = nil
+            pinnedJoint = nil
+            handleRefusal = nil
+        } label: {
+            Text(group.title)
+                .font(.footnote.weight(chosen ? .semibold : .regular))
+                .foregroundStyle(chosen ? Theme.textPrimary : Theme.textSecondary)
+                .padding(.horizontal, Theme.spacing(.snug))
+                .frame(minHeight: DesignMetric.minimumTarget)
+                .background(Capsule().fill(chosen ? Theme.surfaceInteractive
+                                                  : Theme.surfacePrimary))
+                .overlay(Capsule().strokeBorder(chosen ? Theme.focus : Theme.separator,
+                                                lineWidth: AuthoringMetric.hairlineStroke))
+        }
+        // PLAIN, OR THE WHOLE ROW IS ONE BUTTON. Four buttons in a list row all
+        // fire together under the row's own tap unless each of them says it is
+        // its own control.
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(chosen ? [.isButton, .isSelected] : .isButton)
     }
 
     /// A slider drives ONE joint of ONE keyframe, found by id — sorting by time
@@ -1058,9 +1311,7 @@ private struct JointSlider: View {
     /// stop from a stall. Every part comes from `JointControl`, the same
     /// expressions the visible rows use, so the spoken and printed angles cannot
     /// round apart.
-    private var spoken: String {
-        "\(control.degrees(value)), travel \(control.travelLabel.lower) to \(control.travelLabel.upper)"
-    }
+    private var spoken: String { control.spoken(at: value) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
@@ -1223,7 +1474,30 @@ struct AuthoringActionStyle: ButtonStyle {
 /// same arrangement `DriveView` makes for the drive screen and `DesignComponents`
 /// makes for the components, and every one of them would move into the kit the
 /// day it grows a scale for control geometry.
+extension JointControl {
+
+    /// The joint read aloud: where it is, and both stops.
+    ///
+    /// ONE COPY, TWO CONTROLS. The slider row and the handle on the same shank
+    /// say the same three things about the same joint, and written twice they
+    /// drift — a target announcing one angle while the slider under it
+    /// announces another is a screen arguing with itself about a number a
+    /// person is using to decide whether the pose is right. Every part is
+    /// `JointControl`'s own expression, so the two cannot round apart either.
+    ///
+    /// AN APP EXTENSION AND NOT A KIT ONE, FOR NOW. It composes the kit's
+    /// formatting; it does not claim anything about the robot that `degrees`
+    /// and `travelLabel` do not already claim. The day a third screen needs it
+    /// — the drive readout, the bench — it moves into StudioKit beside them and
+    /// gets a test, which is the route `DesignMetric`'s numbers took.
+    func spoken(at value: Double) -> String {
+        "\(degrees(value)), travel \(travelLabel.lower) to \(travelLabel.upper)"
+    }
+}
+
 enum AuthoringMetric {
+    /// How solid the group capsule's backing is over the stage.
+    static let capsuleBacking = 0.85
     /// A hairline STROKE. One point, which on every device this ships to is one
     /// to three pixels — the thinnest line iOS will draw crisply.
     ///

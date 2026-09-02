@@ -298,6 +298,195 @@ public enum DuckBench {
                     body: try JSONSerialization.data(withJSONObject: body))
     }
 
+    // MARK: - /world — changing what the duck is standing in
+
+    /// Ask what world the bench is standing in.
+    ///
+    /// IT IS A READ AND IT IS THE ONLY HONEST SOURCE. A screen that drew the
+    /// scene it had just sent would draw a staircase at y = 0 that is really
+    /// 1.305 m to the duck's left, at whatever height the scene asked for
+    /// rather than the 200 mm every block in the bank actually is. So this is
+    /// called after every write, on connecting, and whenever the peer changes.
+    ///
+    /// A BENCH WITHOUT THE ROUTE IS NOT AN ERROR. Every shell in this family
+    /// answers an unknown path with `{"error": "no /world here"}`, which
+    /// arrives as `ReadError.bench` carrying the bench's own words — and the
+    /// screen prints `DuckWorld.noWorldRoute` beside a picker it disables,
+    /// exactly as `/tune` already does.
+    public static func world(_ address: Address) -> Call {
+        Call(method: "GET", url: URL(string: "\(address.base)/world")!, body: nil)
+    }
+
+    /// Stand the bench in a world somebody chose.
+    ///
+    /// IT REFUSES BEFORE IT SENDS. `DuckWorld.plan(for:on:)` has already worked
+    /// out whether the bank can hold this scene, and a plan carrying a refusal
+    /// is not a request — the bench would answer 400 with the same reason, and
+    /// a round trip to be told what was already known is a round trip that
+    /// makes a person wait to be refused.
+    ///
+    /// `clear` AND `steps` ARE NEVER BOTH SENT. The bench refuses a body
+    /// carrying both — "say one or the other: `clear: true` for a bare floor,
+    /// or `steps` to lay them" — because clearing and laying in one request is
+    /// two intentions with no order between them. A scene always says what its
+    /// steps are, even when the answer is none; `clear` is the spelling for the
+    /// picker entry that is only about parking the bank.
+    ///
+    /// THE BALL IS ABSENT RATHER THAN NULL WHEN IT IS NOT BEING MOVED. `null`
+    /// is a real request on this route and it means "take the ball out", which
+    /// the bench answers with an `unexpressed` row rather than an empty world:
+    /// the ball is a permanent body on a freejoint. Absent means "leave it
+    /// where it is", which is what a scene that simply did not mention it
+    /// wants.
+    public static func setWorld(_ address: Address, _ plan: DuckWorld.Plan) throws -> Call {
+        if let refusal = plan.refusals.first { throw refusal }
+        var body: [String: Any] = [
+            "props": plan.props.map { ["name": $0.name, "x": $0.x, "y": $0.y] },
+        ]
+        if plan.clear {
+            body["clear"] = true
+        } else if let steps = plan.steps {
+            body["steps"] = steps.map { ["x": $0.x, "top": $0.top] }
+        }
+        if !plan.walls.isEmpty {
+            body["walls"] = plan.walls.map { ["name": $0] }
+        }
+        if let name = plan.name { body["name"] = name }
+        if let ball = plan.ball { body["ball"] = ["x": ball.x, "y": ball.y] }
+        return Call(method: "POST", url: URL(string: "\(address.base)/world")!,
+                    body: try JSONSerialization.data(withJSONObject: body))
+    }
+
+    /// What world the bench says it is standing in. `GET /world` and the answer
+    /// to `POST /world` are the same block, deliberately: a write that had a
+    /// different shape from a read would be two things to keep in step.
+    ///
+    /// LENIENT ABOUT THE BANK AND THE ARENA, STRICT ABOUT NOTHING. A bench that
+    /// omits either is answered from `DuckWorld.Bank.pinned` — the
+    /// transcription `WorldConstantsFixtureTests` holds against
+    /// `duck-sounds/site/stairs.js` — because those numbers are compiled into
+    /// the plant and a bench that does not repeat them has not changed them.
+    /// Where the bench DOES say, the bench wins.
+    public static func readWorld(_ data: Data) throws -> DuckWorld {
+        guard let top = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw ReadError.notJSON
+        }
+        if let error = top["error"] as? String { throw ReadError.bench(error) }
+
+        let block = top["world"] as? [String: Any] ?? [:]
+        let bankBlock = top["bank"] as? [String: Any] ?? [:]
+        let pinned = DuckWorld.Bank.pinned
+        let bank = DuckWorld.Bank(
+            count: bankBlock["count"] as? Int ?? pinned.count,
+            y: bankBlock["y"] as? Double ?? pinned.y,
+            halfDepth: bankBlock["halfDepth"] as? Double ?? pinned.halfDepth,
+            halfWidth: bankBlock["halfWidth"] as? Double ?? pinned.halfWidth,
+            halfHeight: bankBlock["halfHeight"] as? Double ?? pinned.halfHeight,
+            arenaInner: (top["arena"] as? [String: Any])?["innerX_m"] as? Double
+                ?? pinned.arenaInner,
+            wallHeight: pinned.wallHeight)
+
+        let arenaBlock = top["arena"] as? [String: Any]
+        let walls = (arenaBlock?["walls"] as? [[String: Any]] ?? []).compactMap {
+            row -> DuckWorld.Wall? in
+            guard let name = row["name"] as? String else { return nil }
+            return DuckWorld.Wall(name: name,
+                                  x: row["x"] as? Double ?? 0,
+                                  y: row["y"] as? Double ?? 0,
+                                  halfThickness: row["halfThickness"] as? Double ?? 0,
+                                  height: row["height"] as? Double ?? pinned.wallHeight,
+                                  halfLength: row["halfLength"] as? Double ?? 0,
+                                  along: row["along"] as? String ?? "")
+        }
+        let arena = walls.isEmpty && arenaBlock == nil
+            ? DuckWorld.Arena.pinned
+            : DuckWorld.Arena(
+                walls: walls.isEmpty ? DuckWorld.Arena.pinned.walls : walls,
+                innerX: arenaBlock?["innerX_m"] as? Double ?? pinned.arenaInner,
+                innerY: arenaBlock?["innerY_m"] as? Double ?? pinned.arenaInner,
+                why: arenaBlock?["why"] as? String)
+
+        let steps = (top["steps"] as? [[String: Any]] ?? []).compactMap {
+            row -> DuckIntentClip.Environment.Step? in
+            guard let x = row["x"] as? Double,
+                  let upper = row["top"] as? Double else { return nil }
+            return DuckIntentClip.Environment.Step(
+                x: x,
+                y: row["y"] as? Double ?? bank.y,
+                top: upper,
+                halfDepth: row["halfDepth"] as? Double ?? bank.halfDepth,
+                halfWidth: row["halfWidth"] as? Double ?? bank.halfWidth,
+                halfHeight: row["halfHeight"] as? Double ?? bank.halfHeight)
+        }
+
+        let props = (top["props"] as? [[String: Any]] ?? []).compactMap {
+            row -> DuckWorld.Seated? in
+            guard let name = row["name"] as? String else { return nil }
+            guard let at = readPoint(row["at"]) else { return nil }
+            return DuckWorld.Seated(name: name, x: at.x, y: at.y,
+                                    kilograms: row["mass"] as? Double)
+        }
+
+        return DuckWorld(
+            isSet: block["set"] as? Bool ?? false,
+            name: block["name"] as? String,
+            steps: steps,
+            ball: readPoint(top["ball"]),
+            ballRadius: top["ballRadius"] as? Double,
+            props: props,
+            unexpressed: (top["unexpressed"] as? [[String: Any]] ?? []).compactMap {
+                row -> DuckWorld.Unexpressed? in
+                guard let what = row["what"] as? String else { return nil }
+                return DuckWorld.Unexpressed(what: what,
+                                             index: row["index"] as? Int,
+                                             field: row["field"] as? String,
+                                             asked: readSaid(row["asked"]),
+                                             got: readSaid(row["got"]),
+                                             why: row["why"] as? String ?? "")
+            },
+            bank: bank, arena: arena,
+            plantName: top["plantName"] as? String,
+            plantDigest: top["plantDigest"] as? String)
+    }
+
+    /// A place, however the bench spells it.
+    ///
+    /// TWO SPELLINGS BECAUSE THE BENCH ALREADY HAS TWO. `/state` answers the
+    /// ball as `[x, y, z]` — the shape `measure_success.mjs` scores against —
+    /// and the world block answers it as an object, which is what a readback
+    /// with named fields wants. Accepting both here is three lines; a reader
+    /// per spelling is two readers to keep in step.
+    static func readPoint(_ raw: Any?) -> DuckWorld.Point? {
+        if let row = raw as? [Double], row.count >= 2 {
+            return DuckWorld.Point(x: row[0], y: row[1], z: row.count >= 3 ? row[2] : 0)
+        }
+        if let box = raw as? [String: Any],
+           let x = box["x"] as? Double, let y = box["y"] as? Double {
+            return DuckWorld.Point(x: x, y: y, z: box["z"] as? Double ?? 0)
+        }
+        return nil
+    }
+
+    /// `asked` and `got` are for a person to read, and the bench sends whatever
+    /// the value actually was.
+    ///
+    /// FOUR SHAPES, ALL OF THEM REAL. The live `/world` answer carries
+    /// `"asked": 0` and `"got": 1.305` as bare numbers, `"asked": "broom"` as a
+    /// string, and `"got": ["block_a", "block_b", …]` as a list — because "what
+    /// this plant has instead" is a list. A reader that took only strings would
+    /// drop the two rows that matter most, and one that formatted numbers with
+    /// a unit would be inventing metres for a field that might be a count.
+    static func readSaid(_ raw: Any?) -> String? {
+        if let text = raw as? String { return text }
+        if let list = raw as? [Any] {
+            let parts = list.compactMap { readSaid($0) }
+            return parts.isEmpty ? nil : parts.joined(separator: ", ")
+        }
+        if let number = raw as? Double { return String(format: "%g", number) }
+        if let number = raw as? Int { return String(number) }
+        return nil
+    }
+
     /// EVERY PATH A `Call` FROM THIS TYPE CAN NAME. The phone's own loopback
     /// server forwards exactly this set to the page and 404s the rest, so a
     /// new endpoint added to the bench and to a factory here but not to this
@@ -315,6 +504,9 @@ public enum DuckBench {
         // `/chase/grid` answers the cell list so a client never retypes it.
         // See `DuckBenchChase.swift`.
         "/chase", "/chase/grid",
+        // Changing what the duck is standing in, and reading back what the
+        // bank could actually express. See `DuckWorld.swift`.
+        "/world",
     ]
 
     /// What a `/tune` answer says.

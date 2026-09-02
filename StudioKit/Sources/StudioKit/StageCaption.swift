@@ -164,6 +164,18 @@ public enum StageCaption {
         /// The player, replaying a recording somewhere other than where it was
         /// recorded.
         case playedIn
+        /// Control, which STANDS THE BENCH IN THE SCENE and then drives in it.
+        ///
+        /// THE FALLBACK IS THE ONE THAT IS NOT A DRAWING. The other three drop
+        /// to a bare floor or to a recording, and both of those are pictures.
+        /// This one has a physics engine on the other end that is standing in
+        /// some world right now, and deleting the scene does not empty it —
+        /// the bench keeps whatever was last laid until something asks it to
+        /// change, and its own world is fourteen step blocks stacked beside
+        /// the duck. So the sentence sends the person to the picker rather
+        /// than telling them they are on a bare floor, which would be the one
+        /// thing they are definitely not.
+        case drivenIn
     }
 
     /// The scene a screen was pointing at is gone. Say so, and say what is
@@ -185,6 +197,11 @@ public enum StageCaption {
         case .playedIn:
             return "The scene this motion was being played in has been deleted, so it is back "
                  + "in the world it was recorded in."
+        case .drivenIn:
+            return "The scene the bench was standing in has been deleted. The bench is still "
+                 + "standing in whatever was last built there — deleting a drawing does not "
+                 + "empty a world — so pick another one, or pick the bench's own world to put "
+                 + "it back."
         }
     }
 }

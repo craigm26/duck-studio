@@ -446,3 +446,222 @@ extension DuckScene {
         return props.first { lowered.contains($0.name.lowercased()) }
     }
 }
+
+// MARK: - the challenge's own room
+
+extension DuckScene {
+
+    /// THE STAIRS CHALLENGE'S FLIGHT, IN THE DRAFT'S OWN FRAME.
+    ///
+    /// WHY THIS IS NOT `staircase(count:rise:run:start:)`. That one draws a
+    /// staircase somebody asked for. This one draws THE staircase — the blocks
+    /// `climb_score.mjs` lays out and every published number was scored
+    /// against — and the two differ in the only way that matters: where the
+    /// duck is standing relative to them. The harness spawns the duck at
+    /// `(0.12 − 0.07 − gap, 1.305 + side)` in the room's coordinates and the
+    /// first riser at `x = 0.12`; a draft's coordinates are the SPAWN's, with
+    /// the duck at the origin. So every number here is translated, not copied,
+    /// and a scene built by handing `staircase` a start of 0.12 would put the
+    /// first riser 50 mm further away than the one the score came from.
+    ///
+    /// THE WALL IS AT 1.50, NOT AT `STAIR_Y + 0.17`. `stairs.js` records the
+    /// correction: `wall_n` is 50 mm half-thick, so its inner face is at
+    /// y = 1.45 and the outer 25 mm of every tread sits INSIDE it. That is
+    /// where the blocks actually are — they are compiled at that y with x and
+    /// z slides only — so the scene draws them there. It is a stated fact
+    /// about the harness, not a bug this app is entitled to fix.
+    ///
+    /// `halfHeight` IS THE WHOLE FLIGHT'S, NOT THE HARNESS'S 100 MM. The
+    /// harness draws every block 200 mm tall because a step floating over the
+    /// floor costs nothing in physics. It costs something here: `problems`
+    /// reports a tread whose block does not reach the floor as BROKEN, and at
+    /// the 180 mm rise the app offers, four of the harness's blocks would
+    /// float. So each block is made deep enough to reach the floor, the way
+    /// `staircase` already does.
+    public static func stairsChallenge(rise: Double,
+                                       count: Int = StairsChallenge.Harness.stepCount,
+                                       gap: Double = 0,
+                                       side: Double = 0,
+                                       spawn: (x: Double, y: Double)? = nil) -> DuckScene {
+        let harness = StairsChallenge.Harness.self
+        // Where the harness puts the duck, in the room's coordinates. A move
+        // that carries its own `spawn` object (the placed-duck controls) is
+        // scored from THAT point and its gap and side are ignored by the
+        // harness, so the room must start there too — otherwise the two rows
+        // that begin ON the tread would open in a room that puts them on the
+        // floor in front of it.
+        let spawnX = spawn?.x ?? (harness.riserX - harness.spawnStandoff - gap)
+        let spawnY = spawn?.y ?? (harness.stairY + side)
+
+        let steps = (0..<max(count, 0)).map { i -> Step in
+            Step(x: harness.stairStart + Double(i) * harness.stairRun
+                    + harness.stepHalfDepth - spawnX,
+                 y: harness.stairY - spawnY,
+                 top: Double(i + 1) * rise,
+                 halfDepth: harness.stepHalfDepth,
+                 halfWidth: harness.stairHalfWidth,
+                 halfHeight: max(harness.stepHalfHeight, Double(max(count, 1)) * rise))
+        }
+        // Long enough to run past the flight it is standing behind, rather
+        // than the 1.5 m default, which would reach a metre behind the duck.
+        let reach = steps.map { $0.x + $0.halfDepth }.max() ?? 0.5
+        let wall = Wall(x: 0, y: harness.wallCentreY - spawnY,
+                        halfThickness: harness.wallHalfThickness,
+                        halfLength: max(0.5, reach))
+
+        return DuckScene(name: "\(Challenge.stairs.name) challenge, "
+                             + "\(StairsChallenge.riseSaid(rise))",
+                         steps: steps, walls: [wall],
+                         provenance: harness.provenanceSaid(count: count))
+    }
+
+    /// The scene a challenge row opens against, by identity rather than by a
+    /// fresh UUID every time.
+    ///
+    /// WHY IT HAS TO BE DETERMINISTIC. Opening the same row twice must attach
+    /// the SAME scene, not a second copy of it: a scene store keyed by id would
+    /// otherwise grow a new "Stairs challenge, 60 mm" every time somebody
+    /// tapped a row, and a draft saved last week would point at a scene this
+    /// build no longer creates. Keyed by the challenge as well as the rise
+    /// because the ball challenge's rooms are not the stairs challenge's.
+    ///
+    /// It is NOT `hashValue`: Swift's hasher is seeded per process, so an id
+    /// built on it would change between launches, which is the exact bug this
+    /// exists to prevent.
+    /// ONE ROOM IS ONE ID. The room's geometry depends on the rise AND on
+    /// where the duck stands in it — gap, side (or an explicit spawn) and the
+    /// step count — so two rows at the same rise scored from different spots
+    /// must not alias onto one scene and overwrite each other in the store.
+    /// The offsets are quantised to a tenth of a millimetre so the id is the
+    /// same across launches and across the float noise of a JSON round trip.
+    public static func challengeSceneID(_ challenge: Challenge,
+                                        riseMillimetres: Int,
+                                        gap: Double = 0, side: Double = 0,
+                                        spawn: (x: Double, y: Double)? = nil,
+                                        stepCount: Int = StairsChallenge.Harness.stepCount) -> UUID {
+        var bytes = challengeSceneNamespace
+        let tenths = { (v: Double) -> Int in Int((v * 10_000).rounded()) }
+        let where_ = spawn.map { "s\(tenths($0.x))/\(tenths($0.y))" } ?? "g\(tenths(gap))/\(tenths(side))"
+        // FNV-1a, 64 bit — small, stable, and not the standard library's.
+        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
+        for byte in Array("\(challenge.rawValue)#\(riseMillimetres)mm#\(where_)#\(stepCount)".utf8) {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x0000_0100_0000_01B3
+        }
+        for offset in 0..<8 {
+            bytes[8 + offset] = UInt8(truncatingIfNeeded: hash >> (56 - 8 * offset))
+        }
+        // Keep it a well-formed variant-1 UUID so nothing downstream balks.
+        bytes[8] = (bytes[8] & 0x3F) | 0x80
+        return UUID(uuid: (bytes[0], bytes[1], bytes[2], bytes[3],
+                           bytes[4], bytes[5], bytes[6], bytes[7],
+                           bytes[8], bytes[9], bytes[10], bytes[11],
+                           bytes[12], bytes[13], bytes[14], bytes[15]))
+    }
+
+    /// A fixed namespace, so the ids are this app's and not anybody else's.
+    static let challengeSceneNamespace: [UInt8] = [
+        0x6d, 0x69, 0x63, 0x72, 0x6f, 0x64, 0x75, 0x63,
+        0x6b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    ]
+}
+
+// MARK: - where to stand to look at it
+
+extension DuckScene {
+
+    /// Where the camera looks and from how far.
+    ///
+    /// FOUR NUMBERS, NOT A CAMERA. The kit has no RealityKit and no idea what
+    /// an `ARView` is; what it can work out is which point on the floor is
+    /// worth looking at and how far back you have to be for the two things
+    /// that matter to be on screen at once. The view turns that into an orbit.
+    public struct Framing: Equatable, Sendable {
+        /// The point to look at, in the scene's frame — metres forward of the
+        /// duck, and how high off the floor.
+        public let targetX: Double
+        public let targetZ: Double
+        /// How far the camera sits from that point.
+        public let distance: Double
+        /// How far above the horizontal it looks down, in radians.
+        public let elevation: Double
+
+        public init(targetX: Double, targetZ: Double, distance: Double, elevation: Double) {
+            self.targetX = targetX; self.targetZ = targetZ
+            self.distance = distance; self.elevation = elevation
+        }
+    }
+
+    /// The stage's own field of view, as an angle across the frame. The
+    /// framing below is solved against the HALF of it.
+    public static let authoringFieldOfView = 40.0 * .pi / 180
+
+    /// Room left round the edges, so the thing you are aiming at is not
+    /// touching the bezel.
+    public static let authoringMargin = 1.15
+
+    /// Looking slightly down, which is how somebody kneeling beside a staircase
+    /// sees it.
+    public static let authoringElevation = 0.12
+
+    /// How tall the duck stands at home, and how far it reaches sideways —
+    /// both derived from the robot's own chain rather than typed, so a
+    /// different Microduck moves the camera instead of leaving it wrong.
+    public static let duckStandingHeight: Double = duckExtent.height
+    public static let duckHalfSpan: Double = duckExtent.halfSpan
+
+    static let duckExtent: (height: Double, halfSpan: Double) = {
+        let poses = DuckKinematics.bodyPoses(jointAngles: DuckModel.homePose)
+        var height = 0.0
+        var halfSpan = 0.0
+        for body in DuckKinematics.bodies {
+            guard let pose = poses[body.name] else { continue }
+            var points = [pose.position]
+            for site in body.sites {
+                points.append(pose.position + pose.orientation.rotate(site.position))
+            }
+            for point in points {
+                height = max(height, point.z)
+                halfSpan = max(halfSpan, (point.x * point.x + point.y * point.y).squareRoot())
+            }
+        }
+        return (height, halfSpan)
+    }()
+
+    /// Where to put the camera to AUTHOR against this scene — nil for a scene
+    /// with nothing in it, where the stage's own default is already right.
+    ///
+    /// THE FRAME IS THE DUCK AND THE FIRST RISER, NOT THE WHOLE FLIGHT. The
+    /// stage centres on everything it can see, and everything it can see at a
+    /// 180 mm rise is a 720 mm staircase with a 250 mm duck at the bottom of
+    /// it — which frames the staircase beautifully and makes the thing being
+    /// authored about forty points tall. Nobody is authoring the fourth step.
+    /// The move that matters is the first one: getting a beak, or a foot, over
+    /// the first riser. So the camera holds the duck and that riser, and the
+    /// rest of the flight runs out of frame, which is the honest picture of
+    /// what a published entry actually does.
+    public var authoringFraming: Framing? {
+        guard let first = steps.min(by: { $0.x < $1.x }) else { return nil }
+        let face = first.x - first.halfDepth
+        let targetX = face / 2
+        let targetZ = (first.top + DuckKinematics.trunkOriginInModelFrame.z) / 2
+
+        // Half the box that has to be on screen: across, the duck and the
+        // riser face; up, the floor and the top of the duck's head.
+        let across = max(abs(face - targetX), abs(targetX)) + DuckScene.duckHalfSpan
+        // The camera looks down at `authoringElevation`: a vertical span
+        // foreshortens by cos(elevation) and the duck's depth leans into the
+        // vertical by sin(elevation). The stage is at least as wide as it is
+        // tall on every phone (its height is under the narrowest width) and
+        // the field of view is vertical, so a square frame is the conservative
+        // bound and `half` is the larger of the two.
+        let elevation = DuckScene.authoringElevation
+        let up = max(abs(DuckScene.duckStandingHeight - targetZ), abs(targetZ)) * cos(elevation)
+               + DuckScene.duckHalfSpan * sin(elevation)
+        let half = max(across, up)
+
+        let distance = half / tan(DuckScene.authoringFieldOfView / 2) * DuckScene.authoringMargin
+        return Framing(targetX: targetX, targetZ: targetZ,
+                       distance: distance, elevation: DuckScene.authoringElevation)
+    }
+}

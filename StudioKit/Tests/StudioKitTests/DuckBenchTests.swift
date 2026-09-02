@@ -471,6 +471,11 @@ final class DuckBenchTests: XCTestCase {
             try DuckBench.chase(address, entrant: BallChallenge.Entrants.doNothing,
                                 cell: BallChallenge.Grid.fallback[0]),
             DuckBench.chaseGrid(address),
+            DuckBench.world(address),
+            try DuckBench.setWorld(address,
+                                   DuckWorld.plan(for: DuckScene.staircase(count: 4, rise: 0.060,
+                                                                          run: 0.28, start: 0.12),
+                                                  on: .pinned)),
         ]
         for call in calls {
             XCTAssertTrue(DuckBench.routes.contains(call.url.path),
@@ -481,6 +486,11 @@ final class DuckBenchTests: XCTestCase {
         XCTAssertTrue(DuckBench.routes.contains("/climb/grid"))
         XCTAssertTrue(DuckBench.routes.contains("/chase"))
         XCTAssertTrue(DuckBench.routes.contains("/chase/grid"))
-        XCTAssertEqual(DuckBench.routes.count, 15)
+        // THE PHONE'S OWN BENCH FORWARDS EXACTLY THIS SET. `/world` shipping
+        // in a factory and not in this list would be a picker whose every
+        // entry 404s on the bench the app carries — which is how `/tune`
+        // shipped, once.
+        XCTAssertTrue(DuckBench.routes.contains("/world"))
+        XCTAssertEqual(DuckBench.routes.count, 16)
     }
 }

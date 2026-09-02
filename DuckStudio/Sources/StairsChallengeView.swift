@@ -134,6 +134,21 @@ private struct StairsRowLabel: View {
                     .font(.caption2.monospaced())
                     .foregroundStyle(Theme.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
+                // WHAT THE ROW ACTUALLY DOES, IN ONE WORD, BETWEEN THE NAME AND
+                // THE SCORE. `best_r6_ceilvaultB_60mm` is a filename, and a
+                // board of nineteen of them is a board only its author can
+                // read; the word comes off the file's own `family` string in
+                // the kit, so it cannot say something the intent does not.
+                //
+                // ONLY WHEN THERE IS ONE. `Row.strategy` is optional on
+                // purpose: a family this build has never seen gets no badge
+                // rather than a guessed one, which is how a screen starts
+                // telling people a new search is an old one.
+                if let strategy = row.strategy {
+                    Label(strategy.word, systemImage: strategy.glyph)
+                        .font(.caption2)
+                        .foregroundStyle(Theme.textSecondary)
+                }
                 Text(row.scoreSaid)
                     .font(.caption)
                     .foregroundStyle(Theme.textSecondary)
@@ -288,6 +303,17 @@ struct StairsMoveView: View {
                 .font(.caption)
                 .foregroundStyle(Theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
+            // UNDER THE NOTE, BECAUSE IT ANSWERS THE QUESTION THE NOTE RAISES.
+            // The note says how this row did; this says what it is — a paragraph
+            // per strategy, in the kit, where the three sentences that must not
+            // soften ("no robot can", "not a climb", "for free") are asserted
+            // letter by letter.
+            if let strategy = row.strategy {
+                Text(strategy.whatItDoes)
+                    .font(.caption)
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             switch loaded {
             case .success(let move):
                 // THE PROVENANCE IS THE DRAFT'S OWN SENTENCE, which is the one
@@ -386,8 +412,30 @@ struct StairsMoveView: View {
     /// SAVED BEFORE THE SHEET IS ASKED FOR, in that order and not the other:
     /// the editor looks the draft up in the store by id, so a sheet presented
     /// first would present the empty branch for one pass.
+    /// AND THE ROOM COMES WITH IT. A published move opened against bare floor is
+    /// a duck waving its beak at nothing: every one of these entries is a launch
+    /// at a riser 120 mm in front of the spawn, and the whole of what makes an
+    /// edit judgeable is seeing whether the beak lands on the tread. The flight
+    /// is built at the ROW's rise — the one the published number was scored
+    /// against, not whatever the picker on this screen is set to — from the
+    /// harness's own layout, and its id is derived from the challenge and the
+    /// rise so that opening this row again attaches the same scene rather than
+    /// a second copy of it.
     private func open(_ move: StairsChallenge.Move) {
-        let draft = move.toDraft(hash: row.hash, rank: row.rank)
+        // THE SCENE IS THE MOVE'S, NOT THE ROW'S. Two moves at one rise can
+        // stand the duck in different places — a wider gap, a placed spawn on
+        // the tread — and the scene's id folds every one of those in, so the
+        // stage under a move is the room that move was scored in.
+        var scene = DuckScene.stairsChallenge(rise: row.riseMetres, count: move.stepCount,
+                                              gap: move.gap, side: move.side,
+                                              spawn: move.spawn)
+        scene.id = DuckScene.challengeSceneID(.stairs, riseMillimetres: row.riseMillimetres,
+                                              gap: move.gap, side: move.side,
+                                              spawn: move.spawn, stepCount: move.stepCount)
+        scenes.ensure(scene)
+
+        var draft = move.toDraft(hash: row.hash, rank: row.rank)
+        draft.sceneID = scene.id
         drafts.save(draft)
         editedDraftID = draft.id
         editing = draft

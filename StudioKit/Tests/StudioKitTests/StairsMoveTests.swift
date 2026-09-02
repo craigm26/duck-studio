@@ -227,4 +227,28 @@ final class StairsMoveTests: XCTestCase {
           + "harness pose is the 14 joints a policy commands, and the mouth is the one they all "
           + "skip. Everything else goes across unchanged.")
     }
+
+    /// A placed spawn comes through as the floor point the harness wrote,
+    /// and a move without one, or with a malformed one, has none.
+    func testASpawnIsReadAsAFloorPoint() throws {
+        let placed = try StairsChallenge.Move(json: HarnessJSON.parse(Data(
+            """
+            {"name":"placed","keyframes":[{"t":0,"pose":[0,0,0,0,0,0,0,0,0,0,0,0,0,0]}],
+             "spawn":{"x":0.212,"y":-0.004,"z":0.180}}
+            """.utf8)))
+        let spawn = try XCTUnwrap(placed.spawn)
+        XCTAssertEqual(spawn.x, 0.212)
+        XCTAssertEqual(spawn.y, -0.004)
+        let plain = try StairsChallenge.Move(json: HarnessJSON.parse(Data(
+            """
+            {"name":"plain","keyframes":[{"t":0,"pose":[0,0,0,0,0,0,0,0,0,0,0,0,0,0]}]}
+            """.utf8)))
+        XCTAssertNil(plain.spawn)
+        let broken = try StairsChallenge.Move(json: HarnessJSON.parse(Data(
+            """
+            {"name":"broken","keyframes":[{"t":0,"pose":[0,0,0,0,0,0,0,0,0,0,0,0,0,0]}],
+             "spawn":"tread"}
+            """.utf8)))
+        XCTAssertNil(broken.spawn)
+    }
 }

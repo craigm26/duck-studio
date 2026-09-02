@@ -45,6 +45,27 @@ final class SceneStore: ObservableObject {
         scheduleSave()
     }
 
+    /// Put this scene in the library at its own id: replace what is there, or
+    /// add it.
+    ///
+    /// NEITHER `add` NOR `update` WOULD DO, AND THAT IS THE POINT. A challenge
+    /// row builds the room it was scored in from a DETERMINISTIC id — the same
+    /// rise gives the same UUID on every launch — so opening that row a second
+    /// time must land on the scene that is already there rather than beside it.
+    /// `add` would grow a new "Stairs challenge, 60 mm" per tap until the
+    /// Author-against menu was a list of identical names; `update` would do
+    /// nothing at all the first time, and the draft would open pointing at a
+    /// scene that does not exist, which the editor draws as bare floor under a
+    /// warning about a deleted scene.
+    func ensure(_ scene: DuckScene) {
+        if let index = scenes.firstIndex(where: { $0.id == scene.id }) {
+            scenes[index] = scene
+        } else {
+            scenes.append(scene)
+        }
+        scheduleSave()
+    }
+
     func update(_ scene: DuckScene) {
         guard let index = scenes.firstIndex(where: { $0.id == scene.id }) else { return }
         scenes[index] = scene

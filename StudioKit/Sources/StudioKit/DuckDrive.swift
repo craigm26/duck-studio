@@ -316,10 +316,27 @@ public enum DuckDrive {
         /// What the bench believes it was last told.
         public let command: Twist
 
+        /// Where the ball is, now — the one other thing in this world that
+        /// moves while you drive.
+        ///
+        /// NIL IS A REAL ANSWER AND NOT A FAILURE. A bench whose plant has no
+        /// ball says `null` here and an older bench says nothing at all, so
+        /// this is Optional and a stage that finds nil draws no ball rather
+        /// than one at the origin. `DuckDrive.readLive` never invents a
+        /// position; if the field is missing, the ball a screen last read from
+        /// `/world` is the newest thing anybody knows.
+        ///
+        /// IT IS DEFAULTED IN THE INITIALIZER so every existing caller and
+        /// fixture still compiles — there are a lot of them, and a required
+        /// parameter would have meant touching each one to write `nil`.
+        public let ball: DuckWorld.Point?
+
         public init(t: Double, stance: DuckStance, height: Double, upright: Bool,
-                    policy: String?, command: Twist) {
+                    policy: String?, command: Twist,
+                    ball: DuckWorld.Point? = nil) {
             self.t = t; self.stance = stance; self.height = height
             self.upright = upright; self.policy = policy; self.command = command
+            self.ball = ball
         }
     }
 
@@ -356,7 +373,13 @@ public enum DuckDrive {
             policy: top["policy"] as? String,
             command: Twist(vx: command["vx"] as? Double ?? 0,
                            vy: command["vy"] as? Double ?? 0,
-                           vyaw: command["vyaw"] as? Double ?? 0))
+                           vyaw: command["vyaw"] as? Double ?? 0),
+            // `[x, y, z]` FROM `/state`, AND NOTHING WHEN THE WORLD HAS NO
+            // BALL. The bench sends JSON null there, which arrives as `NSNull`
+            // and reads as nil — the same discipline `readHost` uses, and the
+            // reason a screen can tell "no ball in this world" apart from "a
+            // ball at the origin".
+            ball: DuckBench.readPoint(top["ball"]))
     }
 
     /// What the screen has to admit about what it is driving.

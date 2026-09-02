@@ -91,6 +91,72 @@ public enum StairsChallenge {
         "\(Int((rise * 1000).rounded())) mm"
     }
 
+    // MARK: - the room the score was measured in
+
+    /// The staircase's geometry, transcribed from the vendored harness this
+    /// app ships and replays — `assets/stairs.js` and `assets/climb_score.mjs`
+    /// — with the file and the line each number came from.
+    ///
+    /// TRANSCRIBED, BECAUSE THE APP CANNOT READ JAVASCRIPT. Every one of these
+    /// is a number a published score depends on, so a drawing built on a
+    /// guess would be a picture of a staircase nothing was ever scored
+    /// against. `ChallengeSceneTests` pins each of them.
+    public enum Harness {
+
+        /// `stairs.js` STAIR_HALF_WIDTH — the flight is 340 mm across.
+        public static let stairHalfWidth = 0.17
+        /// `stairs.js` STAIR_Y — where the step bodies are COMPILED, so where
+        /// they are. Derived there as 1.5 − 0.025 − 0.17 on a belief about the
+        /// wall that turned out to be wrong; see `wallHalfThickness`.
+        public static let stairY = 1.5 - 0.025 - 0.17
+        /// `stairs.js` STEP_HALF_DEPTH — deeper than the deepest run, so the
+        /// treads overlap into one solid flight.
+        public static let stepHalfDepth = 0.17
+        /// `stairs.js` STEP_HALF_HEIGHT.
+        public static let stepHalfHeight = 0.10
+        /// `climb_score.mjs` RISER_X — the first riser face, and the line the
+        /// trunk and a foot have to cross.
+        public static let riserX = 0.12
+        /// `climb_score.mjs` STAIR_RUN.
+        public static let stairRun = 0.28
+        /// `climb_score.mjs` STAIR_START.
+        public static let stairStart = 0.12
+        /// `climb_score.mjs` DEFAULT_STEP_COUNT.
+        public static let stepCount = 4
+        /// How far behind the riser the duck spawns before `gap` is applied:
+        /// `climb_score.mjs` spawns it at `0.12 − 0.07 − gap`.
+        public static let spawnStandoff = 0.07
+
+        /// THE CORRECTION `stairs.js` RECORDS AT ITS OWN TOP. `wall_n` is
+        /// 50 mm half-thick and centred at y = 1.50, so its inner face is at
+        /// 1.45 — and `stairY + stairHalfWidth` is 1.475, which puts the outer
+        /// 25 mm of every tread INSIDE the wall. Measured 2026-09-02,
+        /// `climb/audit_r2`. It is where the blocks are, not a mistake this app
+        /// gets to correct: they are compiled at that y with x and z slides
+        /// only, and the lateral gate every score was measured with is
+        /// measured from where they are.
+        public static let wallCentreY = 1.50
+        public static let wallHalfThickness = 0.05
+        /// The wall's inner face — 1.45 m.
+        public static var wallInnerFaceY: Double { wallCentreY - wallHalfThickness }
+        /// How far the outer edge of a tread reaches past that face: 25 mm.
+        public static var treadInsideWall: Double {
+            (stairY + stairHalfWidth) - wallInnerFaceY
+        }
+
+        /// The line under a challenge scene, naming where its blocks came from
+        /// and carrying the overlap correction rather than hiding it.
+        public static func provenanceSaid(count: Int) -> String {
+            "The flight climb_score.mjs lays out: \(count) steps, "
+          + "\(Int((stairRun * 1000).rounded())) mm run, first riser "
+          + "\(Int((riserX * 1000).rounded())) mm from the spawn, "
+          + "\(Int((stairHalfWidth * 2000).rounded())) mm wide, against the north wall whose "
+          + "inner face is at \(String(format: "%.2f", wallInnerFaceY)) m — the outer "
+          + "\(Int((treadInsideWall * 1000).rounded())) mm of every tread is inside it "
+          + "(measured 2026-09-02, climb/audit_r2). Simulation only."
+        }
+    }
+
     // MARK: - the sentences that keep it honest
 
     /// Beside the one button that makes something move. IT PLAYS ON THE
@@ -175,6 +241,16 @@ public enum StairsChallenge {
         /// The `name` inside that file. Not unique — three round-6 chains
         /// share one — which is why `id` is the filename.
         public let moveName: String
+        /// The `family` field inside that file, VERBATIM — the search that
+        /// produced this vector, in its author's own words, or nil where the
+        /// file has none (the three controls).
+        ///
+        /// KEPT AS IT WAS WRITTEN rather than tidied into a code, because it
+        /// is the only record of which search a row came out of and two of
+        /// them begin with the same letter and are not the same thing:
+        /// "C beak-strut vault" and "C_whole_body_corner_climb_r3" share a "C"
+        /// and share nothing else. `Strategy.of` reads the WHOLE string.
+        public let family: String?
         public let riseMillimetres: Int
         /// What the rise column says. Usually one rise; the do-nothing control
         /// was scored at three.
@@ -202,6 +278,13 @@ public enum StairsChallenge {
 
         public var rankSaid: String { rank.map(String.init) ?? "—" }
 
+        /// The rise this row was scored at, in metres — the unit a scene is
+        /// built in. THE ROW'S, NOT A PICKER'S: a scene attached to a
+        /// published move has to be the flight the published number came from,
+        /// and the conversion belongs here rather than at every call site that
+        /// needs it.
+        public var riseMetres: Double { Double(riseMillimetres) / 1000 }
+
         public var headline: String { "\(who) — \(riseSaid)" }
 
         public var scoreSaid: String { "\(kCoreStable) of 9 stable" }
@@ -220,6 +303,7 @@ public enum StairsChallenge {
     public static let leaderboard: [Row] = [
         Row(rank: 1, hash: "a56d459fb649", file: "best_r6_ceilvaultC_60mm.json",
             moveName: "beak_strut_vault_r6_ceiling_60mm",
+            family: "R6 ceiling — beak-strut vault launch",
             riseMillimetres: 60, riseSaid: "60 mm",
             kCore: 5, kCoreStable: 5, kExt: 5, kExtStable: 5, ceilingCore: 5,
             who: "round-6 ceiling CEM", scored: "2026-09-02",
@@ -229,6 +313,7 @@ public enum StairsChallenge {
             isRecord: true, isOracle: false, isControl: false),
         Row(rank: 2, hash: "4b9110c448ec", file: "best_r3_vault_60mm.json",
             moveName: "beak_strut_vault_r3_60mm",
+            family: "A beak-strut vault (round 3)",
             riseMillimetres: 60, riseSaid: "60 mm",
             kCore: 4, kCoreStable: 4, kExt: 4, kExtStable: 4, ceilingCore: 5,
             who: "round-3 family A", scored: "2026-09-02",
@@ -237,6 +322,7 @@ public enum StairsChallenge {
             isRecord: false, isOracle: false, isControl: false),
         Row(rank: nil, hash: "4b9110c448ec", file: "best_r3_vault_70mm.json",
             moveName: "beak_strut_vault_r3_70mm",
+            family: "A beak-strut vault (round 3)",
             riseMillimetres: 70, riseSaid: "70 mm",
             kCore: 2, kCoreStable: 2, kExt: 2, kExtStable: 2, ceilingCore: nil,
             who: "round-3 family A", scored: "2026-09-02",
@@ -245,6 +331,7 @@ public enum StairsChallenge {
             isRecord: false, isOracle: false, isControl: false),
         Row(rank: nil, hash: "4b9110c448ec", file: "best_r3_vault_80mm.json",
             moveName: "beak_strut_vault_r3_80mm",
+            family: "A beak-strut vault (round 3)",
             riseMillimetres: 80, riseSaid: "80 mm",
             kCore: 1, kCoreStable: 1, kExt: 1, kExtStable: 1, ceilingCore: nil,
             who: "round-3 family A", scored: "2026-09-02",
@@ -253,6 +340,7 @@ public enum StairsChallenge {
             isRecord: false, isOracle: false, isControl: false),
         Row(rank: 3, hash: "7b790070b010", file: "best_r4_famA_60mm.json",
             moveName: "beak_strut_vault_event_r4_60mm",
+            family: "A beak-strut vault, event-triggered landing (round 4)",
             riseMillimetres: 60, riseSaid: "60 mm",
             kCore: 4, kCoreStable: 4, kExt: 4, kExtStable: 4, ceilingCore: 5,
             who: "round-4 family A", scored: "2026-09-02",
@@ -261,6 +349,7 @@ public enum StairsChallenge {
             isRecord: false, isOracle: false, isControl: false),
         Row(rank: 4, hash: "29c97398fe13", file: "best_r6_ceilvaultB_60mm.json",
             moveName: "beak_strut_vault_r6_ceiling_60mm",
+            family: "R6 ceiling — beak-strut vault launch",
             riseMillimetres: 60, riseSaid: "60 mm",
             kCore: 3, kCoreStable: 2, kExt: 3, kExtStable: 2, ceilingCore: 5,
             who: "round-6 ceiling CEM", scored: "2026-09-02",
@@ -269,6 +358,7 @@ public enum StairsChallenge {
             isRecord: false, isOracle: false, isControl: false),
         Row(rank: 5, hash: "7904bf3363c5", file: "best_r3_vault_50mm.json",
             moveName: "beak_strut_vault_r3_50mm",
+            family: "A beak-strut vault (round 3)",
             riseMillimetres: 50, riseSaid: "50 mm",
             kCore: 2, kCoreStable: 2, kExt: 2, kExtStable: 2, ceilingCore: 2,
             who: "round-3 family A", scored: "2026-09-02",
@@ -276,6 +366,7 @@ public enum StairsChallenge {
             isRecord: false, isOracle: false, isControl: false),
         Row(rank: 6, hash: "dff01b0a1906", file: "best_r3_vault_40mm.json",
             moveName: "beak_strut_vault_r3_40mm",
+            family: "A beak-strut vault (round 3)",
             riseMillimetres: 40, riseSaid: "40 mm",
             kCore: 2, kCoreStable: 1, kExt: 2, kExtStable: 1, ceilingCore: 3,
             who: "round-3 family A", scored: "2026-09-02",
@@ -283,6 +374,7 @@ public enum StairsChallenge {
             isRecord: false, isOracle: false, isControl: false),
         Row(rank: 7, hash: "8c57838ee9d0", file: "best_r6_ceilvault_60mm.json",
             moveName: "beak_strut_vault_r6_ceiling_60mm",
+            family: "R6 ceiling — beak-strut vault launch",
             riseMillimetres: 60, riseSaid: "60 mm",
             kCore: 1, kCoreStable: 1, kExt: 1, kExtStable: 1, ceilingCore: 5,
             who: "round-6 ceiling CEM", scored: "2026-09-02",
@@ -291,6 +383,7 @@ public enum StairsChallenge {
             isRecord: false, isOracle: false, isControl: false),
         Row(rank: 8, hash: "74d35b21ac80", file: "best_r2_vault_60mm.json",
             moveName: "beak_strut_vault_60mm",
+            family: "C beak-strut vault",
             riseMillimetres: 60, riseSaid: "60 mm",
             kCore: 2, kCoreStable: 1, kExt: 2, kExtStable: 1, ceilingCore: 3,
             who: "round-2 vault", scored: "2026-09-02",
@@ -298,6 +391,7 @@ public enum StairsChallenge {
             isRecord: false, isOracle: false, isControl: false),
         Row(rank: 9, hash: "86813f9c1ad4", file: "best_r2_vault_40mm.json",
             moveName: "beak_strut_vault_40mm",
+            family: "C beak-strut vault",
             riseMillimetres: 40, riseSaid: "40 mm",
             kCore: 1, kCoreStable: 1, kExt: 1, kExtStable: 1, ceilingCore: 4,
             who: "round-2 vault", scored: "2026-09-02",
@@ -305,6 +399,7 @@ public enum StairsChallenge {
             isRecord: false, isOracle: false, isControl: false),
         Row(rank: nil, hash: "e0434c2c90da", file: "best_r5_servo_60mm.json",
             moveName: "best_r5_servo_60mm",
+            family: "r5_servo",
             riseMillimetres: 60, riseSaid: "60 mm",
             kCore: 4, kCoreStable: 0, kExt: 5, kExtStable: 0, ceilingCore: 4,
             who: "round-5 servo", scored: "2026-09-02",
@@ -314,6 +409,7 @@ public enum StairsChallenge {
             isRecord: false, isOracle: true, isControl: false),
         Row(rank: nil, hash: "880a120ef649", file: "best_r5_servoland_kcore_60mm.json",
             moveName: "servoed_landing_r5_kcore_60mm",
+            family: "Round 5: the round-3 beak-strut LAUNCH + a per-tick servoed landing (climb/servo.mjs)",
             riseMillimetres: 60, riseSaid: "60 mm",
             kCore: 3, kCoreStable: 0, kExt: 4, kExtStable: 0, ceilingCore: 3,
             who: "round-5 servo", scored: "2026-09-02",
@@ -321,6 +417,7 @@ public enum StairsChallenge {
             isRecord: false, isOracle: true, isControl: false),
         Row(rank: nil, hash: "2524a35672b4", file: "best_r4_famB_beat1_90mm.json",
             moveName: "famB_b1_90",
+            family: "B two-beat (round 4) — beat 1, from the floor",
             riseMillimetres: 90, riseSaid: "90 mm",
             kCore: 0, kCoreStable: 0, kExt: 0, kExtStable: 0, ceilingCore: nil,
             who: "round-4 family B", scored: "2026-09-02",
@@ -328,6 +425,7 @@ public enum StairsChallenge {
             isRecord: false, isOracle: false, isControl: false),
         Row(rank: nil, hash: "7c52acef4acf", file: "best_r4_famB_beat1_120mm.json",
             moveName: "famB_b1_120",
+            family: "B two-beat (round 4) — beat 1, from the floor",
             riseMillimetres: 120, riseSaid: "120 mm",
             kCore: 0, kCoreStable: 0, kExt: 0, kExtStable: 0, ceilingCore: nil,
             who: "round-4 family B", scored: "2026-09-02",
@@ -335,6 +433,7 @@ public enum StairsChallenge {
             isRecord: false, isOracle: false, isControl: false),
         Row(rank: nil, hash: "725674c1b517", file: "best_r3_cornerclimb_180mm.json",
             moveName: "cornerclimb",
+            family: "C_whole_body_corner_climb_r3",
             riseMillimetres: 180, riseSaid: "180 mm",
             kCore: 0, kCoreStable: 0, kExt: 0, kExtStable: 0, ceilingCore: nil,
             who: "round-3 corner climb", scored: "2026-09-02",
@@ -342,6 +441,7 @@ public enum StairsChallenge {
             isRecord: false, isOracle: false, isControl: false),
         Row(rank: nil, hash: "d99589396fcb", file: "r4_ctrl_on_tread_60mm.json",
             moveName: "r4_control_on_tread_60mm",
+            family: nil,
             riseMillimetres: 60, riseSaid: "60 mm",
             kCore: 9, kCoreStable: 9, kExt: 14, kExtStable: 14, ceilingCore: 9,
             who: "control", scored: "2026-09-02",
@@ -350,6 +450,7 @@ public enum StairsChallenge {
             isRecord: false, isOracle: false, isControl: true),
         Row(rank: nil, hash: "f5bb2f0476c1", file: "r4_ctrl_on_tread_90mm.json",
             moveName: "r4_control_on_tread_90mm",
+            family: nil,
             riseMillimetres: 90, riseSaid: "90 mm",
             kCore: 9, kCoreStable: 9, kExt: 14, kExtStable: 14, ceilingCore: 9,
             who: "control", scored: "2026-09-02",
@@ -357,6 +458,7 @@ public enum StairsChallenge {
             isRecord: false, isOracle: false, isControl: true),
         Row(rank: nil, hash: "c703ee6f5a14", file: "ctrl_do_nothing.json",
             moveName: "control_do_nothing",
+            family: nil,
             riseMillimetres: 60, riseSaid: "40/60/90 mm",
             kCore: 0, kCoreStable: 0, kExt: 0, kExtStable: 0, ceilingCore: 0,
             who: "control", scored: "2026-09-02",

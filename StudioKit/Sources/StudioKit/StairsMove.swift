@@ -74,6 +74,16 @@ extension StairsChallenge {
         public var hasEvent: Bool { json["event"] != nil }
         public var hasServo: Bool { json["servo"] != nil }
         public var hasSpawn: Bool { json["spawn"] != nil }
+        /// Where a placed spawn puts the duck, in the harness's room
+        /// coordinates (x forward, y across). The harness writes `{x, y, z}`;
+        /// the height is the drop the harness chooses, not a scene fact, so
+        /// only the floor point comes through. `nil` when there is no spawn
+        /// or the object is not a floor point.
+        public var spawn: (x: Double, y: Double)? {
+            guard let x = json["spawn"]?["x"]?.doubleValue,
+                  let y = json["spawn"]?["y"]?.doubleValue else { return nil }
+            return (x, y)
+        }
 
         public var keyframes: [Keyframe] {
             guard let items = json["keyframes"]?.arrayValue else { return [] }

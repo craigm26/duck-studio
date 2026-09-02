@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 import RealityKit
 import DuckKit
 import DuckRender
@@ -25,6 +26,48 @@ struct OrbitState: Equatable {
     /// what makes travel visible.
     var follows = false
 
+    /// What the camera looks at, when the caller knows better than the middle
+    /// of the scene.
+    ///
+    /// A BOUNDING BOX IS THE RIGHT ANSWER FOR WATCHING AND THE WRONG ONE FOR
+    /// AUTHORING. `rebuildProps` centres on everything worth seeing, which for
+    /// a four-step flight at 180 mm is a 720 mm staircase — and a 250 mm duck
+    /// at the bottom of it is then about forty points tall, which is not a
+    /// thing anybody can pose. Nobody is authoring the fourth step: the move is
+    /// the first riser. `DuckScene.authoringFraming` works out the point that
+    /// holds the duck and that riser together, and this is where it goes.
+    ///
+    /// nil MEANS "use the box", which is what every stage but the editor's
+    /// does.
+    var focus: SIMD3<Float>?
+
+    /// THE FRAMING THE STAGE WAS OPENED ON, if any. "Reset the view" returns
+    /// here, not to the empty-floor defaults, so a challenge motion's reset
+    /// brings the riser back into the picture instead of losing it.
+    var homeFocus: SIMD3<Float>?
+    var homeDistance: Float?
+    var homeElevation: Float?
+
+    /// Aim the camera the way the kit says a scene is best authored, and
+    /// remember that as home. `nil` forgets both: the camera goes back to
+    /// following the duck's centre, and reset goes back to the defaults.
+    mutating func frame(_ framing: DuckScene.Framing?) {
+        guard let framing else {
+            focus = nil
+            homeFocus = nil
+            homeDistance = nil
+            homeElevation = nil
+            return
+        }
+        let aim = SIMD3(Float(framing.targetX), Float(framing.targetZ), 0)
+        homeFocus = aim
+        homeDistance = Float(framing.distance)
+        homeElevation = Float(framing.elevation)
+        focus = aim
+        distance = Float(framing.distance)
+        elevation = Float(framing.elevation)
+    }
+
     static let defaults = OrbitState()
 
     mutating func drag(dx: Float, dy: Float) {
@@ -42,10 +85,21 @@ struct OrbitState: Equatable {
     /// the double-tap and the VoiceOver action. Written twice they would drift,
     /// and the half that drifts is `follows` — a reset that quietly stopped
     /// following would move the camera for a reason the person cannot see.
+    /// KEPT ALONGSIDE `follows`, AND FOR THE SAME REASON. A reset that also
+    /// forgot what the camera was aimed at would swing the editor off the
+    /// riser it was framed on and onto the middle of a staircase, which is the
+    /// camera moving for a reason the person cannot see — exactly the failure
+    /// the `follows` line above documents. Angle and distance go back; what
+    /// the camera is FOR does not.
     mutating func resetView() {
         let following = follows
+        let home = (homeFocus, homeDistance, homeElevation)
         self = .defaults
         follows = following
+        (homeFocus, homeDistance, homeElevation) = home
+        focus = homeFocus
+        if let homeDistance { distance = homeDistance }
+        if let homeElevation { elevation = homeElevation }
     }
 
     /// Camera position, relative to whatever it is looking at.
@@ -89,6 +143,39 @@ extension DuckStance {
     }
 }
 
+// MARK: - where a joint landed on the glass
+
+/// One joint's three points, on screen.
+///
+/// THREE POINTS AND NOT ONE, WHICH IS THE WHOLE OF THE ARRANGEMENT. StudioKit
+/// knows the kinematics and has never heard of a camera; RealityKit owns the
+/// camera and must not learn the kinematics. `JointHandles.Handle` hands over
+/// three positions in the model's world frame — the pivot, the point a thumb
+/// pulls, and where that point lands after a tenth of a radian — and this
+/// carries all three back after the one conversion the app is allowed to make.
+/// `JointHandles.grab` turns them into a drag law. Nothing in between
+/// re-derives a tangent, and nothing here knows what one is.
+struct StageProjection: Equatable {
+    /// The index into a fifteen-wide draft pose, as the kit hands it over.
+    let joint: Int
+    let pivot: JointHandles.ScreenPoint
+    /// Where the marker is drawn: `pivot` plus the joint's lever.
+    let grip: JointHandles.ScreenPoint
+    /// Where `grip` goes under `JointHandles.probeRadians` of this joint.
+    let swung: JointHandles.ScreenPoint
+    /// How far the grip is from the camera, in metres.
+    let depth: Double
+}
+
+/// Everything the overlay needs from one rendered frame.
+struct StageProjections: Equatable {
+    var handles: [StageProjection] = []
+    /// The trunk's distance from the camera, which is what makes "behind the
+    /// duck" a fact rather than a guess. `JointHandles.place` compares each
+    /// grip against it.
+    var trunkDepth: Double = 0
+}
+
 /// A turntable view of the robot IN A PLACE — not AR. The bench is somewhere to
 /// look at a pose from every side, and a camera feed behind it would be scenery.
 ///
@@ -111,6 +198,22 @@ struct DuckStage: View {
     var trail: [DuckIntentClip.Root] = []
     var progress: Double = 0
     @Binding var orbit: OrbitState
+    /// The joints that can be grabbed on this stage.
+    ///
+    /// EMPTY EVERYWHERE BUT THE EDITOR, AND DEFAULTED SO IT STAYS THAT WAY.
+    /// Eight screens draw this stage and exactly one of them is authoring a
+    /// pose; a handle on the drive screen would be a control that edits a
+    /// keyframe that does not exist. The default is what lets the other seven
+    /// compile untouched.
+    var handles: [JointHandles.Handle] = []
+    /// Called once per rendered frame with where those joints landed, and only
+    /// when they have actually moved. Nothing is drawn from here — the caller
+    /// draws, above the stage, in SwiftUI.
+    var onProject: ((StageProjections) -> Void)?
+    /// WHERE THE BALL IS RIGHT NOW, in metres on the floor, when a bench is
+    /// reporting it. Moving the ball this way leaves `props` alone, so a
+    /// rolling ball does not rebuild every step and wall on every round trip.
+    var rolling: SIMD2<Double>?
 
     /// One notch of camera movement, in the points of drag the pan recogniser
     /// hands `OrbitState.drag` — so an action IS the gesture, one notch of it,
@@ -144,7 +247,8 @@ struct DuckStage: View {
 
     var body: some View {
         StageSurface(pose: pose, variant: variant, environment: environment,
-                     props: props, trail: trail, progress: progress, orbit: $orbit)
+                     props: props, trail: trail, progress: progress, orbit: $orbit,
+                     handles: handles, onProject: onProject, rolling: rolling)
             // ONE ELEMENT, NOT ONE PER JOINT. The scene holds a duck of fifteen
             // drawn parts, a grid, a path and whatever props the place has; as
             // elements that is a swipe through dozens of unnamed boxes, and
@@ -215,6 +319,15 @@ struct StageSurface: UIViewRepresentable {
     /// How far through `trail` the playhead is, 0…1.
     var progress: Double = 0
     @Binding var orbit: OrbitState
+    /// The joints that can be grabbed, in the model's world frame. Empty on
+    /// every stage but the editor's — see `DuckStage.handles`.
+    var handles: [JointHandles.Handle] = []
+    /// Where they landed, once per rendered frame.
+    var onProject: ((StageProjections) -> Void)?
+    /// WHERE THE BALL IS RIGHT NOW, in metres on the floor, when a bench is
+    /// reporting it. Moving the ball this way leaves `props` alone, so a
+    /// rolling ball does not rebuild every step and wall on every round trip.
+    var rolling: SIMD2<Double>?
 
     func makeUIView(context: Context) -> ARView {
         let view = ARView(frame: .zero, cameraMode: .nonAR, automaticallyConfigureSession: false)
@@ -264,6 +377,10 @@ struct StageSurface: UIViewRepresentable {
 
         let camera = PerspectiveCamera()
         camera.camera.fieldOfViewInDegrees = 40
+        // RealityKit measures that angle along the VERTICAL axis by default,
+        // which is what `DuckScene.authoringFieldOfView` assumes when it
+        // frames a scene: the stage is at least as wide as it is tall, so the
+        // vertical field is the tighter one.
         world.addChild(camera)
         context.coordinator.camera = camera
 
@@ -277,6 +394,23 @@ struct StageSurface: UIViewRepresentable {
             target: context.coordinator, action: #selector(Coordinator.reset))
         reset.numberOfTapsRequired = 2
         view.addGestureRecognizer(reset)
+
+        // PROJECTED FROM THE RENDER CALLBACK, NOT FROM `updateUIView`. Two
+        // reasons, and both of them bite. The camera is moved at the END of
+        // `updateUIView`, so a projection taken there is against where the
+        // camera was one pass ago — every handle would lag the duck by a frame
+        // while orbiting, which is the whole of when it matters. And
+        // `onProject` writes SwiftUI state: called from inside a view update
+        // that is the "Modifying state during view update" warning and an
+        // undefined pass. A frame callback is neither.
+        let coordinator = context.coordinator
+        coordinator.updates = view.scene.subscribe(to: SceneEvents.Update.self) {
+            [weak view, weak coordinator] _ in
+            MainActor.assumeIsolated {
+                guard let view, let coordinator else { return }
+                coordinator.project(in: view)
+            }
+        }
         return view
     }
 
@@ -298,16 +432,27 @@ struct StageSurface: UIViewRepresentable {
         // from under a robot that is bending down, which reads as the robot
         // drifting rather than as the trunk moving.
         c.shadow?.position = SIMD3(pose.groundPosition.x, 0.0015, pose.groundPosition.z)
+        // Handed over rather than read: the representable is a fresh struct on
+        // every pass and the coordinator is the one thing that lives long
+        // enough for a frame callback to hold.
+        c.handles = handles
+        c.onProject = onProject
         c.rebuildProps(environment, graspables: props)
+        if let rolling, let ball = c.ballEntity {
+            ball.position.x = Float(rolling.x)
+            ball.position.z = Float(-rolling.y)
+        }
         c.rebuildPath(trail)
         c.includeTrail(trail)
         c.reveal(progress: progress, ticks: trail.count)
 
         // Fixed looks at the middle of the run so the whole motion stays in
-        // frame; following looks at the trunk.
-        let target = orbit.follows
+        // frame; following looks at the trunk. AN EXPLICIT FOCUS BEATS BOTH,
+        // because it is the one that was worked out for a purpose rather than
+        // derived from whatever happens to be in the scene.
+        let target = orbit.focus ?? (orbit.follows
             ? SIMD3(pose.position.x, max(pose.position.y, 0.08), pose.position.z)
-            : c.centre
+            : c.centre)
         c.camera?.look(at: target, from: orbit.position(target: target), relativeTo: nil)
     }
 
@@ -322,6 +467,16 @@ struct StageSurface: UIViewRepresentable {
         var path: Entity?
         var shadow: Entity?
         var orbit: Binding<OrbitState>?
+        /// The joints to project, refreshed from the representable each pass.
+        var handles: [JointHandles.Handle] = []
+        var onProject: ((StageProjections) -> Void)?
+        /// The drawn ball, kept so `rolling` can move it without a rebuild.
+        var ballEntity: ModelEntity?
+        /// The frame subscription. Held here because a `Cancellable` that
+        /// nobody holds is a subscription that ends immediately.
+        var updates: (any Cancellable)?
+        /// The last set published, so a still stage publishes nothing.
+        private var sent: StageProjections?
         /// What a fixed camera looks at: the middle of everything worth seeing.
         private(set) var centre = SIMD3<Float>(0, 0.09, 0)
         private var lastScale: CGFloat = 1
@@ -434,6 +589,7 @@ struct StageSurface: UIViewRepresentable {
                 } else {
                     entity.position = SIMD3<Float>(x, max(thickness / 2, 0.005), z)
                 }
+                if prop.shape == .ball { ballEntity = entity }
                 world.addChild(entity)
             }
         }
@@ -447,6 +603,7 @@ struct StageSurface: UIViewRepresentable {
             else { return }
             shownEnvironment = environment
             shownGraspables = graspables
+            ballEntity = nil
             props.children.removeAll()
             addGraspables(graspables, to: props)
 
@@ -597,6 +754,98 @@ struct StageSurface: UIViewRepresentable {
             for marker in markers {
                 marker.entity.isEnabled = Double(marker.endTick) <= now
             }
+        }
+
+        // MARK: - the handles, on the glass
+
+        /// How far a projected point has to move before the overlay is told.
+        ///
+        /// HALF A POINT, WHICH IS UNDER ONE PIXEL ON EVERY DEVICE THIS SHIPS
+        /// TO. A stage nobody is touching still re-renders sixty times a
+        /// second, and the camera's own floating-point noise moves a projection
+        /// by a fraction of a point each time. Publishing that is a SwiftUI
+        /// pass over fourteen targets for a picture that has not changed.
+        /// Below half a point the eye cannot see the difference and the display
+        /// cannot draw it.
+        static let stillEnough = 0.5
+
+        /// Where every handle is on the glass this frame, published if it moved.
+        ///
+        /// THE ONE LEGAL CONVERSION, AND IT IS THE WHOLE METHOD.
+        /// `handle.pivot`, `.grip` and `.swung` are in the MODEL's world frame
+        /// — floor origin, z up, `trunk_base` already 120 mm up — which is not
+        /// RealityKit's and is not the duck entity's either, because the editor
+        /// drops the body by the pose's own ground clearance. Going through
+        /// `DuckGhostEntity.rk` and then the duck's own `convert` absorbs both:
+        /// the change of basis and wherever the entity was placed. A handle
+        /// worked out any other way floats by 116 mm, which is the exact bug
+        /// `place(root:jointAngles:)` exists to have fixed once.
+        func project(in view: ARView) {
+            guard let onProject else { return }
+            guard let duck, !handles.isEmpty else {
+                // A stage that has just lost its handles has to say so, or the
+                // overlay keeps drawing the last set over a duck that no longer
+                // has them.
+                if sent != nil { sent = nil; onProject(StageProjections()) }
+                return
+            }
+            let eye = camera?.position(relativeTo: nil) ?? .zero
+            func world(_ point: DuckVector) -> SIMD3<Float> {
+                duck.convert(position: DuckGhostEntity.rk(point), to: nil)
+            }
+            func screen(_ point: SIMD3<Float>) -> JointHandles.ScreenPoint? {
+                guard let flat = view.project(point) else { return nil }
+                return JointHandles.ScreenPoint(x: Double(flat.x), y: Double(flat.y))
+            }
+
+            var made: [StageProjection] = []
+            made.reserveCapacity(handles.count)
+            for handle in handles {
+                // A POINT BEHIND THE CAMERA PROJECTS TO NOTHING, and `project`
+                // says so by answering nil rather than by answering a point
+                // mirrored to the wrong side of the screen. All three have to
+                // be on the glass for the drag law to mean anything, so any
+                // nil leaves this handle out of the set entirely.
+                let grip = world(handle.grip)
+                guard let onPivot = screen(world(handle.pivot)),
+                      let onGrip = screen(grip),
+                      let onSwung = screen(world(handle.swung)) else { continue }
+                made.append(StageProjection(joint: handle.joint, pivot: onPivot,
+                                            grip: onGrip, swung: onSwung,
+                                            depth: Double(simd_distance(grip, eye))))
+            }
+            let trunk = world(DuckKinematics.trunkOriginInModelFrame)
+            let next = StageProjections(handles: made,
+                                        trunkDepth: Double(simd_distance(trunk, eye)))
+            guard changed(from: sent, to: next) else { return }
+            sent = next
+            onProject(next)
+        }
+
+        /// Whether anything the overlay draws has actually changed.
+        ///
+        /// AXES SEPARATELY, NOT A DISTANCE. There is no geometry in this — it
+        /// is a comparison against a threshold, and taking a square root to
+        /// make it a circle rather than a square would be arithmetic in the app
+        /// target for a difference of a fifth of a point.
+        private func changed(from old: StageProjections?, to new: StageProjections) -> Bool {
+            guard let old, old.handles.count == new.handles.count else { return true }
+            for (was, now) in zip(old.handles, new.handles) {
+                if was.joint != now.joint { return true }
+                // The DEPTH matters only through the one thing it decides —
+                // whether this joint is drawn dim — so a duck rotating away
+                // from the camera publishes when a leg crosses behind it and
+                // not on every millimetre before that.
+                if (was.depth > old.trunkDepth) != (now.depth > new.trunkDepth) { return true }
+                if apart(was.pivot, now.pivot) || apart(was.grip, now.grip)
+                    || apart(was.swung, now.swung) { return true }
+            }
+            return false
+        }
+
+        private func apart(_ a: JointHandles.ScreenPoint,
+                           _ b: JointHandles.ScreenPoint) -> Bool {
+            abs(a.x - b.x) >= Self.stillEnough || abs(a.y - b.y) >= Self.stillEnough
         }
 
         // MARK: - gestures

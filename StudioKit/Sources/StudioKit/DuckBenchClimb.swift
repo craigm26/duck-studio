@@ -10,12 +10,23 @@ import Foundation
 /// `/tune`'s. The bench does the arithmetic for one cell and this app does none:
 /// `StairsChallenge.Score` counts the answers.
 ///
-/// `/climb` DOES NOT LEAVE THE STAIRS BEHIND IT. The plant the bench holds
-/// already contains the fourteen-step bank parked below the floor; scoring a
-/// cell lifts four of them into place and puts them back. That is the bench's
-/// contract, not this file's, but it is why `/perform`, `/measure` and `/tune`
-/// answer exactly what they answered before this endpoint existed — and why the
-/// app can offer both on the same bench in the same session.
+/// `/climb` DOES NOT LEAVE THE STAIRS BEHIND IT. The plant contains a bank of
+/// fourteen step blocks, and `/climb` scores its cell in an `MjData` OF ITS
+/// OWN: it parks that copy's bank below the floor, lifts four of them into
+/// place, and its `finally` puts the friction, the collision bits and the
+/// blocks back before it answers. The live world is a different `MjData` and is
+/// not touched. That is the bench's contract, not this file's, but it is why
+/// `/perform`, `/measure` and `/tune` answer exactly what they answered before
+/// this endpoint existed — and why the app can offer both on the same bench in
+/// the same session.
+///
+/// THIS SENTENCE USED TO SAY THE BANK WAS "PARKED BELOW THE FLOOR", FULL STOP,
+/// and that was true of the climb rig's world and false of the live one. Nothing
+/// in the live lane has ever called `clearStairs`, so the world a person drives
+/// in boots with all fourteen 200 kg blocks stacked at their compiled `qpos0` —
+/// (0, 1.305, 0) — colliding on every tick. `DuckWorld.bareFloorIsAChange` is
+/// the consequence of that, said where somebody is about to choose an empty
+/// floor.
 extension DuckBench {
 
     // MARK: - one cell of the grid
