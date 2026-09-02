@@ -1,19 +1,26 @@
 import Foundation
 
-/// What the Lab holds, and how much of each of it is real.
+/// What the modes hold, and how much of each of them is real.
 ///
-/// WHY THIS IS A TABLE AND NOT A SCREEN FULL OF ROWS. The Lab is where this app
-/// is most likely to start overclaiming: a ghost duck standing on your carpet
-/// and a duck chasing a ball both LOOK like capability, and neither is a robot
-/// doing anything. Every other surface in this app states what it measured and
-/// what it assumed; the Lab has to as well, and the cheapest way to make that
-/// true is to keep the claim beside the mode in a place `swift test` can read.
+/// WHY THIS IS A TABLE AND NOT A SCREEN FULL OF ROWS. These modes are where
+/// this app is most likely to start overclaiming: a ghost duck standing on your
+/// carpet and a duck chasing a ball both LOOK like capability, and neither is a
+/// robot doing anything. Every other surface in this app states what it
+/// measured and what it assumed; these have to as well, and the cheapest way to
+/// make that true is to keep the claim beside the mode in a place `swift test`
+/// can read.
+///
+/// THE TYPE IS STILL CALLED `LabCatalogue`, AND THE LAB IS NOT A PLACE ANY
+/// MORE. These rows are drawn under Studio > Modes; the name is kept because it
+/// is referenced across the kit, the app and this repository's history, and
+/// renaming a type is not the same work as telling the truth in a sentence. The
+/// STRINGS are what a person reads, so the strings are what moved.
 ///
 /// NOTHING HERE TALKS TO A ROBOT, AND THAT IS SAID ONCE RATHER THAN NINE TIMES.
 /// Pollen's stated first Microduck deliveries are around Christmas 2026. Until
 /// then every mode below runs on a recorded policy, a trained network on the
-/// phone, or a physics bench on somebody's desk. `preamble` is that sentence,
-/// and a screen that shows any of these modes must show it.
+/// phone, or a physics bench on somebody's desk. `modesPreamble` is that
+/// sentence, and a screen that shows any of these modes must show it.
 public enum LabCatalogue {
 
     /// How much of a mode exists, which is the only thing a row must not lie
@@ -70,22 +77,28 @@ public enum LabCatalogue {
     }
 
     /// The sentence that has to appear above any list of these.
-    /// The bare fact, with no claim about the Lab in it.
+    /// The bare fact, with no claim about any container in it.
     ///
     /// SPLIT OUT SO OTHER SCREENS CAN SAY IT. `RemoteRunView` needs this fact
-    /// and must not be handed `preamble`, which asserts "Nothing in the Lab is
-    /// talking to a robot" — a true sentence about a place the reader is not
-    /// in, since the bench is reachable from the Policies tab too. A screen
-    /// naming the wrong container is a screen making a claim it cannot support.
+    /// and must not be handed `modesPreamble`, which asserts that nothing in
+    /// THESE MODES is talking to a robot — a true sentence about a place the
+    /// reader is not in, since the bench is also reachable from Studio >
+    /// Measure on a bench and from a policy under Behaviours. A screen naming
+    /// the wrong container is a screen making a claim it cannot support.
     public static let noRobotYet =
         "No Microduck exists yet — Pollen's first deliveries are around Christmas 2026."
 
-    public static let preamble =
+    /// THE SENTENCE NAMES NO TAB. It used to say "Nothing in the Lab is talking
+    /// to a robot", and there is no Lab tab any more — these rows live under
+    /// Studio > Modes, and a sentence that names a container is a sentence that
+    /// goes false the next time the shell is rearranged. "these modes" is true
+    /// wherever the list is drawn, which is the only claim it needs to make.
+    public static let modesPreamble =
         noRobotYet
-      + " Nothing in the Lab is talking to a robot. What runs here is a trained policy on "
+      + " Nothing in these modes is talking to a robot. What runs here is a trained policy on "
       + "this phone, a physics bench on your own network, or a recorded motion."
 
-    /// Why the Lab is one tab rather than three apps.
+    /// Why the modes are one screen rather than three apps.
     public static let rationale =
         "Duck Soccer, Duckboard and Duck Diary were three separate apps on paper. Each one "
       + "needed its own shell, icon, privacy label and review before it could show anybody a "

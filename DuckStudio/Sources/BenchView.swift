@@ -344,7 +344,7 @@ struct BenchView: View {
 
     /// The pose to draw: the policy's clamped targets, or the home stance
     /// while nothing has run. Nothing PLAYS here — a network has no time axis,
-    /// and recordings live in the Motions tab.
+    /// and recordings live in Studio → Motions.
     private var jointAngles: [Double] {
         stages?.clamped ?? ObservationPreset.restingPose
     }

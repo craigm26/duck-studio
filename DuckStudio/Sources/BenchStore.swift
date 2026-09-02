@@ -39,6 +39,26 @@ final class BenchStore: ObservableObject {
     /// STORE THERE IS NO FALLBACK: a phone has an on-device model and does not
     /// have a physics engine, so "no bench" is a real state every caller has to
     /// handle rather than something to paper over with a default.
+    /// The last policy this app loaded on each bench, by bench id.
+    ///
+    /// THE BENCH DOES NOT SAY WHICH POLICY IS LOADED. `/health` lists what a
+    /// bench HOLDS and nothing else, so the only thing that knows what is on
+    /// the servos is whichever screen last posted `/policy` — and there are
+    /// two of those now, the Control picker and My Microduck's quick actions.
+    /// Kept here so the Control tab, opening after a quick action, can show
+    /// that policy in its picker WITHOUT posting a swap that would undo it.
+    /// Not persisted: a bench restarted between launches holds whatever it
+    /// holds, and a record that outlived the bench would be a guess.
+    @Published private(set) var lastLoadedPolicy: [UUID: String] = [:]
+
+    func noteLoaded(_ policy: String, on id: UUID) {
+        lastLoadedPolicy[id] = policy
+    }
+
+    func lastLoaded(for id: UUID?) -> String? {
+        id.flatMap { lastLoadedPolicy[$0] }
+    }
+
     var selected: BenchEndpoint? {
         benches.first { $0.id == selectedID } ?? benches.first
     }
@@ -162,6 +182,50 @@ final class BenchStore: ObservableObject {
         if let data = try? JSONEncoder().encode(benches) {
             UserDefaults.standard.set(data, forKey: Self.listKey)
         }
+    }
+}
+
+// MARK: - the peer for whichever bench is chosen
+
+extension BenchStore {
+
+    /// A peer pointed at the selected bench, or nil when there is no bench.
+    ///
+    /// IT IS HERE BECAUSE TWO SCREENS NOW NEED THE SAME PEER AND ONLY ONE OF
+    /// THEM WROTE IT. `DriveView.makePeer` built this — the address off the
+    /// armed endpoint, the errand that reads the token per request — and the
+    /// front door needs exactly the same object to say hello with. A second
+    /// copy in a second view is two errands that eventually disagree about
+    /// something small and load-bearing: which token, read when, on whose
+    /// thread. This is the store's answer, because the store is the thing that
+    /// already knows which bench is chosen and where its credential lives.
+    ///
+    /// NIL RATHER THAN A THROW FOR "NO BENCH", AND A THROW FOR EVERYTHING ELSE.
+    /// Having no bench is not an error: this app ships with none, and a fresh
+    /// install opening the front door would otherwise be met with a refusal for
+    /// not yet having done something nobody asked it to do. An address that
+    /// will not resolve IS an error, and `BenchEndpoint.resolved()` already has
+    /// the paragraph for each way it can be wrong — those go up to the caller
+    /// so the screen can print them.
+    ///
+    /// THE ERRAND IS ALL THE APP TARGET LENDS IT, AND THE TOKEN IS READ PER
+    /// REQUEST. Both are `DriveView.makePeer`'s decisions, kept: `BenchPeer`
+    /// takes a closure rather than a `URLSession` so the kit stays testable on
+    /// a machine with no phone, and a token snapshotted at construction goes
+    /// stale the moment somebody replaces it in Settings. One
+    /// `SecItemCopyMatching` per call, on the errand's own thread, is what the
+    /// old path cost and it never showed in the intent rate.
+    @MainActor func makePeer() throws -> BenchPeer? {
+        guard let bench = selected else { return nil }
+        let address = try armed(bench).resolved()
+        let name = bench.name
+        let id = bench.id
+        let hasToken = bench.hasToken
+        return try BenchPeer(address: address, name: name, errand: { call in
+            let token = hasToken ? BenchKeyStore.load(for: id) : nil
+            return try await URLSession.shared.data(
+                for: DuckBench.urlRequest(for: call, token: token)).0
+        })
     }
 }
 

@@ -5,15 +5,24 @@ import XCTest
 /// false before it existed.
 final class UXSurfaceTests: XCTestCase {
 
-    /// The Lab's preamble is unchanged as a string; only its first sentence is
-    /// now reusable. If these ever drift apart, a screen quoting `noRobotYet`
-    /// and a screen quoting `preamble` start disagreeing about the date.
+    /// THIS TEST PROTECTS HONESTY, NOT THE WORD "LAB". The modes preamble opens
+    /// with the bare fact byte-identically, the bare fact names no container,
+    /// and the sentence after it still says out loud that no robot is on the
+    /// other end. Those are the three things a person is owed; which tab the
+    /// rows happen to be drawn under this month is not one of them, and the
+    /// last assertion used to pin a tab name that no longer exists.
+    ///
+    /// If the first two drift apart, a screen quoting `noRobotYet` and a screen
+    /// quoting `modesPreamble` start disagreeing about the date.
     func testThePreambleStillOpensWithTheBareFact() {
-        XCTAssertTrue(LabCatalogue.preamble.hasPrefix(LabCatalogue.noRobotYet),
-                      LabCatalogue.preamble)
-        XCTAssertFalse(LabCatalogue.noRobotYet.contains("Lab"),
-                       "the reusable fact must not claim anything about a tab")
-        XCTAssertTrue(LabCatalogue.preamble.contains("Nothing in the Lab is talking to a robot"))
+        XCTAssertTrue(LabCatalogue.modesPreamble.hasPrefix(LabCatalogue.noRobotYet),
+                      LabCatalogue.modesPreamble)
+        for container in ["Lab", "tab", "Studio", "Modes"] {
+            XCTAssertFalse(LabCatalogue.noRobotYet.contains(container),
+                           "the reusable fact must not claim anything about a container: \(container)")
+        }
+        XCTAssertTrue(LabCatalogue.modesPreamble.contains("Nothing in these modes is talking to a robot"),
+                      LabCatalogue.modesPreamble)
     }
 
     /// THE OLD CATALOGUE SENTENCE WAS FALSE WHEN IT WAS WRITTEN. "This app

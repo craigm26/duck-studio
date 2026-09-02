@@ -82,8 +82,14 @@ private extension DuckScene.Problem.Severity {
 /// The places you can put the robot.
 struct SceneListView: View {
     @ObservedObject var store: SceneStore
-    /// Held only to hand to Settings from this tab's gear. Passing stores by
-    /// hand is the house style here.
+    /// HELD AND NOT READ, WHICH IS DELIBERATE AND SHOULD NOT LAST. Both of
+    /// these existed to hand to Settings from this screen's own gear, and the
+    /// gear is gone — Scenes is a row inside Studio now, and Studio's root
+    /// carries the one gear. They stay because `StudioHubView` constructs this
+    /// view exactly as the old shell did, and because the editor sheet this
+    /// screen opens is the obvious next place a model or a bench is wanted.
+    /// Whoever needs neither should delete both and the argument labels with
+    /// them, in one change rather than by removing the call site first.
     @ObservedObject var models: EndpointStore
     @ObservedObject var benches: BenchStore
     /// On an id, not a copy — see `DraftID`. Holding the scene meant the sheet
@@ -137,16 +143,11 @@ struct SceneListView: View {
         .scrollContentBackground(.hidden)
         .background(Theme.backgroundSecondary)
         .navigationTitle("Scenes")
-        // ONE GEAR, SAME PLACE, SAME WORD, ON ALL FIVE TAB ROOTS.
-        // Configuration was scattered across three tabs and nothing was called
-        // "Settings", which is the first word anybody looks for.
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                NavigationLink { SettingsView(models: models, benches: benches) } label: {
-                    Image(systemName: "gear").accessibilityLabel(Text("Settings"))
-                }
-            }
-        }
+        // NO GEAR HERE ANY MORE. ONE PER TAB ROOT, AND THIS IS NO LONGER ONE.
+        // Scenes is a row inside Studio, whose own root carries the gear — so a
+        // gear here put two of them one tap apart, in the same corner, leading
+        // to the same screen, which reads as two different Settings until
+        // somebody opens both to find out.
         .sheet(item: $editing) { wrapper in
             NavigationStack {
                 if let current = store.scenes.first(where: { $0.id == wrapper.id }) {

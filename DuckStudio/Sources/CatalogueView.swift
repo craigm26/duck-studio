@@ -129,23 +129,16 @@ struct CatalogueView: View {
                 .listRowBackground(Theme.surfacePrimary)
             }
 
+            // A SENTENCE, NOT A SECOND DOOR. This carried a `NavigationLink` to
+            // the community catalogue, which made Behaviours → Discover →
+            // Pollen Robotics → Community a real path to a screen that is
+            // Pollen's sibling and not its child — and pushing it here left
+            // somebody two backs deep in the wrong provenance. Both catalogues
+            // are rows in Discover now, side by side, one back from this screen.
+            // The claim the section was making is worth keeping; the extra door
+            // was teaching the wrong shape.
             Section {
-                NavigationLink {
-                    CommunityPoliciesView(model: model)
-                } label: {
-                    provenance(origin: .community) {
-                        // THE GLYPH CARRIES THE ACTION COLOUR AND THE WORD DOES
-                        // NOT — the same arrangement `PolicyListView` makes for
-                        // the doors that are not the primary one.
-                        Label {
-                            Text("Community policies").foregroundStyle(Theme.textPrimary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        } icon: {
-                            Image(systemName: "person.2").foregroundStyle(Theme.actionSecondary)
-                        }
-                    }
-                }
-                Text("Pollen are not the only people training this robot any more. Other authors publish policies on Hugging Face, each with a manifest saying what its command block means.")
+                Text("Pollen are not the only people training this robot any more. Other authors publish policies on Hugging Face, each with a manifest saying what its command block means — they are under Discover, beside this catalogue.")
                     .font(.caption)
                     .foregroundStyle(Theme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)

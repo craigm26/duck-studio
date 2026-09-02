@@ -47,6 +47,14 @@ struct AutomationChatView: View {
     /// another app on this phone — the draft lands in the same checker either
     /// way, so this is a choice about privacy and speed, not about trust.
     @ObservedObject var models: EndpointStore
+    /// HELD AND NOT READ, WHICH IS DELIBERATE AND SHOULD NOT LAST. It existed
+    /// to hand to Settings from this screen's own gear, and the gear is gone —
+    /// drafting is a row inside Studio now, and Studio's root carries the one
+    /// gear. It stays because `StudioHubView` constructs this view exactly as
+    /// the old shell did, and because a drafted motion wanting a bench to run
+    /// on is the obvious next thing this screen asks for. Whoever needs neither
+    /// should delete it and the argument label with it, in one change rather
+    /// than by removing the call site first.
     @ObservedObject var benches: BenchStore
     @ObservedObject var plans: PlanStore
 
@@ -377,7 +385,12 @@ struct AutomationChatView: View {
                             if kept == entry.asked {
                                 // A FILE ON THE PHONE IS A RESULT, which is the
                                 // one thing the success token is for.
-                                Label("Kept — it is in your Motions, under Plans.",
+                                // THE PATH, NOT THE TAB. Motions stopped being
+                                // a tab and became a row inside Studio, and
+                                // "your Motions" was already asking somebody to
+                                // know that. An arrow is the shortest true way
+                                // to say where a thing went.
+                                Label("Kept — it is in Studio → Motions, under Plans.",
                                       systemImage: "checkmark.circle")
                                     .font(.caption).foregroundStyle(Theme.success)
                             }
@@ -510,14 +523,15 @@ struct AutomationChatView: View {
         .navigationTitle("Draft with words")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            // ONE GEAR, SAME PLACE, SAME WORD, ON ALL FIVE TAB ROOTS.
-            // Configuration was scattered across three tabs and nothing was
-            // called "Settings", which is the first word anybody looks for.
-            ToolbarItem(placement: .topBarTrailing) {
-                NavigationLink { SettingsView(models: models, benches: benches) } label: {
-                    Image(systemName: "gear").accessibilityLabel(Text("Settings"))
-                }
-            }
+            // NO GEAR HERE ANY MORE. ONE PER TAB ROOT, AND THIS IS NO LONGER
+            // ONE. Drafting with words is a row inside Studio, whose own root
+            // carries the gear — so a gear here put two of them one tap apart,
+            // in the same corner, leading to the same screen, which reads as
+            // two different Settings until somebody opens both to find out.
+            // The model picker in this screen's own header is untouched: that
+            // one chooses WHO writes the draft, which is a decision about this
+            // conversation rather than about the app.
+            //
             // The keyboard's own Done key. Drag-down on the list works too;
             // both exist because a trapped keyboard was this screen's first
             // shipped bug.
@@ -568,7 +582,7 @@ struct AutomationChatView: View {
     private var blurb: String {
         switch mode {
         case .motion:
-            return "Describe a motion and the robot performs your words in 3D, immediately — then open the keyframes and see the sliders the sentence moved. Drafts land in your Motions tab."
+            return "Describe a motion and the robot performs your words in 3D, immediately — then open the keyframes and see the sliders the sentence moved. Drafts land in Studio → Motions."
         case .rule:
             return "A rule you draft here is one you can read, check and share. It does not fire: reaching a robot needs hardware that does not exist yet, so nothing here is live."
         case .train:
@@ -619,7 +633,7 @@ struct AutomationChatView: View {
             case .unavailable(.deviceNotEligible):
                 return Availability(isUsable: false, explanation:
                     "This device does not have Apple Intelligence, so there is no on-device model "
-                    + "to draft with. Motions can still be written by hand in the Motions tab.")
+                    + "to draft with. Motions can still be written by hand in Studio → Motions.")
             case .unavailable(.appleIntelligenceNotEnabled):
                 return Availability(isUsable: false, explanation:
                     "Turn on Apple Intelligence in Settings to draft from a sentence.")
@@ -877,7 +891,7 @@ struct AutomationChatView: View {
     /// IT USED TO EXPORT A `.duck` — quackd's task file — which this app could
     /// not read back, so a fetch worked out here left as a file that returned
     /// "nothing was added" if anyone tried to bring it home. `DuckPlanFile` is
-    /// ours and round-trips, and a kept plan appears in the Motions tab beside
+    /// ours and round-trips, and a kept plan appears in Studio → Motions beside
     /// the motions.
     ///
     /// THE TITLE IS THE PERSON'S OWN WORDS, not a phrase composed here.

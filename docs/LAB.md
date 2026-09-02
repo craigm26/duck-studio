@@ -1,7 +1,24 @@
 # The Lab tab — consolidating the duck apps into one
 
+**THE LAB TAB NO LONGER EXISTS, AND THIS DOCUMENT IS KEPT ANYWAY (2026-09-01).**
+The Lab folded into **Studio > Modes** on this date, when the app was
+restructured around the robot rather than around the file types it edits. The
+five tabs are now My Microduck, Control, Behaviours, Studio and Robot; every
+mode described below except the bench is reachable at Studio > Modes, and the
+physics bench is reachable at Studio > Measure, as "Run on your network". Nothing was deleted and no mode
+changed what it does — only where it is drawn and what the sentence above it
+names. `LabCatalogue` keeps its type name; its `preamble` became
+`modesPreamble` and stopped naming a tab, because a sentence that names a
+container goes false the next time the shell is rearranged.
+
+Two things below are still live and are the reason this file is not archived:
+the gate warning in "Three things this must not break", which is *more* true
+after a second restructuring, not less; and the open loop at "Order of work"
+item 3, which nobody has closed.
+
 Written before any code, in the house pattern. This is the merge plan for
 folding the other Microduck apps into Microduck Studio as a fifth tab, **Lab**.
+Read it as history from here down.
 
 ## Why this is worth doing, stated honestly
 
@@ -53,9 +70,10 @@ building it. Two of those endpoints are richer than the app currently admits:
   reads the same way the detector reports. That is the seed of every game
   anybody would want, and it is already correct about the thing games get wrong.
 
-## What the Lab tab holds
+## What the modes hold (written as "the Lab tab holds")
 
-Ordered by how much of it exists, not by how it demos.
+Ordered by how much of it exists, not by how it demos. These are the rows in
+`LabCatalogue.modes`, drawn today at Studio > Modes.
 
 ### 1. Bench — real, mostly surfacing
 The simulator, promoted from a setting to a place. Health, the world, the
@@ -78,7 +96,7 @@ two-ghost diff (T-072, per-site millimetre separation) is the one that earns its
 place: authored motion against recorded motion, in the room, at 25 cm.
 
 ### 4. Deck — paper, and blocked on hardware anyway
-`duckboard-ios`'s six fat buttons and STOP bar. Worth folding in as a Lab screen
+`duckboard-ios`'s six fat buttons and STOP bar. Worth folding in as a screen
 rather than an app, but **it cannot be tested without a duck**, and its whole
 design is about latency to a real robot. Fold in the plan, build it when
 hardware lands.
@@ -98,27 +116,34 @@ was not bundled" and a PASS on ≥100 visits to `/bring-your-own-policy`. Those
 numbers are about *one* question: does a practitioner point this at their own
 network? A tab full of trials and AR moves the download number without moving
 that question, and a mega-app makes the download count uninterpretable. **The
-gates must be re-pre-registered before the Lab tab ships, not after**, or they
-stop being a lookup and become an argument.
+gates must be re-pre-registered before this ships, not after**, or they stop
+being a lookup and become an argument. Still open, and now twice over: the Lab
+tab shipped without it, and the five-tab restructuring moved the surfaces again.
 
 **2. The app's claim about itself gets harder to keep.**
 Microduck Studio's value is that it refuses to overclaim: it says what is measured,
-what is assumed, and what is not real. A Lab tab is where overclaiming would be
+what is assumed, and what is not real. These modes are where overclaiming would be
 easiest — a ghost in your room and a duck chasing a ball both *look* like
-capability. Every Lab screen needs the same discipline as the rest: the criterion
+capability. Every one of these screens needs the same discipline as the rest: the criterion
 beside the number, and "this is a simulation" where it is one.
 
 **3. Five tabs is the ceiling.**
-iPhone shows five before it collapses the rest into "More". Policies, Intents,
-Scenes, Draft, Lab is exactly five. There is no sixth, so anything else that
-arrives has to live inside one of them.
+iPhone shows five before it collapses the rest into "More". At the time this was
+written the five were Policies, Intents, Scenes, Draft and Lab. They are now **My
+Microduck, Control, Behaviours, Studio and Robot** — the same ceiling, reached a
+different way: Motions, Scenes, Draft and the Lab's modes all fit inside Studio,
+which bought room for a tab about the duck you own and a tab about its hardware.
+There is still no sixth, so anything else that arrives has to live inside one of
+these five.
 
 ## Order of work
 
 1. ~~Lab tab shell + Bench moved into it.~~ **Done.**
 2. ~~Port the OpenCastor lab.~~ **Done** — see below.
-3. **Re-pre-register the gates.** Now the most urgent item, not the cheapest:
-   the app that the gates in `GATES.md` describe no longer exists.
+3. **Re-pre-register the gates.** STILL OPEN, and now the most urgent item by a
+   wider margin than when this was written: the app that the gates in
+   `GATES.md` describe no longer exists, and neither does the app that replaced
+   it — `/bring-your-own-policy` is a path under Behaviours now.
 4. **Trials over `/ball` + `/measure`.** Small code, real experiment, the first
    thing in the tab that did not exist in either app.
 5. **Deck and Diary** stay documented and unbuilt until there is a robot.
@@ -136,7 +161,7 @@ collisions at all** between the two apps, and `Theme` — OpenCastor's design
 system, the thing that looked like the expensive part — turned out to be used
 in exactly one duck file.
 
-Seven of the games hang off `GhostDuckView` rather than sitting in the Lab list,
+Seven of the games hang off `GhostDuckView` rather than sitting in the modes list,
 which is how OpenCastor arranged them and is right: each one is the same ghost
 duck doing something else, so seven rows would be seven doors into one room.
 
@@ -144,8 +169,8 @@ duck doing something else, so seven rows would be seven doors into one room.
 
 Kept apart from `LabCatalogue` on purpose. That table's `.planned` means
 "designed, not written"; these are not designed, and putting them in the table
-would be the app claiming more than it has — which is the one thing the Lab is
-most able to do.
+would be the app claiming more than it has — which is the one thing these modes
+are most able to do.
 
 - **Bobsled, rebuilt rather than ported.** OpenCastor's is a rover game wearing a
   duck: it steers a sled, and the thing that makes every other game a *duck* game
@@ -159,8 +184,8 @@ most able to do.
   the 14-degree yaw limit that constrains every other game stops mattering in the
   same way — a ball does not have a turn radius, it has momentum. Worth thinking
   about whether the bench can simulate it before any of it is drawn, because if
-  MuJoCo can roll the sphere then this is the first Lab mode whose difficulty
-  would be *measured* rather than authored.
+  MuJoCo can roll the sphere then this is the first mode whose difficulty would
+  be *measured* rather than authored.
 
 ## What stays in its own repository
 

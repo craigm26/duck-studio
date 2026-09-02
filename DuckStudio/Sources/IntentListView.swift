@@ -3,7 +3,7 @@ import DuckKit
 import DuckEvidence
 import StudioKit
 
-// MARK: - the pieces this screen shares with the Policies tab
+// MARK: - the pieces this screen shares with the Behaviours tab
 
 /// One point — the thinnest rule iOS draws crisply.
 ///
@@ -16,7 +16,7 @@ import StudioKit
 /// that file's own rule the stroke has earned a place in the design system
 /// beside the radii and the focus ring's geometry, and this declaration is the
 /// evidence rather than the argument. It is written here rather than moved
-/// there because this change owns the root and the Motions tab and nothing
+/// there because this change owns the root and Studio → Motions and nothing
 /// else; the move is a one-line addition to `Palette` and a four-place
 /// deletion, and it should be made by whoever owns the tokens next.
 private let hairlineStroke = DesignMetric.hairlineStroke
@@ -109,7 +109,7 @@ private extension View {
 /// every worrying number is a number before it is a hue.
 struct IntentListView: View {
     /// Which model answers a plain-language tweak inside the editor. Threaded
-    /// through rather than made here, so the Draft tab and the editor share one
+    /// through rather than made here, so Studio → Draft and the editor share one
     /// choice — two stores would mean picking Claude in one place and getting
     /// Apple's model in the other.
     @ObservedObject var models: EndpointStore
@@ -189,7 +189,7 @@ struct IntentListView: View {
             if !drafts.drafts.isEmpty { simToReal }
 
             // WHERE THE IMPORTER SAYS WHAT HAPPENED. `model.lastImport` was
-            // drawn on the Policies tab and nowhere else, so a `.duckmove`, a
+            // drawn on the Behaviours tab and nowhere else, so a `.duckmove`, a
             // `.duck` or an unrecognised file picked from THIS screen's own
             // import button was refused into a void: the sheet closed, the list
             // did not change, and the sentence explaining why was on a tab the
@@ -268,14 +268,11 @@ struct IntentListView: View {
         // does not impose it on the other four tabs.
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
-            // ONE GEAR, SAME PLACE, SAME WORD, ON ALL FIVE TAB ROOTS.
-            // Configuration was scattered across three tabs and nothing was
-            // called "Settings", which is the first word anybody looks for.
-            ToolbarItem(placement: .topBarTrailing) {
-                NavigationLink { SettingsView(models: models, benches: benches) } label: {
-                    Image(systemName: "gear").accessibilityLabel(Text("Settings"))
-                }
-            }
+            // NO GEAR HERE ANY MORE. ONE PER TAB ROOT, AND THIS IS NO LONGER
+            // ONE. Motions is a row inside Studio, whose own root carries the
+            // gear — so a gear here put two of them one tap apart, in the same
+            // corner, leading to the same screen, which reads as two different
+            // Settings until somebody opens both to find out.
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     // WARMED HERE BECAUSE THIS IS THE TAP BEFORE THE EVENT.
@@ -666,7 +663,7 @@ struct IntentListView: View {
         } label: {
             VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
                 // WHAT IT IS AND WHOSE IT IS, ON ONE LINE. The pill sits beside
-                // the name it qualifies, the way the Policies tab draws the
+                // the name it qualifies, the way the Behaviours tab draws the
                 // same claim, and the measured numbers move down to the second
                 // line with the other measured numbers.
                 HStack(spacing: Theme.spacing(.tight)) {

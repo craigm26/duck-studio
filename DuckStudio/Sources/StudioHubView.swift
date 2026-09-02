@@ -1,28 +1,30 @@
 import SwiftUI
-import DuckKit
 import StudioKit
 
-/// The Lab — where a policy meets a world, and where the other duck apps land.
+/// Studio — where you make something, and where you find out what physics did
+/// to it.
 ///
-/// WHY THIS TAB EXISTS. Duck Soccer, Duckboard and Duck Diary were three
-/// separate apps on paper: each with its own repository, bundle identifier,
-/// pre-registered gates and plan, and each needing a shell, an icon, a privacy
-/// label and a review cycle before it could show anybody a duck. Two of those
-/// repositories contain no code at all. A new Microduck owner should not have
-/// to find four apps to use one robot, so they are screens here instead.
+/// WHY FOUR TABS BECAME ONE SCREEN. Motions, Scenes, Draft and the Lab were
+/// four of the five tabs, and they are four halves of one verb: a motion is
+/// what you author, a scene is the place you author it against, drafting with
+/// words is another way to write the same motion, and the bench is the only
+/// machine in the arrangement with physics in it. Sorting the tab bar by which
+/// store a thing lives in is sorting it by how the app is built; a person opens
+/// this tab because they want to MAKE something, and then picks which kind.
 ///
-/// AND IT IS WHERE SIM-TO-REAL BECOMES POSSIBLE RATHER THAN A WORD. Duck
-/// Studio can inspect a policy and author a motion and run neither, because an
-/// iPhone has no physics. The bench has physics. Once the bench is a place
-/// rather than a setting, the loop closes: author a motion, run it against a
-/// real solver on a machine on your desk, see what physics did to it, and — when
-/// hardware exists — send the same thing to a robot.
+/// AND IT IS WHERE SIM-TO-REAL BECOMES POSSIBLE RATHER THAN A WORD. This app
+/// can inspect a policy and author a motion and run neither, because an iPhone
+/// has no physics. The bench has physics. Once the bench is a place rather than
+/// a setting, the loop closes: author a motion, run it against a real solver on
+/// a machine on your desk, see what physics did to it, and — when hardware
+/// exists — send the same thing to a robot.
 ///
 /// THE ROW THAT CANNOT BE OPENED IS DISABLED AND SAYS WHY. This is the house
-/// rule everywhere else in the app and it matters most here, because the Lab is
-/// the surface where overclaiming would be easiest: a ghost on your carpet and a
+/// rule everywhere else in the app and it matters most in Modes, which is the
+/// surface where overclaiming would be easiest: a ghost on your carpet and a
 /// duck chasing a ball both LOOK like capability and neither is a robot doing
-/// anything. `LabCatalogue` holds the sentences so `swift test` can read them.
+/// anything. `LabCatalogue` holds the sentences so `swift test` can read them,
+/// which is also why nothing on this screen composes one.
 ///
 /// EVERY MODE IS A CARD, AND THE CARDS ARE CONCENTRIC. A mode is a name, a
 /// claim about how real it is and — often — a reason it cannot be opened, which
@@ -30,55 +32,113 @@ import StudioKit
 /// a wall of grey text where nothing said where one mode stopped. The card is
 /// `Palette.Radius.card` and the symbol tile inside it is `.card.inner`, taken
 /// from the outer radius rather than chosen again, so the corner of the tile is
-/// one step down from the corner of the card it sits in.
-struct LabView: View {
+/// one step down from the corner of the card it sits in. Author and Measure are
+/// plain rows on purpose: they are names of places, not claims about reality,
+/// and a card around a name would say there was something to weigh up.
+struct StudioHubView: View {
     @ObservedObject var model: LibraryModel
     @ObservedObject var scenes: SceneStore
     @ObservedObject var drafts: DraftStore
     @ObservedObject var models: EndpointStore
     @ObservedObject var benches: BenchStore
+    @ObservedObject var plans: PlanStore
+
     /// ROOM CAPTURE IS THE ONE ROW HERE THAT NEEDS A CAMERA TO EXIST AT ALL,
-    /// so the Lab reads the door too. The ghost duck and soccer are not in this
-    /// list on purpose: both open on a rendered venue and offer the camera only
-    /// behind a picker, which disables itself with its own reason.
+    /// so this screen reads the door too. The ghost duck and soccer are not in
+    /// this list on purpose: both open on a rendered venue and offer the camera
+    /// only behind a picker, which disables itself with its own reason.
     @State private var door = CameraDoor.availability
 
     var body: some View {
         List {
             Section {
-                // THE HONESTY PREAMBLE IS THE FIRST THING ON THE SCREEN AND IT
-                // IS SET IN A TOKEN. It is the sentence that says nothing here
-                // is talking to a robot, which makes it the most load-bearing
-                // text in the tab; `.secondary` resolved it against whatever
-                // UIKit felt was behind it, while `Theme.textSecondary` is a
-                // value `PaletteTests` proves at 4.5:1 on every ground this app
-                // sets words on.
-                Text(LabCatalogue.preamble)
-                    .font(.footnote)
-                    .foregroundStyle(Theme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            } footer: {
-                Text(LabCatalogue.rationale)
-                    .foregroundStyle(Theme.textSecondary)
+                NavigationLink {
+                    IntentListView(models: models, benches: benches, plans: plans,
+                                   store: scenes, model: model, drafts: drafts)
+                } label: {
+                    Label("Motions", systemImage: "figure.walk.motion")
+                }
+                // A THIRD KIND OF THING, and it earned its own row the moment
+                // the stage started drawing one. A policy is a network, a
+                // motion is what one did, and a scene is a PLACE — the floor,
+                // the steps, the wall a motion is judged against. Folding
+                // places into the motion that happened to be recorded in one is
+                // what made every clip play in a void.
+                NavigationLink {
+                    SceneListView(store: scenes, models: models, benches: benches)
+                } label: {
+                    Label("Scenes", systemImage: "square.3.layers.3d")
+                }
+                // NOT `wand.and.stars`, WHICH IS NOW THE TAB'S OWN SYMBOL. A
+                // row wearing the same glyph as the tab it sits in reads as the
+                // way back out rather than as a way further in.
+                NavigationLink {
+                    AutomationChatView(drafts: drafts, scenes: scenes, models: models,
+                                       benches: benches, plans: plans)
+                } label: {
+                    Label("Draft with words", systemImage: "text.bubble")
+                }
+            } header: {
+                SectionHeading(text: "Author")
             }
             .listRowBackground(Theme.surfacePrimary)
 
             Section {
-                ForEach(LabCatalogue.modes) { mode in
+                // THE SAME SCREEN THE "bench" MODE USED TO OPEN, which is why
+                // that mode is skipped below rather than drawn twice. It is up
+                // here because measuring is not a mode you play with: it is the
+                // one thing on this tab that runs a real solver, and burying it
+                // among the ghost duck and the soccer stage put the only honest
+                // physics in the app behind the two screens that look most like
+                // capability and are not.
+                NavigationLink {
+                    RemoteRunView(model: model, scenes: scenes, drafts: drafts,
+                                  models: models, benches: benches)
+                } label: {
+                    Label("Run on your network", systemImage: "wifi")
+                }
+            } header: {
+                SectionHeading(text: "Measure")
+            }
+            .listRowBackground(Theme.surfacePrimary)
+
+            Section {
+                // THE BENCH MODE IS SKIPPED HERE BECAUSE MEASURE HOLDS IT. Its
+                // row and the Measure row open the same `RemoteRunView`, and
+                // two doors into one room, on one screen, is how a person ends
+                // up wondering which of them is the real one. The catalogue is
+                // NOT filtered in the kit: `LabCatalogueTests` pins
+                // `LabCatalogue.usable` to exactly ["bench", "ghost", "soccer",
+                // "room", "sounds"] against `destination(_:)` below, which
+                // still answers all five — so the mapping stays provable and
+                // only the drawing skips one.
+                ForEach(LabCatalogue.modes.filter { $0.id != "bench" }) { mode in
                     row(mode)
                 }
             } header: {
-                Text("Modes")
+                SectionHeading(text: "Modes")
             } footer: {
-                // AMENDED WHEN THE CAMERA DOOR WENT IN, BECAUSE IT HAD BECOME
-                // FALSE. Room capture is written and reachable, and it still
-                // greys out on a build with no camera usage description, on a
-                // device that cannot world-track, or when the person has said
-                // no — none of which is "nothing is behind it yet". Ideally
-                // this sentence lives in `LabCatalogue` beside the others; it
-                // is left here only because it was already here.
-                Text("A mode is greyed out because nothing is behind it here yet, or because something it needs cannot be opened — this build, this phone, or a permission you have turned off. Never because it is locked. Which one it is is written under its name.")
+                // THE HONESTY SENTENCE IS SET IN A TOKEN AND COMES FROM THE
+                // KIT. It is the sentence that says nothing here is talking to
+                // a robot, which makes it the most load-bearing text on the
+                // tab; `.secondary` resolved it against whatever UIKit felt was
+                // behind it, while `Theme.textSecondary` is a value
+                // `PaletteTests` proves at 4.5:1 on every ground this app sets
+                // words on.
+                //
+                // `modesPreamble` RATHER THAN `preamble`, because the sentence
+                // used to name "the Lab" and there is no Lab any more. A screen
+                // naming the wrong container is a screen making a claim it
+                // cannot support.
+                // BOTH SENTENCES, because `rationale` — why three apps became
+                // these rows — is product copy a test guards, and the screen
+                // that folded here was the only one that drew it.
+                VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
+                    Text(LabCatalogue.modesPreamble)
+                    Text(LabCatalogue.rationale)
+                }
                     .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         // THE LIST SITS ON THE PALETTE'S RECESSED GROUND, NOT THE SYSTEM'S
@@ -89,10 +149,12 @@ struct LabView: View {
         .scrollContentBackground(.hidden)
         .background(Theme.backgroundSecondary)
         .refreshingCameraDoor($door)
-        .navigationTitle("Lab")
-        // ONE GEAR, SAME PLACE, SAME WORD, ON ALL FIVE TAB ROOTS.
-        // Configuration was scattered across three tabs and nothing was called
-        // "Settings", which is the first word anybody looks for.
+        .navigationTitle("Studio")
+        .navigationBarTitleDisplayMode(.large)
+        // ONE GEAR, SAME PLACE, SAME WORD, ONCE PER TAB ROOT. It used to sit on
+        // this screen AND on Motions, Scenes and Draft — which are now one tap
+        // inside it, so a person met two gears in a row and had to guess
+        // whether they led to the same place. They did.
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink { SettingsView(models: models, benches: benches) } label: {
@@ -193,18 +255,18 @@ struct LabView: View {
         }
         .padding(Theme.spacing(.snug))
         .background(Theme.surfacePrimary, in: shell)
-        .overlay(shell.strokeBorder(Theme.separator, lineWidth: LabMetric.hairlineStroke))
+        .overlay(shell.strokeBorder(Theme.separator, lineWidth: StudioHubMetric.hairlineStroke))
     }
 
     /// The card, and the tile inside it at the next radius down. Written as
-    /// `LabMetric.card.inner` rather than as a second constant so that changing
-    /// the outer radius moves the inner one with it.
+    /// `StudioHubMetric.card.inner` rather than as a second constant so that
+    /// changing the outer radius moves the inner one with it.
     private var shell: RoundedRectangle {
-        RoundedRectangle(cornerRadius: Theme.radius(LabMetric.card), style: .continuous)
+        RoundedRectangle(cornerRadius: Theme.radius(StudioHubMetric.card), style: .continuous)
     }
 
     private var tile: RoundedRectangle {
-        RoundedRectangle(cornerRadius: Theme.radius(LabMetric.card.inner), style: .continuous)
+        RoundedRectangle(cornerRadius: Theme.radius(StudioHubMetric.card.inner), style: .continuous)
     }
 
     /// WHERE A LIVE MODE GOES.
@@ -217,6 +279,11 @@ struct LabView: View {
     /// `LabCatalogueTests.testTheLabHasSomethingAPersonCanOpen` pins `usable`
     /// to exactly the ids this switch answers, so the mismatch turns up in
     /// `swift test` rather than on somebody's phone.
+    ///
+    /// "bench" IS ANSWERED HERE AND NOT DRAWN ABOVE. The Modes list skips it
+    /// because Measure already opens this screen; the case stays so the switch
+    /// still answers every id the pinned `usable` list holds, and so the test
+    /// keeps meaning what it says.
     @ViewBuilder private func destination(_ mode: LabCatalogue.Mode) -> some View {
         switch mode.id {
         case "bench":
@@ -226,7 +293,7 @@ struct LabView: View {
             // run, the slalom and the flamingo hold are all reached from inside
             // it, which is how they were arranged in OpenCastor and is right:
             // every one of them is the same ghost duck doing something else, so
-            // seven rows in the Lab would be seven doors into one room.
+            // seven rows here would be seven doors into one room.
             GhostDuckView()
         case "soccer":
             DuckSoccerView()
@@ -252,7 +319,7 @@ struct LabView: View {
 /// file stays behind: a ratio is a fact and lives in `Palette` where a test runs
 /// the formula over it. Which radius on the scale a mode card takes is a
 /// judgement about a list.
-private enum LabMetric {
+private enum StudioHubMetric {
     /// A mode card. Its symbol tile takes `card.inner`, which is how the
     /// concentric rule is expressed rather than asserted.
     static let card = Palette.Radius.card

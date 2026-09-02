@@ -49,7 +49,21 @@ private func cardSegment(first: Bool, last: Bool) -> some View {
         .fill(Theme.surfacePrimary)
 }
 
-/// The library: every policy this app holds, and where each one came from.
+/// Behaviours: what this robot knows how to do, where more of it comes from,
+/// and how a new one would be asked for.
+///
+/// IT IS A TAB ROOT NOW, AND A TAB ROOT MAY NOT KEEP ITS DOORS IN A MENU. This
+/// screen used to be "Policies" with an ellipsis carrying five destinations,
+/// three of which — driving, finding a real duck, running on a bench — are not
+/// about the policy library at all. Each of those three now has a tab or a home
+/// of its own (Control, My Microduck → Connection, Studio → Measure on a
+/// bench), so they are gone from here rather than duplicated: two doors to one
+/// room is how an app teaches somebody that neither of them is the way.
+///
+/// THE ORDER IS THE QUESTION ORDER. What is installed, how a new one is asked
+/// for, and where other people's are — in that order, because the person who
+/// opens this tab already has policies far more often than not, and a discovery
+/// shelf above the shelf you own is a shop pretending to be a library.
 ///
 /// ORGANISED BY PROVENANCE, NOT BY FOLDER. The sections are "Released by Pollen
 /// Robotics" and "From elsewhere", and which section a policy lands in is
@@ -74,12 +88,22 @@ struct PolicyListView: View {
     @ObservedObject var drafts: DraftStore
     /// Not used on this screen — carried through to the clip player and the
     /// bench, because a motion remixed from a policy's own recordings opens the
-    /// same editor as one remixed from the Motions tab, and the Ask panel there
+    /// same editor as one remixed from Studio → Motions, and the Ask panel there
     /// was dead for want of this one argument. No screen in this app puts a
     /// store in the environment; every one is passed by hand, so a feature that
     /// needs one three screens down has to be threaded through the two between.
     @ObservedObject var models: EndpointStore
     @ObservedObject var benches: BenchStore
+
+    /// Which tab is in front.
+    ///
+    /// THE ONE SANCTIONED WAY OUT OF THIS TAB. Two rows on this screen and its
+    /// detail screen end somewhere that is not a policy — driving is Control,
+    /// writing a training request is Studio — and before `AppRouter` existed the
+    /// honest options were a duplicate copy of another tab's screen pushed onto
+    /// this stack, or a sentence telling somebody to go and tap a tab. Both are
+    /// the app declining to do a thing it can obviously do.
+    @EnvironmentObject private var router: AppRouter
 
     private var released: [PolicyLibrary.Entry] {
         model.library.entries.filter { isReleased(model.standing(for: $0)) }
@@ -96,27 +120,12 @@ struct PolicyListView: View {
                         .listRowBackground(cardSegment(first: true, last: true))
                 }
             }
-            if !released.isEmpty {
-                Section {
-                    rows(released)
-                } header: {
-                    SectionHeading(text: "Released by Pollen Robotics")
-                } footer: {
-                    sectionFootnote("Matched by fingerprint — a digest of the trained weights, not of the file. A re-export under a newer opset still matches; one changed weight does not.")
-                }
-            }
-            if !elsewhere.isEmpty {
-                Section {
-                    rows(elsewhere)
-                } header: {
-                    SectionHeading(text: "From elsewhere")
-                } footer: {
-                    sectionFootnote("Trained by someone else, or newer than this app knows about. This only says the weights are unfamiliar — not that they are bad.")
-                }
-            }
+            installed
             if model.library.entries.isEmpty {
                 Section { emptyLibrary }
             }
+            retrain
+            discover
         }
         .scrollContentBackground(.hidden)
         // THE RECESSED GROUND, WHICH IS WHAT THIS TOKEN IS FOR. Grouped
@@ -124,7 +133,11 @@ struct PolicyListView: View {
         // `systemGroupedBackground` works on iOS — see `sectionFootnote` for
         // the numbers that make that a rule rather than a preference.
         .background(Theme.backgroundSecondary)
-        .navigationTitle("Policies")
+        // THE TAB'S OWN WORD, NOT THE FILE FORMAT'S. "Policies" is what is on
+        // disk; "Behaviours" is what somebody came to look at, and it is the
+        // word the tab bar says two points below the title. A root whose title
+        // disagrees with its tab is a root somebody has to read twice.
+        .navigationTitle("Behaviours")
         .confirmationDialog("Remove this policy?",
                             isPresented: Binding(get: { removing != nil },
                                                  set: { if !$0 { removing = nil } }),
@@ -138,60 +151,38 @@ struct PolicyListView: View {
             Text(entry.removalWarning)
         }
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                // A COUNT THAT CHANGES, SO IT IS SET IN FIGURES THAT DO NOT
-                // MOVE. Tabular digits are the design system's claim that a
-                // number is live; this one goes up and down as policies are
-                // added and removed, which is exactly what earns them.
-                Text("\(model.library.runnableCount) of \(model.library.entries.count) run")
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(Theme.textSecondary)
-            }
-            // ONE MENU OF WORDS, NOT FOUR BARE GLYPHS. This carried four
-            // icon-only links, one of which appeared only once the library had
-            // two runnable policies — so the row shifted under the thumb as
-            // policies were added, and "antenna radiowaves left and right" was
-            // the only name three of them had. A menu of text rows is the
-            // pattern `IntentAuthorView` already uses.
+            // WHAT IS LEFT OF THE MENU IS THE ONE THING THAT IS ABOUT THIS
+            // LIBRARY AND BELONGS TO NO SINGLE POLICY IN IT.
+            //
+            // Drive, "find a real duck" and "run on your network" are gone,
+            // and not to another menu: driving is the Control tab, finding a
+            // duck is My Microduck → Connection, and a bench run is Studio →
+            // Measure on a bench. Pollen's catalogue is gone too — it is a row
+            // in Discover at the foot of this screen, where the community one
+            // sits beside it and the two can be read as the pair they are.
+            //
+            // AND THE BUTTON ITSELF IS CONDITIONAL, NOT ITS CONTENTS. A blend
+            // of one policy is that policy, which `PolicyBlend` refuses anyway;
+            // with the other four doors gone, a library holding fewer than two
+            // runnable policies would leave an ellipsis that opens an empty
+            // menu, which is worse than no ellipsis. So the glyph appears with
+            // the second runnable policy and takes its one door with it.
             ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    NavigationLink { DriveView(model: model, benches: benches,
-                                               scenes: scenes) } label: {
-                        Label("Drive one live", systemImage: "gamecontroller")
-                    }
-                    // THE ONLY DOOR IN THIS APP THAT OPENS ONTO HARDWARE, and
-                    // for now the only person it is useful to is somebody
-                    // holding a Microduck. It sits here rather than behind a
-                    // setting because the first of those people to open the app
-                    // should not have to be told where it is.
-                    NavigationLink { FindDuckView() } label: {
-                        Label("Find a real duck", systemImage: "antenna.radiowaves.left.and.right")
-                    }
-                    NavigationLink { RemoteRunView(model: model, scenes: scenes, drafts: drafts,
-                                                   models: models, benches: benches) } label: {
-                        Label("Run on your network", systemImage: "wifi")
-                    }
-                    // ONLY WORTH OFFERING WITH TWO THINGS TO MIX. A blend of
-                    // one policy is that policy, which `PolicyBlend` refuses
-                    // anyway; showing the door to a refusal is not an
-                    // affordance. In a menu this no longer moves anything.
-                    if model.library.runnableCount >= 2 {
+                if model.library.runnableCount >= 2 {
+                    Menu {
                         NavigationLink { PolicyBlendView(library: model.library,
                                                          benches: benches) } label: {
                             Label("Blend two policies", systemImage: "arrow.triangle.merge")
                         }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .accessibilityLabel(Text("More"))
                     }
-                    NavigationLink { CatalogueView(model: model) } label: {
-                        Label("Pollen Robotics",
-                              systemImage: "antenna.radiowaves.left.and.right")
-                    }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                        .accessibilityLabel(Text("More"))
                 }
             }
-            // The Benches link is gone from here: it is Settings → Benches now,
-            // and still two taps from the four screens that actually run things.
+            // ONE GEAR, ONCE, ON THE TAB ROOT. The Benches link is gone from
+            // here: it is Settings → Benches now, and still two taps from the
+            // screens that actually run things.
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink { SettingsView(models: models, benches: benches) } label: {
                     Image(systemName: "gear").accessibilityLabel(Text("Settings"))
@@ -244,6 +235,211 @@ struct PolicyListView: View {
     private func isReleased(_ standing: DuckOfficialPolicies.Standing) -> Bool {
         if case .released = standing { return true }
         return false
+    }
+
+    // MARK: - what is installed
+
+    /// One provenance group, with the sentence that explains what landing in it
+    /// means.
+    ///
+    /// NOT NAMED `Group`, WHICH IS THE OBVIOUS NAME AND A TRAP. A nested type
+    /// called `Group` shadows SwiftUI's inside every `body` in this file, so the
+    /// day somebody wraps two rows in a `Group` they get this struct and an
+    /// error that says nothing about why.
+    private struct Shelf: Identifiable {
+        let id: String
+        let title: String
+        let entries: [PolicyLibrary.Entry]
+        let footnote: String
+    }
+
+    /// The groups that have anything in them, in the order they are read.
+    ///
+    /// EMPTY GROUPS ARE ABSENT RATHER THAN EMPTY, which is what makes the
+    /// "Installed" heading attachable at all: it goes on the first group that
+    /// exists, so a library of nothing but imported files still gets counted
+    /// under one heading instead of the count vanishing with the section that
+    /// happened to be listed first.
+    private var shelves: [Shelf] {
+        var found: [Shelf] = []
+        if !released.isEmpty {
+            found.append(Shelf(
+                id: "released", title: "Released by Pollen Robotics", entries: released,
+                footnote: "Matched by fingerprint — a digest of the trained weights, not of the file. A re-export under a newer opset still matches; one changed weight does not."))
+        }
+        if !elsewhere.isEmpty {
+            found.append(Shelf(
+                id: "elsewhere", title: "From elsewhere", entries: elsewhere,
+                footnote: "Trained by someone else, or newer than this app knows about. This only says the weights are unfamiliar — not that they are bad."))
+        }
+        return found
+    }
+
+    /// Everything this phone holds, under one heading that counts it.
+    ///
+    /// TWO HEADINGS STACKED ON THE FIRST SECTION, WHICH IS THE HONEST SHAPE OF
+    /// WHAT IS BEING SAID. "Installed · 7" is a fact about the library; "Released
+    /// by Pollen Robotics" is a fact about the seven rows under it. A list has
+    /// no nested sections, so the outer claim is drawn once, above the first
+    /// group, in the same `SectionHeading` the inner one uses — the alternative
+    /// was inventing a second heading style for a distinction that does not need
+    /// one, or repeating the count on both groups, where it would be wrong on
+    /// both.
+    @ViewBuilder
+    private var installed: some View {
+        ForEach(Array(shelves.enumerated()), id: \.element.id) { index, shelf in
+            Section {
+                rows(shelf.entries)
+            } header: {
+                if index == 0 {
+                    VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
+                        SectionHeading(text: "Installed · \(model.library.entries.count)")
+                        SectionHeading(text: shelf.title)
+                    }
+                } else {
+                    SectionHeading(text: shelf.title)
+                }
+            } footer: {
+                if index == 0 {
+                    VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
+                        runnableFraction
+                        sectionFootnote(shelf.footnote)
+                    }
+                } else {
+                    sectionFootnote(shelf.footnote)
+                }
+            }
+        }
+    }
+
+    /// How many of them this app will actually load.
+    ///
+    /// A COUNT THAT CHANGES, SO IT IS SET IN FIGURES THAT DO NOT MOVE. Tabular
+    /// digits are the design system's claim that a number is live; this one goes
+    /// up and down as policies are added and removed, which is exactly what
+    /// earns them.
+    ///
+    /// AND IT IS A FOOTER NOW RATHER THAN A TOOLBAR ITEM. It spent its life at
+    /// `.topBarLeading`, where a large-title root shows it beside nothing and a
+    /// person reads it before they have been told what is being counted. Under
+    /// the "Installed" heading it is the sentence that heading owes: seven
+    /// installed, six of which run. It counts the WHOLE library rather than the
+    /// group it sits under, which is why it is set apart from that group's own
+    /// footnote instead of running into it.
+    private var runnableFraction: some View {
+        Text("\(model.library.runnableCount) of \(model.library.entries.count) run")
+            .font(.caption.monospacedDigit())
+            .foregroundStyle(Theme.textSecondary)
+    }
+
+    // MARK: - asking for a new one
+
+    /// Where a request to train something new is written.
+    ///
+    /// NOTHING ON THIS PHONE KEEPS A TRAINING REQUEST, AND THIS ROW IS WHAT
+    /// THAT LOOKS LIKE HONESTLY. The stores were read before this section was
+    /// drawn: `DraftStore` holds `IntentDraft`s, `PlanStore` holds
+    /// `DuckPlanFile`s, and the only `TrainingRequest` values that exist
+    /// anywhere in the app are the ones hanging off a chat card in
+    /// `AutomationChatView`, whose transcript is `@State` — it dies with the
+    /// screen. So there is no list of saved requests to draw, and drawing an
+    /// empty one would be this screen implying a store it does not have.
+    ///
+    /// IT GOES SOMEWHERE, WHICH IS WHY IT IS NOT A "NOT YET". The house rule is
+    /// that a blocked surface says so in a tested kit sentence and never ships
+    /// as an inert control — and the counterpart of that rule is that a surface
+    /// which is not blocked must not be dressed as one. Retraining is not
+    /// blocked: it is written in Studio → Draft, one tap from here now that
+    /// `AppRouter` exists. A row that named that screen and opened nothing
+    /// would be the inert control the rule forbids, wearing an apology it has
+    /// not earned.
+    ///
+    /// THE ROW LANDS ON THE STUDIO TAB AND SAYS SO. `AppRouter` selects a tab;
+    /// it does not push a screen inside one, and Draft is a row on the Studio
+    /// root. The label names both halves of the route rather than promising to
+    /// finish it.
+    private var retrain: some View {
+        Section {
+            Button {
+                router.go(to: .studio)
+            } label: {
+                Label {
+                    Text("Write one in Studio → Draft")
+                        .foregroundStyle(Theme.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } icon: {
+                    Image(systemName: "text.bubble").foregroundStyle(Theme.actionSecondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint(Text("Opens the Studio tab, where a sentence becomes a checked training request."))
+            .listRowBackground(cardSegment(first: true, last: true))
+        } header: {
+            SectionHeading(text: "Retrain")
+        } footer: {
+            sectionFootnote("Describe what you want the duck to learn and Draft turns it into a fork of a training config, a set of reward functions that exist, and an episode — then refuses the ones the robot's own physics rule out, in a second rather than after a day of training. Nothing here keeps a request: it lives on the card that wrote it, and travels as a file you send to a machine that has Python, mjlab and a GPU.")
+        }
+    }
+
+    // MARK: - where more of them come from
+
+    /// The two catalogues, as rows rather than as menu items.
+    ///
+    /// LAST, AND INLINE. These were two entries in an ellipsis menu — one of
+    /// them nested inside the other's screen — which is the arrangement that
+    /// makes a person believe an app has nothing to offer them. They are the
+    /// end of the list because owning something comes before shopping for more
+    /// of it, and they are rows because a door drawn as a row is a door.
+    ///
+    /// TWO SIBLINGS, NOT A PARENT AND A CHILD. Pollen's releases and the
+    /// community's are different claims about provenance and neither contains
+    /// the other, which is the whole posture of this app's palette. Reaching the
+    /// community through Pollen's screen said the opposite.
+    private var discover: some View {
+        Section {
+            NavigationLink { CatalogueView(model: model) } label: {
+                door("Pollen Robotics",
+                     detail: "The releases that ship with the robot — and anything they have published since this app was built.",
+                     symbol: "antenna.radiowaves.left.and.right")
+            }
+            .listRowBackground(cardSegment(first: true, last: false))
+            NavigationLink { CommunityPoliciesView(model: model) } label: {
+                door("Community",
+                     detail: "Networks other people trained and published on Hugging Face, each with the manifest that says what its command block means.",
+                     symbol: "person.2")
+            }
+            .listRowBackground(cardSegment(first: false, last: true))
+        } header: {
+            SectionHeading(text: "Discover behaviours people have published")
+        } footer: {
+            sectionFootnote("Neither fetches anything until you ask: the address is printed first and the scan is a button. What decides whether a downloaded network can be driven here is its manifest, not whose repository it sat in.")
+        }
+        .listRowSeparatorTint(Theme.separator)
+    }
+
+    /// One row that opens a catalogue: what it is, and one line on what is
+    /// behind it.
+    ///
+    /// THE GLYPH CARRIES THE ACTION COLOUR AND THE WORD DOES NOT — the same
+    /// arrangement `PolicyDetailView` makes for the doors that are not the
+    /// primary one, so that a screen with several of them still reads as a
+    /// screen rather than as a row of buttons.
+    private func door(_ title: String, detail: String, symbol: String) -> some View {
+        VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
+            Label {
+                Text(title)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Theme.textPrimary)
+            } icon: {
+                Image(systemName: symbol).foregroundStyle(Theme.actionSecondary)
+            }
+            Text(detail)
+                .font(.caption)
+                .foregroundStyle(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.vertical, Theme.spacing(.hairline))
     }
 
     // MARK: - the rows
@@ -475,6 +671,13 @@ struct PolicyListView: View {
     /// drawn in secondary grey under the sentence, which is the wrong way round
     /// for the only thing there is to do on this screen: on an empty library it
     /// is THE action, so it is set as one.
+    ///
+    /// IT STAYS EVEN THOUGH DISCOVER IS NOW TWO SECTIONS DOWN. That looks like
+    /// the duplicate door this redesign spent its afternoon deleting and it is
+    /// the opposite case: Discover is a permanent shelf, phrased for somebody
+    /// choosing between two catalogues, and this is the one state where there
+    /// is nothing else on the screen at all. An empty state whose only
+    /// affordance is further down the list is an empty state people leave.
     private var emptyLibrary: some View {
         VStack(alignment: .leading, spacing: Theme.spacing(.standard)) {
             Text("No policies yet. Send one to Microduck Studio from Files, Mail or AirDrop.")
@@ -509,10 +712,13 @@ struct PolicyDetailView: View {
     @ObservedObject var scenes: SceneStore
     @ObservedObject var drafts: DraftStore
     /// For the player below: a recording listed here opens the same viewer, and
-    /// a remix from it opens the same editor, as the Motions tab. Without this
+    /// a remix from it opens the same editor, as Studio → Motions. Without this
     /// the Ask panel in that editor was disabled with a message pointing at a
     /// screen this view tree does not contain.
     @ObservedObject var models: EndpointStore
+    /// See `PolicyListView.router`. Driving is a tab, not a screen this stack
+    /// owns a second copy of.
+    @EnvironmentObject private var router: AppRouter
     @State private var clips: [String: DuckIntentClip] = [:]
     @State private var outgoing: Outgoing?
     @State private var failure: String?
@@ -689,10 +895,25 @@ struct PolicyDetailView: View {
                     // it did, Run records what it does under a schedule written
                     // in advance; this is the one where you decide what happens
                     // next while it is happening.
-                    NavigationLink { DriveView(model: model, benches: benches,
-                                               scenes: scenes) } label: {
+                    //
+                    // AND IT IS THE CONTROL TAB, NOT A SECOND COPY OF IT. This
+                    // pushed its own `DriveView` onto the Behaviours stack,
+                    // which meant two live instances of the one screen that
+                    // moves a robot could exist at once, each with its own
+                    // connection state, and the tab bar would go on saying
+                    // Behaviours while a duck walked. Selecting the tab is the
+                    // whole action: it does not preselect this policy, because
+                    // it never did — the old push carried no entry either, and
+                    // pretending otherwise would be a claim about loading that
+                    // nothing here performs.
+                    Button {
+                        router.go(to: .control)
+                    } label: {
                         secondaryAction("Drive it live", symbol: "gamecontroller")
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityHint(Text("Opens the Control tab."))
                 } footer: {
                     // TWO DIFFERENT SCREENS, AND THE ADVICE DIFFERS. With a
                     // recording in hand the bench is optional; without one — a
@@ -701,7 +922,7 @@ struct PolicyDetailView: View {
                     // to somebody who already has the recording is what sent
                     // people away from the answer.
                     if madeFromThisPolicy.isEmpty {
-                        sectionFootnote("Nothing has been recorded from this network yet, so there is nothing to play. A phone has no physics engine: watching a policy move means running it somewhere that does. Send it to a bench, record it, and keep the recording — it comes back to the Motions tab under \"Brought in\".\n\nProbe hands it one observation and shows the fourteen numbers it answers with, and the robot they command. That works with no bench at all, but a network has no time axis, so nothing plays there either.")
+                        sectionFootnote("Nothing has been recorded from this network yet, so there is nothing to play. A phone has no physics engine: watching a policy move means running it somewhere that does. Send it to a bench, record it, and keep the recording — it comes back under Studio → Motions, in \"Brought in\".\n\nProbe hands it one observation and shows the fourteen numbers it answers with, and the robot they command. That works with no bench at all, but a network has no time axis, so nothing plays there either.")
                     } else {
                         sectionFootnote("Watch it move plays a recording made when this network drove a robot in physics — what it did, not what somebody asked for. Probe is the other half: hand it one observation and see the fourteen numbers it answers with. A network has no time axis, so nothing plays in Probe.\n\nRun it on a bench to record it again under your own commands, on your own floor.")
                     }

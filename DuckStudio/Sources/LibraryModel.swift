@@ -123,7 +123,7 @@ final class LibraryModel: ObservableObject {
     /// that is a wiring fact rather than a design one. `DuckStudioApp` holds
     /// `LibraryModel` and `DraftStore` as two independent `@StateObject`s, so
     /// this model has no way to reach the live draft list on its own. Both call
-    /// sites — `onOpenURL` and the Motions tab's importer — already have
+    /// sites — `onOpenURL` and the Motions screen's importer — already have
     /// `drafts` in scope and should pass it. Until they do, a `.duckmove`
     /// arriving here is REFUSED BY NAME rather than filed somewhere it is not,
     /// because an import that lands in a list nobody is watching is the same
@@ -173,7 +173,7 @@ final class LibraryModel: ObservableObject {
             // plan can leave it. Both halves are in `project.yml`'s comment,
             // written down rather than left for somebody to rediscover. It is
             // here so that the day a plan CAN travel between two phones, it
-            // lands in Plans instead of in the Policies tab as a network that
+            // lands in Plans instead of in the Behaviours tab as a network that
             // will not load — which is what the default branch would call it.
             acceptPlan(data, named: name, into: plans)
         case "duck":
@@ -220,7 +220,7 @@ final class LibraryModel: ObservableObject {
     ///
     /// IT RETURNED VOID, AND A CALLER BELIEVED IT. Every failure here — a
     /// decode refusal, a directory that would not create, a write that threw —
-    /// lands in `lastImport`, which the Policies tab renders. A screen that
+    /// lands in `lastImport`, which the Behaviours tab renders. A screen that
     /// calls this and then reports its own success is reporting that it made
     /// the call, and `RemoteRunView` said "Kept — it is in your Motions" over
     /// every one of those failures, with the real message on a tab nobody was
@@ -269,7 +269,7 @@ final class LibraryModel: ObservableObject {
     ///
     /// This is the format this app itself exports from the author screen, and
     /// until there was a branch for it, importing one of our own files filed it
-    /// in the Policies tab as a network that will not load. `IntentDraft.decode`
+    /// in the Behaviours tab as a network that will not load. `IntentDraft.decode`
     /// reads the same bytes without complaint, so the failure was pure
     /// misrouting — nothing was wrong with the file.
     ///

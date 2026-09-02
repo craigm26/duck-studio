@@ -10,6 +10,17 @@ import DuckEvidence
 /// right now and answering to a stick — which is the thing somebody means when
 /// they ask whether they can control the robot from the phone.
 ///
+/// AND IT IS THE CONTROL TAB'S ROOT NOW, WHICH IS A CHANGE OF ADDRESS RATHER
+/// THAN A CHANGE OF SCREEN. It used to be pushed from an overflow menu on a
+/// list of files — three taps from launch for the one thing somebody holding a
+/// Microduck opens this app to do, and reachable only by people who thought to
+/// look in a menu. Nothing about the pads, the loop or the Stop moved; what
+/// moved is that there is no longer a screen behind this one. So the bar says
+/// the tab's name rather than the verb on the row that opened it, the display
+/// mode is a decision this file has to make instead of inheriting (see `body`),
+/// and the app's one gear per tab root is up there beside the lens. Nothing
+/// here ever depended on a back button or on a title a pusher had set.
+///
 /// WHAT IT IS ACTUALLY DRIVING IS A BENCH, and the screen says so in
 /// `DuckDrive.thisIsNotARobot` rather than in a comment only. This is the one
 /// arrangement in the app that reads unmistakably as a robot being driven — a
@@ -56,6 +67,38 @@ struct DriveView: View {
     @ObservedObject var model: LibraryModel
     @ObservedObject var benches: BenchStore
     @ObservedObject var scenes: SceneStore
+
+    /// The model endpoints, handed down so the gear can open Settings.
+    ///
+    /// OPTIONAL, AND THE OPTIONALITY IS A HANDOVER NOTE RATHER THAN A DESIGN.
+    /// `SettingsView` needs an `EndpointStore`; this screen has never had one
+    /// because it was a pushed screen with no settings on it. It is a tab root
+    /// now and it carries the one gear, so it needs the app's store — the one
+    /// `DuckStudioApp` already hands to `MyMicroduckView` and `PolicyListView`.
+    /// Nil means nobody handed it over yet, and `settingsModels` says what
+    /// happens then. The fix is one argument at the tab root:
+    /// `DriveView(model: model, benches: benches, scenes: scenes, models: models)`.
+    var models: EndpointStore?
+
+    /// The store the gear falls back to when none was handed down.
+    ///
+    /// A SECOND INSTANCE OF THE SAME `UserDefaults`-BACKED STORE, AND THAT IS
+    /// WORTH SAYING OUT LOUD BECAUSE IT IS NOT FREE: both instances read and
+    /// write the same keys, so an endpoint added through this gear is on disk
+    /// immediately and invisible to the rest of the app's screens until the
+    /// next launch. That is a real divergence and it exists for exactly as long
+    /// as the tab root omits `models:`.
+    ///
+    /// IT IS STILL BETTER THAN THE TWO ALTERNATIVES. A gear that opens nothing
+    /// is the inert control this app is built not to ship, and a required
+    /// argument would break three call sites in files this change does not own.
+    /// `@StateObject` rather than a default on the memberwise initialiser so it
+    /// is built once for the life of the screen instead of on every re-render
+    /// of whatever pushed it.
+    @StateObject private var ownModels = EndpointStore()
+
+    /// The store Settings actually gets.
+    private var settingsModels: EndpointStore { models ?? ownModels }
 
     private var bench: BenchEndpoint? { benches.selected }
     private var token: String? { bench.flatMap { benches.armed($0).token } }
@@ -159,7 +202,22 @@ struct DriveView: View {
             controls
         }
         .background(Theme.backgroundPrimary)
-        .navigationTitle("Drive")
+        // THE TAB'S NAME, NOT THE VERB. This screen was pushed from a menu row
+        // that said "Drive one live", so the bar repeated the row that opened
+        // it. It is the Control tab's root now: the tab bar below says Control
+        // and the bar above has to say the same word, or the app has two names
+        // for one place.
+        .navigationTitle("Control")
+        // INLINE, DELIBERATELY, AND THIS IS THE ONE DISPLAY-MODE DECISION IN
+        // THE APP WORTH WRITING DOWN. A large title is 34pt of type plus its
+        // padding — call it 52 points of bar — and it is the FIRST thing under
+        // the status bar, which means it comes out of the top of `stage`. What
+        // is in `stage` is a duck at a real 25 cm being driven right now, and
+        // `DriveMetric` already fights for that height at accessibility text
+        // sizes. A big title also collapses to the small one the moment the
+        // list under it scrolls, so on the one screen whose content moves under
+        // your thumb continuously it would be an animation running beside a
+        // live viewport. Inline costs the duck nothing and never moves.
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -167,6 +225,18 @@ struct DriveView: View {
                 // The iris opens when the bench answers `/health`, which is the
                 // moment the screen becomes able to do anything at all.
                 LensIndicator(state: linkState)
+            }
+            // THE ONE GEAR ON THIS TAB, AND IT IS RIGHTMOST. Every tab root in
+            // this app carries exactly one Settings gear in the same corner —
+            // `PolicyListView` puts it last among its trailing items, so this
+            // one does too, and the two tabs' bars do not swap places under a
+            // thumb. The lens keeps the position it has had since it was the
+            // only thing up here, because it is the state and the gear is the
+            // door.
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink { SettingsView(models: settingsModels, benches: benches) } label: {
+                    Image(systemName: "gear").accessibilityLabel(Text("Settings"))
+                }
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) { transport }
@@ -384,10 +454,20 @@ struct DriveView: View {
     /// tinted line of text. "Driving" and "Upright" are the same dot to roughly
     /// one man in twelve, and they are the difference between a duck that is
     /// walking and a duck that is standing there.
+    ///
+    /// THE FIVE WORDS ARE `DeviceCard.Doing`'S NOW, AND THE BRANCHES STAY HERE.
+    /// The front door says what the duck is doing too, and two screens holding
+    /// their own copies of "On its side" is two screens that drift the day one
+    /// of them is reworded — the front door would say one thing about the same
+    /// robot the Control tab says another about. The strings moved to StudioKit
+    /// where a test can read them letter by letter; what is left here is the
+    /// arithmetic that picks one, which is unchanged line for line.
     private var duckWord: String {
-        guard let live else { return running ? "Waiting for the bench" : "Not driving" }
-        if !live.upright { return "On its side" }
-        return running ? "Driving" : "Upright"
+        guard let live else {
+            return running ? DeviceCard.Doing.waitingForTheBench : DeviceCard.Doing.notDriving
+        }
+        if !live.upright { return DeviceCard.Doing.onItsSide }
+        return running ? DeviceCard.Doing.driving : DeviceCard.Doing.upright
     }
 
     /// A FALLEN DUCK IS STILL ACTIVE, and calling it anything else would be a
@@ -733,7 +813,23 @@ struct DriveView: View {
                             ForEach(health.policies, id: \.self) { Text($0).tag($0) }
                         }
                         .onChange(of: chosen) { _, now in
+                            // NOT FOR A POLICY THE BENCH ALREADY HOLDS. `connect`
+                            // fills the picker from the store's record of the
+                            // last load, and My Microduck's quick actions write
+                            // that record too; posting `/policy` again for it
+                            // would reload what is loaded, or — the case this
+                            // guards — undo a quick action just launched from
+                            // the front door.
+                            guard now != benches.lastLoaded(for: bench?.id) else { return }
                             flight = Task { await swap(to: now) }
+                        }
+                        if chosen.isEmpty {
+                            // WHY DRIVE WAITS. The bench lists what it holds and
+                            // never says what is loaded, so this app will not
+                            // guess by loading the first name in the list.
+                            Text("Pick a policy to drive with. The bench does not say which one it has loaded, so nothing is chosen for you.")
+                                .font(.footnote)
+                                .foregroundStyle(Theme.textSecondary)
                         }
                     }
                     NavigationLink { BenchSettingsView(store: benches) } label: {
@@ -916,8 +1012,18 @@ struct DriveView: View {
             // THE SLOT NAMES A ROLE, NOT A FILE. Which policy fills `roulade`
             // is the bench's business; this asks for the role and lets the
             // health listing say which network that is on this machine.
-            guard let policy = policy(filling: slot) else {
-                lastAction = "\(control.face): this bench has no \(slot.title) policy loaded."
+            // AND THE SENTENCE FOR "IT HASN'T GOT ONE" IS THE KIT'S, NOT THIS
+            // SCREEN'S. What was here was composed in the view — "this bench
+            // has no Walk policy loaded." — which is a sentence nothing on
+            // Linux ever read and, worse, a second wording of the thing the
+            // front door's quick-action chips say about the same missing file.
+            // `DuckQuickActions.notHeldHere` is that sentence, tested, and it
+            // is the one that says a bench full of somebody's own networks is
+            // not a broken bench. The face button's name stays in front of it
+            // so the line still says WHICH button did nothing.
+            guard let policy = DuckQuickActions.filename(filling: slot,
+                                                         among: health?.policies ?? []) else {
+                lastAction = "\(control.face): \(DuckQuickActions.notHeldHere(slot))"
                 return
             }
             // ONE SWAP, THROUGH THE PICKER. Setting `chosen` fires the picker's
@@ -945,21 +1051,21 @@ struct DriveView: View {
         }
     }
 
-    /// Which of the bench's policies fills a slot.
-    ///
-    /// MATCHED ON THE ROLE NAME, which this app and the robot now share — the
-    /// rename to Pollen's role names is what makes a bench's `alpha_sitstand`
-    /// findable from `Slot.sitstand` at all. A bench carrying somebody's own
-    /// networks may fill none of them, and saying so beats loading the wrong
-    /// one.
-    private func policy(filling slot: DuckOfficialPolicies.Slot) -> String? {
-        guard let policies = health?.policies else { return nil }
-        let wanted = DuckOfficialPolicies.releases.first { $0.slot == slot }?.filename
-        if let wanted, let exact = policies.first(where: { $0 == wanted }) { return exact }
-        // A bench often lists them without the extension.
-        let stem = wanted.map { $0.replacingOccurrences(of: ".onnx", with: "") }
-        return stem.flatMap { name in policies.first { $0 == name } }
-    }
+    // WHICH OF THE BENCH'S POLICIES FILLS A SLOT IS `DuckQuickActions`' JOB
+    // NOW, and the function that used to be here — role name first, the
+    // without-extension fallback second — is that type's `filename(filling:
+    // among:)` line for line. It moved because the front door asks the same
+    // question to decide what its quick-action chips are, and two matchers
+    // disagree the first time somebody's bench lists `alpha_walking` rather
+    // than `alpha_walking.onnx`. It also moved because it was arithmetic in a
+    // view: nothing could test it on Linux, and `check_no_studio_math.sh`
+    // exists to keep exactly this kind of thing out of `DuckStudio/Sources`.
+    //
+    // THE ONE THING THAT DID NOT MOVE IS THE NIL FOR "NO HEALTH YET". The old
+    // private copy returned nil when `health` was nil, before it looked at any
+    // slot; the kit function takes the list, so the caller passes
+    // `health?.policies ?? []` and an empty list matches nothing. Same answer,
+    // one less thing for the kit to know about this screen's state.
 
     // MARK: - talking to it
 
@@ -987,38 +1093,38 @@ struct DriveView: View {
     /// is built here rather than only in `rebuildPeer`: an address that cannot
     /// be reached is worth a paragraph at the moment somebody presses Drive,
     /// and worth nothing at all while they are still typing it.
+    /// THE NIL IS THE EMPTY BENCH, AND IT THROWS THE SENTENCE IT ALWAYS DID.
+    /// `BenchStore.makePeer` answers nil when nothing is selected rather than
+    /// throwing, because a store handing back "there is no bench" is a fact and
+    /// not a failure — a picker asking what to draw wants the fact. This screen
+    /// is the caller that cannot proceed without one, so it turns the fact back
+    /// into `DuckBench.Refusal.empty`, which is the exact error the old private
+    /// `makePeer` threw out of `requireBench` and the one `report` already knows
+    /// how to put on the glass.
     @MainActor private func requirePeer() throws -> BenchPeer {
         if let peer { return peer }
-        let made = try makePeer()
+        guard let made = try benches.makePeer() else { throw DuckBench.Refusal.empty }
         peer = made
         return made
     }
 
-    /// Point a peer at the selected bench.
-    ///
-    /// THE ERRAND IS ALL THE APP TARGET LENDS IT. `BenchPeer` takes a closure
-    /// rather than a `URLSession` so the kit can be tested on a machine with no
-    /// phone and no network — its own preamble says so — which means the bearer
-    /// token, the session and the timeouts stay here, where they already were,
-    /// and the peer stays a thing `swift test` can drive.
-    ///
-    /// THE TOKEN IS READ PER REQUEST, OFF THE MAIN ACTOR, AS `ask` ALWAYS DID.
-    /// A snapshot at construction was tried and was wrong twice over: it keyed
-    /// the peer on the token, which put a Keychain read into every render, and
-    /// a token replaced in Settings stayed stale until something else rebuilt
-    /// the peer. One `SecItemCopyMatching` per call on the errand's own thread
-    /// is what the old path cost and it never showed in the intent rate.
-    @MainActor private func makePeer() throws -> BenchPeer {
-        let address = try requireBench()
-        let name = bench?.name
-        let id = bench?.id
-        let hasToken = bench?.hasToken ?? false
-        return try BenchPeer(address: address, name: name, errand: { call in
-            let token = hasToken ? id.flatMap { BenchKeyStore.load(for: $0) } : nil
-            return try await URLSession.shared.data(
-                for: DuckBench.urlRequest(for: call, token: token)).0
-        })
-    }
+    // POINTING A PEER AT THE SELECTED BENCH IS THE STORE'S JOB NOW. The private
+    // `makePeer` that stood here is `BenchStore.makePeer()`, moved whole: the
+    // address off `armed(bench).resolved()`, the name, and the errand that
+    // reads the token PER REQUEST with `BenchKeyStore.load(for:)` rather than
+    // snapshotting it — the paragraph that argued for the per-request read is
+    // now in the store beside the code it argues about.
+    //
+    // IT MOVED BECAUSE THIS IS NO LONGER THE ONLY SCREEN THAT NEEDS ONE. The
+    // front door asks a duck what it is doing, which is a peer call, and a
+    // second hand-rolled copy of this constructor is a second place for a
+    // replaced token to go stale — which is the exact bug the per-request read
+    // exists to prevent. One builder, owned by the thing that owns the benches.
+    //
+    // WHAT DID NOT MOVE IS WHERE THE URLSession LIVES. `BenchPeer` still takes
+    // a closure rather than a session so the kit stays drivable by `swift test`
+    // on a machine with no phone and no network; the store is in the app target
+    // and supplies it.
 
     /// Throw the peer away and build the one this bench and token need.
     @MainActor private func rebuildPeer() {
@@ -1028,7 +1134,13 @@ struct DriveView: View {
         // different matter and is not silently swallowed: there is simply no
         // peer until `requirePeer` is asked for one, and that call throws the
         // refusal with the sentence somebody can act on.
-        peer = try? makePeer()
+        //
+        // AND `try?` FLATTENS THE STORE'S OWN NIL INTO THE SAME NOTHING. The
+        // builder answers an optional now — nil for "no bench is selected" —
+        // and a screen with no bench selected wants exactly what a screen with
+        // an unreachable one wants here: no peer, no alert, and the refusal
+        // saved for the moment somebody presses Drive.
+        peer = try? benches.makePeer()
         // THE NEW PEER HAS SEEN NOTHING. Carrying the old one's state line over
         // would put the last bench's sim clock under the new bench's name.
         stateSaid = nil
@@ -1043,7 +1155,7 @@ struct DriveView: View {
     /// for the opposite reason: a first cut put it here, which evaluated a
     /// synchronous Keychain read on every SwiftUI render, several times per
     /// round trip of the drive loop, and still missed a replaced token. The
-    /// errand reads it per request instead (see `makePeer`), so this key only
+    /// errand reads it per request instead (see `BenchStore.makePeer`), so this key only
     /// needs to know whether there is one.
     private var peerKey: String {
         guard let bench else { return "" }
@@ -1161,11 +1273,17 @@ struct DriveView: View {
             health = try DuckBench.readHealth(
                 await ask(DuckBench.health(try requireBench())))
             await askWhatItSaw()
-            // LAST, BECAUSE IT HANDS `flight` TO THE PICKER. Setting `chosen`
-            // fires the picker's `onChange`, which stores a swap task in the
-            // slot this connect is running in; done as the final act, nothing
-            // of connect is left running unowned.
-            if chosen.isEmpty { chosen = health?.policies.first ?? "" }
+            // NOT GUESSED, AND NOT POSTED. `/health` lists the policies a bench
+            // HOLDS and says nothing about which one is loaded, and the old
+            // line here loaded the first name in that list on every connect —
+            // which, once My Microduck could load a policy of its own, meant
+            // opening this tab silently undid the quick action somebody had
+            // just launched. `chosen` is now filled only from the store's
+            // record of the last policy this app loaded on this bench, and the
+            // picker's `onChange` refuses to swap to a policy that record
+            // already names, so this fills the picker without a request. With
+            // no record, `chosen` stays empty and Drive waits for a pick.
+            if chosen.isEmpty, let known = benches.lastLoaded(for: bench?.id) { chosen = known }
         } catch { report(error) }
     }
 
@@ -1318,6 +1436,9 @@ struct DriveView: View {
         do {
             live = try DuckDrive.readLive(
                 await ask(try DuckDrive.load(try requireBench(), policy: policy)))
+            // RECORDED, so the picker can show it next time without a request
+            // and My Microduck's card and this tab agree about the servos.
+            if let id = bench?.id { benches.noteLoaded(policy, on: id) }
             Haptic.behaviourStarted()
             // THE PEER DID NOT SEE THIS EITHER — see `putBack`. A different
             // network is on the servos and the block the peer is holding came

@@ -69,22 +69,38 @@ see "Run it somewhere with physics," below.
 
 ## The five tabs
 
-The app opens on **Policies**, and every tab is useful with no network, no
+The app opens on **My Microduck**, and every tab is useful with no network, no
 account and no robot.
 
-The fifth is **Lab**, and it is where three other apps went. Duck Soccer,
+Five is the ceiling: iPhone folds a sixth tab into "More", where a tab is
+somewhere people do not go, so anything arriving after this lives inside one of
+the five. The old **Lab** tab is where three other apps went — Duck Soccer,
 Duckboard and Duck Diary each had their own repository, bundle identifier and
-pre-registered gates; two of them contained no code at all. A person who buys a
-Microduck should not have to find four apps to use one robot. Five is also the
-ceiling: iPhone folds a sixth tab into "More", where a tab is somewhere people
-do not go, so anything arriving after this lives inside one of the five.
+pre-registered gates, and two of them contained no code at all. Those modes now
+live under **Studio**, which is why there is room for a tab about the robot
+itself.
 
-**Policies.** The library, organised by *provenance* rather than by folder: two
-sections, "Released by Pollen Robotics" and "From elsewhere", and which one a
-policy lands in is decided by its parameter fingerprint, not by whether it
-shipped in the bundle. Nine policies ship (Apache-2.0, upstream), plus whatever
-you import. Each row carries the display name, a sixteen-character identity and
-where the file arrived from; the toolbar says how many of them run.
+**My Microduck.** The duck you own, answered in order: which one it is, whether
+it is online, the battery — which no link to a duck carries yet, so the row says
+so in words rather than showing a number — what it is doing right now, whether
+you can safely take control, what you can launch, and whether anything is wrong.
+Nobody has a Microduck yet — Pollen's first deliveries are around Christmas 2026
+— so today this tab is mostly honest about being unable to find one, and it says
+that in a sentence rather than by showing an empty card.
+
+**Control.** The movement pad, the action buttons, live telemetry and the layers
+under them. The pads stay pressable against a bench that cannot honour them and
+answer with the reason, which is how somebody learns that the mouth is servo
+nine and no network drives it; the present-or-absent rule lives on My
+Microduck's Drive button, which appears only when the link carries the call.
+
+**Behaviours.** The policy library, organised by *provenance* rather than by
+folder: two sections, "Released by Pollen Robotics" and "From elsewhere", and
+which one a policy lands in is decided by its parameter fingerprint, not by
+whether it shipped in the bundle. Nine policies ship (Apache-2.0, upstream),
+plus whatever you import. Discover reaches Pollen's catalogue and the community;
+a policy's own screen holds its detail, its structure table, **Probe this
+network**, and remixing it with another.
 
 Files that *fail* to load stay in the list, and that is the most important design
 decision in the app. The detail screen shows the refusal reason, a remedy where
@@ -93,11 +109,13 @@ widths, input and output names — for what *was* found. If you just exported a 
 from your own PPO run and it will not load, this screen tells you why in one
 glance instead of sending you to Netron on a laptop you do not have with you.
 
-From a policy that runs, **Probe this network** opens the bench: a 3D stage on
-top wearing the pose the policy just asked for, and a segmented control
-underneath — **Inputs / Actions / Sensitivity**.
+**Studio.** Where things are authored and measured: motions, scenes, drafts, a
+bench on your own network, and the modes that were the Lab. Nothing in these
+modes is talking to a robot — what runs is a trained policy on this phone, a
+physics bench on your network, or a recorded motion — and the screen says so
+above the list rather than leaving you to work it out.
 
-**Intents.** The motions. Clips recorded from Pollen's policies in physics,
+**Motions.** The clips. Recorded from Pollen's policies in physics,
 authored moves written here, motions somebody sent you as `.duckintent`, and the
 drafts you are working on. Playing one draws the robot walking its recorded path
 against whichever scene you choose. Each draft also carries a **Sim to real**
@@ -113,7 +131,7 @@ above the floor and a 7 mm pencil passes underneath. Somebody who reads two
 refusals knows more about this robot than somebody who watched a demo work.
 
 **Scenes.** The world a motion is judged against: the floor, a flight of steps,
-a corridor, props the duck could take hold of. Build one here and play any intent
+a corridor, props the duck could take hold of. Build one here and play any motion
 in it rather than only where it was recorded. The staircase starts at the tallest
 step an authored move has actually cleared in this app's own search over staged
 steps, and the editor says so when you raise it past that. That ceiling is a
@@ -127,6 +145,11 @@ hand-made draft goes through. A model that invents a joint gets a person's
 refusal. A drafted motion opens immediately in the 3D editor with every keyframe
 where the sentence put it, which is how somebody learns this robot's joints
 without reading a manual.
+
+**Robot.** The machine rather than its behaviour: hardware, motors, firmware,
+network and diagnostics. This is the tab with the least behind it today, because
+almost everything on it needs a robot on the floor to be worth reading, and it
+says which rows those are instead of drawing them dead.
 
 ---
 
@@ -285,7 +308,7 @@ after a test run.
 |---|---|---|
 | `.duckintent` | A recorded or shared motion. Exported type, `com.duckstudio.intent`. | Yes — the app opens these. |
 | `.duckmove` | A motion you authored here. Exported type, `com.duckstudio.move`, with a document type row. | Yes — `LibraryModel.open` decodes it and files it in your drafts. The row went in with the branch that files the draft, which is the order that matters: a door has to lead somewhere before iOS is told it exists. |
-| `.duckplan` | A fetch plan: the measured object, and what was asked for. Ours. The steps are derived on read, so a plan cannot go stale and disagree with the app that opens it. | Yes — it lands in Intents, under Plans. |
+| `.duckplan` | A fetch plan: the measured object, and what was asked for. Ours. The steps are derived on read, so a plan cannot go stale and disagree with the app that opens it. | Yes — it lands in Studio → Motions, under Plans. |
 | `.onnx` | The policy file itself, handed on with a message that leads with the digest. | Yes — this is the import path. |
 
 ## Not built yet
@@ -312,10 +335,10 @@ not features that were removed. Nothing below exists in the shipping app.
 - **M6 — Diff.** Two networks on one observation: paired bars, ‖Δa‖₂, cosine
   similarity, argmax joint, and closed-loop divergence over time. `PolicyDiff` was
   never written.
-- ~~**M7 — AR.**~~ **Built, in the Lab.** This entry used to say "there is no AR
-  in this app and no camera use of any kind", and that stopped being true the
-  day the Lab arrived: nine files run an `ARSession`, and every Lab mode offers
-  "Your floor" beside its rendered stage. The plist now declares
+- ~~**M7 — AR.**~~ **Built, under Studio > Modes.** This entry used to say
+  "there is no AR in this app and no camera use of any kind", and that stopped
+  being true the day those modes arrived: nine files run an `ARSession`, and
+  every mode offers "Your floor" beside its rendered stage. The plist now declares
   `NSCameraUsageDescription` to match, which it did not for one build — see the
   note beside that key, because the gap crashed the app and no compile-time
   check could see it.
@@ -334,14 +357,14 @@ not features that were removed. Nothing below exists in the shipping app.
 | `StudioKit/` | Pure-Swift, UI-free core. Builds and `swift test`s on Linux aarch64. Every number the app displays is computed here, and so is every sentence that makes a claim about a policy, a motion or a refusal — the ones a test has to be able to assert letter by letter. Ordinary screen furniture (section headers, footers, button titles) is still written in the views. |
 | `StudioKit/Tests/StudioKitTests/Fixtures/policies/` | The nine real upstream `.onnx` files. |
 | `StudioKit/Tests/StudioKitTests/Fixtures/refusals/` | The refusal corpus: eleven ONNX files — one per distinct rejection reason, plus a synthetic control that must load, without which the corpus would only prove the generator emits unusable bytes. |
-| `DuckStudio/project.yml` | xcodegen manifest, and the source of truth for `Info.plist` — which is generated, not committed, along with the whole `.xcodeproj`. Carries the type declarations, the document types, and `ITSAppUsesNonExemptEncryption=false`. It declares `NSCameraUsageDescription` (the Lab's AR modes), `NSLocalNetworkUsageDescription` and an `NSAllowsLocalNetworking` ATS exception (the physics bench, at an address you type). It declares **no** motion, microphone, location, Bluetooth or **Bonjour** key — nothing here listens for a machine it was not pointed at. |
+| `DuckStudio/project.yml` | xcodegen manifest, and the source of truth for `Info.plist` — which is generated, not committed, along with the whole `.xcodeproj`. Carries the type declarations, the document types, and `ITSAppUsesNonExemptEncryption=false`. It declares `NSCameraUsageDescription` (the AR modes under Studio), `NSLocalNetworkUsageDescription` and an `NSAllowsLocalNetworking` ATS exception (the physics bench, at an address you type). It declares **no** motion, microphone, location, Bluetooth or **Bonjour** key — nothing here listens for a machine it was not pointed at. |
 | `DuckStudio/Resources/` | The nine bundled policies and `PrivacyInfo.xcprivacy`, which flattens to the app-bundle root. |
 | `DuckStudio/Sources/` | SwiftUI only. No arithmetic lives here; `scripts/check_no_studio_math.sh` enforces that. |
 | `scripts/check_no_studio_math.sh` | The guard. Run it before you finish. |
 | `scripts/make_refusal_corpus.py` | Generates the refusal fixtures. They are **synthesized, not mutated**: renaming an op is four bytes where there were three, so every enclosing length prefix has to be recomputed, and writing that is writing a protobuf encoder anyway. Building each file from nothing also means it carries exactly one defect, which is what makes it fair to assert the message names that defect. |
 | `scripts/mac_compile_check.py` | The FREE gate. Tars the tree, ships it to the build Mac over SFTP, generates the project and runs `xcodebuild ... CODE_SIGNING_ALLOWED=NO`. Unlimited, so never spend a TestFlight upload finding out whether something builds. |
 | `scripts/archive_upload.sh` | Runs on the Mac: archive, sign with an App Store Connect API key, upload to TestFlight. No Apple ID login on the machine. |
-| `tools/claudebridge.mjs` | A Claude Code subscription behind an OpenAI-compatible endpoint, for the Draft tab. |
+| `tools/claudebridge.mjs` | A Claude Code subscription behind an OpenAI-compatible endpoint, for Studio → Draft. |
 | `PLAN.md` · `GATES.md` · `docs/` | The plan, the pre-registered decision gates, and the working notes. |
 
 Depends on `github.com/craigm26/duckkit` for everything Microduck-shaped —
@@ -418,7 +441,7 @@ never the people.
 The nine policies, the observation layout, the control constants and the MuJoCo
 model are from `pollen-robotics/microduck` and `pollen-robotics/microduck_rl`,
 Apache-2.0. Every number Microduck Studio displays about the robot is upstream's
-number, and the Policies screen says of each file whether it is one of Pollen's
+number, and the Behaviours screen says of each file whether it is one of Pollen's
 releases. Every file format this app writes is its own; nothing here implements
 another project's schema.
 

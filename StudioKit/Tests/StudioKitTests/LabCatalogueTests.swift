@@ -1,14 +1,14 @@
 import XCTest
 @testable import StudioKit
 
-/// The Lab is the surface most able to overclaim, so its sentences are asserted
-/// here rather than read on a phone.
+/// The modes are the surface most able to overclaim, so their sentences are
+/// asserted here rather than read on a phone.
 final class LabCatalogueTests: XCTestCase {
 
     func testThePreambleSaysNoRobotIsInvolved() {
-        let p = LabCatalogue.preamble
+        let p = LabCatalogue.modesPreamble
         XCTAssertTrue(p.contains("No Microduck exists yet"), p)
-        XCTAssertTrue(p.contains("Nothing in the Lab is talking to a robot"), p)
+        XCTAssertTrue(p.contains("Nothing in these modes is talking to a robot"), p)
         // It names what DOES run, because "nothing is real" on its own tells a
         // person the app is a toy.
         XCTAssertTrue(p.contains("trained policy on this phone"), p)
@@ -92,12 +92,12 @@ final class LabCatalogueTests: XCTestCase {
         }
     }
 
-    /// The bench is the one thing in here that works today, and the Lab is
-    /// pointless if it is empty. If this fails somebody moved the bench out
+    /// The bench is the one thing in here that works today, and Studio > Modes
+    /// is pointless if it is empty. If this fails somebody moved the bench out
     /// without moving anything in.
     func testTheLabHasSomethingAPersonCanOpen() {
         XCTAssertFalse(LabCatalogue.usable.isEmpty)
-        // PINNED EXACTLY, because `LabView.destination` switches on these ids
+        // PINNED EXACTLY, because `StudioHubView.destination` switches on these ids
         // and its default branch is a refusal rather than a screen. A row that
         // became usable without a case would push an empty view; a case with
         // no row is dead code. Changing this line is how you notice.

@@ -1,56 +1,143 @@
 import SwiftUI
 import StudioKit
 
-/// Microduck Studio: open a Microduck policy and see what is actually in it.
+/// The five tabs, in the order a person meets them.
 ///
-/// A TAB PER KIND OF THING. A policy is a network with
-/// no time axis: hand it an observation, get fourteen numbers. An intent is a
-/// motion with nothing but a time axis: what happened over four seconds when a
-/// policy drove a robot in physics. One is probed, the other is watched, and
-/// putting them on one screen produced a bench that offered clips having
-/// nothing to do with the policy it was opened from.
+/// A TAB PER QUESTION SOMEBODY IS ASKING, NOT PER KIND OF FILE. The old shell
+/// was sorted by data type — policies, motions, scenes, drafts, lab — which is
+/// how the app is built rather than how it is used, and it made the first
+/// screen a list of ONNX files belonging to a robot the person had not yet been
+/// shown. These five are the questions instead: which duck is mine, can I move
+/// it, what can it do, what can I make, and what is it made of. A file type is
+/// something you find once you are inside one of those.
+///
+/// THE ORDER IS THE TAG ORDER AND THE TAG ORDER IS LOAD-BEARING. `-tab 3` has
+/// to keep meaning the fourth tab for the screenshot runs, so `allCases` is the
+/// index space `launchTab` counts in — see `DuckStudioApp.launchTab`, which
+/// also accepts the raw value so a run can say `-tab studio` and not have to
+/// know what number Studio is this week.
+enum AppTab: String, CaseIterable, Identifiable {
+    case duck, control, behaviours, studio, robot
+
+    var id: String { rawValue }
+
+    /// What the tab bar says. "My Microduck" rather than "Duck": the first tab
+    /// is about the one robot this phone is paired to, and the possessive is
+    /// the difference between that and a catalogue of ducks.
+    var title: String {
+        switch self {
+        case .duck: return "My Microduck"
+        case .control: return "Control"
+        case .behaviours: return "Behaviours"
+        case .studio: return "Studio"
+        case .robot: return "Robot"
+        }
+    }
+
+    /// The SF Symbol beside the word. Every one of these is a system symbol, so
+    /// it scales with Dynamic Type and carries the tint without an asset.
+    var symbol: String {
+        switch self {
+        case .duck: return "bird"
+        case .control: return "gamecontroller"
+        case .behaviours: return "brain.head.profile"
+        case .studio: return "wand.and.stars"
+        case .robot: return "wrench.and.screwdriver"
+        }
+    }
+}
+
+/// Which tab is showing, and the one way to change it from inside a screen.
+///
+/// A SCREEN THAT SENDS SOMEBODY SOMEWHERE MUST BE ABLE TO ACTUALLY SEND THEM.
+/// The seven questions the first tab answers end in an action — "drive it" is
+/// the Control tab, "install one" is Behaviours — and before this existed the
+/// only honest thing a card could do was name the tab and hope. A sentence that
+/// tells a person to go and tap a tab is a sentence the app could have obeyed
+/// itself.
+///
+/// IT IS A ROUTER AND NOT A NAVIGATION MODEL, deliberately. It holds one value:
+/// which of the five is in front. Each tab keeps its own `NavigationStack` and
+/// its own path, because a tab that rewinds to its root every time another tab
+/// nudged it is a tab that loses what somebody was in the middle of.
+@MainActor final class AppRouter: ObservableObject {
+    @Published var tab: AppTab
+
+    init(tab: AppTab = .duck) {
+        self.tab = tab
+    }
+
+    func go(to tab: AppTab) {
+        self.tab = tab
+    }
+}
+
+/// Microduck Studio: one robot, and everything you can ask of it.
+///
+/// FIVE TABS, AND THE FIRST ONE IS THE ROBOT. My Microduck answers seven
+/// questions in order and above the fold — which duck, is it online, how much
+/// battery, what is it doing, can I safely control it, what can I launch, is
+/// anything wrong — and the other four are what you do once you have an answer:
+/// Control moves it, Behaviours is what it knows, Studio is what you make, and
+/// Robot is what it is made of. Settings is a gear, once per tab root, which is
+/// the first word anybody looks for and now the only word.
 ///
 /// The rule this app is built to: **StudioKit computes, DuckStudio displays.**
 /// No arithmetic here, and no sentence about a policy written here either —
 /// every one of them is built and asserted by `swift test` on Linux, because a
 /// refusal message is this app's whole value proposition and one you cannot
-/// test is one you find out about in review.
+/// test is one you find out about in review. The same rule is why a blocked
+/// surface ships as an explicit "not yet" in a tested kit string rather than as
+/// an empty card or a control that is present and inert.
 @main
 struct DuckStudioApp: App {
     @StateObject private var model = LibraryModel()
     @StateObject private var scenes = SceneStore()
     @StateObject private var drafts = DraftStore()
     @StateObject private var plans = PlanStore()
-    /// Which model writes drafts. One store, shared: the Draft tab uses it and
-    /// the Models screen edits it.
+    /// Which model writes drafts. One store, shared: Studio's Draft screen uses
+    /// it and the Models screen edits it.
     @StateObject private var models = EndpointStore()
     /// Which benches this phone knows about. One store, shared, for the same
     /// reason `models` is: three screens send work to a bench, and a bench
     /// chosen on one of them is the bench the others should use.
     @StateObject private var benches = BenchStore()
 
-    @Environment(\.scenePhase) private var scenePhase
-
-    /// Which tab is showing.
+    /// Which tab is showing, and the only thing that may change it.
     ///
-    /// IT EXISTS SO SCREENSHOTS CAN BE TAKEN WITHOUT A HUMAN THUMB. `TabView`
-    /// with no selection cannot be told which tab to open, and the App Store
-    /// wants a picture of each one. A simulator can launch an app with
-    /// arguments but cannot tap a tab bar, so the launch argument is the whole
-    /// mechanism: `-tab 3` opens the fourth tab and the shot is taken.
+    /// IT EXISTS SO A SCREEN CAN SEND SOMEBODY SOMEWHERE, and — still — SO
+    /// SCREENSHOTS CAN BE TAKEN WITHOUT A HUMAN THUMB. `TabView` with no
+    /// selection cannot be told which tab to open, and the App Store wants a
+    /// picture of each one. A simulator can launch an app with arguments but
+    /// cannot tap a tab bar, so the launch argument is the whole mechanism:
+    /// `-tab 3` opens the fourth tab and the shot is taken.
     ///
     /// It changes nothing for anybody running the app normally — no argument,
     /// first tab, exactly as before — and it is deliberately not a persisted
     /// preference, because "the tab you were last on" is a different feature
     /// with different opinions and this is not it.
-    @State private var tab = Self.launchTab
+    @StateObject private var router = AppRouter(tab: DuckStudioApp.launchTab)
 
-    /// The tab a `-tab N` launch argument asked for, or the first.
-    static var launchTab: Int {
+    @Environment(\.scenePhase) private var scenePhase
+
+    /// The tab a `-tab` launch argument asked for, or the first.
+    ///
+    /// TWO SPELLINGS, ONE MEANING. `-tab 3` is the index into `AppTab.allCases`
+    /// and is kept because the screenshot runs already say it that way; `-tab
+    /// studio` is the raw value and is the spelling that survives the tabs
+    /// being reordered. Anything else — a sixth index, a word that is not a
+    /// case — opens the first tab rather than failing, because a screenshot run
+    /// that silently shoots the wrong tab is a worse outcome than one that
+    /// shoots the first.
+    static var launchTab: AppTab {
         let args = ProcessInfo.processInfo.arguments
-        guard let i = args.firstIndex(of: "-tab"), i + 1 < args.count,
-              let n = Int(args[i + 1]), (0...4).contains(n) else { return 0 }
-        return n
+        guard let i = args.firstIndex(of: "-tab"), i + 1 < args.count else { return .duck }
+        let asked = args[i + 1]
+        if let n = Int(asked) {
+            guard AppTab.allCases.indices.contains(n) else { return .duck }
+            return AppTab.allCases[n]
+        }
+        return AppTab(rawValue: asked) ?? .duck
     }
 
     var body: some Scene {
@@ -73,63 +160,88 @@ struct DuckStudioApp: App {
             // `BillIndicator` is used inside the app where the design system's
             // other job for it — the slider fill and the standalone marker — is
             // reachable in SwiftUI.
-            TabView(selection: $tab) {
-                NavigationStack { PolicyListView(model: model, scenes: scenes, drafts: drafts,
-                                               models: models, benches: benches) }
-                    .tabItem { Label("Policies", systemImage: "cpu") }
-                    .tag(0)
-                NavigationStack { IntentListView(models: models, benches: benches, plans: plans, store: scenes, model: model, drafts: drafts) }
-                    // "MOTIONS", NOT "INTENTS", AND POLLEN OWN THE OTHER WORD.
-                    // This tab holds recordings and authored moves — what a
-                    // network DID, played back. In `duck-ipc-proto` an intent is
-                    // the opposite: "what a client asks the robot to *do*" —
-                    // robot.move, robot.head, robot.stop, robot.enable. Two
-                    // vocabularies using one word for opposite ends of the same
-                    // pipeline is a confusion that gets worse with every screen,
-                    // and the Drive screen is now the one that really does send
-                    // intents. So this tab gives the word back.
-                    .tabItem { Label("Motions", systemImage: "figure.walk.motion") }
-                    .tag(1)
-                // A THIRD KIND OF THING, and it earned its own tab the moment
-                // the stage started drawing one. A policy is a network, an
-                // intent is a motion, and a scene is a PLACE — the floor, the
-                // steps, the wall a motion is judged against. Folding places
-                // into the motion that happened to be recorded in one is what
-                // made every clip play in a void.
-                NavigationStack { SceneListView(store: scenes, models: models, benches: benches) }
-                    .tabItem { Label("Scenes", systemImage: "square.3.layers.3d") }
-                    .tag(2)
+            TabView(selection: $router.tab) {
+                // 1. WHICH DUCK, AND IS IT ALRIGHT. Everything about the one
+                // robot this phone is paired to, in the order somebody asks:
+                // name, lens, battery, what it is doing, whether it can be
+                // driven, what can be launched, and — above all of it or not at
+                // all — whether anything is wrong.
                 NavigationStack {
-                    AutomationChatView(drafts: drafts, scenes: scenes, models: models, benches: benches, plans: plans)
+                    MyMicroduckView(model: model, scenes: scenes, drafts: drafts,
+                                    models: models, benches: benches)
                 }
-                    .tabItem { Label("Draft", systemImage: "wand.and.stars") }
-                    .tag(3)
-                // THE FIFTH AND LAST TAB, AND THAT IS A HARD CEILING. iPhone
+                    .tabItem { Label(AppTab.duck.title, systemImage: AppTab.duck.symbol) }
+                    .tag(AppTab.duck)
+
+                // 2. THE ONE SCREEN THAT MOVES A ROBOT. It was reached through
+                // a menu on a list of files, which is three taps from launch
+                // for the thing somebody holding a Microduck opens the app to
+                // do. `duck-ipc-proto` calls what this sends an intent — the
+                // opposite of what this app's Motions once called one, which is
+                // why the word went back to Pollen and the motions kept theirs.
+                NavigationStack {
+                    // `models:` IS PASSED, so the Control gear opens the SAME
+                    // Settings the other four roots open. Without it DriveView
+                    // falls back to a second EndpointStore whose flush
+                    // overwrites the shared one — two Settings screens
+                    // disagreeing about one list.
+                    DriveView(model: model, benches: benches, scenes: scenes, models: models)
+                }
+                    .tabItem { Label(AppTab.control.title, systemImage: AppTab.control.symbol) }
+                    .tag(AppTab.control)
+
+                // 3. WHAT THE ROBOT KNOWS HOW TO DO. Installed policies,
+                // Pollen's catalogue, what the community has published, and the
+                // probe that opens one up and shows the fourteen numbers it
+                // answers with.
+                NavigationStack {
+                    PolicyListView(model: model, scenes: scenes, drafts: drafts,
+                                   models: models, benches: benches)
+                }
+                    .tabItem { Label(AppTab.behaviours.title, systemImage: AppTab.behaviours.symbol) }
+                    .tag(AppTab.behaviours)
+
+                // 4. WHAT YOU MAKE. Motions, scenes, drafting with words, the
+                // bench you measure on, and the modes that used to be their own
+                // apps. Four tabs became one because they are all the same
+                // verb: authoring something and seeing what physics does to it.
+                NavigationStack {
+                    StudioHubView(model: model, scenes: scenes, drafts: drafts,
+                                  models: models, benches: benches, plans: plans)
+                }
+                    .tabItem { Label(AppTab.studio.title, systemImage: AppTab.studio.symbol) }
+                    .tag(AppTab.studio)
+
+                // 5. THE FIFTH AND LAST TAB, AND THAT IS A HARD CEILING. iPhone
                 // shows five before it folds the rest into "More", where a tab
                 // is somewhere people do not go. Anything that arrives after
                 // this has to live inside one of the five.
                 //
-                // It holds what used to be three separate apps. Duck Soccer,
-                // Duckboard and Duck Diary each had a repository, a bundle
-                // identifier and pre-registered gates, and two of them have no
-                // code in them at all — a new Microduck owner should not need
-                // four apps to use one robot.
+                // Hardware, motors, firmware, network and diagnostics: the
+                // things you look at when the answer on the first tab was "no".
                 NavigationStack {
-                    LabView(model: model, scenes: scenes, drafts: drafts, models: models, benches: benches)
+                    RobotView(benches: benches, models: models)
                 }
-                    .tabItem { Label("Lab", systemImage: "flask") }
-                    .tag(4)
+                    .tabItem { Label(AppTab.robot.title, systemImage: AppTab.robot.symbol) }
+                    .tag(AppTab.robot)
             }
+            // THE ROUTER IS INJECTED ON THE TAB VIEW, WHICH IS THE ONLY PLACE
+            // EVERY TAB IS DOWNSTREAM OF. A card on My Microduck that says
+            // "drive it" declares `@EnvironmentObject private var router:
+            // AppRouter` and calls `router.go(to: .control)`; there is no other
+            // sanctioned way to move somebody between tabs, because a second
+            // source of truth for the selection is a tab bar that disagrees
+            // with the screen.
+            .environmentObject(router)
             // LARGE TITLES ARE THE DEFAULT AND THE ROOT DOES NOT IMPOSE THEM.
-            // A `NavigationStack` root already gets a large title, so four of
-            // the five tabs are large without a word being said — and the
-            // fifth, the Draft tab, sets `.inline` on purpose, because a chat
-            // transcript with a compose bar under it has nowhere to put a 34pt
-            // title. `navigationBarTitleDisplayMode` applied out here would
-            // reach past that decision and overrule it from a file that cannot
-            // see it, which is exactly the kind of remote override this app's
-            // own theme comment argues against. Each screen says it for itself;
-            // `IntentListView` now does, out loud.
+            // A `NavigationStack` root already gets a large title, so every tab
+            // root is large without a word being said — and a screen that wants
+            // `.inline`, like the chat transcript inside Studio with a compose
+            // bar under it, says so for itself.
+            // `navigationBarTitleDisplayMode` applied out here would reach past
+            // that decision and overrule it from a file that cannot see it,
+            // which is exactly the kind of remote override this app's own theme
+            // comment argues against.
             //
             // THE DISPLAY WEIGHT IS NOT SET, AND THAT IS A TRADE RATHER THAN AN
             // OMISSION. The design system asks for `.heavy` on large titles and

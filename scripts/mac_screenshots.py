@@ -36,7 +36,8 @@ Usage:
     python3 scripts/mac_screenshots.py                # HEAD, all five tabs
     python3 scripts/mac_screenshots.py --tabs 0 4     # a subset
     python3 scripts/mac_screenshots.py --skip-build   # reuse the last build on the Mac
-Output: build/shots/tab-N.png on the Pi.
+Output: build/shots/<tab-name>.png on the Pi — my-microduck.png, control.png,
+behaviours.png, studio.png, robot.png.
 """
 
 import argparse
@@ -49,7 +50,16 @@ import mac_compile_check as base  # noqa: E402
 
 KEY_ID = "68T2S87K39"
 ISSUER_ID = "0803ec59-b64d-4014-9519-d5e8c7079f0c"
-TABS = {0: "Policies", 1: "Motions", 2: "Scenes", 3: "Draft", 4: "Lab"}
+# TAB ORDER IS `AppTab.allCases`, and the index is what `-tab N` means to
+# `DuckStudioApp`. Names, not numbers, in the filenames: "tab-4.png" told
+# nobody which screen it was, and the numbers moved under the app when the
+# five tabs were rebuilt around the robot.
+TABS = {0: "My Microduck", 1: "Control", 2: "Behaviours", 3: "Studio", 4: "Robot"}
+
+
+def slug(tab: int) -> str:
+    """The filename for a tab: its name, lowercased, spaces to hyphens."""
+    return TABS.get(tab, f"tab-{tab}").lower().replace(" ", "-")
 REMOTE_SHOTS = f"{base.REMOTE_HOME}/duck-studio-shots"
 DERIVED = f"{base.REMOTE_HOME}/duck-studio-ddp"
 
@@ -107,11 +117,11 @@ echo "app: $APP"
 pkill -x DuckStudio 2>/dev/null || true; sleep 1
 open -n "$APP" --args -tab {t}
 for i in 1 2 3 4 5 6 7 8; do sleep 2; W=$({REMOTE_SHOTS}/win DuckStudio); [ -n "$W" ] && break; done
-echo "tab {t} window: ${{W:-none}}"
+echo "tab {t} ({TABS.get(t, '?')}) window: ${{W:-none}}"
 if [ -n "$W" ]; then
   sleep 3
   ID=$(echo $W | cut -d' ' -f1)
-  screencapture -x -o -l "$ID" {REMOTE_SHOTS}/tab-{t}.png && ls -la {REMOTE_SHOTS}/tab-{t}.png
+  screencapture -x -o -l "$ID" {REMOTE_SHOTS}/{slug(t)}.png && ls -la {REMOTE_SHOTS}/{slug(t)}.png
 fi
 """)
     lines.append("pkill -x DuckStudio 2>/dev/null || true\necho SHOTS-DONE\n")
@@ -167,11 +177,12 @@ def main() -> int:
     sftp = client.open_sftp()
     got = 0
     for t in args.tabs:
+        name = f"{slug(t)}.png"
         try:
-            sftp.get(f"{REMOTE_SHOTS}/tab-{t}.png", str(out / f"tab-{t}.png")); got += 1
-            print(f"got tab-{t}.png ({(out / f'tab-{t}.png').stat().st_size // 1024} KB) — {TABS.get(t, '?')}")
+            sftp.get(f"{REMOTE_SHOTS}/{name}", str(out / name)); got += 1
+            print(f"got {name} ({(out / name).stat().st_size // 1024} KB) — tab {t}, {TABS.get(t, '?')}")
         except FileNotFoundError:
-            print(f"tab-{t}.png missing on the Mac")
+            print(f"{name} missing on the Mac")
     sftp.close(); client.close()
     print(f"{got}/{len(args.tabs)} screenshots in {out}")
     return 0 if got == len(args.tabs) else 1

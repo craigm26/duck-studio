@@ -12,7 +12,7 @@ import StudioKit
 /// would mean leaving the task to answer a question about the task.
 ///
 /// WHY IT EXISTS. Three things you configure once lived in three unrelated
-/// places: models behind the Draft tab's chat, benches behind an icon in the
+/// places: models behind Studio → Draft's chat, benches behind an icon in the
 /// Policies toolbar, and the Hugging Face token four taps inside one motion's
 /// publish sheet — where `TokenStore.clear()` had no caller at all, so a write
 /// token that can create and delete repositories under somebody's name could be

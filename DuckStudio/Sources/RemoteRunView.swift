@@ -86,11 +86,12 @@ struct RemoteRunView: View {
 
     var body: some View {
         List {
-            // THE FACT, NOT THE LAB'S SENTENCE. This screen has two entrances
-            // now — the Lab's bench row and the Policies menu — and the honesty
-            // line lived only on the Lab container. `LabCatalogue.preamble`
-            // cannot be reused here: it asserts "Nothing in the Lab is talking
-            // to a robot", which names a place the reader may not be in.
+            // THE FACT, NOT THE MODES' SENTENCE. This screen has two entrances
+            // — Studio > Measure on a bench, and the bench row under Studio >
+            // Modes — and the honesty line lived only on the container that
+            // held the modes. `LabCatalogue.modesPreamble` cannot be reused
+            // here: it asserts "Nothing in these modes is talking to a robot",
+            // which names a place the reader may not be in.
             Section {
                 Text(LabCatalogue.noRobotYet)
                     .font(.footnote).foregroundStyle(Theme.textSecondary)
@@ -298,8 +299,8 @@ struct RemoteRunView: View {
                     // policy that did not ship with the app — an imported one,
                     // or a blend made on this phone — could be watched once on
                     // the bench and never played again. Kept, it becomes a
-                    // motion in the Motions tab like any other, playable with
-                    // no bench and no network.
+                    // motion under Studio > Motions like any other, playable
+                    // with no bench and no network.
                     //
                     // NOT ORANGE, BECAUSE IT REACHES NOTHING. Everything in the
                     // action colour on this screen sends a request to another
@@ -450,7 +451,7 @@ struct RemoteRunView: View {
             guard model.acceptIntent(try export.encoded(), named: title) else {
                 // ITS MESSAGE, NOT A NEW ONE. `acceptIntent` says exactly what
                 // went wrong — a decode refusal names the field — and it says it
-                // on the Policies tab, which is not this screen.
+                // under Behaviours, which is not this screen.
                 failure = model.lastImport ?? "That recording could not be kept."
                 return
             }
