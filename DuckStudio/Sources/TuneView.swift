@@ -206,6 +206,13 @@ struct TuneView: View {
                     .fixedSize(horizontal: false, vertical: true)
             } else if let readiness = run.readiness {
                 Text(readiness.sentence)
+                    // YELLOW AND NOT RED. Nothing is broken: a bench that
+                    // cannot weigh a trace is a bench that has not grown an
+                    // endpoint, which is a caution about what can be done here
+                    // and not an error anybody has to fix on this phone.
+                    .foregroundStyle(readiness.canSearch ? Theme.textSecondary : Theme.warning)
+                    .font(.footnote)
+                    .fixedSize(horizontal: false, vertical: true)
                 if readiness.canSearch {
                     // WHAT THE ENDPOINT DID NOT FIX, said where the ready
                     // sentence might read as "the reward is honest now".
@@ -214,13 +221,6 @@ struct TuneView: View {
                         .foregroundStyle(Theme.textTertiary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                    // YELLOW AND NOT RED. Nothing is broken: a bench that
-                    // cannot weigh a trace is a bench that has not grown an
-                    // endpoint, which is a caution about what can be done here
-                    // and not an error anybody has to fix on this phone.
-                    .foregroundStyle(readiness.canSearch ? Theme.textSecondary : Theme.warning)
-                    .font(.footnote)
-                    .fixedSize(horizontal: false, vertical: true)
                 if !readiness.canSearch {
                     Text(DuckTuner.whatStillWorksWithoutTune)
                         .font(.footnote)
