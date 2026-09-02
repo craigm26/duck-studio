@@ -193,3 +193,58 @@ are most able to do.
 physics, and it does not belong in an iOS app bundle. What merges is the
 *client*, which is already here. The repository stays; the app that never got
 written is what folds in.
+
+## Whole-body step climbing: four rounds, 2026-09-01 to 2026-09-02
+
+**Result.** In simulation only, on the browser simulator's four-step flight, the tallest
+step the Microduck can get onto is unreliable at every height. Judged by the `honest`
+criterion (upright, within the 340 mm-wide flight, trunk past the riser face and more
+than 95 mm above the tread, both feet resting on the tread, scored a second after the
+move ends) on a grid of the rise 10 mm either side crossed with three spawn-height and
+foot-friction plants, the best open-loop move — a beak-strut vault: beak planted on the
+tread, neck locked as a strut, hips extend, the trunk pivots over the head, the feet
+land on the tread — clears 2 of 9 cells at 40 mm, 2 of 9 at 50, 4 of 9 at 60, 2 of 9 at
+70 and 1 of 9 at 80 (one vector, sha256 4b9110c448ec, scored at three heights), and 0 of
+9 at 90 mm or taller, against 9 of 9 for a duck placed on the tread and 0 of 9 for doing
+nothing. Ten of the eleven clears are still upright fifty ticks later. Roughly 48,000
+searched attempts over four rounds; every claim re-scored from its saved file by an
+adversarial audit (duck-sounds `climb/r4_judge-results.json`).
+
+**The instrument was broken first.** The harness's flight is built from 200 mm-tall step
+blocks whose top is the tread, so at any rise under 200 mm adjacent blocks interpenetrate
+in z. They shipped on the same collision bit, on frictionless slides, and the solver
+shoved them apart: up to 20 mm of tread drift inside one control tick. Below about 150 mm
+a duck simply standing on the first tread was thrown to the floor within ten ticks. The
+first audit's "0 of 54 replays cleared 20–180 mm" measured that staircase, not the robot.
+The repair (`site/stairs.js isolateSteps`, commit 279b016) zeroes each step geom's
+conaffinity: step-step stops colliding, step-duck, step-wall and step-prop do not change.
+Re-baselined, a placed duck passes at 40, 60, 90, 120 and 180 mm where before only 180 did.
+
+**Why the clears are not a climb.** They are isolated points, not a basin: one control
+tick (5.66 ms) of shift in the landing takes the 60 mm move from 4 of 9 to 1 of 9 and moves
+the trunk 304 mm; a 5 mm change of rise either side of 60 reads no. Every measurable
+event that could trigger the landing (beak contact, trunk pitch, trunk height) fires on
+the same 0.74 s tick in every plant, so an event carries no information the clock does
+not, and the axis that decides the verdict — the rise — is not observable at the event.
+
+**Above 80 mm it is a lift budget.** A standing trunk sits at 116 mm; the criterion needs
+185 mm at a 90 mm rise. The beak strut buys 13–21 mm of peak lift; a beak plant plus a
+riser foot plus a trailing-leg push buys about 38 mm, where 59 mm is needed at 80, 69 at
+90 and 99 at 120. In 69 cells of two-beat attempts the number of feet ever resting on a
+tread was zero, and at 120 mm the failure is a geometric stall — upright, motionless,
+trunk 4–14 mm below the tread top. Every row saturates the plant's 0.6405 N·m servo
+ceiling, so there is no headroom left to spend. The 80–120 mm band is closed on that
+measurement; 180 mm produced zero tread contact in 2,829 episodes and is closed.
+
+**What is left.** One lever in the 40–80 mm band: a landing that is not a single throw —
+feet servoed onto the tread over many ticks from measured trunk state — with a kill gate
+of 7 of 9 stable cells at 60 mm, below which the band is closed and the negative is the
+result (round 5, running as this is written).
+
+**Instrument lessons, reusable.** Score only saved files, never in-memory candidates
+(export rounding moved one "best" 90 mm in x). Put robustness inside the objective, not
+in the post-mortem. Hash intents so one vector is never published under three rise
+labels. Gate a stability bonus on reaching the flight, or a do-nothing control farms it.
+A do-nothing control must fail and a placed duck must pass on the same plant, or the
+criterion is not a climbing test. And rig3 standalone prints to stdout only: the log a
+workflow agent tee'd is not the log the next run wrote.
