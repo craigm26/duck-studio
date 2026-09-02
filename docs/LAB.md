@@ -250,8 +250,31 @@ servo. Two caveats travel with the negative: the servo law reads tread height an
 from the plant, so it is an oracle upper bound and not a move the robot could run (its
 policy sees 61 proprioceptive numbers); and every clear passes through the step block by
 7–9 mm on the way up, soft contact rather than tunnelling. Roughly 50,000 attempts over
-five rounds. What is left is a different actuator or a different move class — a second
-duck, a wall, a lever — not more search of this one.
+five rounds.
+
+**Round six finished the search at this scale.** It asked the only question left: how high
+can any launch lift the trunk, landing aside? A search whose objective was the count of
+cells with the trunk past the 95 mm bar — no landing term, no servo — over 340 new launch
+vectors, plus every published launch, plus the judge's rebuild of all of them from their
+parameters: 394 distinct launches at 60 mm, and the trunk clears the bar in at most 5 of
+9 cells. Every cell is reachable on its own; the cells trade and never accumulate. Since
+a clear needs the trunk above the bar, that ceiling bounds every landing law there could
+be, so the bar of 7 was never reachable. The limit was measured on a torque trace that
+reproduces the scorer's episodes exactly, and it is geometry rather than tuning: hip
+saturation correlates positively with height, so the servos are not what stops the ducks
+that fail. At the pose the vault depends on, the neck's lever from its pivot to the beak
+is 88 to 90 mm, where the servo's 0.6405 N·m yields 7.16 to 7.34 N at the beak against a
+7.23 N body weight. The neck's 7.66 N stall never binds because the lever eats the torque
+first. A shorter lever is as good as a stronger motor, and either is a change to the
+robot. The tail measurement closed the last question about the servoed moves: their
+"falls" at the third tail tick are stand-up transients the duck recovers from, and giving
+the law the tail changes nothing. Roughly 55,000 attempts over six rounds.
+
+**What would change the answer.** The robot: more torque at the neck, or the same torque
+through a shorter strut lever. The move class: a move that does not ask the duck to lift
+its own trunk 95 mm unaided — a second duck to push off, a wall or rail to react against,
+a lever or ramp placed first. Not worth doing: another optimiser over the beak-strut
+vault's 29 parameters; two of them re-deal which cells clear, and the count stays at 5.
 
 **Instrument lessons, reusable.** Score only saved files, never in-memory candidates
 (export rounding moved one "best" 90 mm in x). Put robustness inside the objective, not

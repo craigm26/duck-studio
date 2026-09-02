@@ -15,7 +15,7 @@ import Foundation
 /// replay in that audit was scored on that flight, so below 150 mm it says
 /// nothing about climbing at all. That sentence is gone.
 ///
-/// WHAT IS KNOWN NOW, after five rounds and roughly 50,000 searched attempts,
+/// WHAT IS KNOWN NOW, after six rounds and roughly 55,000 searched attempts,
 /// each claim re-scored from its saved file by an adversarial audit
 /// (duck-sounds/climb/r4_judge-results.json) on a robustness grid — the rise
 /// 10 mm either side crossed with three spawn-height and foot-friction
@@ -35,13 +35,20 @@ import Foundation
 /// 59 mm at 80 and 99 mm at 120, with every servo saturated at the plant's
 /// 0.6405 N·m in every row. No cheat was found in any clear.
 ///
-/// AND THE 40–80 mm BAND IS CLOSED, against a bar of 7 of 9 stable cells at
-/// 60 mm. Round five tried the last lever, a landing servoed onto the tread
-/// from measured trunk state every tick instead of a single throw, and every
-/// servoed move cleared 0 of 9 stably. The reason is not the landing: the
-/// criterion needs the trunk 95 mm above the tread, and no launch searched
-/// got it there in more than 5 of 9 cells, so 7 was never reachable by any
-/// way of landing. What is left is lift, and lift is the saturated servo.
+/// AND THE SEARCH IS FINISHED AT THIS SCALE, against a bar of 7 of 9 stable
+/// cells at 60 mm. Round five tried a landing servoed onto the tread from
+/// measured trunk state every tick instead of a single throw; every servoed
+/// move cleared 0 of 9 stably. Round six searched the trunk's peak height
+/// alone, with no landing in the objective, over 394 distinct launches: the
+/// trunk gets past the 95 mm bar in at most 5 of 9 cells, and the cells
+/// trade rather than accumulate. Because a clear needs the trunk above the
+/// bar, that ceiling bounds every landing law there could be, so 7 was never
+/// reachable. The limit is the strut, measured on a torque trace that
+/// reproduces the scorer exactly: at the pose the vault depends on, the
+/// neck's lever to the beak is 88 to 90 mm, where the servo's 0.6405 N·m
+/// yields 7.16 to 7.34 N against a 7.23 N body weight. A shorter lever is
+/// as good as a stronger motor, and either is a change to the robot, not
+/// to the search.
 ///
 /// AND BELOW ABOUT 11 mm THE CHECK CANNOT SEE A STEP AT ALL. The criterion
 /// counts a foot as "on the tread" when it is within 5 mm of the tread's
@@ -138,17 +145,20 @@ public struct StepCeiling: Equatable, Sendable {
         stableClears: 10,
         clearsInAll: 11,
         reliableCleared: 7,
-        bandVerdict: "The 40 to 80 mm band is closed against a bar of 7 of 9 stable cells at 60 mm: "
-                   + "the last lever, a landing servoed onto the tread from measured trunk state "
-                   + "every tick, cleared 0 of 9 stably, and no launch searched lifts the trunk past "
-                   + "95 mm in more than 5 of 9 cells, so 7 was never reachable by any way of "
-                   + "landing. Above 80 mm the ceiling is a lift budget of about 38 mm where 59 to "
-                   + "99 mm are needed, with every servo saturated at 0.6405 N·m. What is left is a "
-                   + "different actuator or a different move class, not more search.",
+        bandVerdict: "The search is finished at this scale, against a bar of 7 of 9 stable cells at "
+                   + "60 mm: a landing servoed from measured trunk state cleared 0 of 9 stably, and a "
+                   + "search of the trunk's peak height alone over 394 distinct launches gets it past "
+                   + "the 95 mm bar in at most 5 of 9 cells, which bounds every way of landing. The "
+                   + "limit is the strut: at the pose the vault depends on, the neck's lever to the "
+                   + "beak is about 89 mm, where the servo's 0.6405 N·m yields 7.2 N against a 7.23 N "
+                   + "body weight. Above 80 mm the lift budget is about 38 mm where 59 to 99 mm are "
+                   + "needed. What is left is a shorter lever or a stronger neck servo, or a move "
+                   + "that does not ask the duck to lift its own trunk unaided: a second duck, a "
+                   + "wall or rail to react against, a lever or ramp placed first.",
         resolvableAbove: 0.011,
         brokenFlightSoundAbove: 0.150,
-        episodes: 50_000,
-        rounds: 5,
+        episodes: 55_000,
+        rounds: 6,
         move: "a beak-strut vault",
         flight: "the simulator's four-step staircase, repaired on 2026-09-02 so its blocks stop "
               + "colliding with one another",
@@ -156,7 +166,7 @@ public struct StepCeiling: Equatable, Sendable {
         criterion: "upright, within the 340 mm-wide flight, the trunk past the riser face and more than "
                  + "95 mm above the tread, both feet resting on the tread past that same line, "
                  + "scored a second after the move ends",
-        evidence: "duck-sounds climb/r5_judge-results.json",
+        evidence: "duck-sounds climb/r6_judge-results.json",
         measuredOn: "2026-09-02",
         editorRise: 0.010)
 
