@@ -61,7 +61,7 @@ struct PipelineView: View {
                         .font(.footnote).foregroundStyle(Theme.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 } header: {
-                    Text(draft.name)
+                    SectionHeading(text: draft.name)
                 }
                 .listRowBackground(Theme.surfacePrimary)
 
@@ -126,7 +126,7 @@ struct PipelineView: View {
                             .font(.caption).foregroundStyle(Theme.measured)
                             .fixedSize(horizontal: false, vertical: true)
                     } header: {
-                        Text("The run")
+                        SectionHeading(text: "The run")
                     } footer: {
                         // "Standing height on THIS plant" was a claim about
                         // whichever world the run above happened in, and until

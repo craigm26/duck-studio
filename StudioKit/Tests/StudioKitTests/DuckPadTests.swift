@@ -87,7 +87,7 @@ final class DuckPadTests: XCTestCase {
     // MARK: - layers
 
     func testADriverStartsWithTelemetryAndNothingElseOnTop() {
-        XCTAssertEqual(DuckPad.Layer.defaults, [.telemetry])
+        XCTAssertEqual(DuckPad.Layer.defaults, [])
         XCTAssertTrue(DuckPad.Layer.allCases.count > 1, "layers are worth toggling")
         for layer in DuckPad.Layer.allCases {
             XCTAssertFalse(layer.title.isEmpty)

@@ -206,7 +206,7 @@ struct PairingSpikeView: View {
                 .accessibilityHint(Text(
                     "Only you know how the daemon was launched. This is recorded as your answer."))
         } header: {
-            Text("Before you start")
+            SectionHeading(text: "Before you start")
         } footer: {
             // Why the flag is the question, in the kit's words: it is what the
             // read step is even for.
@@ -255,7 +255,7 @@ struct PairingSpikeView: View {
             .listRowSeparator(.hidden)
             .disabled(scanner.spikeStep != nil)
         } header: {
-            Text("Ducks in range")
+            SectionHeading(text: "Ducks in range")
         } footer: {
             Text(PairingSpike.Step.scan.establishes)
                 .foregroundStyle(Theme.textSecondary)
@@ -349,7 +349,7 @@ struct PairingSpikeView: View {
                 stepRow(step)
             }
         } header: {
-            Text("What happened")
+            SectionHeading(text: "What happened")
         } footer: {
             Text(PairingSpike.Step.readVersion.timeoutRationale)
                 .foregroundStyle(Theme.textSecondary)
@@ -597,7 +597,7 @@ struct PairingSpikeView: View {
             // to it, so the floor costs nothing the stock control was bringing.
             .frame(minHeight: ConnectivityMetric.minimumTarget)
         } header: {
-            Text("The pairing prompt")
+            SectionHeading(text: "The pairing prompt")
         } footer: {
             Text(Self.promptQuestion)
                 .foregroundStyle(Theme.textSecondary)
@@ -670,7 +670,7 @@ struct PairingSpikeView: View {
                     "Writes the report as a text file and opens the system share sheet."))
             }
         } header: {
-            Text("The report")
+            SectionHeading(text: "The report")
         } footer: {
             Text("Plain text, and it says what it does not establish as plainly as what it does. "
                  + "A step that timed out is a result worth sending, not a run worth repeating "

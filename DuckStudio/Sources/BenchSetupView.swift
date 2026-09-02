@@ -26,18 +26,20 @@ struct BenchSetupView: View {
     var body: some View {
         List {
             Section {
-                Text("Microduck Studio can read a policy and blend one. It cannot RUN one — an "
-                   + "iPhone has no physics engine. The bench is a small program on a computer "
-                   + "you already own that does, and these are the steps to start it.")
+                Text("This iPhone is a bench: the physics runs inside the app, and it is first "
+                   + "in the list. A machine on your network is a second bench, one that can be "
+                   + "handed a network of its own. These are the steps to start one.")
                     .font(.footnote).foregroundStyle(Theme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .listRowBackground(Theme.surfacePrimary)
 
-            Section("On the other computer") {
+            Section {
                 ForEach(BenchSetup.steps) { step in
                     stepRow(step)
                 }
+            } header: {
+                SectionHeading(text: "On the other computer")
             }
             .listRowBackground(Theme.surfacePrimary)
 

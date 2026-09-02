@@ -1,5 +1,6 @@
 import Foundation
 import DuckEvidence
+import DuckKit
 
 // MARK: - what a sim duck is
 
@@ -1076,5 +1077,46 @@ public actor SimDuck: DuckPeer {
     public func notify(_ c: DuckCall) async throws {
         try vet(c, asNotification: true)
         _ = try await wire(try c.line(id: nil))
+    }
+
+    // MARK: - what this duck says without being asked
+
+    private nonisolated let fan = DuckStateFanOut()
+
+    /// Every state this duck reports — which, on this peer, is every state a
+    /// test has fed it and nothing else.
+    ///
+    /// THIS PEER HAS NO INBOUND STREAM AND CANNOT ACQUIRE ONE. `Wire` is
+    /// `(Data) -> Data?`: one line out, at most one line back, which is a
+    /// request/response shape with nowhere for telemetry to arrive. A real
+    /// `robotd` pushes `robot.state` unbidden at the loop rate, so a peer that
+    /// wanted to carry those needs a stream that exists whether or not anybody
+    /// asked anything — and that peer is `LinePeer`, which takes exactly that.
+    ///
+    /// SO WHY IMPLEMENT IT AT ALL RATHER THAN FINISHING THE STREAM EMPTY?
+    /// Because a screen written against `DuckPeer.states()` has to be drivable
+    /// without a robot, a bench or a socket, and this is the peer every test in
+    /// this package already builds. `feed(_:)` is how a test says "now the duck
+    /// falls over" and watches what a card does about it. It is not a
+    /// simulation of telemetry — nothing here generates a state — it is a hand
+    /// on the other end of the stream, which is the honest thing for a type
+    /// whose whole job is standing in for a duck.
+    public nonisolated func states() -> AsyncStream<DuckState> { fan.states() }
+
+    /// Hand one canned state to every reader.
+    ///
+    /// NOTHING IN THE APP TARGET CALLS THIS AND NOTHING SHOULD. A view that fed
+    /// a state it composed itself would be a view inventing telemetry, which is
+    /// the one thing `DuckState`'s all-optional design exists to make
+    /// impossible from the decoding side; there is no reason to reintroduce it
+    /// from the publishing side. `scripts/check_no_studio_math.sh` will not
+    /// catch that, so it is said here.
+    public func feed(_ state: DuckState) {
+        fan.publish(state)
+    }
+
+    /// End every reader's stream, the way a dropped link would.
+    public func stopFeeding() {
+        fan.finish()
     }
 }

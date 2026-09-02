@@ -9,7 +9,9 @@ final class DuckSceneTests: XCTestCase {
         XCTAssertEqual(scene.steps.count, 4)
         XCTAssertTrue(scene.problems.isEmpty,
                       "the default flight must not warn about itself: \(scene.problems)")
-        XCTAssertEqual(scene.steps[0].top, DuckScene.measuredStepCeiling, accuracy: 1e-9)
+        XCTAssertEqual(scene.steps[0].top, StepCeiling.current.editorRise, accuracy: 1e-9)
+        // THE DEFAULT RISE IS UNDER THE RESOLVABLE FLOOR ON PURPOSE — see StepCeiling.
+        XCTAssertLessThan(StepCeiling.current.editorRise, StepCeiling.current.resolvableAbove)
     }
 
     /// The number this editor exists to put in front of somebody.
@@ -18,7 +20,9 @@ final class DuckSceneTests: XCTestCase {
         let unreachable = scene.problems.filter { $0.severity == .unreachable }
         XCTAssertEqual(unreachable.count, 3, "every riser is over the ceiling")
         XCTAssertTrue(unreachable[0].text.contains("40 mm"))
-        XCTAssertTrue(unreachable[0].text.contains("10 mm"))
+        // THE SENTENCE IS THE MEASUREMENT'S NOW, never "measured at 10 mm".
+        XCTAssertTrue(unreachable[0].text.contains("cleared 0 of 54"), unreachable[0].text)
+        XCTAssertFalse(unreachable[0].text.contains("measured at"), unreachable[0].text)
     }
 
     /// A flight is judged riser by riser, not by absolute height — ten 10 mm

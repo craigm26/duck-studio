@@ -342,4 +342,111 @@ final class DuckBenchTests: XCTestCase {
                            "\(host) got two different answers about being your own network")
         }
     }
+
+    // MARK: - /tune
+
+    /// THE REQUEST CARRIES THE RESIDUAL AND NOT A FILE, which is the design
+    /// decision worth pinning: 28 numbers per candidate instead of 791,584
+    /// bytes of base64, and one implementation of the fold rather than two.
+    func testATuneRequestSendsTheResidualAndTheTermsItWants() throws {
+        let address = try DuckBench.address("192.168.1.20")
+        let call = try DuckBench.tune(
+            address, policy: "alpha_walking.onnx",
+            gain: [Double](repeating: 1.05, count: DuckModel.policyJointCount),
+            offset: [Double](repeating: 0.01, count: DuckModel.policyJointCount),
+            seconds: 6, drops: [0.121, 0.125, 0.129],
+            schedule: DuckBench.walkingCommand,
+            terms: DuckTuner.terms.map(\.key))
+        XCTAssertEqual(call.method, "POST")
+        XCTAssertEqual(call.url.absoluteString, "http://192.168.1.20:8770/tune")
+        let body = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: try XCTUnwrap(call.body)) as? [String: Any])
+        XCTAssertEqual(body["policy"] as? String, "alpha_walking.onnx")
+        XCTAssertEqual((body["gain"] as? [Double])?.count, DuckModel.policyJointCount)
+        XCTAssertEqual((body["offset"] as? [Double])?.count, DuckModel.policyJointCount)
+        XCTAssertEqual(body["drops"] as? [Double], [0.121, 0.125, 0.129])
+        XCTAssertEqual(body["terms"] as? [String], DuckTuner.terms.map(\.key))
+        XCTAssertNil(body["onnx"], "no file goes over the wire — the bench holds the base")
+    }
+
+    func testATuneAnswerIsReadWithItsTermsAndItsDistance() throws {
+        let json = """
+        {"policy":"alpha_walking.onnx","episodes":3,"standing":3,
+         "criterion":"ends standing, trunk at least 100 mm up","travelled":1.207,
+         "terms":{"upright":0.9467,"pose":0.6353,"track_linear_velocity":0.51,
+                  "track_angular_velocity":0.72,"body_ang_vel":0.83,"action_rate_l2":0.04},
+         "refused":[{"name":"air_time","why":"no foot-contact sensor in scene.mjb"}],
+         "plantName":"scene.mjb","plantDigest":"3f8c9ab9b409","seconds":6}
+        """
+        let tuned = try DuckBench.readTuned(Data(json.utf8))
+        XCTAssertEqual(tuned.episodes, 3)
+        XCTAssertEqual(tuned.standing, 3)
+        XCTAssertEqual(tuned.travelled, 1.207)
+        XCTAssertEqual(tuned.terms["upright"], 0.9467)
+        XCTAssertEqual(tuned.refused.map(\.name), ["air_time"])
+        XCTAssertEqual(tuned.plantName, "scene.mjb")
+        // AND IT SCORES, because every term the reward needs is present.
+        XCTAssertNoThrow(try DuckTuner.reward(tuned.terms))
+    }
+
+    /// A BENCH WITHOUT `/tune` IS NOT A BROKEN BENCH. Every shell in this
+    /// family answers an unknown path with the same error shape, and the screen
+    /// has to be able to read it as "this one cannot score a search" rather
+    /// than as a failure.
+    func testABenchWithNoTuneEndpointComesBackAsItsOwnWords() {
+        XCTAssertThrowsError(try DuckBench.readTuned(Data(#"{"error":"no /tune here"}"#.utf8))) {
+            XCTAssertEqual($0 as? DuckBench.ReadError, .bench("no /tune here"))
+            XCTAssertEqual(($0 as? DuckBench.ReadError)?.message, "The bench said: no /tune here")
+        }
+    }
+
+    /// A BENCH THAT ANSWERED WITH FEWER TERMS THAN IT WAS ASKED FOR MUST NOT
+    /// BE SCORED. `readTuned` takes what it is given — a reader that invented a
+    /// missing term would be worse — and `DuckTuner.reward` is where the
+    /// omission becomes a refusal.
+    func testATuneAnswerMissingATermIsReadAndThenRefused() throws {
+        let json = """
+        {"policy":"p","episodes":3,"standing":3,"travelled":1.0,
+         "terms":{"upright":0.9,"pose":0.6,"track_linear_velocity":0.5,
+                  "track_angular_velocity":0.7,"body_ang_vel":0.8}}
+        """
+        let tuned = try DuckBench.readTuned(Data(json.utf8))
+        XCTAssertEqual(tuned.terms.count, 5)
+        XCTAssertThrowsError(try DuckTuner.reward(tuned.terms)) {
+            XCTAssertEqual($0 as? DuckTuner.Refusal, .termMissing("action_rate_l2"))
+        }
+    }
+
+    /// PER-DROP REWARDS ARE WHAT A NOISE FLOOR IS MADE OF, so the reader has to
+    /// carry them rather than summarise them away. A bench that sends only the
+    /// aggregate is readable and unfloorable, and that has to be visible.
+    func testPerDropEpisodesAreCarriedAndAreWhatTheFloorIsMadeOf() throws {
+        let terms = DuckTuner.terms.map { "\"\($0.key)\": 0.5" }.joined(separator: ",")
+        let other = DuckTuner.terms.map { "\"\($0.key)\": 0.6" }.joined(separator: ",")
+        let json = """
+        {"policy":"p","episodes":2,"standing":2,"travelled":1.1,"terms":{\(terms)},
+         "perDrop":[{"drop":0.121,"travelled":1.0,"standing":true,"terms":{\(terms)}},
+                    {"drop":0.129,"travelled":1.2,"standing":true,"terms":{\(other)}}]}
+        """
+        let tuned = try DuckBench.readTuned(Data(json.utf8))
+        XCTAssertEqual(tuned.perDrop.count, 2)
+        XCTAssertEqual(tuned.perDrop.first?.drop, 0.121)
+        XCTAssertEqual(tuned.perDrop.last?.travelled, 1.2)
+        let floor = try XCTUnwrap(DuckTuner.noiseFloor(
+            try tuned.perDrop.map { try DuckTuner.reward($0.terms) }))
+        XCTAssertGreaterThan(floor, 0, "two different episodes have a spread")
+
+        // AND A BENCH THAT SENDS ONLY THE AGGREGATE IS UNFLOORABLE, VISIBLY.
+        let flat = try DuckBench.readTuned(Data("""
+        {"policy":"p","episodes":2,"standing":2,"travelled":1.1,"terms":{\(terms)}}
+        """.utf8))
+        XCTAssertTrue(flat.perDrop.isEmpty)
+        XCTAssertNil(DuckTuner.noiseFloor(try flat.perDrop.map { try DuckTuner.reward($0.terms) }))
+    }
+
+    func testATuneAnswerWithNoEpisodesIsEmptyRatherThanZeroScored() {
+        XCTAssertThrowsError(try DuckBench.readTuned(Data(#"{"episodes":0,"terms":{}}"#.utf8))) {
+            XCTAssertEqual($0 as? DuckBench.ReadError, .empty)
+        }
+    }
 }

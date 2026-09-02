@@ -49,12 +49,17 @@ struct StudioHubView: View {
     /// only behind a picker, which disables itself with its own reason.
     @State private var door = CameraDoor.availability
 
+    /// WHERE THE SECOND HOP LANDS. Behaviours → Retrain means Studio → Draft,
+    /// and a router that could only select a tab left somebody on this root
+    /// looking at four rows with nothing saying which of them they had asked
+    /// for. See `AppRouter.pendingStudio`.
+    @EnvironmentObject private var router: AppRouter
+
     var body: some View {
         List {
             Section {
                 NavigationLink {
-                    IntentListView(models: models, benches: benches, plans: plans,
-                                   store: scenes, model: model, drafts: drafts)
+                    place(.motions)
                 } label: {
                     Label("Motions", systemImage: "figure.walk.motion")
                 }
@@ -65,7 +70,7 @@ struct StudioHubView: View {
                 // places into the motion that happened to be recorded in one is
                 // what made every clip play in a void.
                 NavigationLink {
-                    SceneListView(store: scenes, models: models, benches: benches)
+                    place(.scenes)
                 } label: {
                     Label("Scenes", systemImage: "square.3.layers.3d")
                 }
@@ -73,8 +78,7 @@ struct StudioHubView: View {
                 // row wearing the same glyph as the tab it sits in reads as the
                 // way back out rather than as a way further in.
                 NavigationLink {
-                    AutomationChatView(drafts: drafts, scenes: scenes, models: models,
-                                       benches: benches, plans: plans)
+                    place(.draft)
                 } label: {
                     Label("Draft with words", systemImage: "text.bubble")
                 }
@@ -92,10 +96,25 @@ struct StudioHubView: View {
                 // physics in the app behind the two screens that look most like
                 // capability and are not.
                 NavigationLink {
-                    RemoteRunView(model: model, scenes: scenes, drafts: drafts,
-                                  models: models, benches: benches)
+                    place(.measure)
                 } label: {
                     Label("Run on your network", systemImage: "wifi")
+                }
+                // THE ONLY ROW IN THE APP THAT TRIES TO MAKE A NETWORK BETTER,
+                // and it is under Measure rather than under Author because
+                // what it actually does is measure — twenty-eight numbers, a
+                // few hundred times, against a reward read out of Pollen's own
+                // training config. Nothing is authored and nothing is trained.
+                //
+                // NOT A `StudioDestination`. The four cases there are the
+                // places another tab can send somebody to by name, and nothing
+                // routes here: this is a door off Measure and not a fifth room
+                // with an address. Adding a case for a screen no router names
+                // would be widening a type to describe a wish.
+                NavigationLink {
+                    TuneView(library: model, benches: benches)
+                } label: {
+                    Label("Tune it on this phone", systemImage: "slider.horizontal.3")
                 }
             } header: {
                 SectionHeading(text: "Measure")
@@ -149,6 +168,20 @@ struct StudioHubView: View {
         .scrollContentBackground(.hidden)
         .background(Theme.backgroundSecondary)
         .refreshingCameraDoor($door)
+        // THE SECOND HOP, AND IT NEEDS NO PATH CONVERSION. The four rows above
+        // are still closure `NavigationLink`s — they push a view they name
+        // directly, which is what a row a finger is on should do — and this
+        // modifier pushes the SAME view when another tab asks for it by name.
+        // `navigationDestination(item:)` is the one API that takes a two-way
+        // binding, so SwiftUI writes `pendingStudio` back to nil when the
+        // person taps Back; a `NavigationPath` here would have meant converting
+        // all four rows to `NavigationLink(value:)` and then owning the path's
+        // lifetime, to buy nothing this screen needs.
+        //
+        // ONE DEFINITION OF WHAT A DESTINATION OPENS. Both the row and the
+        // route go through `place(_:)`, so Behaviours → Retrain cannot land on
+        // a different Draft screen from the one the Draft row opens.
+        .navigationDestination(item: $router.pendingStudio) { place($0) }
         .navigationTitle("Studio")
         .navigationBarTitleDisplayMode(.large)
         // ONE GEAR, SAME PLACE, SAME WORD, ONCE PER TAB ROOT. It used to sit on
@@ -161,6 +194,30 @@ struct StudioHubView: View {
                     Image(systemName: "gear").accessibilityLabel(Text("Settings"))
                 }
             }
+        }
+    }
+
+    /// The screen behind one of the four places another tab may name.
+    ///
+    /// IT IS THE ROWS' DESTINATION TOO, WHICH IS THE POINT. A route that built
+    /// its own copy of `AutomationChatView` would be a second wiring of the six
+    /// stores, and the failure mode of a second wiring is not a crash: it is a
+    /// Draft screen with a different `EndpointStore` behind it, drafting against
+    /// a model the rest of the app has not got. `DriveView`'s own comment about
+    /// `models:` is the same bug, already paid for once.
+    @ViewBuilder private func place(_ destination: StudioDestination) -> some View {
+        switch destination {
+        case .motions:
+            IntentListView(models: models, benches: benches, plans: plans,
+                           store: scenes, model: model, drafts: drafts)
+        case .scenes:
+            SceneListView(store: scenes, models: models, benches: benches)
+        case .draft:
+            AutomationChatView(drafts: drafts, scenes: scenes, models: models,
+                               benches: benches, plans: plans)
+        case .measure:
+            RemoteRunView(model: model, scenes: scenes, drafts: drafts,
+                          models: models, benches: benches)
         }
     }
 

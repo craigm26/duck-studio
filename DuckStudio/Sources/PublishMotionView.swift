@@ -143,7 +143,7 @@ struct PublishMotionView: View {
                             .foregroundStyle(Theme.success)
                     }
                 } header: {
-                    Text("Your Hugging Face token")
+                    SectionHeading(text: "Your Hugging Face token")
                 } footer: {
                     Text("A WRITE token, from huggingface.co/settings/tokens. It is kept in the Keychain on this device and sent only to huggingface.co, as a header — never in an address this app prints or logs.")
                         .foregroundStyle(Theme.textSecondary)
@@ -178,7 +178,7 @@ struct PublishMotionView: View {
                             .foregroundStyle(Theme.textSecondary)
                     }
                 } header: {
-                    Text("Where it goes")
+                    SectionHeading(text: "Where it goes")
                 } footer: {
                     // PUBLIC GETS A GLYPH AND A COLOUR; PRIVATE GETS NEITHER.
                     // The two sentences are not two states of one message — one
@@ -227,7 +227,7 @@ struct PublishMotionView: View {
                             .font(.footnote)
                             .foregroundStyle(Theme.refused)
                     } header: {
-                        Text("Not ready to publish")
+                        SectionHeading(text: "Not ready to publish")
                     }
                     .listRowBackground(Theme.surfacePrimary)
                 } else if case .success(let publication) = outcome {
@@ -246,7 +246,7 @@ struct PublishMotionView: View {
                                          value: "\(file.bytes)", unit: "bytes")
                         }
                     } header: {
-                        Text("What gets published")
+                        SectionHeading(text: "What gets published")
                     } footer: {
                         Text("A motion, not a policy — a list of poses with times. The card says so, and says what an authored motion does not promise: driven through the standing policy in simulation, leg offsets come out shallower than authored. Nobody has measured that on a robot.")
                             .foregroundStyle(Theme.textSecondary)
@@ -275,7 +275,7 @@ struct PublishMotionView: View {
                             .foregroundStyle(Theme.textSecondary)
                             .textSelection(.enabled)
                     } header: {
-                        Text("Published")
+                        SectionHeading(text: "Published")
                     }
                     .listRowBackground(Theme.surfacePrimary)
                 }

@@ -92,7 +92,8 @@ struct BowBridgeView: View {
     /// continuously instead, which needs no threshold at all.
     private var readout: some View {
         VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
-            StateBadge(text: word, state: state)
+            // `.render`: this readout floats over the live crossing.
+            StateBadge(text: word, state: state, ground: .render)
             Text(referee.run.summary)
                 .font(.headline.monospacedDigit())
                 .foregroundStyle(Theme.textPrimary)

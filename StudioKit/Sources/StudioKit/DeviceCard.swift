@@ -1,4 +1,5 @@
 import Foundation
+import DuckKit
 
 /// The seven answers the app's front door owes somebody, worked out here so the
 /// screen only draws them.
@@ -320,23 +321,62 @@ public enum DeviceCard {
     /// and the updater — so this app has never read a cell and must not draw a
     /// bar as though it had.
     ///
-    /// WHEN A BATTERY CALL ARRIVES, A THIRD CASE ARRIVES WITH IT. It is not
-    /// modelled today because there is nothing behind it: a `case charged(Int)`
-    /// sitting here unfilled is an invitation for a screen to fill it with a
-    /// plausible number.
+    /// THE THIRD AND FOURTH CASES HAVE NOW ARRIVED, AND NOT THROUGH A CALL.
+    /// This comment used to say a `charged` case would come with a battery
+    /// method, and `DuckMethod` still has none — asking a robot for its charge
+    /// is not something `duck-ipc-proto` offers. What arrived instead is
+    /// telemetry: `robot.state` carries a `battery` block with bus volts and the
+    /// daemon's own percentage, and `DuckPeer.states()` is now how it reaches
+    /// this app. So a charge here is a number a robot pushed, or it is one of
+    /// the three absences — and `reportedNothing` is the new one that the state
+    /// stream itself creates: a link that IS reporting state, whose state
+    /// carried no battery block at all.
     public enum Charge: Equatable, Sendable {
 
         /// Physics on another machine. Carries `DuckBattery.noneToRead`.
         case noneToRead(String)
 
-        /// Hardware, on a link with no call that answers with a charge.
+        /// Hardware, on a link with no call and no stream that answers with a
+        /// charge.
         case notReported(String)
+
+        /// A real cell on a real duck, and where the number came from.
+        ///
+        /// THE PROVENANCE IS IN THE CASE BECAUSE THE TWO SOURCES ARE NOT THE
+        /// SAME NUMBER. `DuckState.batteryPercentOrDerived` takes the robot's
+        /// own percentage when there is one and otherwise runs `DuckModel`'s
+        /// curve over the bus voltage — "precedence in that order and never
+        /// blended", because averaging two disagreeing estimates produces a
+        /// third that is nobody's. A card showing 41% owes somebody which of
+        /// those it is, since one of them sags under load and the other is the
+        /// daemon's considered answer.
+        case charged(DuckBattery, from: String)
+
+        /// A link that reports state, whose state carried no battery.
+        ///
+        /// NOT THE SAME AS `notReported`. That one is about the vocabulary —
+        /// nothing on this link ever answers with a charge. This is about a
+        /// particular state: the duck is talking, and this line had no battery
+        /// block in it, which on a schema that has moved is exactly what a
+        /// renamed field looks like. `DuckState` is built so that reads as nil
+        /// rather than as zero, and this is the sentence for the nil.
+        case reportedNothing(String)
 
         /// The sentence, whichever case this is.
         public var says: String {
             switch self {
-            case .noneToRead(let sentence), .notReported(let sentence): return sentence
+            case .noneToRead(let sentence), .notReported(let sentence),
+                 .reportedNothing(let sentence):
+                return sentence
+            case .charged(let battery, let from): return "\(battery.says). \(from)"
             }
+        }
+
+        /// The number, when there is one to draw. Nil in every other case, so a
+        /// bar cannot be drawn from an absence.
+        public var percent: Int? {
+            if case .charged(let battery, _) = self { return battery.percent }
+            return nil
         }
 
         /// What a link that carries no charge has to say for itself.
@@ -362,6 +402,58 @@ public enum DeviceCard {
             case .sim: return .noneToRead(DuckBattery.noneToRead)
             case .real: return .notReported(linkCarriesNoCharge)
             }
+        }
+
+        /// Where a percentage came from, when the robot gave one outright.
+        public static let reportedByTheRobot =
+            "The robot reported this percentage itself, from the daemon that owns the pack."
+
+        /// Where it came from when it had to be worked out.
+        ///
+        /// THE CAVEAT IS THE POINT OF SAYING IT. `DuckState.Battery.volts` is
+        /// measured at the servo bus and sags under load, so a duck that reads
+        /// 38% mid-stride and 52% standing still has not been recharged by
+        /// stopping. Only a robot that sent no percentage of its own gets this
+        /// number at all.
+        public static let derivedFromTheBusVoltage =
+            "The robot reported no percentage, so this was worked out from the bus voltage with "
+          + "DuckModel's curve. Bus voltage sags under load, so this reads lower while the duck "
+          + "is walking than while it is standing still."
+
+        /// A state arrived and had no battery in it.
+        public static let stateCarriedNoBattery =
+            "This duck is reporting state and that state carried no battery at all — neither a "
+          + "percentage nor a bus voltage. That is what a renamed field looks like as well as "
+          + "what a robot that does not report charge looks like, and nothing here can tell the "
+          + "two apart, so no number is drawn for either."
+
+        /// A percentage that is not one.
+        ///
+        /// REFUSED RATHER THAN CLAMPED, which is `DuckBattery`'s own rule: 104%
+        /// came from arithmetic rather than from a cell, and clamping it to 100
+        /// turns a wrong number into a plausible one.
+        public static let readingWasNotAPercentage =
+            "This duck reported a charge that is not a percentage — outside 0 to 100 — so it came "
+          + "from arithmetic rather than from a cell and is not shown. Clamping it into range "
+          + "would turn a wrong number into a plausible one."
+
+        /// The charge row for one state that arrived on a link.
+        ///
+        /// THE IDENTITY IS STILL WHAT DECIDES, AND IT DECIDES FIRST. A
+        /// simulator that somehow sent a battery block gets `noneToRead`
+        /// anyway: `DuckBattery.init?` refuses to exist for anything but a real
+        /// duck, so there is no path here that draws a percentage for physics,
+        /// and the check is in the type rather than in this function's care.
+        public static func of(_ state: DuckState, on identity: DuckIdentity) -> Charge {
+            guard identity.kind == .real else { return .noneToRead(DuckBattery.noneToRead) }
+            guard let percent = state.batteryPercentOrDerived, percent.isFinite else {
+                return .reportedNothing(stateCarriedNoBattery)
+            }
+            guard let battery = DuckBattery(percent: Int(percent.rounded()), of: identity) else {
+                return .reportedNothing(readingWasNotAPercentage)
+            }
+            let from = state.battery?.percent == nil ? derivedFromTheBusVoltage : reportedByTheRobot
+            return .charged(battery, from: from)
         }
     }
 
@@ -425,13 +517,34 @@ public enum DeviceCard {
         ///   derived from `transport` so a peer that has NARROWED its reach — a
         ///   robot on an older API version, which `DuckPeer` explicitly allows
         ///   — is answered on what it actually carries.
+        /// - Parameter authority: what this link has proved about who is
+        ///   calling. Nil means "whatever this transport proves", which is the
+        ///   answer for every link this app can build; it is a parameter at all
+        ///   so a test can ask the question the routing table cannot — see
+        ///   `DuckAuthority.mayReach`. It cannot be defaulted to
+        ///   `.of(transport)` in the signature, because a default argument
+        ///   cannot read another argument.
         public static func of(_ method: DuckMethod,
                               over transport: DuckTransportKind,
-                              reach: Set<DuckMethod>) -> Control {
+                              reach: Set<DuckMethod>,
+                              authority: DuckAuthority? = nil) -> Control {
             guard reach.contains(method) else {
                 return Control(method: method,
                                state: .absent(reason: DuckCall.Misuse
                                    .outOfReach(method, transport).message))
+            }
+            // THE SECOND LOCK, AND IT IS SECOND BECAUSE THE FIRST ONE IS ABOUT
+            // THE LINK AND THIS ONE IS ABOUT THE CALLER. `reach` is handed in
+            // rather than derived — deliberately, so a peer that narrowed its
+            // reach is answered on what it actually carries — which means a
+            // caller can present a reach set naming the pairing PIN or the
+            // updater on a link that has proved nothing. The routing table is
+            // the single copy of what a transport carries and it cannot see
+            // that; this can, and the cost of being wrong about these three
+            // methods is somebody's only way back into their robot.
+            let proved = authority ?? DuckAuthority.of(transport)
+            guard proved.mayReach(method) else {
+                return Control(method: method, state: .absent(reason: proved.says))
             }
             if transport == .bench, let call = benchCall(for: method),
                let refusal = BenchPeer.refusal(for: call) {
@@ -598,6 +711,148 @@ public enum DeviceCard {
         public init(alarms: [Alarm]) {
             self.alarms = alarms
         }
+    }
+
+    // MARK: - 4a. what one state actually said, and what it did not
+
+    /// A `robot.state` read as a card row, with a sentence for every field the
+    /// duck did not fill in.
+    ///
+    /// THE NILS ARE THE PRODUCT HERE, NOT THE VALUES. `DuckState` is built on
+    /// one rule — "an app that decodes a missing block as zeros is dangerous:
+    /// `fallen: false` for a robot whose safety block was renamed is a diary
+    /// that says, in signed and hash-chained form, that the duck never fell" —
+    /// and that rule is worth nothing if the screen above it draws a nil the
+    /// same way it draws a `false`. So every absence gets its own sentence,
+    /// each naming what is missing rather than saying "unknown", and the card
+    /// prints them.
+    ///
+    /// IT DOES NOT READ A CLOCK, LIKE EVERYTHING ELSE IN THIS FILE. Staleness
+    /// is `DuckState.isStale(now:after:)`'s question and it takes the date as an
+    /// argument; this type describes what one state said, whenever it was said.
+    public struct Posture: Equatable, Sendable {
+
+        /// The word for the top of the card — `Doing`'s own strings, from this
+        /// state's fall reading.
+        public let word: String
+
+        /// What the duck said about being down, or nil if it did not say.
+        /// NIL IS NOT `false`: "it did not say" and "it is standing" are the two
+        /// facts this card exists to keep apart.
+        public let fallen: Bool?
+
+        /// Torque off, or nil.
+        public let limp: Bool?
+
+        /// One sentence per thing this state did not carry, in the order a
+        /// person cares about them. Empty for a state that filled everything in
+        /// — which no state this app has ever seen has done, because the only
+        /// states it has seen are the bench's synthesised ones.
+        public let missing: [String]
+
+        public init(word: String, fallen: Bool?, limp: Bool?, missing: [String]) {
+            self.word = word
+            self.fallen = fallen
+            self.limp = limp
+            self.missing = missing
+        }
+
+        /// What a state that said nothing at all means.
+        ///
+        /// THE SCHEMA-DRIFT CANARY, IN WORDS. `DuckState.isEmpty` is true when a
+        /// line arrived, parsed as JSON, and contained not one field this build
+        /// understands — which is the loudest possible signal that the daemon's
+        /// schema moved, and is completely invisible if the card just draws
+        /// blanks.
+        public static let everyFieldWasEmpty =
+            "A state arrived from this duck and this app understood nothing in it. That is not a "
+          + "quiet robot: the line parsed, and not one field in it is one this build knows. The "
+          + "likeliest cause is that the daemon's state format has moved on from the one this app "
+          + "was written against, and nothing on this card can be trusted until that is checked."
+
+        public static let noFallReading =
+            "This duck did not say whether it is down. That is not the same as saying it is "
+          + "upright, and this card will not draw it as though it were."
+
+        public static let noLimpReading =
+            "This duck did not say whether its servos are holding. A limp duck is not broken and "
+          + "not walking, and nothing here can tell you which of the three it is."
+
+        public static let noLoopReading =
+            "This duck did not report its control loop. The loop is supposed to run at "
+          + "50 Hz, and a loop that is slipping produces observations the policy was never "
+          + "trained on — so a gait that looks wrong and a gait that IS wrong are "
+          + "indistinguishable without this."
+
+        public static let noOdometry =
+            "This duck did not say where it thinks it is. Odometry on a walking robot drifts and "
+          + "nobody has measured by how much, so its absence costs a position nobody could have "
+          + "trusted anyway — but a distance walked cannot be computed without it."
+
+        public static let noMoveReading =
+            "This duck did not say what twist it was given or what it did with it. The gap "
+          + "between those two is what separates a yaw command that was clipped from one that "
+          + "never arrived, which are different faults with different fixes."
+
+        public static let noPolicyName =
+            "This duck did not name the network it is running, so nothing here knows whether it "
+          + "is walking, standing or doing a skill."
+
+        /// Read one state.
+        ///
+        /// - Parameter running: whether this app is asking the duck to move.
+        ///   The same second fact `Doing.word(upright:running:)` needs, and it
+        ///   is this app's own knowledge rather than the duck's: a state block
+        ///   cannot say whether somebody's thumb is on a stick.
+        public static func of(_ state: DuckState, running: Bool) -> Posture {
+            var missing: [String] = []
+            if state.isEmpty { missing.append(everyFieldWasEmpty) }
+            let fallen = state.safety?.fallen
+            if fallen == nil { missing.append(noFallReading) }
+            if state.safety?.limp == nil { missing.append(noLimpReading) }
+            if state.loop?.hz == nil && state.loop?.missed == nil {
+                missing.append(noLoopReading)
+            }
+            // A MISSING BATTERY IS DELIBERATELY NOT IN THIS LIST. `Charge` says
+            // it in its own words — `Charge.stateCarriedNoBattery` — and the
+            // card draws both rows, so counting it here would print the same
+            // absence twice on one screen in two different wordings.
+            if state.odom == nil || (state.odom?.isEmpty ?? true) { missing.append(noOdometry) }
+            if state.move == nil || (state.move?.isEmpty ?? true) { missing.append(noMoveReading) }
+            if state.policy == nil { missing.append(noPolicyName) }
+            return Posture(
+                // `upright` is the negation of `fallen`, and nil stays nil
+                // through it: a duck that did not say is not a duck standing up.
+                word: Doing.word(upright: fallen.map { !$0 }, running: running),
+                fallen: fallen,
+                limp: state.safety?.limp,
+                missing: missing)
+        }
+    }
+
+    /// The rows of the card that one state decides, worked out together.
+    ///
+    /// TOGETHER RATHER THAN SEPARATELY, because the charge row and the posture
+    /// row read the same state and a screen that asked for them one at a time
+    /// could ask with two different states — which is a card showing a duck
+    /// that is upright with the battery it had two seconds ago. One value in,
+    /// one value out.
+    public struct Reading: Equatable, Sendable {
+        public let posture: Posture
+        public let charge: Charge
+
+        public init(posture: Posture, charge: Charge) {
+            self.posture = posture
+            self.charge = charge
+        }
+    }
+
+    /// The card, consuming one `DuckState`.
+    public static func reading(_ state: DuckState,
+                               from identity: DuckIdentity,
+                               running: Bool) -> Reading {
+        Reading(posture: .of(state, running: running),
+                charge: .of(state, on: identity))
     }
 
     // MARK: - below the fold

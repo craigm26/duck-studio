@@ -234,7 +234,7 @@ struct SettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         } header: {
-            Text("Hugging Face")
+            SectionHeading(text: "Hugging Face")
         } footer: {
             Text(TokenStore.load() == nil ? HuggingFacePublish.tokenAbsentNote
                                           : HuggingFacePublish.tokenHeldNote)

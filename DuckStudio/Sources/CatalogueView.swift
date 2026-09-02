@@ -63,7 +63,7 @@ struct CatalogueView: View {
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
             } header: {
-                Text("Where to look")
+                SectionHeading(text: "Where to look")
             } footer: {
                 Text(PolicyCatalogue.tokenNote)
                     .foregroundStyle(Theme.textSecondary)
@@ -110,7 +110,7 @@ struct CatalogueView: View {
                         .foregroundStyle(Theme.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
                 } header: {
-                    Text("What is there")
+                    SectionHeading(text: "What is there")
                 }
                 .listRowBackground(Theme.surfacePrimary)
             }
@@ -143,7 +143,7 @@ struct CatalogueView: View {
                     .foregroundStyle(Theme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             } header: {
-                Text("And everyone else")
+                SectionHeading(text: "And everyone else")
             }
             .listRowBackground(Theme.surfacePrimary)
 
@@ -153,7 +153,7 @@ struct CatalogueView: View {
                     .foregroundStyle(Theme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             } header: {
-                Text("And motions?")
+                SectionHeading(text: "And motions?")
             }
             .listRowBackground(Theme.surfacePrimary)
         }

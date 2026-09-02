@@ -107,7 +107,7 @@ struct FlamingoHoldView: View {
                     .disabled(incoming != nil)
                     .accessibilityHint(Text("Puts the lifted leg down and lifts the other. Not while a shove is on its way."))
                 } header: {
-                    Text("Lean")
+                    SectionHeading(text: "Lean")
                 } footer: {
                     Text("It holds anything up to 0.15 m/s. Harder toward the lifted leg and it touches down and re-lifts; toward the standing foot it steps down and you are finished. Backward at 0.18 it goes over — that is the one the author says it cannot take.")
                         .foregroundStyle(Theme.textSecondary)

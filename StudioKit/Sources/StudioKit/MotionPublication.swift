@@ -13,10 +13,26 @@ import DuckKit
 ///
 /// A MOTION IS STILL NOT A POLICY, AND THE REPOSITORY SAYS SO. Pollen's
 /// sharing format for a network describes an observation width, an action
-/// width, what each command slot means. This app trains nothing — it authors
-/// keyframes and records what a policy did — so publishing with an invented
-/// `obs_len` would be a lie an importer would then act on. The manifest
-/// declares `artifact: "motion"`, and `PolicyManifest` refuses it by name.
+/// width, what each command slot means. A motion has none of those — it is
+/// keyframes and times — so publishing one with an invented `obs_len` would be
+/// a lie an importer would then act on. The manifest declares
+/// `artifact: "motion"`, and `PolicyManifest` refuses it by name.
+///
+/// THE SENTENCE THAT USED TO STAND HERE WAS "THIS APP TRAINS NOTHING", AND IT
+/// HAS TO BE SAID MORE CAREFULLY NOW. It was written when the only things this
+/// app could make were keyframes and recordings, and it was doing two jobs:
+/// saying that no network is learned here, and — by implication — saying that
+/// no network leaves here. The first is still exactly true and is the more
+/// important half. The second stopped being true twice: `PolicyBlend` averages
+/// two networks into a third, and `DuckTuner` searches a per-joint gain and
+/// trim and folds it into somebody else's last layer. Both produce a valid
+/// `.onnx`. Neither computes a gradient, sees a frame of training data, or
+/// changes what any network learned.
+///
+/// So the claim this file makes is `trainsNothing` below, which says the
+/// precise thing, and the reason a motion repository carries no `.onnx` is no
+/// longer "the app cannot make one" — it is that a motion is not a policy and
+/// shipping a network beside one would tell an importer it was.
 ///
 /// THE CARD LEADS WITH WHAT IS NOT TRUE OF IT. An authored motion is a
 /// request, not a result: the same keyframes fed through a standing policy
@@ -41,6 +57,21 @@ import DuckKit
 /// lines apart. Nobody has measured an authored motion on a Microduck, because
 /// nobody has a Microduck.
 public struct MotionPublication: Equatable, Sendable {
+
+    /// What this app does and does not do to a network, in one sentence a test
+    /// pins.
+    ///
+    /// IT LIVES WHERE `swift test` CAN SEE IT, for the reason `Provenance`
+    /// exists at all: a claim about capability that only appears in a comment
+    /// is a claim nobody renders and everybody believes. This one is published
+    /// — it goes on the card of anything this app puts on the Hub — because the
+    /// person reading it is deciding whether the weights in front of them were
+    /// learned here, and the answer is no and has always been no.
+    public static let trainsNothing =
+        "Microduck Studio trains no network. It computes no gradient and has never seen a frame "
+      + "of anybody's training data. What it can do to a network is arithmetic on a finished "
+      + "one: average two into a third, or fold a per-joint gain and trim into the last layer. "
+      + "Whatever a policy from here does well, somebody else's optimiser found."
 
     /// The tag that makes a move findable, and the repository type it has to
     /// be published as for the tag to mean anything.

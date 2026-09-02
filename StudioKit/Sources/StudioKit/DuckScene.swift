@@ -214,11 +214,13 @@ public struct DuckScene: Codable, Hashable, Identifiable, Sendable {
     /// A flight of steps.
     ///
     /// `rise` IS THE NUMBER THAT DECIDES WHETHER THIS IS USABLE, and the
-    /// default is 10 mm rather than anything that looks like a staircase,
-    /// because 10 mm is what the robot has been measured to clear. A generator
-    /// that defaulted to 40 mm would produce a scene that looks right in the
-    /// editor and faceplants every time.
-    public static func staircase(count: Int = 4, rise: Double = 0.010,
+    /// default is `StepCeiling.current.editorRise` — 10 mm — which sits UNDER
+    /// the floor the bench's check can resolve. It is not a rise the robot is
+    /// known to clear; it is one nothing is known about either way, so the
+    /// editor's flag is quiet there honestly. A generator that defaulted to
+    /// 40 mm would produce a scene that looks right in the editor and, on the
+    /// measurement `StepCeiling` carries, has no way up.
+    public static func staircase(count: Int = 4, rise: Double = StepCeiling.current.editorRise,
                                  run: Double = 0.28, start: Double = 0.30,
                                  halfDepth: Double = 0.17,
                                  halfWidth: Double = 0.17) -> DuckScene {
@@ -323,13 +325,15 @@ public struct DuckScene: Codable, Hashable, Identifiable, Sendable {
 
     /// The measured ceiling on how tall a step this robot gets up.
     ///
-    /// NOT A SPEC FIGURE AND NOT A GUESS. A search over authored moves against
-    /// staged steps topped out here; earlier runs that reported far more were
-    /// scoring against a lone block the duck stepped beside rather than a
-    /// flight it had to climb, and every one of those numbers was withdrawn.
-    /// A scene editor that lets somebody draw a 40 mm staircase without saying
-    /// this is an editor that produces confident failures.
-    public static let measuredStepCeiling = 0.010
+    /// The rise the editor starts at and steps by. NOT A MEASURED CEILING —
+    /// the name is kept for its callers and the number is `StepCeiling`'s
+    /// `editorRise`, which is under the floor the measurement can resolve.
+    /// What the robot has actually been measured to clear, with its count,
+    /// criterion, plant and date, is `StepCeiling.current`, and the sentence
+    /// under an unreachable step comes from there. The old value here shipped
+    /// as "the robot has been measured at 10 mm"; nothing has been measured to
+    /// clear 10 mm, and the check cannot see a step that small.
+    public static var measuredStepCeiling: Double { StepCeiling.current.editorRise }
 
     public struct Problem: Equatable, Sendable {
         public enum Severity: String, Equatable, Sendable {
@@ -369,11 +373,12 @@ public struct DuckScene: Codable, Hashable, Identifiable, Sendable {
         var previousTop = 0.0
         for step in flight {
             let rise = step.top - previousTop
-            if rise > Self.measuredStepCeiling + 1e-9 {
-                out.append(.init(
-                    severity: .unreachable,
-                    text: String(format: "A %.0f mm rise. The robot has been measured at %.0f mm, so it will not get up this one.",
-                                 rise * 1000, Self.measuredStepCeiling * 1000)))
+            // THE SENTENCE IS THE MEASUREMENT'S, NOT A CONSTANT'S. A rise the
+            // check can resolve gets the count, the plant and the date; a rise
+            // it cannot resolve gets no verdict at all rather than a kind one.
+            if StepCeiling.current.canResolve(rise: rise) {
+                out.append(.init(severity: .unreachable,
+                                 text: StepCeiling.current.verdict(rise: rise)))
             }
             previousTop = max(previousTop, step.top)
         }

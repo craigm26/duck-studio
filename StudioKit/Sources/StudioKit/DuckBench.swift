@@ -164,6 +164,212 @@ public enum DuckBench {
                     body: try JSONSerialization.data(withJSONObject: body))
     }
 
+    /// Put a network on a bench that has NO ONNX READER, by sending the
+    /// canonical parameter bytes instead of a file.
+    ///
+    /// THIS IS A MEASURED FACT ABOUT THE PHONE BENCH AND IT CORRECTS A
+    /// SENTENCE THIS APP WAS SHIPPING. `PhoneBenchReport.uploadNotWired` said
+    /// "this bench cannot be handed a network", which is true of an `.onnx` and
+    /// false of what the browser shell actually accepts. Its `makeSession`
+    /// refuses anything that is not exactly `FLOAT_COUNT * 4` bytes and hands
+    /// everything else to `policyforward.mjs` — which reads
+    /// `DuckPolicy.canonicalParameterBytes`, the same layout `DuckEvidence`
+    /// fingerprints a policy by and the same layout the app already exports to
+    /// serve the nine bundled networks to that shell. So `/upload` was never
+    /// closed; it was closed to ONNX.
+    ///
+    /// Verified against the shipped `site/phonebench` build under Node: a
+    /// 791,584-byte canonical-bytes body came back
+    /// `{"policy":"uploaded-27b1f53d1f26","bytes":791584}`, `/policy` swapped
+    /// to it, and `/measure` ran three six-second rollouts on it in 1.8 s. An
+    /// ONNX body to the same endpoint came back refused, with the shell's own
+    /// sentence about not having a reader.
+    ///
+    /// THE WIRE FIELD IS STILL `onnx`, WHICH IS THE BENCH'S NAME AND NOT A
+    /// DESCRIPTION. Renaming it here would mean a client that no bench
+    /// understands; naming this function for what it sends is what keeps a
+    /// caller from believing it is shipping a file.
+    ///
+    /// A DESK BENCH REFUSES THIS, and that is correct rather than a gap: it
+    /// loads through onnxruntime, which wants a file. Send `upload(_:onnx:)`
+    /// there. `DuckBench.Health.host.kind` is how a caller tells them apart.
+    public static func uploadParameters(_ address: Address,
+                                        canonicalBytes: Data) throws -> Call {
+        let body: [String: Any] = ["onnx": canonicalBytes.base64EncodedString()]
+        return Call(method: "POST", url: URL(string: "\(address.base)/upload")!,
+                    body: try JSONSerialization.data(withJSONObject: body))
+    }
+
+    // MARK: - /tune — scoring a candidate where the trace is
+
+    /// Run one candidate and weigh it, on the bench, against Pollen's own
+    /// reward terms.
+    ///
+    /// WHY THE BENCH HAS TO DO THE WEIGHING AND THE PHONE CANNOT. Four of the
+    /// six evaluable terms of `microduck_velocity_env_cfg` need something no
+    /// bench answer carries. `track_linear_velocity`, `track_angular_velocity`
+    /// and `body_ang_vel` all read the trunk's twist; `action_rate_l2` reads
+    /// the network's own output. `/state` and `/intent` answer with a position,
+    /// a quaternion and fourteen joint angles, and `/record` adds the commands
+    /// — none of them carry a velocity or an action. So a client that scored a
+    /// search from those answers would be scoring `upright` and `pose` alone,
+    /// and `DuckTuner.notYet` has the measurement that says what that does: on
+    /// those two terms the standing policy beats the walking policy by 18%
+    /// while travelling one millimetre against 1231. The bench has the trace in
+    /// front of it. Nothing else does.
+    ///
+    /// IT TAKES THE RESIDUAL RATHER THAN A FILE, and that is the design. The
+    /// alternative is uploading a folded `.onnx` per candidate — 791,584 bytes
+    /// through base64 for every one of 276 episodes — where the residual is 28
+    /// numbers and the bench already holds the base network. It also keeps the
+    /// FOLD in one implementation: the bench folds it the way
+    /// `DuckPolicyWriter.folding` does, and `duckkit`'s own tests are what
+    /// prove that arithmetic exact.
+    ///
+    /// THE REQUEST NAMES THE TERMS IT WANTS. A bench that cannot compute one of
+    /// them must say so by name in `refused` rather than omit it from `terms`:
+    /// two of the six weights are negative, so a silently missing term reads as
+    /// the best possible value of the thing it punishes, and
+    /// `DuckTuner.reward(_:)` throws rather than let that happen.
+    ///
+    /// ```
+    /// POST /tune
+    /// {
+    ///   "policy":   "alpha_walking.onnx",   // the base, by the bench's own name
+    ///   "gain":     [14 doubles],           // policy slots, mouth excluded
+    ///   "offset":   [14 doubles],           // radians of RAW action, same order
+    ///   "seconds":  6,                      // per episode
+    ///   "drops":    [0.121, 0.125, 0.129],  // metres; one episode each
+    ///   "schedule": [[0, {"vx":0,"vy":0,"vyaw":0}], [0.5, {"vx":0.5,"vy":0,"vyaw":0}]],
+    ///   "terms":    ["upright", "track_linear_velocity", "track_angular_velocity",
+    ///                "pose", "body_ang_vel", "action_rate_l2"]
+    /// }
+    ///
+    /// 200
+    /// {
+    ///   "policy":   "alpha_walking.onnx",
+    ///   "episodes": 3,
+    ///   "standing": 3,                      // episodes ending upright, trunk >= 100 mm
+    ///   "criterion": "ends standing, trunk at least 100 mm up",
+    ///   "travelled": 1.207,                 // metres, MEDIAN over the episodes
+    ///   "terms":    {"upright": 0.9467, "pose": 0.6353, ...},   // per-tick means, over ALL episodes
+    ///   "perDrop":  [ {"drop": 0.121, "travelled": 1.19, "standing": true,
+    ///                  "terms": {"upright": 0.9471, ...}},        // one entry per drop, in order
+    ///                 …],
+    ///   "refused":  [{"name": "air_time", "why": "no foot-contact sensor in scene.mjb"}],
+    ///   "plantName": "scene.mjb",
+    ///   "plantDigest": "3f8c9ab9b409…",
+    ///   "seconds": 6
+    /// }
+    /// ```
+    ///
+    /// `perDrop` IS NOT DECORATION, IT IS THE NOISE FLOOR. The only question
+    /// that matters at the end of a search is whether a gain survived drop
+    /// heights the search never saw, and that has to be read against how much
+    /// the UNCHANGED network's own reward wobbles across those same drops. That
+    /// wobble is a spread over episodes, and an aggregate mean cannot produce
+    /// it: a client handed only the mean would have to invent a floor, which is
+    /// the one number that decides whether the whole run meant anything. One
+    /// setting's travel has been measured to vary by up to 273 mm across this
+    /// drop range, so the spread is large and assuming it away is not
+    /// available.
+    ///
+    /// A bench that has no `/tune` answers `{"error": "no /tune here"}`, which
+    /// is what the browser shell already returns for an unknown path, and the
+    /// screen reads that as "this bench cannot score a search" rather than as a
+    /// failure.
+    public static func tune(_ address: Address, policy: String,
+                            gain: [Double], offset: [Double],
+                            seconds: Double, drops: [Double],
+                            schedule: [Step], terms: [String]) throws -> Call {
+        let body: [String: Any] = [
+            "policy": policy, "gain": gain, "offset": offset,
+            "seconds": seconds, "drops": drops,
+            "schedule": schedule.map(\.wire), "terms": terms,
+        ]
+        return Call(method: "POST", url: URL(string: "\(address.base)/tune")!,
+                    body: try JSONSerialization.data(withJSONObject: body))
+    }
+
+    /// What a `/tune` answer says.
+    public struct Tuned: Equatable, Sendable {
+        public let policy: String
+        public let episodes: Int
+        public let standing: Int
+        public let criterion: String
+        /// Metres, median over the episodes. THE NUMBER THAT KEEPS THE REWARD
+        /// HONEST — see `PolicyBlend.Behaviour`.
+        public let travelled: Double
+        /// Each requested term's per-tick mean. Weighting is the client's job
+        /// and `DuckTuner.terms` holds the weights, so a bench cannot quietly
+        /// change what a reward means.
+        public let terms: [String: Double]
+        /// One entry per drop height, in the order they were asked for. Empty
+        /// from a bench that reports only the aggregate — which is a bench a
+        /// noise floor cannot be measured from, and `DuckTuner.noiseFloor`
+        /// refuses rather than invents one.
+        public let perDrop: [Episode]
+        /// What this bench would not compute, by name and with the reason.
+        public let refused: [(name: String, why: String)]
+
+        public struct Episode: Equatable, Sendable {
+            public let drop: Double
+            public let travelled: Double
+            public let standing: Bool
+            public let terms: [String: Double]
+        }
+        public let plantName: String?
+        public let plantDigest: String?
+
+        public static func == (a: Tuned, b: Tuned) -> Bool {
+            a.policy == b.policy && a.episodes == b.episodes && a.standing == b.standing
+                && a.criterion == b.criterion && a.travelled == b.travelled
+                && a.terms == b.terms && a.perDrop == b.perDrop && a.plantName == b.plantName
+                && a.plantDigest == b.plantDigest
+                && a.refused.map(\.name) == b.refused.map(\.name)
+                && a.refused.map(\.why) == b.refused.map(\.why)
+        }
+    }
+
+    /// Read one, or say which bench cannot do this.
+    ///
+    /// A BENCH WITHOUT `/tune` IS NOT AN ERROR STATE. Every shell in this
+    /// family answers an unknown path with `{"error": "no /tune here"}`, and
+    /// that is a fact about the bench rather than a fault — so it comes back as
+    /// `ReadError.bench`, carrying the bench's own words, and the screen says
+    /// what it means instead of showing a failure.
+    public static func readTuned(_ data: Data) throws -> Tuned {
+        guard let top = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw ReadError.notJSON
+        }
+        if let error = top["error"] as? String { throw ReadError.bench(error) }
+        guard let episodes = top["episodes"] as? Int, episodes > 0,
+              let terms = top["terms"] as? [String: Double] else {
+            throw ReadError.empty
+        }
+        return Tuned(
+            policy: top["policy"] as? String ?? "unknown",
+            episodes: episodes,
+            standing: top["standing"] as? Int ?? 0,
+            criterion: top["criterion"] as? String ?? "unstated",
+            travelled: top["travelled"] as? Double ?? 0,
+            terms: terms,
+            perDrop: (top["perDrop"] as? [[String: Any]] ?? []).compactMap {
+                guard let drop = $0["drop"] as? Double,
+                      let each = $0["terms"] as? [String: Double] else { return nil }
+                return Tuned.Episode(drop: drop,
+                                     travelled: $0["travelled"] as? Double ?? 0,
+                                     standing: $0["standing"] as? Bool ?? false,
+                                     terms: each)
+            },
+            refused: (top["refused"] as? [[String: Any]] ?? []).compactMap {
+                guard let name = $0["name"] as? String else { return nil }
+                return (name, $0["why"] as? String ?? "unstated")
+            },
+            plantName: top["plantName"] as? String,
+            plantDigest: top["plantDigest"] as? String)
+    }
+
     /// What the bench called the file it just took.
     public static func readUploaded(_ data: Data) throws -> String {
         guard let top = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
@@ -346,6 +552,47 @@ public enum DuckBench {
         /// bench's is the one that decides what happens.
         public var graspables: [Graspable] = []
 
+        /// WHERE THE PHYSICS ACTUALLY RAN, when the bench is new enough to say.
+        ///
+        /// `duck-bench/5` added this and nothing older has it, so it is
+        /// Optional and its absence is silence rather than a guess: a saved
+        /// measurement from a `duck-bench/4` names no machine, and inventing
+        /// "a bench on your network" for it would be writing down something
+        /// nobody measured. That distinction is the whole point — this phone
+        /// now answers the same ten endpoints from a WebView on a loopback
+        /// port, so "which bench" is no longer answered by the address.
+        public var host: Host? = nil
+
+        public struct Host: Equatable, Sendable {
+
+            /// The only field a caller may branch on.
+            ///
+            /// OPTIONAL BECAUSE THE BENCH IS ALLOWED TO SAY A THIRD WORD. A
+            /// bench built later on hardware neither of these describes should
+            /// come through as "this app does not know that word" rather than
+            /// be rounded to whichever case is nearer — `kindSaid` keeps what
+            /// it actually said so a reader is never shown a machine the bench
+            /// did not claim.
+            public enum Where: String, Sendable { case desk, phone }
+
+            public let kind: Where?
+            /// The word the bench used, verbatim, even when it is not one of
+            /// the two above.
+            public let kindSaid: String
+            /// For a person reading a saved result, never for a branch.
+            public let device: String
+            public let engine: String
+            /// What one control tick cost here, measured at boot by the bench
+            /// rather than claimed. Nil when the bench did not measure it.
+            public let tickMillis: Double?
+
+            public init(kind: Where?, kindSaid: String, device: String,
+                        engine: String, tickMillis: Double?) {
+                self.kind = kind; self.kindSaid = kindSaid
+                self.device = device; self.engine = engine; self.tickMillis = tickMillis
+            }
+        }
+
         public struct Graspable: Equatable, Sendable, Identifiable {
             public let name: String
             public let kilograms: Double
@@ -416,7 +663,26 @@ public enum DuckBench {
                           guard let name = $0["name"] as? String,
                                 let mass = $0["mass"] as? Double else { return nil }
                           return Health.Graspable(name: name, kilograms: mass)
-                      })
+                      },
+                      host: readHost(root["host"]))
+    }
+
+    /// The `host` block, or nil when the bench did not send one.
+    ///
+    /// LENIENT ABOUT THE FIELDS AND STRICT ABOUT THE BLOCK. A bench that sends
+    /// `host` has said which machine it is, and that is worth keeping even if
+    /// one string inside is missing — but a bench that sends nothing must come
+    /// through as nothing, because "unstated" and "empty" are the two answers
+    /// this Optional exists to keep apart. `tickMillis` is explicitly allowed
+    /// to be JSON null, which arrives as `NSNull` and casts to nil here.
+    static func readHost(_ raw: Any?) -> Health.Host? {
+        guard let block = raw as? [String: Any] else { return nil }
+        let said = block["kind"] as? String ?? ""
+        return Health.Host(kind: Health.Host.Where(rawValue: said),
+                           kindSaid: said,
+                           device: block["device"] as? String ?? "",
+                           engine: block["engine"] as? String ?? "",
+                           tickMillis: block["tickMillis"] as? Double)
     }
 
     /// A recording, as the clip type every screen here already draws.

@@ -64,6 +64,17 @@ public struct PolicyManifest: Equatable, Sendable {
     public let controlHz: Double?
     public let training: Training?
     public let evaluation: Evaluation?
+    /// Cautions the AUTHOR wrote into the file, as opposed to the ones
+    /// `cautions` derives from the evaluation and training blocks.
+    ///
+    /// READ BECAUSE THIS APP NOW WRITES THEM. `PolicyManifest.encode` puts a
+    /// list here — never run on hardware, what was and was not searched, which
+    /// reward terms were refused — and a reader that ignored the key would
+    /// throw away the most important thing in a file it had just been handed.
+    /// The derived cautions stay: they are facts nobody typed, and the two
+    /// kinds appear together with the author's first, because a person's own
+    /// warning about their own policy outranks anything inferred from a tally.
+    public let authorCautions: [String]
 
     public enum ReadError: Error, Equatable {
         case notJSON
@@ -126,7 +137,119 @@ public struct PolicyManifest: Equatable, Sendable {
             command: command,
             controlHz: (root["robot"] as? [String: Any])?["control_hz"] as? Double,
             training: training,
-            evaluation: evaluation)
+            evaluation: evaluation,
+            authorCautions: (root["cautions"] as? [String]) ?? [])
+    }
+
+    // MARK: - writing one
+
+    /// A manifest this app is about to WRITE, which is a different shape from
+    /// one it has read.
+    ///
+    /// WHY A SECOND TYPE AND NOT `PolicyManifest` ITSELF. `PolicyManifest` is a
+    /// READER: every field is filled in, `actionScale` defaults to 1.0 because
+    /// a file that omitted it still has to load, and `observationLength` and
+    /// `actionLength` are whatever the author claimed. None of that is right
+    /// for a writer. This app knows the observation and action widths as facts
+    /// about the robot, so a writer must not take them from a caller; and it
+    /// very often does NOT know the action scale, so a writer must be able to
+    /// leave the key out rather than emit the reader's default as though
+    /// somebody had declared it. A file that says `action_scale: 1.0` because
+    /// nobody said otherwise is a file that drives a robot 10% differently than
+    /// its author intended, which is the failure `PolicyLibrary.declaredScale`
+    /// exists to name.
+    /// NOT `Sendable`, and the `extra` bag is why. A dictionary of `Any` cannot
+    /// promise anything about what is in it, and claiming otherwise to satisfy
+    /// a conformance is exactly the sort of assertion this package is built to
+    /// avoid. A manifest is built and encoded in one place; it does not need to
+    /// cross a boundary.
+    public struct Written: Equatable {
+        public let name: String
+        public let summary: String
+        /// Nil omits the key. See above: an omission is honest and a default is
+        /// a claim.
+        public let actionScale: Double?
+        public let kind: String?
+        public let durationSeconds: Double?
+        public let entryPose: String?
+        public let twist: [String]
+        public let idle: [Double]
+        public let cautions: [String]
+        /// Anything this app wants to say that Pollen's format has no field
+        /// for, at the top level. A newer reader adding a key must not stop an
+        /// older one loading the policy — `decode` above ignores what it does
+        /// not know — so extra facts are additive by construction.
+        public let extra: [String: Any]
+
+        public init(name: String, summary: String, actionScale: Double?, kind: String?,
+                    durationSeconds: Double?, entryPose: String?, twist: [String],
+                    idle: [Double], cautions: [String], extra: [String: Any] = [:]) {
+            self.name = name; self.summary = summary; self.actionScale = actionScale
+            self.kind = kind; self.durationSeconds = durationSeconds
+            self.entryPose = entryPose; self.twist = twist; self.idle = idle
+            self.cautions = cautions; self.extra = extra
+        }
+
+        /// `[String: Any]` is not Equatable, and the three fields that identify
+        /// a manifest are enough for a test to hold it to.
+        public static func == (a: Written, b: Written) -> Bool {
+            a.name == b.name && a.summary == b.summary && a.actionScale == b.actionScale
+                && a.cautions == b.cautions
+        }
+    }
+
+    public enum WriteError: Error, Equatable {
+        case noName
+        case notEncodable
+
+        public var message: String {
+            switch self {
+            case .noName:
+                return "A manifest with no name is a policy nobody can refer to."
+            case .notEncodable:
+                return "That manifest holds something JSON cannot carry."
+            }
+        }
+    }
+
+    /// The bytes, in the format `decode` reads.
+    ///
+    /// THE WIDTHS AND THE RATE ARE THIS PACKAGE'S, NOT THE CALLER'S. `obs_len`,
+    /// `action_len` and `control_hz` are the three numbers `incompatibilities`
+    /// checks a manifest against, so letting a caller supply them would let a
+    /// caller write a manifest this app then refuses to run — a file that fails
+    /// its own compatibility check. They come from `DuckObservation` and
+    /// `DuckModel`, which is where the robot's truth lives.
+    public static func encode(_ written: Written) throws -> Data {
+        guard !written.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw WriteError.noName
+        }
+        var body: [String: Any] = [
+            "schema_version": 2,
+            "model_api": 1,
+            "name": written.name,
+            "description": written.summary,
+            "obs_len": DuckObservation.length,
+            "action_len": DuckModel.policyJointCount,
+            "robot": ["control_hz": DuckModel.tickHz],
+            "cautions": written.cautions,
+        ]
+        // OMITTED, NOT DEFAULTED. Every Optional below is a fact this app may
+        // not hold, and a manifest is read by things that act on it.
+        if let scale = written.actionScale { body["action_scale"] = scale }
+        if let kind = written.kind { body["kind"] = kind }
+        if let duration = written.durationSeconds { body["duration_s"] = duration }
+        if let pose = written.entryPose { body["entry_pose"] = pose }
+        if !written.twist.isEmpty || !written.idle.isEmpty {
+            body["command"] = ["twist": written.twist, "idle": written.idle]
+        }
+        for (key, value) in written.extra { body[key] = value }
+        guard JSONSerialization.isValidJSONObject(body),
+              let data = try? JSONSerialization.data(withJSONObject: body,
+                                                     options: [.prettyPrinted, .sortedKeys]) else {
+            throw WriteError.notEncodable
+        }
+        return data
     }
 
     // MARK: - can this app drive it
@@ -176,7 +299,7 @@ public struct PolicyManifest: Equatable, Sendable {
     /// author filled in. Showing them is the whole point of carrying a
     /// manifest around.
     public var cautions: [String] {
-        var out: [String] = []
+        var out: [String] = authorCautions
         if let limits = evaluation?.knownLimits, !limits.isEmpty {
             out.append(limits)
         }

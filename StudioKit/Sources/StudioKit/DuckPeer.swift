@@ -1,4 +1,5 @@
 import Foundation
+import DuckKit
 
 // MARK: - the vocabulary
 
@@ -682,13 +683,29 @@ public struct DuckIdentity: Equatable, Sendable {
 
 /// Something this app can say the vocabulary to.
 ///
-/// FOUR MEMBERS, AND THE SMALLNESS IS THE FEATURE. Every transport in this app
+/// FIVE MEMBERS, AND THE SMALLNESS IS THE FEATURE. Every transport in this app
 /// — the BLE link that exists, the bench that exists over HTTP, the WebRTC and
-/// bridge links that do not exist yet — is the same four questions: who are
-/// you, what do you carry, ask this and wait, say this and do not wait. A
-/// screen written against this protocol is a screen that does not know or care
-/// which of them it got, which is the entire reason for the file: what somebody
-/// learns driving the simulator becomes knowledge about driving the robot.
+/// bridge links that do not exist yet — is the same five questions: who are
+/// you, what do you carry, ask this and wait, say this and do not wait, and
+/// tell me what you are doing without being asked. A screen written against
+/// this protocol is a screen that does not know or care which of them it got,
+/// which is the entire reason for the file: what somebody learns driving the
+/// simulator becomes knowledge about driving the robot.
+///
+/// THE FIFTH ONE IS `states()`, AND IT IS REQUIRED RATHER THAN DEFAULTED. A
+/// robot's state is telemetry: `robotd` pushes `robot.state` as a notification
+/// at the loop rate and answers no method that asks for one, which is why
+/// `DuckMethod.state` is namespaced `studio.` and denied on both transports a
+/// real daemon speaks. So the shape a screen has to be written against is a
+/// stream, not a poll — and a stream every transport must produce, because the
+/// alternative was a default implementation returning an empty one. That
+/// default is the dangerous version: a transport whose author forgot this
+/// member would compile, publish nothing forever, and present as a duck that
+/// never falls over. A missing conformance is a build error somebody fixes in
+/// an afternoon; a silent empty stream is a diary that says the duck was fine.
+/// A peer with genuinely nothing to publish finishes its stream immediately and
+/// says so in a sentence — which is a decision, written down, rather than an
+/// omission.
 ///
 /// `AnyObject` BECAUSE A TRANSPORT IS A CONNECTION, not a value: it owns a
 /// socket or a peripheral, it is the same peer before and after a reconnection,
@@ -724,6 +741,23 @@ public protocol DuckPeer: AnyObject, Sendable {
 
     /// Say, and do not wait. For the continuous intents only.
     func notify(_ c: DuckCall) async throws
+
+    /// What the duck is doing, as it says so, for as long as somebody is
+    /// listening.
+    ///
+    /// EVERY READER GETS ITS OWN STREAM AND THEY ALL GET EVERY STATE. Three
+    /// screens can be interested in one duck at once — the card at the front
+    /// door, a driving loop, a recorder — and a single stream shared between
+    /// them would hand each state to whichever one happened to be waiting.
+    /// `DuckStateFanOut` is the piece that does this so each transport does not
+    /// have to; a reader that goes away removes itself, and the ones that
+    /// stayed do not notice.
+    ///
+    /// NOT `async`, SO AN ACTOR IMPLEMENTS IT `nonisolated`. A caller must be
+    /// able to take the stream and then start the thing that fills it, in that
+    /// order; a member that had to be awaited would make "start listening
+    /// before you start driving" a race rather than a sequence.
+    func states() -> AsyncStream<DuckState>
 }
 
 extension DuckPeer {
@@ -749,5 +783,146 @@ extension DuckPeer {
         guard asNotification == c.isNotification else {
             throw DuckCall.Misuse.wrongDirection(c.method)
         }
+    }
+}
+
+// MARK: - one state, several readers
+
+/// Hands one `DuckState` to every reader that is listening, and forgets the
+/// ones that stopped.
+///
+/// WHY A TRANSPORT CANNOT JUST KEEP A CONTINUATION. `AsyncStream` has exactly
+/// one consumer: whichever task calls `next()` gets the element and nobody else
+/// does. Three things in this app want the same duck's states at the same time
+/// — the front-door card, a driving loop, a recorder writing a diary — and with
+/// one shared stream they would race for each value, so two of the three would
+/// show a duck that fell over one state in three. Every transport would
+/// otherwise solve that itself, four times, and one of the four would get the
+/// removal wrong.
+///
+/// THE REMOVAL IS THE PART WORTH WRITING ONCE. A reader that goes away — a view
+/// dismissed, a task cancelled, an iterator dropped mid-loop — must stop costing
+/// anything, and `onTermination` is the only hook that fires for all three of
+/// those. Without it a screen opened and closed forty times leaves forty
+/// continuations being yielded to at 50 Hz, which is a leak that presents as the
+/// app getting slower the longer it is used and never as an error.
+///
+/// A LOCK RATHER THAN AN ACTOR, AND THAT IS FORCED BY THE PROTOCOL. `states()`
+/// is not `async` — deliberately, so a caller can take the stream and then start
+/// the thing that fills it — and registering a reader has to happen inside
+/// `AsyncStream`'s builder closure, which is synchronous. An actor cannot be
+/// touched from there without a `Task`, and a `Task` is exactly the gap in which
+/// the first states go to nobody. `NSLock` is held only across a dictionary
+/// insert or removal; nothing awaits inside it.
+///
+/// YIELDING HAPPENS OUTSIDE THE LOCK. `yield` runs a buffering policy and can
+/// call into a consumer's continuation, so holding the lock across it would let
+/// a reader's own `onTermination` deadlock against the publisher. The snapshot
+/// is taken under the lock; the yields are not.
+///
+/// THE BUFFER IS UNBOUNDED, WHICH IS A REAL CHOICE WITH A REAL COST. A reader
+/// that stops consuming grows a queue instead of dropping states, because for
+/// the two things this stream is for — a diary and a fall — a dropped state is
+/// evidence destroyed silently, and this package's whole argument is that a
+/// silent zero is worse than a visible cost. A stream that must not grow is a
+/// stream whose owner stops iterating it, which removes it from here entirely.
+public final class DuckStateFanOut: @unchecked Sendable {
+
+    /// What identifies a reader while it is listening. An integer that only
+    /// counts up: a token is never reused, so a late `onTermination` from a
+    /// reader that has already gone cannot remove a reader that arrived after
+    /// it and happened to be handed the same slot.
+    public typealias Token = Int
+
+    private let lock = NSLock()
+    private var readers: [Token: AsyncStream<DuckState>.Continuation] = [:]
+    private var nextToken: Token = 1
+    private var finished = false
+
+    public init() {}
+
+    /// How many readers are listening right now. FOR TESTS AND FOR A DIAGNOSTIC
+    /// LINE, not for a decision: a transport that stopped publishing because
+    /// nobody was listening would be a transport whose behaviour depends on who
+    /// is watching it.
+    public var readerCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return readers.count
+    }
+
+    /// A stream of every state published from now on.
+    ///
+    /// STATES PUBLISHED BEFORE THIS CALL ARE NOT REPLAYED. There is no
+    /// last-value cache here on purpose: a card that opened and immediately
+    /// showed a state from four minutes ago would be showing a duck that has
+    /// since fallen over, and `DuckState.isStale(now:after:)` exists because
+    /// that distinction is the value's own business rather than this type's.
+    public func states() -> AsyncStream<DuckState> {
+        AsyncStream(DuckState.self, bufferingPolicy: .unbounded) { continuation in
+            let token = register(continuation)
+            continuation.onTermination = { [weak self] _ in
+                self?.remove(token)
+            }
+        }
+    }
+
+    /// Hand a state to everyone listening.
+    public func publish(_ state: DuckState) {
+        lock.lock()
+        if finished {
+            lock.unlock()
+            return
+        }
+        let listening = Array(readers.values)
+        lock.unlock()
+        for continuation in listening { continuation.yield(state) }
+    }
+
+    /// End every stream, and refuse to start another.
+    ///
+    /// WHAT A CLOSED LINK MEANS FOR A READER. A `for await` that simply stops
+    /// producing looks exactly like a duck standing still; one that ends tells
+    /// the loop the link is gone and lets the screen say so. So a transport
+    /// that knows its connection died calls this rather than going quiet, and
+    /// once called this fan-out stays closed — a stream handed out after the
+    /// link died would be a stream that never yields and never ends.
+    public func finish() {
+        lock.lock()
+        let listening = Array(readers.values)
+        readers.removeAll()
+        finished = true
+        lock.unlock()
+        for continuation in listening { continuation.finish() }
+    }
+
+    /// True once `finish()` has been called.
+    public var isFinished: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return finished
+    }
+
+    private func register(_ continuation: AsyncStream<DuckState>.Continuation) -> Token {
+        lock.lock()
+        let token = nextToken
+        nextToken += 1
+        if finished {
+            lock.unlock()
+            // A stream taken after the link ended ends immediately rather than
+            // hanging: the reader finds out, in the only way a stream can say
+            // anything.
+            continuation.finish()
+            return token
+        }
+        readers[token] = continuation
+        lock.unlock()
+        return token
+    }
+
+    private func remove(_ token: Token) {
+        lock.lock()
+        readers.removeValue(forKey: token)
+        lock.unlock()
     }
 }

@@ -20,7 +20,31 @@ import Foundation
 /// AN ADDRESS IS VALIDATED BY `DuckBench.address` AND NOWHERE ELSE. Two parsers
 /// for one address is how a screen accepts something the client then refuses,
 /// and the refusals it throws already say what is wrong in a sentence.
+///
+/// AND ONE OF THEM IS NOT ON THE NETWORK AT ALL. `kind` exists because this
+/// phone now has a bench of its own — MuJoCo compiled to WebAssembly, running
+/// in a WebView the app keeps alive, answering the same endpoints on a loopback
+/// port. Everything the saved list does to a network bench is wrong for that
+/// one: it has no address to type, no token to hold, nothing to delete, and
+/// persisting it would write down a port number that is different on the next
+/// launch. So it is a case rather than a flag, the switch is exhaustive, and a
+/// third kind is a compile error rather than a row that quietly behaves like a
+/// Pi on a desk.
 public struct BenchEndpoint: Equatable, Sendable, Codable, Identifiable {
+
+    /// Which machine is running the physics.
+    ///
+    /// DECODED WITH A DEFAULT OF `.network`, and that default is the whole
+    /// reason this is a `String` enum and not a `Bool`. Every bench already
+    /// saved on somebody's phone was written before this field existed; a
+    /// record without it is a machine on their network, which is what they
+    /// typed in, and the alternative — a decode that throws on the missing key
+    /// — would empty the whole list through `decodeList`'s salvage and read
+    /// from the other side as the app having forgotten their benches.
+    public enum Kind: String, Codable, Sendable {
+        case network
+        case thisPhone
+    }
 
     public var id: UUID
     public var name: String
@@ -29,23 +53,98 @@ public struct BenchEndpoint: Equatable, Sendable, Codable, Identifiable {
     /// Set when a token lives in the Keychain for this id. The token itself is
     /// never encoded.
     public var hasToken: Bool
+    public var kind: Kind
 
     /// Present only on an ARMED copy, on its way to a request. Never encoded.
     public var token: String?
 
     public init(id: UUID = UUID(), name: String, address: String,
-                hasToken: Bool = false, token: String? = nil) {
+                hasToken: Bool = false, token: String? = nil,
+                kind: Kind = .network) {
         self.id = id; self.name = name; self.address = address
-        self.hasToken = hasToken; self.token = token
+        self.hasToken = hasToken; self.token = token; self.kind = kind
     }
 
-    private enum CodingKeys: String, CodingKey { case id, name, address, hasToken }
+    private enum CodingKeys: String, CodingKey { case id, name, address, hasToken, kind }
+
+    /// HAND-WRITTEN FOR ONE KEY. The synthesized decoder throws when `kind` is
+    /// absent, and absent is what every record written before this field looks
+    /// like. `decodeIfPresent` is the difference between "an older bench is a
+    /// network bench" and "an older bench is gone".
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        address = try container.decode(String.self, forKey: .address)
+        hasToken = try container.decode(Bool.self, forKey: .hasToken)
+        kind = (try? container.decode(Kind.self, forKey: .kind)) ?? .network
+        token = nil
+    }
+
+    // MARK: - the bench that is this phone
+
+    /// The one bench that is not somewhere else.
+    ///
+    /// THE ID IS A CONSTANT AND THAT IS LOAD-BEARING. `BenchStore.selectedID`
+    /// is persisted, and every screen that remembers "the bench I was using"
+    /// remembers a UUID — so a phone bench built with a fresh `UUID()` on each
+    /// launch would be selected once and then be a different bench in the
+    /// morning, with the selection pointing at nothing. `DC0C` is `duck` in the
+    /// only hexadecimal that spells it.
+    ///
+    /// THE PORT IS A LIE UNTIL THE APP FILLS IT IN. A loopback listener is
+    /// given its port by the kernel at bind time, so `0` here means "not
+    /// listening yet" and `servedOn(port:)` is how the app says otherwise.
+    /// `resolved()` refuses the zero with its own sentence rather than letting
+    /// `127.0.0.1:0` fall through the address parser and come back as
+    /// "not on your network", which would be true of nothing and confusing to
+    /// everyone.
+    public static let thisPhone = BenchEndpoint(
+        id: UUID(uuidString: "00000000-0000-0000-0000-00000000DC0C")!,
+        name: PhoneBenchReport.name,
+        address: "127.0.0.1:0",
+        hasToken: false,
+        kind: .thisPhone)
+
+    /// Whether this is the bench inside the app.
+    public var isThisPhone: Bool { kind == .thisPhone }
+
+    /// Whether a person may open this one in the editor.
+    ///
+    /// FALSE FOR THE PHONE, AND THE SCREEN OBEYS IT RATHER THAN CHECKING THE
+    /// KIND ITSELF. There is nothing on the phone bench to edit — no address
+    /// somebody transcribed, no token, no name worth changing — and a form that
+    /// opens on it would be four fields that cannot do anything, which is the
+    /// enabled-and-inert control this app is built not to ship.
+    public var isEditable: Bool { kind == .network }
+
+    /// The loopback port the app is actually listening on, or nil before it is.
+    public var phoneBenchPort: Int? {
+        guard kind == .thisPhone,
+              let colon = address.lastIndex(of: ":"),
+              let port = Int(address[address.index(after: colon)...]),
+              port > 0 else { return nil }
+        return port
+    }
+
+    /// The same bench, with the port the app's listener actually got.
+    ///
+    /// A NO-OP ON ANYTHING ELSE, on purpose: a network bench's address is
+    /// somebody's typing and nothing here may rewrite it.
+    public func servedOn(port: Int) -> BenchEndpoint {
+        guard kind == .thisPhone else { return self }
+        var out = self
+        out.address = "127.0.0.1:\(port)"
+        return out
+    }
 
     // MARK: - refusing a bad one
 
     public enum Refusal: Error, Equatable, Sendable {
         case emptyName
         case address(DuckBench.Refusal)
+        /// The phone's own bench, asked for before its listener came up.
+        case phoneBenchNotListening
 
         public var message: String {
             switch self {
@@ -54,6 +153,8 @@ public struct BenchEndpoint: Equatable, Sendable, Codable, Identifiable {
                      + "being enough to tell them apart."
             case .address(let refusal):
                 return refusal.message
+            case .phoneBenchNotListening:
+                return PhoneBenchReport.notListening
             }
         }
     }
@@ -73,15 +174,23 @@ public struct BenchEndpoint: Equatable, Sendable, Codable, Identifiable {
     /// only moment anybody wants it. A check that first demanded a name would
     /// refuse the exact case it exists for.
     public func validateAddress() throws {
-        do {
-            _ = try DuckBench.address(address)
-        } catch let refusal as DuckBench.Refusal {
-            throw Refusal.address(refusal)
-        }
+        _ = try resolved()
     }
 
     /// The parsed address, for a caller that is about to build a request.
+    ///
+    /// THE PHONE TAKES THE SHORT WAY OUT, and it is not laziness. Its address
+    /// is written by the app from a port the kernel handed it, so there is no
+    /// typing to validate — and the one thing that CAN be wrong with it, that
+    /// the listener is not up, has nothing to do with what `DuckBench.address`
+    /// knows how to say. Run through that parser, `127.0.0.1:0` comes back as
+    /// `notLocal("127.0.0.1:0")` — a sentence telling somebody their own phone
+    /// is not on their network, about an address they never typed.
     public func resolved() throws -> DuckBench.Address {
+        if kind == .thisPhone {
+            guard let port = phoneBenchPort else { throw Refusal.phoneBenchNotListening }
+            return DuckBench.Address(host: "127.0.0.1", port: port)
+        }
         do {
             return try DuckBench.address(address)
         } catch let refusal as DuckBench.Refusal {

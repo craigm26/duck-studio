@@ -438,7 +438,8 @@ struct DriveView: View {
     /// `TelemetryRow` gives each one a label that never changes beside a value
     /// that does, and stacks the pair instead of truncating the number.
     @ViewBuilder private var telemetry: some View {
-        StateBadge(text: duckWord, state: duckState)
+        // `.render`: the readout is over the viewport, not on a card.
+        StateBadge(text: duckWord, state: duckState, ground: .render)
         if let live {
             TelemetryRow(label: "Sim clock",
                          value: String(format: "%.2f", live.t), unit: "s")
@@ -766,7 +767,7 @@ struct DriveView: View {
                         Label("Set up a bench", systemImage: "plus.circle")
                     }
                 } footer: {
-                    Text("A phone has no physics engine, so there is nothing here to drive until a machine that has one is on your network.")
+                    Text("Pick a bench to drive against. This iPhone is one; a machine on your network is another.")
                         .foregroundStyle(Theme.textSecondary)
                 }
                 .listRowBackground(Theme.surfacePrimary)

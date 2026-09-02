@@ -470,7 +470,7 @@ struct IntentListView: View {
         } header: {
             SectionHeading(text: "Written here")
         } footer: {
-            sectionFootnote("Poses and times, interpolated. A phone has no physics engine, so this is what you asked the robot for — not what it would do. Every authored move already in this app was written the same way, and all four stair ones get up their flight 0 times in 16.\n\nFetch something is different: it writes no poses at all. Retrieval composes policies the robot already has — walk, ground pick, and the one servo no network drives — so a sentence there becomes a plan, not a keyframe track.")
+            sectionFootnote("Poses and times, interpolated. A preview is what you asked the robot for, not what it would do; a run on a bench — this iPhone's or one on your network — is what physics does with it. Every authored move already in this app was written the same way, and all four stair ones get up their flight 0 times in 16.\n\nFetch something is different: it writes no poses at all. Retrieval composes policies the robot already has — walk, ground pick, and the one servo no network drives — so a sentence there becomes a plan, not a keyframe track.")
         }
     }
 
@@ -559,7 +559,7 @@ struct IntentListView: View {
         } header: {
             SectionHeading(text: "Sim to real")
         } footer: {
-            sectionFootnote("What has actually happened to each motion. A preview on this phone is NOT a run — an iPhone has no physics engine, so what it draws is what you asked for. Point the app at a bench and this becomes a real result the draft keeps.")
+            sectionFootnote("What has actually happened to each motion. A preview is NOT a run: it draws what you asked for. Run it on a bench — this iPhone's or one on your network — and this becomes a real result the draft keeps.")
         }
     }
 
@@ -812,7 +812,41 @@ struct IntentPlayerView: View {
     /// without doing the same.
     @ObservedObject var models: EndpointStore
 
-    @State private var remixed: DraftID?
+    /// The one sheet this screen can have up, and which one it is.
+    ///
+    /// ONE OPTIONAL, BECAUSE TWO CANNOT BOTH BE NIL BY ACCIDENT. This screen had
+    /// `.sheet(item: $outgoing)` and `.sheet(item: $remixed)` chained on the
+    /// same view, which is SwiftUI's oldest trap: a view presents ONE sheet, and
+    /// two modifiers on one view are not two slots — the second wins, and which
+    /// one that is depends on modifier order rather than on anything a reader
+    /// can see. Nothing kept the two `@State`s from both being set, either; the
+    /// menu could not do it today, but the next menu item added here could, and
+    /// the symptom would be a share sheet that silently does not open.
+    ///
+    /// AN ENUM MAKES IT ARITHMETIC RATHER THAN DISCIPLINE. There is one slot,
+    /// setting it replaces whatever was there, and adding a third kind of sheet
+    /// is a case the compiler asks about.
+    private enum Presented: Identifiable {
+        /// A packaged motion and the message that goes with it.
+        case share(Outgoing)
+        /// A new draft made from this clip, opened in the editor.
+        case remix(DraftID)
+
+        /// PREFIXED, BECAUSE TWO KINDS OF THING SHARE ONE ID SPACE NOW. A
+        /// `DraftID`'s UUID and an `Outgoing`'s file URL could not collide in
+        /// practice, but `Identifiable` here is what SwiftUI uses to decide
+        /// whether the sheet CHANGED — and an id that does not encode which
+        /// case it came from is an id that says a remix and a share are the
+        /// same presentation.
+        var id: String {
+            switch self {
+            case .share(let out): return "share:\(out.id)"
+            case .remix(let draft): return "remix:\(draft.id)"
+            }
+        }
+    }
+
+    @State private var presented: Presented?
     @State private var playhead: TimeInterval = 0
     @State private var isRunning = true
     @State private var orbit = OrbitState()
@@ -827,7 +861,6 @@ struct IntentPlayerView: View {
         guard let elsewhereID else { return nil }
         return store.scenes.first { $0.id == elsewhereID }
     }
-    @State private var outgoing: Outgoing?
     @State private var shareFailure: String?
     @State private var panel: Panel = .story
 
@@ -869,11 +902,11 @@ struct IntentPlayerView: View {
         do {
             let data = try export.encoded()
             let url = try ExportFile.write(data, named: export.suggestedFilename)
-            outgoing = Outgoing(
+            presented = .share(Outgoing(
                 url: url,
                 message: CommunityShare.message(
                     forIntent: export,
-                    outcome: (try? DuckIntentSuccess.bundled())?[clip.name]))
+                    outcome: (try? DuckIntentSuccess.bundled())?[clip.name])))
         } catch let error as ExportFile.Failure {
             shareFailure = error.message
         } catch {
@@ -991,7 +1024,7 @@ struct IntentPlayerView: View {
                             // the failure this app minds most.
                             let draft = IntentDraft.remix(clip)
                             drafts.save(draft)
-                            remixed = DraftID(id: draft.id, isNew: true)
+                            presented = .remix(DraftID(id: draft.id, isNew: true))
                         } label: {
                             Label("Remix into a new motion", systemImage: "wand.and.stars")
                         }
@@ -1004,37 +1037,42 @@ struct IntentPlayerView: View {
                 }
             }
         }
-        .sheet(item: $outgoing) { out in
-            NavigationStack {
-                ShareDestinationsView(title: clip.name, file: out.url, message: out.message)
+        // ONE SHEET MODIFIER, TWO KINDS OF SHEET. See `Presented`: two
+        // `.sheet(item:)` calls on one view are not two slots, and the one that
+        // wins is decided by modifier order.
+        .sheet(item: $presented) { what in
+            switch what {
+            case .share(let out):
+                NavigationStack {
+                    ShareDestinationsView(title: clip.name, file: out.url, message: out.message)
+                }
+            case .remix(let wrapper):
+                NavigationStack {
+                    // `store` and `drafts` are both required to get here — the
+                    // menu item that sets `.remix` only exists when they are
+                    // present — so this asks for them rather than manufacturing
+                    // a throwaway SceneStore on every render, which is what the
+                    // first version did and which quietly gave the remix editor
+                    // a different set of scenes from the rest of the app.
+                    if let drafts,
+                       let current = drafts.drafts.first(where: { $0.id == wrapper.id }) {
+                        IntentAuthorView(
+                            draft: current, scenes: store, models: models,
+                            isNew: wrapper.isNew,
+                            onSave: { drafts.save($0) },
+                            onDiscard: { doomed in
+                                presented = nil
+                                drafts.delete(doomed)
+                            })
+                            .onDisappear { drafts.flush() }
+                    }
+                }
             }
         }
         .alert("Could not share", isPresented: Binding(
             get: { shareFailure != nil }, set: { if !$0 { shareFailure = nil } })) {
             Button("OK", role: .cancel) {}
         } message: { Text(shareFailure ?? "") }
-        .sheet(item: $remixed) { wrapper in
-            NavigationStack {
-                // `store` and `drafts` are both required to get here — the menu
-                // item that sets `remixed` only exists when they are present —
-                // so this asks for them rather than manufacturing a throwaway
-                // SceneStore on every render, which is what the first version
-                // did and which quietly gave the remix editor a different set
-                // of scenes from the rest of the app.
-                if let drafts,
-                   let current = drafts.drafts.first(where: { $0.id == wrapper.id }) {
-                    IntentAuthorView(
-                        draft: current, scenes: store, models: models,
-                        isNew: wrapper.isNew,
-                        onSave: { drafts.save($0) },
-                        onDiscard: { doomed in
-                            remixed = nil
-                            drafts.delete(doomed)
-                        })
-                        .onDisappear { drafts.flush() }
-                }
-            }
-        }
         .onAppear {
             if cachedMetrics == nil {
                 cachedMetrics = RunMetrics(clip: clip, success: try? DuckIntentSuccess.bundled())
@@ -1532,7 +1570,7 @@ struct TransportBar: View {
                     // 44pt, the floor. These were roughly 20pt glyphs with no
                     // frame — under half the minimum, on the two controls a
                     // person taps most while watching a recording.
-                    .frame(minWidth: 44, minHeight: 44)
+                    .frame(minWidth: DesignMetric.minimumTarget, minHeight: DesignMetric.minimumTarget)
                     .contentShape(Rectangle())
             }
             // The name follows the symbol, because this one button is both
@@ -1541,7 +1579,7 @@ struct TransportBar: View {
             .accessibilityLabel(Text(isRunning ? "Pause" : "Play"))
             Button { playhead = 0; isRunning = true } label: {
                 Image(systemName: "arrow.counterclockwise")
-                    .frame(minWidth: 44, minHeight: 44)
+                    .frame(minWidth: DesignMetric.minimumTarget, minHeight: DesignMetric.minimumTarget)
                     .contentShape(Rectangle())
             }
             .accessibilityLabel(Text("Restart"))

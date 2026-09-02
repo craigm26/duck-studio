@@ -217,7 +217,11 @@ public enum DuckPad {
         /// TELEMETRY ONLY. The other five are for somebody asking a question
         /// about a policy; leading with all six is a windscreen covered in
         /// instruments.
-        public static let defaults: Set<Layer> = [.telemetry]
+        // NOTHING ON BY DEFAULT, BECAUSE THE DUCK COMES FIRST. Telemetry was on
+        // by default and the HUD that carries it covered about half of a
+        // 300-point stage on the one screen that moves a robot — the same
+        // occlusion build 42 fixed on the legend. The chips are one tap away.
+        public static let defaults: Set<Layer> = []
     }
 
     /// Joints within this angle of a stop count as "near a limit".

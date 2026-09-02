@@ -128,9 +128,12 @@ struct SceneListView: View {
                     editing = SceneID(id: corridor.id)
                 } label: { Label("A corridor", systemImage: "rectangle.split.3x1") }
             } header: {
-                Text("Start from")
+                SectionHeading(text: "Start from")
             } footer: {
-                Text("The staircase starts at \(Int(DuckScene.measuredStepCeiling * 1000)) mm a step, because that is what the robot has been measured to clear. Raise it and the editor will say so.")
+                // THE KIT'S SENTENCE, because the one that was here — "that is what the
+                // robot has been measured to clear" — was false: nothing has been
+                // measured to clear 10 mm, and the check cannot see a step that small.
+                Text(StepCeiling.current.editorSentence)
                     .foregroundStyle(Theme.textSecondary)
             }
             .listRowBackground(Theme.surfacePrimary)
@@ -271,7 +274,7 @@ struct SceneEditorView: View {
             stage
             List {
                 if !scene.problems.isEmpty {
-                    Section("Before you use this") {
+                    Section {
                         ForEach(Array(scene.problems.enumerated()), id: \.offset) { _, problem in
                             // THE SEVERITY IS A WORD BEFORE IT IS A COLOUR, on
                             // the same argument the list row makes: broken and
@@ -298,11 +301,13 @@ struct SceneEditorView: View {
                             }
                             .accessibilityElement(children: .combine)
                         }
+                    } header: {
+                        SectionHeading(text: "Before you use this")
                     }
                     .listRowBackground(Theme.surfacePrimary)
                 }
 
-                Section("Scene") {
+                Section {
                     TextField("Name", text: $typed)
                     if let refusal = SceneName.refusal(typed, keeping: scene.name) {
                         // A REFUSAL, IN THE REFUSAL COLOUR. `Theme.refused` is
@@ -318,6 +323,8 @@ struct SceneEditorView: View {
                     Text(scene.provenance).font(.caption)
                         .foregroundStyle(Theme.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
+                } header: {
+                    SectionHeading(text: "Scene")
                 }
                 .listRowBackground(Theme.surfacePrimary)
 
@@ -333,7 +340,7 @@ struct SceneEditorView: View {
                                                  halfHeight: max(0.10, next)))
                     } label: { Label("Add a step", systemImage: "plus") }
                 } header: {
-                    Text("Steps")
+                    SectionHeading(text: "Steps")
                 } footer: {
                     Text("Height is the top face, above the floor. A new step is added one \(Int(DuckScene.measuredStepCeiling * 1000)) mm rise above the tallest one already there.")
                         .foregroundStyle(Theme.textSecondary)
@@ -349,7 +356,7 @@ struct SceneEditorView: View {
                         scene.walls.append(.init(x: 0, y: 0.6))
                     } label: { Label("Add a wall", systemImage: "plus") }
                 } header: {
-                    Text("Walls")
+                    SectionHeading(text: "Walls")
                 }
                 .listRowBackground(Theme.surfacePrimary)
 
@@ -366,7 +373,7 @@ struct SceneEditorView: View {
                         Label("Add something to pick up", systemImage: "plus")
                     }
                 } header: {
-                    Text("Things in it")
+                    SectionHeading(text: "Things in it")
                 } footer: {
                     Text("Steps and walls are what a motion is judged AGAINST — you fall off them. A prop is what a motion is FOR. Every number here describes YOUR object, not the robot: what it weighs and how thick it is decide whether the job is possible, and the robot's own limits are measured and live elsewhere.")
                         .foregroundStyle(Theme.textSecondary)

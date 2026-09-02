@@ -127,4 +127,54 @@ final class PolicyLibraryTests: XCTestCase {
         XCTAssertEqual(library.entries.count, 2)
         XCTAssertEqual(library.runnableCount, 1)
     }
+
+    // MARK: - a policy this phone made
+
+    /// A FOURTH ORIGIN, BECAUSE IT ANSWERS A QUESTION THE OTHER THREE CANNOT.
+    /// Everything else in the library arrived from somewhere and its weights
+    /// were somebody's before they were here. A tuned policy was made on this
+    /// phone: nobody else has its digest, and only the residual is the person's
+    /// own — which is what the caveat has to say.
+    func testATunedOriginSaysWhoMadeItAndWhatIsStillSomebodyElses() {
+        let origin = PolicyLibrary.Origin.tuned(base: "alpha_walking.onnx")
+        XCTAssertEqual(origin.label, "Tuned here from alpha_walking.onnx")
+        XCTAssertEqual(origin.author, "you")
+        let caveat = XCTUnwrapOrEmpty(origin.caveat)
+        XCTAssertTrue(caveat.contains("Nothing was trained"))
+        XCTAssertTrue(caveat.contains("the walk is still the base policy's"))
+        XCTAssertTrue(caveat.contains("never run on hardware"))
+        // AND ONLY THIS ORIGIN CARRIES ONE. A caveat on every row is a caveat
+        // nobody reads.
+        for other in [PolicyLibrary.Origin.bundled, .imported, .fetched(host: "huggingface.co")] {
+            XCTAssertNil(other.caveat)
+            XCTAssertNotEqual(other.author, "you")
+        }
+    }
+
+    /// IT SORTS LAST, WHICH IS ALSO NEWEST — the one kind of entry that did not
+    /// exist at the previous launch belongs where somebody will look for a
+    /// thing they just made.
+    func testATunedPolicySortsAfterEverythingThatArrived() {
+        XCTAssertTrue(PolicyLibrary.Origin.bundled < .tuned(base: "a"))
+        XCTAssertTrue(PolicyLibrary.Origin.imported < .tuned(base: "a"))
+        XCTAssertTrue(PolicyLibrary.Origin.fetched(host: "zzz.example") < .tuned(base: "a"))
+        XCTAssertTrue(PolicyLibrary.Origin.tuned(base: "a") < .tuned(base: "b"))
+    }
+
+    /// THE ONE ENTRY THAT EXISTS NOWHERE ELSE. A bundled file comes back with
+    /// the app and a fetched one comes back off a server; this was produced by
+    /// a search on this phone and deleting it is deleting the only copy.
+    func testRemovingATunedPolicyWarnsThatItIsTheOnlyCopy() {
+        let entry = PolicyLibrary.Entry(
+            displayName: "tuned-abc123.onnx",
+            origin: .tuned(base: "alpha_walking.onnx"),
+            identity: .parameters("abc123"), byteCount: 791_584,
+            report: PolicyReport.of(Data(), name: "tuned-abc123.onnx"))
+        XCTAssertTrue(entry.isRemovable)
+        XCTAssertTrue(entry.removalWarning.contains("only copy there has ever been"))
+        XCTAssertTrue(entry.removalWarning.contains("alpha_walking.onnx"),
+                      "and it names what it was made from, which is the reproducible half")
+    }
+
+    private func XCTUnwrapOrEmpty(_ text: String?) -> String { text ?? "" }
 }

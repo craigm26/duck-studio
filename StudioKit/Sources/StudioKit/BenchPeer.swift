@@ -1,4 +1,5 @@
 import Foundation
+import DuckKit
 
 /// The physics bench, answering the robot's own vocabulary.
 ///
@@ -311,18 +312,26 @@ public actor BenchPeer: DuckPeer {
         try vet(c, asNotification: false)
         lastID += 1
         let id = lastID
-        // THE LINE IS BUILT AND THROWN AWAY, ON PURPOSE. This transport posts
-        // JSON over HTTP and never writes an NDJSON line, but building one is
-        // how the package's single finiteness check gets run before a NaN
-        // reaches `JSONSerialization` — which on Darwin raises rather than
-        // throws, so an unchecked NaN twist is a crash and not an error. The
-        // alternative was a second copy of the check here, disagreeing with the
-        // first one eventually.
+        // THE LINE IS BUILT AND THROWN AWAY, ON PURPOSE — AND IT CHECKS NO
+        // NUMBERS HERE, WHICH IS WHAT THIS COMMENT USED TO CLAIM IT DID. It
+        // said the build was how "the package's single finiteness check gets
+        // run" on the twist. It is not, not on this path: by the time this line
+        // runs, `refusal(for:)` has thrown for head, look, enable, initPose and
+        // relax, and `vet` has thrown for `move` as sent the wrong way round,
+        // so the only calls that reach here are `hello`, `stop` and `state` —
+        // none of which carries a number at all. The finiteness check that
+        // matters is the identical build in `notify`, which is the one path a
+        // twist travels, and the hold's is in `init` — see
+        // `Misuse.holdIsNotANumber`. A comment claiming a guard that a NaN
+        // never passes through is worse than no comment: it is the reason
+        // somebody skips looking for the real one.
         //
-        // IT CHECKS THE TWIST AND NOT THE HOLD, because the hold is not in the
-        // line: `robot.move` takes vx, vy and vyaw, and the hold is duckbench's
-        // own field on `POST /intent`. So it is checked at the only other door
-        // a number comes in by, which is `init` — see `Misuse.holdIsNotANumber`.
+        // WHAT THE BUILD STILL EARNS: every call this peer accepts is a call
+        // that could have been written as a line, checked by the same builder
+        // every other transport uses. When `refusal(for:)` shrinks — a bench
+        // that grows a head endpoint — a twist-bearing call arrives here and is
+        // already covered, rather than arriving at a path that never checked
+        // anything.
         _ = try c.line(id: id)
 
         switch c {
@@ -399,6 +408,13 @@ public actor BenchPeer: DuckPeer {
         do {
             let state = try DuckDrive.readLive(answered)
             live = state
+            // ONE SYNTHESISED STATE PER ROUND TRIP, AND NOT ONE MORE. The
+            // bench's world only advances inside a request, so this is the only
+            // moment at which anything about the duck can have changed; a timer
+            // publishing between requests would be republishing the same
+            // physics with a fresh timestamp, which is a stream that reports a
+            // frozen duck as a live one.
+            fan.publish(Self.synthesised(from: state, receivedAt: Date()))
             return DuckReply(id: id, result: try Self.stateResult(state), failure: nil)
         } catch DuckBench.ReadError.bench(let said) {
             return DuckReply(id: id, result: nil,
@@ -444,6 +460,93 @@ public actor BenchPeer: DuckPeer {
 
     /// The code on a refusal the bench sent no code with. See `advance`.
     private let benchSaidNoCode = 0
+
+    // MARK: - the state stream, and what a bench can honestly put in one
+
+    private nonisolated let fan = DuckStateFanOut()
+
+    /// One `DuckState` per round trip. See `benchStateIsSynthesised`.
+    ///
+    /// NOTHING ARRIVES BETWEEN REQUESTS, WHICH IS THE SHAPE OF THIS PEER RATHER
+    /// THAN A LIMITATION OF THIS STREAM. A real duck pushes `robot.state` at the
+    /// loop rate whether or not anybody is driving; a bench has nothing to say
+    /// until something asks it to advance physics. So a screen holding this
+    /// stream and no driving loop sees nothing at all, correctly — and
+    /// `DeviceCard.Presence` is where the sentence for that lives, because a
+    /// silent stream and a dead link look the same from here.
+    public nonisolated func states() -> AsyncStream<DuckState> { fan.states() }
+
+    /// The sentence that must be shown wherever one of these states is.
+    ///
+    /// A ROBOT'S STATE IS A MEASUREMENT AND THIS IS A TRANSLATION. `robot.state`
+    /// is telemetry a daemon assembles from sensors it owns; this is one state
+    /// block from `/intent` rearranged into the same struct, so anything the
+    /// bench does not measure is nil rather than plausible. That is not a
+    /// disclaimer about accuracy — the geometry is right — it is a statement
+    /// about which fields exist at all. A screen that showed one of these beside
+    /// a hardware one without this sentence would be inviting the comparison
+    /// `DuckMeasurement.compare` refuses outright.
+    public static let benchStateIsSynthesised =
+        "This state was assembled by the app from a bench's reply, not reported by a robot. The "
+      + "bench answers /intent with a pose and a height, and everything a robot's own state "
+      + "carries that physics cannot measure is left empty rather than filled in: no battery, "
+      + "because there is no cell; no torque reading, because there are no servos to be limp; no "
+      + "loop rate or missed deadlines, because the world advances inside a request instead of on "
+      + "a control loop. What is here is the fall — upright, inverted — and the twist the bench "
+      + "believes it was last told."
+
+    /// A bench's reply, as the state struct a robot fills in, with every field
+    /// a bench cannot measure left nil.
+    ///
+    /// FIELD BY FIELD, AND EACH ABSENCE IS AN ARGUMENT:
+    ///
+    /// `safety.fallen` is `!upright`, which is the one honest translation in
+    /// here — the bench reports whether the trunk is upright and a fall is
+    /// exactly its negation. `safety.limp` is nil: torque off is a servo state,
+    /// and a position-servo approximation has nothing that can go slack.
+    ///
+    /// `battery` is nil, and it is nil the way `DuckBattery` is nil — a
+    /// percentage for a simulation is not approximate, it is INVENTED.
+    ///
+    /// `loop` is nil. `/health` reports a tick rate for the WORLD, which is not
+    /// the robot's control loop, and `missed` is a count of deadlines a bench
+    /// has no deadlines to miss. Putting the world's 50 in `loop.hz` would make
+    /// a simulator look like a robot whose loop is keeping up.
+    ///
+    /// `odom` is nil, AND THIS IS THE ONE SOMEBODY WILL WANT TO FILL. The bench
+    /// answers with the duck's true position, which is more than a robot knows:
+    /// odometry is dead reckoning, and `DuckState.Odometry`'s own note is that
+    /// it drifts and that nobody has measured how much. Ground truth in an
+    /// odometry field would make a drift-free simulator read as a
+    /// perfectly-calibrated robot, which is the single most flattering lie this
+    /// file could tell.
+    ///
+    /// `move.requested` is the twist, because that is precisely what the bench
+    /// reports — `DuckDrive.readLive` reads it out of the answer's `command`
+    /// member, which is what the bench believes it was last TOLD. `applied` is
+    /// nil for the same reason: nothing here measures what the policy did with
+    /// it, and the gap between the two is the interesting part.
+    ///
+    /// `policy` travels, because the bench names the network it is running and
+    /// that is the same string a robot's state carries.
+    ///
+    /// `receivedAt` IS A PARAMETER, NOT A `Date()` IN HERE. This package does
+    /// not read clocks where a test would have to race one, and the bench's own
+    /// `t` cannot stand in: it is sim seconds, `clock: sim`, and a screen that
+    /// treated it as elapsed real time would be wrong by a factor nobody
+    /// controls.
+    public static func synthesised(from live: DuckDrive.Live, receivedAt: Date) -> DuckState {
+        DuckState(
+            policy: live.policy,
+            safety: DuckState.Safety(fallen: !live.upright, limp: nil),
+            loop: nil,
+            battery: nil,
+            odom: nil,
+            move: DuckState.Move(requested: [live.command.vx, live.command.vy,
+                                             live.command.vyaw],
+                                 applied: nil, limitedBy: nil),
+            receivedAt: receivedAt)
+    }
 
     /// The state block, as the members a `DuckReply` caller can read back.
     ///

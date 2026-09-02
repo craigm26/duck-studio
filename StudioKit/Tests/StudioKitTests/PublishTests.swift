@@ -187,8 +187,36 @@ final class PublishTests: XCTestCase {
                        ["README.md", "little-bow.json", "meta/manifest.json"])
         XCTAssertTrue(publication.files.allSatisfy(\.isText), "all three are readable text")
         XCTAssertGreaterThan(publication.totalBytes, 200)
+        // NOT BECAUSE THE APP CANNOT MAKE ONE ANY MORE. `PolicyBlend` writes a
+        // network and `DuckTuner` writes another; the reason a MOTION
+        // repository carries none is that a motion is not a policy, and an
+        // `.onnx` sitting beside one would tell an importer that the keyframes
+        // came with a network to drive them.
         XCTAssertFalse(publication.files.contains { $0.path.hasSuffix(".onnx") },
-                       "this app trains nothing and must never publish a network")
+                       "a motion repository is keyframes; a network beside them would be read "
+                     + "as the policy that plays them")
+    }
+
+    /// THE CLAIM ABOUT CAPABILITY, PINNED. `Provenance` exists because a
+    /// sentence that lives only in a comment is believed and never rendered,
+    /// and "this app trains nothing" was exactly that sentence for months. It
+    /// is published now, so it is asserted.
+    func testTrainsNothingSaysTheNarrowTrueThing() {
+        let claim = MotionPublication.trainsNothing
+        XCTAssertTrue(claim.contains("trains no network"),
+                      "the claim is about training and nothing else")
+        XCTAssertTrue(claim.contains("computes no gradient"),
+                      "which is the checkable form of it")
+        // AND IT MUST NOT CLAIM THE APP CANNOT WRITE A NETWORK, because it can,
+        // twice. A sentence that said so would be false the moment somebody
+        // blended two policies or tuned one — and would be quoted on the card
+        // of the very file that disproved it.
+        XCTAssertFalse(claim.lowercased().contains("cannot write"),
+                       "it can write one; what it cannot do is learn one")
+        XCTAssertTrue(claim.contains("fold a per-joint gain and trim"),
+                      "and it names the operation that made this rewording necessary")
+        XCTAssertTrue(claim.contains("somebody else's optimiser found"),
+                      "the credit goes where the walk came from")
     }
 
     /// THE TEST FOR LOADABILITY. Pollen's `RecordedMoves.process()` globs

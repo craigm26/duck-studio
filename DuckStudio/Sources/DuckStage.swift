@@ -864,7 +864,11 @@ struct StageLegend: View {
     /// — so the only thing decided here is which of two words to draw.
     @ViewBuilder private var feet: some View {
         if let ground {
-            StateBadge(text: ground.wrong ? "Floating" : "Standing", state: .idle)
+            // `.render`: the legend is a strip along the bottom edge of the
+            // stage and reads as part of the picture, so the badge keeps its
+            // pill and stays one value rather than a line in a column.
+            StateBadge(text: ground.wrong ? "Floating" : "Standing", state: .idle,
+                       ground: .render)
         }
     }
 
@@ -1023,7 +1027,11 @@ struct StageLegend: View {
                     .accessibilityLabel(Text(Self.spokenGestures))
             }
         }
-        .padding(Theme.spacing(.snug))
+        // TIGHT PADDING, BECAUSE THE ROW IS ALREADY 44 POINTS: the two chips set its
+        // height, and snug padding inside and out put a 92-point strip over a
+        // 300-point stage — over the quarter the rule allows. Tight brings it
+        // to 76, and nothing in the row is smaller than its floor.
+        .padding(Theme.spacing(.tight))
         // FULL WIDTH, NEVER TALL. Width is free — the duck is centred and a strip
         // along the bottom edge does not reach it; height is what covers a
         // robot, and the collapsed row is one badge, one number and two chips.
@@ -1034,7 +1042,7 @@ struct StageLegend: View {
         .background(Theme.surfacePrimary, in: panel)
         .overlay(panel.strokeBorder(Theme.separator,
                                     lineWidth: StageMetric.hairlineStroke))
-        .padding(Theme.spacing(.snug))
+        .padding(Theme.spacing(.tight))
     }
 
     /// The one number the collapsed row keeps: how high the trunk is. Height is

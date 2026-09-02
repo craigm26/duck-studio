@@ -126,6 +126,7 @@ struct PolicyListView: View {
             }
             retrain
             discover
+            independence
         }
         .scrollContentBackground(.hidden)
         // THE RECESSED GROUND, WHICH IS WHAT THIS TOKEN IS FOR. Grouped
@@ -354,14 +355,17 @@ struct PolicyListView: View {
     /// would be the inert control the rule forbids, wearing an apology it has
     /// not earned.
     ///
-    /// THE ROW LANDS ON THE STUDIO TAB AND SAYS SO. `AppRouter` selects a tab;
-    /// it does not push a screen inside one, and Draft is a row on the Studio
-    /// root. The label names both halves of the route rather than promising to
-    /// finish it.
+    /// THE ROW LANDS ON DRAFT, NOT ON THE STUDIO ROOT. It used to make only the
+    /// first of the two hops — `AppRouter` selected a tab and could not push a
+    /// screen inside one — so the label named both halves and left the second to
+    /// the person, who arrived at a list of four rows with nothing marking the
+    /// one they had just asked for. `go(to:then:)` carries the second hop; the
+    /// label still names the route because a person who lands two screens deep
+    /// should be able to see how they got there.
     private var retrain: some View {
         Section {
             Button {
-                router.go(to: .studio)
+                router.go(to: .studio, then: .draft)
             } label: {
                 Label {
                     Text("Write one in Studio → Draft")
@@ -373,7 +377,7 @@ struct PolicyListView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(.plain)
-            .accessibilityHint(Text("Opens the Studio tab, where a sentence becomes a checked training request."))
+            .accessibilityHint(Text("Opens Draft, in the Studio tab, where a sentence becomes a checked training request."))
             .listRowBackground(cardSegment(first: true, last: true))
         } header: {
             SectionHeading(text: "Retrain")
@@ -416,6 +420,42 @@ struct PolicyListView: View {
             sectionFootnote("Neither fetches anything until you ask: the address is printed first and the scan is a button. What decides whether a downloaded network can be driven here is its manifest, not whose repository it sat in.")
         }
         .listRowSeparatorTint(Theme.separator)
+    }
+
+    /// Whose robot this is, and whose app this is not.
+    ///
+    /// IT GOES UNDER BEHAVIOURS BECAUSE THIS IS THE SCREEN THAT NAMES POLLEN.
+    /// Discover's first row is "Pollen Robotics" and the one under it is the
+    /// community's; a person reading a list of releases that ship with the
+    /// robot, on a screen inside an app about that robot, is a person who could
+    /// reasonably conclude they are in Pollen's app. That conclusion is the one
+    /// this sentence exists to prevent, and it belongs where it can be drawn
+    /// rather than in a store listing nobody reads twice.
+    ///
+    /// THE SENTENCE IS THE KIT'S. `Provenance.independenceShort` is asserted by
+    /// `swift test`, which is the house rule for every user-visible sentence and
+    /// matters most for this one: a disclaimer edited into a hedge — "not
+    /// officially affiliated" — is worse than none, and a literal here is a
+    /// literal nothing can stop somebody softening.
+    ///
+    /// A ROW STYLED AS A FOOTER, NOT A `footer:` SLOT, and the reason is that
+    /// the slot is on a section with nothing in it. A `Section { } footer: { … }`
+    /// holding no rows is not reliably drawn by a `List`, and there is no
+    /// Simulator on the machine this was written on to settle it — see the
+    /// repo's own note about that. A claim about provenance that renders on some
+    /// builds and not others is the worst of the three outcomes, so this is a
+    /// row, which always draws, wearing the footnote type and a clear ground so
+    /// it reads as the foot of the screen rather than as a card.
+    private var independence: some View {
+        Section {
+            // `StudioKit.` SPELLED OUT: this file has a private `Provenance` of its
+            // own, and the bare name resolves to it — Theme.swift said so in advance.
+            sectionFootnote(StudioKit.Provenance.independence)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+        }
     }
 
     /// One row that opens a catalogue: what it is, and one line on what is
@@ -527,6 +567,21 @@ struct PolicyListView: View {
             }
             .foregroundStyle(Theme.textTertiary)
 
+            // THE ONE ORIGIN THAT COMES WITH A WARNING, AND IT IS ON THE ROW
+            // RATHER THAN ONE SCREEN IN. A tuned policy looks exactly like
+            // every other runnable entry — it loads, it has a digest, it has a
+            // shape — and the thing that is different about it is invisible:
+            // its weights were changed by a search on this phone and nothing
+            // has ever run it on hardware. Amber, because it works; a person
+            // who has to open a detail screen to find out is a person who will
+            // send it to a robot first.
+            if let caveat = entry.origin.caveat {
+                Text(caveat)
+                    .font(.caption)
+                    .foregroundStyle(Theme.warning)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             if let manifest {
                 // THE TWO NUMBERS THAT DECIDE WHETHER A POLICY CAN DRIVE THIS
                 // ROBOT AT ALL, in the component the app already has for a
@@ -616,12 +671,17 @@ struct PolicyListView: View {
         case pollen
         case community
         case brought
+        /// Made here, by folding a searched residual into somebody else's
+        /// network. A separate word because "Yours" would take the credit for
+        /// the walk, which is not this app's to take.
+        case tuned
 
         var title: String {
             switch self {
             case .pollen: return "Pollen Robotics"
             case .community: return "Community"
             case .brought: return "Yours"
+            case .tuned: return "Tuned here"
             }
         }
 
@@ -634,6 +694,11 @@ struct PolicyListView: View {
             case .pollen: return Theme.brandPrimary
             case .community: return Theme.training
             case .brought: return Theme.textSecondary
+            // AMBER, WHICH IS THIS APP'S COLOUR FOR A THING THAT WORKS AND HAS
+            // NOT BEEN CHECKED. It is not red: the file loads and runs. What is
+            // true of it is that nobody has ever run it anywhere but a
+            // simulator on a phone, which is a caution and not an error.
+            case .tuned: return Theme.warning
             }
         }
     }
@@ -643,6 +708,7 @@ struct PolicyListView: View {
         switch entry.origin {
         case .fetched: return .community
         case .bundled, .imported: return .brought
+        case .tuned: return .tuned
         }
     }
 
@@ -922,7 +988,7 @@ struct PolicyDetailView: View {
                     // to somebody who already has the recording is what sent
                     // people away from the answer.
                     if madeFromThisPolicy.isEmpty {
-                        sectionFootnote("Nothing has been recorded from this network yet, so there is nothing to play. A phone has no physics engine: watching a policy move means running it somewhere that does. Send it to a bench, record it, and keep the recording — it comes back under Studio → Motions, in \"Brought in\".\n\nProbe hands it one observation and shows the fourteen numbers it answers with, and the robot they command. That works with no bench at all, but a network has no time axis, so nothing plays there either.")
+                        sectionFootnote("Nothing has been recorded from this network yet, so there is nothing to play. A preview cannot play a policy: watching one move means running it on a bench, and this iPhone is one. Run it on a bench, record it, and keep the recording — it comes back under Studio → Motions, in \"Brought in\".\n\nProbe hands it one observation and shows the fourteen numbers it answers with, and the robot they command. That works with no bench at all, but a network has no time axis, so nothing plays there either.")
                     } else {
                         sectionFootnote("Watch it move plays a recording made when this network drove a robot in physics — what it did, not what somebody asked for. Probe is the other half: hand it one observation and see the fourteen numbers it answers with. A network has no time axis, so nothing plays in Probe.\n\nRun it on a bench to record it again under your own commands, on your own floor.")
                     }

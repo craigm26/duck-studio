@@ -23,7 +23,14 @@ let package = Package(
         // By tag, never by sibling path: an inspector that reports which
         // network it loaded has to be built against a pinned reader, or its
         // report describes a parser nobody can identify later.
-        .package(url: "https://github.com/craigm26/duckkit.git", from: "1.33.0")
+        // 1.34.0 is the tag that added `DuckPolicyWriter.folding` — the one
+        // operation that lets a per-joint gain and trim found by searching in a
+        // simulator reach a robot at all, because robotd takes an ONNX and a
+        // handful of config keys and has no hook for "and then multiply the
+        // ninth output by 1.07". `DuckTuner` is built on it, so the floor moves
+        // with it rather than being left at a tag where the search would have
+        // nowhere to put its answer.
+        .package(url: "https://github.com/craigm26/duckkit.git", from: "1.34.0")
     ],
     targets: [
         .target(

@@ -184,16 +184,46 @@ enum RobotState: String, CaseIterable, Sendable {
 /// standing still" — the single most consequential distinction the app draws.
 /// SC 1.4.1 (Use of Colour) is the standard; the reason is the table leg.
 ///
-/// THE PILL IS FURNITURE. Its fill is the same surface a card uses and its
-/// edge is a hairline, because the palette's grounds are within about 1.1:1 of
-/// each other by design and a chip drawn on this system can never announce
-/// itself with a fill. That is correct: the information is the dot and the
-/// word, and the pill only says they belong together.
+/// THE PILL IS FURNITURE, AND ON A CARD IT IS FURNITURE NOBODY NEEDED. Its fill
+/// is `surfacePrimary` and its edge is a hairline — which is exactly the fill a
+/// card is drawn in, so a badge sitting on one was a capsule of the card's own
+/// colour on the card, and all that was actually visible was the rim: a second
+/// corner radius, at a curve nobody picked, inside a corner that was. The
+/// palette's grounds are within about 1.1:1 of each other by design, so a chip
+/// on this system can never announce itself with a fill and should not try.
+///
+/// OVER A RENDERED PICTURE IT IS LOAD-BEARING AND STAYS. On the stage panels the
+/// badge sits in a column of live readings above a moving render, and the pill
+/// is what says the dot and the word are one value rather than two lines that
+/// happen to be adjacent — the same argument those panels make for being opaque
+/// rather than `.thinMaterial`. Hence `Ground`, said by the caller: only the
+/// caller knows what is behind it.
+///
+/// WHAT THE INFORMATION IS DID NOT CHANGE. It is the dot AND the word, in both
+/// grounds. `Ground` moves furniture; it never takes away the word.
 struct StateBadge: View {
+    /// What is behind the badge, which decides whether it needs a pill.
+    ///
+    /// `card` IS THE DEFAULT BECAUSE IT IS THE SAFE ONE. A badge that should
+    /// have said `render` and did not loses a rim over a picture; a badge that
+    /// should have said `card` and did not draws a second corner on a card
+    /// forever, because it looks deliberate. Defaulting to the plain form makes
+    /// the decorated one something a caller had to ask for.
+    enum Ground {
+        /// On one of the palette's surfaces — a card, a form row, a list row,
+        /// or one of the opaque readout panels. The pill would be the ground's
+        /// own colour, so there is no pill.
+        case card
+        /// In a readout that reads as part of a rendered stage or venue, where
+        /// the pill separates one value from the column around it.
+        case render
+    }
+
     /// The word beside the dot. The caller's, not this component's — a screen
     /// that has a better word than "Idle" for a particular robot should use it.
     let text: String
     let state: RobotState
+    var ground: Ground = .card
 
     /// ONLY WHEN IT ADDS SOMETHING, AND "NOTHING" HAS TO MEAN NO MODIFIER.
     /// This was `.accessibilityValue(Text(spokenValue ?? ""))`, and an empty
@@ -213,9 +243,16 @@ struct StateBadge: View {
         }
     }
 
-    /// The dot, the word, and the capsule that says they belong together.
+    /// The dot, the word, and — over a render — the capsule that says they
+    /// belong together.
+    ///
+    /// THE PADDING GOES WITH THE CAPSULE, because it only ever existed to inset
+    /// the dot from a capsule edge. Left behind on `.card` it becomes an indent
+    /// with nothing drawing it: the badge starts a `snug` further in than every
+    /// `TelemetryRow` under it in the same card, and a column of labels with one
+    /// item nudged right reads as a mistake rather than as a chip.
     private var pill: some View {
-        HStack(spacing: Theme.spacing(.hairline)) {
+        let dot = HStack(spacing: Theme.spacing(.hairline)) {
             Circle()
                 .fill(state.color)
                 .frame(width: Theme.spacing(.tight),
@@ -224,12 +261,20 @@ struct StateBadge: View {
                 .font(.footnote.weight(.medium))
                 .foregroundStyle(state.color)
         }
-        .padding(.horizontal, Theme.spacing(.snug))
-        .padding(.vertical, Theme.spacing(.hairline))
-        .background(Capsule().fill(Theme.surfacePrimary))
-        .overlay(
-            Capsule().strokeBorder(Theme.separator,
-                                   lineWidth: DesignMetric.hairlineStroke))
+        return Group {
+            switch ground {
+            case .card:
+                dot
+            case .render:
+                dot
+                    .padding(.horizontal, Theme.spacing(.snug))
+                    .padding(.vertical, Theme.spacing(.hairline))
+                    .background(Capsule().fill(Theme.surfacePrimary))
+                    .overlay(
+                        Capsule().strokeBorder(Theme.separator,
+                                               lineWidth: DesignMetric.hairlineStroke))
+            }
+        }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(text))
     }
@@ -909,9 +954,23 @@ enum Haptic {
 /// ONE COPY. Three screens carried a private, byte-identical one each while
 /// this file was not theirs to edit; it lives here now, beside the other
 /// pieces, for the reason this file gives everywhere — drawn twice, they drift
-/// within a release. The headers that still use a bare `Text` are lifted by
-/// `.headerProminence(.increased)` at the app's root (see `Theme.swift`), which
-/// puts them in the primary label colour: legible, if not yet this heading.
+/// within a release.
+///
+/// AND NOW EVERY HEADING IN THE APP IS THIS ONE. `scripts/check_section_headings.sh`
+/// counts the two spellings that ask for the platform's header instead —
+/// `Section("Name")` and a bare `Text` in a `header:` closure — and it counted
+/// 87 before the migration and 0 after. There is exactly one exception and it is
+/// listed by the guard rather than hidden from it: `CommunityPoliciesView`'s
+/// repository header is an `HStack` of a monospaced address and an origin pill,
+/// which is a header carrying two things a plain heading cannot hold.
+///
+/// `.headerProminence(.increased)` IS STILL SET AT THE ROOT AND IS NOW A NO-OP.
+/// It exists in `Theme.swift` — another owner's file, deliberately not touched
+/// here — to lift the bare headers out of a 3.18:1 contrast failure, and there
+/// are no bare headers left to lift: a header that sets its own font and colour
+/// keeps them. Its own comment says "some sixty of them are still plain `Text`",
+/// which is no longer true. Removing the modifier and correcting that comment is
+/// the owner of `Theme.swift`'s call, not this file's.
 struct SectionHeading: View {
     let text: String
 

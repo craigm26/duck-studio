@@ -74,7 +74,7 @@ struct TrickRunView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 } header: {
-                    Text("This run")
+                    SectionHeading(text: "This run")
                 }
                 .listRowBackground(Theme.surfacePrimary)
 
@@ -90,7 +90,7 @@ struct TrickRunView: View {
                                   || model.intents[trick.id] == nil)
                     }
                 } header: {
-                    Text("The card — hardest first")
+                    SectionHeading(text: "The card — hardest first")
                 } footer: {
                     VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
                         Text("A trick pays the inverse of what it actually lands, measured over sixteen randomised rollouts on the real plant. The headspin is worth sixteen because it lands once in sixteen. Moves that never land on flat ground — the stair climbs — are not on the card at all, because they need a step this floor does not have.")

@@ -34,7 +34,7 @@ struct ShareDestinationsView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .textSelection(.enabled)
             } header: {
-                Text("What to say")
+                SectionHeading(text: "What to say")
             } footer: {
                 Text("Written from what this app can actually check. The fingerprint is the part a recipient can verify without trusting you.")
                     .foregroundStyle(Theme.textSecondary)
@@ -111,7 +111,7 @@ struct ShareDestinationsView: View {
                     .accessibilityHint(Text(destination.purpose))
                 }
             } header: {
-                Text("Where")
+                SectionHeading(text: "Where")
             } footer: {
                 Text(CommunityShare.cannotPostNote)
                     .foregroundStyle(Theme.textSecondary)

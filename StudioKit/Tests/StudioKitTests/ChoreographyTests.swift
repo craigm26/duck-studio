@@ -888,6 +888,15 @@ final class ChoreographyTests: XCTestCase {
         func notify(_ c: DuckCall) async throws {
             try vet(c, asNotification: true)
         }
+
+        /// A stub says nothing without being asked, and says so by ending the
+        /// stream rather than by holding it open forever. See
+        /// `DuckPeer.states()` for why the member is required rather than
+        /// defaulted: a peer that published nothing silently would present as a
+        /// duck that never falls over.
+        nonisolated func states() -> AsyncStream<DuckState> {
+            AsyncStream { $0.finish() }
+        }
     }
 
     /// THE COLLISION IS THE SECOND THING ANYBODY DOES, NOT A CORNER CASE.

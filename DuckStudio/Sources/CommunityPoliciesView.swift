@@ -63,7 +63,7 @@ struct CommunityPoliciesView: View {
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
             } header: {
-                Text("Where to look")
+                SectionHeading(text: "Where to look")
             }
             .listRowBackground(Theme.surfacePrimary)
 
@@ -189,7 +189,7 @@ struct CommunityPoliciesView: View {
                     .accessibilityHint(Text("Reads the manifest at this address."))
             }
         } header: {
-            Text("Paste a link")
+            SectionHeading(text: "Paste a link")
         } footer: {
             Text("The repository page, an owner/name, or a link straight to the file — blob or resolve, either works. Anything that is not a policy file is taken to mean the repository it sits in.")
                 .foregroundStyle(Theme.textSecondary)

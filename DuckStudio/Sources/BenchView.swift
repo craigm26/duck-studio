@@ -145,17 +145,13 @@ struct BenchView: View {
                             environment: scene?.environment ?? .bareFloor,
                             orbit: $orbit)
             }
-            // ON A PLATE, THE WAY DriveView's HUD IS. It floated in white over
-            // whatever the scene drew that frame — 1.55:1 against the cream
-            // shell, 8.6:1 against the floor, depending on the orbit — with a
-            // comment blaming StageLegend's own white, which StageLegend no
-            // longer has. Tokened text on a translucent charcoal plate reads
-            // over every material the stage can put behind it.
-            .padding(Theme.spacing(.tight))
+            // NO PLATE. `StageLegend` paints its own opaque `surfacePrimary` panel
+            // now, so a translucent plate around it was a card around a card —
+            // two radii, and a caption whose contrast was whatever the render
+            // put behind it. The one line that is this screen's, `poseSource`,
+            // sits on the legend's ground colour so it is measured, not guessed.
             .foregroundStyle(Theme.textPrimary)
-            .background(Theme.backgroundPrimary.opacity(0.72),
-                        in: RoundedRectangle(cornerRadius: Theme.radius(.control)))
-            .padding(Theme.spacing(.tight))
+            .padding(.leading, Theme.spacing(.tight))
         }
         .frame(maxHeight: typeSize.isAccessibilitySize ? nil : BenchMetric.viewportHeight)
         .clipShape(viewport)
@@ -210,7 +206,7 @@ struct BenchView: View {
             }
 
             if let stages, tab == .actions {
-                Section("What the policy commands") {
+                Section {
                     // Walk the POLICY's fourteen slots and ask which joint
                     // each one drives, rather than walking the fifteen
                     // joints and hoping the mouth lines up. DuckModel owns
@@ -222,11 +218,13 @@ struct BenchView: View {
                                   target: stages.clamped[joint],
                                   limited: stages.limitedBy.contains(DuckModel.jointNames[joint]))
                     }
+                } header: {
+                    SectionHeading(text: "What the policy commands")
                 }
                 .listRowBackground(Theme.surfacePrimary)
 
                 if !stages.limitedBy.isEmpty {
-                    Section("At the travel stops") {
+                    Section {
                         // THE NAMES, IN THE REFUSAL COLOUR AND IN SF. A joint
                         // name is a name — it does not change while you look at
                         // it — and the design system reads tabular figures as a
@@ -239,6 +237,8 @@ struct BenchView: View {
                         Text("These joints were asked for more than they have. The policy is not wrong to ask — the clamp is where the robot's limits enter.")
                             .font(.caption).foregroundStyle(Theme.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
+                    } header: {
+                        SectionHeading(text: "At the travel stops")
                     }
                     .listRowBackground(Theme.surfacePrimary)
                 }
@@ -290,23 +290,27 @@ struct BenchView: View {
             }
             .listRowBackground(Theme.surfacePrimary)
         }
-        Section("Start from") {
+        Section {
             Picker("Preset", selection: $preset) {
                 ForEach(ObservationPreset.allCases) { Text($0.rawValue).tag($0) }
             }
             .pickerStyle(.menu)
             Text(preset.detail).font(.caption).foregroundStyle(Theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
+        } header: {
+            SectionHeading(text: "Start from")
         }
         .listRowBackground(Theme.surfacePrimary)
         if let strip {
             ForEach(ObservationSlot.Block.allCases, id: \.self) { block in
-                Section(block.title) {
+                Section {
                     ForEach(ObservationSlot.slots(in: block)) { slot in
                         SlotRow(slot: slot,
                                 reading: strip.readings[slot.index],
                                 onChange: { edit(slot: slot.index, to: $0) })
                     }
+                } header: {
+                    SectionHeading(text: block.title)
                 }
                 .listRowBackground(Theme.surfacePrimary)
             }
@@ -321,21 +325,25 @@ struct BenchView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             .listRowBackground(Theme.surfacePrimary)
-            Section("What this policy listens to") {
+            Section {
                 ForEach(sensitivity.ranked(limit: 15)) { column in
                     SensitivityRow(column: column, peak: sensitivity.peak)
                 }
+            } header: {
+                SectionHeading(text: "What this policy listens to")
             }
             .listRowBackground(Theme.surfacePrimary)
             let ignored = sensitivity.ignored()
             if !ignored.isEmpty {
-                Section("Ignored entirely") {
+                Section {
                     Text(ignored.map(\.slot.label).joined(separator: ", "))
                         .font(.caption).foregroundStyle(Theme.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
                     Text("These inputs move no output at all here. A policy trained without them shows up as a list rather than as a mystery in behaviour.")
                         .font(.caption).foregroundStyle(Theme.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
+                } header: {
+                    SectionHeading(text: "Ignored entirely")
                 }
                 .listRowBackground(Theme.surfacePrimary)
             }

@@ -53,7 +53,7 @@ struct TrainingRequestView: View {
             .listRowBackground(Theme.surfacePrimary)
 
             if !request.refusals.isEmpty {
-                Section("What was checked") {
+                Section {
                     // FATAL IS A REFUSAL AND THE REST ARE CAVEATS, drawn apart
                     // rather than drawn in one colour and a grey. The kit
                     // already separates them — `isFatal` is the whole
@@ -66,6 +66,8 @@ struct TrainingRequestView: View {
                             .font(.caption)
                             .foregroundStyle(refusal.isFatal ? Theme.refused : Theme.warning)
                     }
+                } header: {
+                    SectionHeading(text: "What was checked")
                 }
                 .listRowBackground(Theme.surfacePrimary)
             }
@@ -81,7 +83,7 @@ struct TrainingRequestView: View {
                 LabeledContent("Command", value: request.base.command)
                 LabeledContent("Episode", value: String(format: "%g s", request.episodeSeconds))
             } header: {
-                Text("Starting point")
+                SectionHeading(text: "Starting point")
             } footer: {
                 Text("A fork that feeds a phase-clock task a velocity is the classic way one of these fails, so the command block is written down rather than assumed.")
                     .foregroundStyle(Theme.textSecondary)
@@ -111,7 +113,7 @@ struct TrainingRequestView: View {
                     }
                 }
             } header: {
-                Text("Rewards")
+                SectionHeading(text: "Rewards")
             } footer: {
                 Text("Every one of these exists in mjlab_microduck/tasks/mdp.py. A config naming a function nobody wrote will not import, and a training machine is a slow place to find a typo.")
                     .foregroundStyle(Theme.textSecondary)
@@ -125,7 +127,7 @@ struct TrainingRequestView: View {
                     LabeledContent("Across", value: String(format: "%.0f mm",
                                                            prop.thicknessMillimetres))
                 } header: {
-                    Text("What it is for")
+                    SectionHeading(text: "What it is for")
                 } footer: {
                     // NOT IN THE SCENE YET IS A CAVEAT ABOUT THE REQUEST, so it
                     // takes the caveat colour and a triangle rather than sitting
@@ -138,9 +140,11 @@ struct TrainingRequestView: View {
                 .listRowBackground(Theme.surfacePrimary)
             }
 
-            Section("Success") {
+            Section {
                 Text(request.successCriterion).font(.footnote)
                     .foregroundStyle(Theme.textPrimary)
+            } header: {
+                SectionHeading(text: "Success")
             }
             .listRowBackground(Theme.surfacePrimary)
 
@@ -156,7 +160,7 @@ struct TrainingRequestView: View {
                             .foregroundStyle(Theme.asked)
                     }
                 } header: {
-                    Text("Open questions")
+                    SectionHeading(text: "Open questions")
                 } footer: {
                     Text("Carried into the file. A request that hides its assumptions gets run by somebody who does not share them.")
                         .foregroundStyle(Theme.textSecondary)
@@ -181,7 +185,7 @@ struct TrainingRequestView: View {
                     Label("Send the brief", systemImage: "doc.richtext")
                 }
             } header: {
-                Text("Hand it over")
+                SectionHeading(text: "Hand it over")
             }
             .listRowBackground(Theme.surfacePrimary)
         }

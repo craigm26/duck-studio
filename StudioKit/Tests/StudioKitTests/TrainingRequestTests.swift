@@ -259,4 +259,42 @@ extension TrainingRequestTests {
         XCTAssertTrue(r.brief().contains("not all in one module"))
         XCTAssertTrue(r.envConfig().contains("mjlab_mdp.self_collision_cost"))
     }
+
+    // MARK: - the head as a lever
+
+    /// A CLIMB THAT USES THE HEAD GETS THE ARITHMETIC, EVEN WITH NO PROP. The
+    /// neck check used to run only for a prop's grams, so the exact request
+    /// Craig asked about — the head pushing the body up a step — passed with
+    /// no refusal at all.
+    func testAHeadLeverClimbGetsTheStallArithmeticAsAnAdvisory() {
+        let climb = TrainingRequest(
+            name: "Lever up a step",
+            summary: "Press the head against the riser and lever the body onto the tread",
+            base: .groundPick,
+            episodeSeconds: 6,
+            rewards: [.init(function: "mouth_ground_proximity", weight: 2, reason: "head to the riser"),
+                      .init(function: "is_alive", weight: 0.5, reason: "and stay up")],
+            prop: nil,
+            successCriterion: "both feet on the first stair tread")
+        let lever = climb.refusals.first { if case .leverAtTheStall = $0 { return true }; return false }
+        XCTAssertNotNil(lever, "\(climb.refusals)")
+        XCTAssertEqual(lever?.isFatal, false)
+        XCTAssertTrue(lever?.message.contains("margin") == true, lever?.message ?? "")
+        XCTAssertTrue(lever?.message.contains("stayed on the floor") == true)
+        // The broom request has a mouth reward and no prop too, but says
+        // nothing about climbing — no lever arithmetic is offered.
+        XCTAssertFalse(request().refusals.contains { if case .leverAtTheStall = $0 { return true }; return false })
+        XCTAssertTrue(TrainingRequest.readsAsAClimb(name: "x", summary: "a mantle onto a ledge", success: ""))
+        XCTAssertFalse(TrainingRequest.readsAsAClimb(name: "Drag the broom", summary: "tow it", success: "moves"))
+    }
+
+    /// The brief's claim about upstream carries the three things a person
+    /// editing the config by hand would otherwise find the slow way.
+    func testTheBriefNamesTheThreeVocabularyGotchas() {
+        let brief = request().brief()
+        XCTAssertTrue(brief.contains("pose_target_match"), brief)
+        XCTAssertTrue(brief.contains("defined twice"), brief)
+        XCTAssertTrue(brief.contains("ground-pick task"), brief)
+        XCTAssertTrue(brief.contains("2026-09-01"), brief)
+    }
 }

@@ -1,4 +1,5 @@
 import XCTest
+import DuckKit
 @testable import StudioKit
 
 /// The one vocabulary, pinned.
@@ -354,6 +355,12 @@ final class DuckPeerTests: XCTestCase {
 
         func notify(_ c: DuckCall) async throws {
             try vet(c, asNotification: true)
+        }
+
+        /// This stub is about what a peer refuses to SEND; it reports nothing,
+        /// and an ended stream is how a peer says that out loud.
+        nonisolated func states() -> AsyncStream<DuckState> {
+            AsyncStream { $0.finish() }
         }
     }
 

@@ -106,7 +106,7 @@ struct MyMicroduckView: View {
         }
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
-        .background(Theme.backgroundPrimary)
+        .background(Theme.backgroundSecondary)
         .navigationTitle("My Microduck")
         .navigationBarTitleDisplayMode(.large)
         .toolbar {

@@ -467,7 +467,7 @@ struct IntentAuthorView: View {
                     .font(.footnote)
             }
         } header: {
-            Text("Keyframe")
+            SectionHeading(text: "Keyframe")
         } footer: {
             Text("Pick a moment, then move the joints. The robot above shows the keyframe you are editing. A new one holds whatever the motion was already doing at that instant — every pose stays pinned, though the curve between them re-eases, because each span is smoothed on its own.")
                 .foregroundStyle(Theme.textSecondary)
@@ -482,7 +482,7 @@ struct IntentAuthorView: View {
                                     value: binding(joint: joint, of: key.id))
                     }
                 } header: {
-                    Text(group.title)
+                    SectionHeading(text: group.title)
                 } footer: {
                     group.note.map { Text($0).foregroundStyle(Theme.textSecondary) }
                 }
@@ -532,7 +532,7 @@ struct IntentAuthorView: View {
             .disabled(thinking || asked.trimmingCharacters(in: .whitespaces).isEmpty
                       || models.selected.kind != .openAICompatible)
         } header: {
-            Text("Describe a change")
+            SectionHeading(text: "Describe a change")
         } footer: {
             // THE REFUSAL HAS TO NAME A STEP THAT WORKS. The old one said
             // "Choose one under Draft → Models" to everybody, including the
@@ -587,7 +587,7 @@ struct IntentAuthorView: View {
                         .font(.footnote).foregroundStyle(Theme.refused)
                 }
             } header: {
-                Text("Not applied")
+                SectionHeading(text: "Not applied")
             } footer: {
                 // "EVERYTHING ELSE WAS APPLIED" IS FALSE WHEN NOTHING WAS.
                 // `MotionTweak.outcome` throws only when a refusal carries a
@@ -630,7 +630,7 @@ struct IntentAuthorView: View {
                     }
                 }
             } header: {
-                Text("What changed")
+                SectionHeading(text: "What changed")
             } footer: {
                 // THE CLAIM NOW MATCHES WHAT THE PLAYHEAD DID. It used to say
                 // the robot was already showing the change while the playhead
@@ -779,7 +779,7 @@ struct IntentAuthorView: View {
                 blockedRetime = nil
             }
         } header: {
-            Text("Keyframes")
+            SectionHeading(text: "Keyframes")
         } footer: {
             Text("Between keyframes the robot is interpolated with smoothstep — it arrives and leaves at rest. A linear blend would change speed instantly at every keyframe, and a servo asked to do that answers with a jolt the balance controller then has to absorb.")
                 .foregroundStyle(Theme.textSecondary)
@@ -889,7 +889,7 @@ struct IntentAuthorView: View {
                     }
                 }
             } header: {
-                Text("Checks")
+                SectionHeading(text: "Checks")
             } footer: {
                 Text("These are the things a phone can check: travel, ordering, and how fast a joint is asked to move against what the recorded corpus actually does. What it cannot check is whether the robot stays up, because that needs physics.")
                     .foregroundStyle(Theme.textSecondary)
@@ -900,7 +900,7 @@ struct IntentAuthorView: View {
             Text("Every authored move in this app — step_up, lever_up, riser_up, climb — was written this way and searched against a real step, and all four get up their flight 0 times in 16. Authoring is the easy half.")
                 .font(.caption).foregroundStyle(Theme.textSecondary)
         } header: {
-            Text("Before you run it")
+            SectionHeading(text: "Before you run it")
         }
         .listRowBackground(Theme.surfacePrimary)
     }

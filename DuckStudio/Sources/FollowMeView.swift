@@ -78,7 +78,8 @@ struct FollowMeView: View {
                     // NOT A DOT. Whether it has lost you is the state this
                     // screen is about, and the badge is a word beside the mark
                     // rather than a colour on its own.
-                    StateBadge(text: word, state: state)
+                    // `.render`: this panel sits over the camera feed.
+                    StateBadge(text: word, state: state, ground: .render)
                 }
                 Text(model.detail)
                     .font(.caption)

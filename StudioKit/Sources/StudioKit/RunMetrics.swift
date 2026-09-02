@@ -126,6 +126,21 @@ public struct RunMetrics: Equatable, Sendable {
             }
         }
 
+        /// The three weights `microduck_velocity_env_cfg` gives the terms that
+        /// only the velocity family has, held here rather than typed at the
+        /// place they are used.
+        ///
+        /// BECAUSE THERE IS NOW A SECOND READER. These were literals inside the
+        /// evaluator below, which was fine while the evaluator was the only
+        /// thing that scored a run. `DuckTuner` scores a candidate against the
+        /// same six terms at the same weights, and two transcriptions of one
+        /// config is how a search comes to optimise a reward that is not the
+        /// one a clip is graded by — with nothing to notice, because both
+        /// numbers look plausible. One copy, read twice.
+        static let trackLinearVelocityWeight = 2.0
+        static let trackAngularVelocityWeight = 2.0
+        static let poseWeight = 1.0
+
         /// Whether the command block is a velocity at all. It is a phase clock
         /// for ground-pick AND for roller-crouch (both use
         /// GroundPickPhaseCommand — cos/sin of a four-second phase), and a flag
@@ -629,21 +644,26 @@ public struct RunMetrics: Equatable, Sendable {
                 }
                 let n = Double(commands.count)
                 out.append(RewardTerm(
-                    name: "track_linear_velocity", weight: 2.0,
+                    name: "track_linear_velocity", weight: Task.trackLinearVelocityWeight,
                     purpose: "Rewards matching the commanded forward and sideways velocity, and staying level. std² = 0.1.",
-                    standing: .evaluated(mean: linear / n, weighted: linear / n * 2.0)))
+                    standing: .evaluated(mean: linear / n,
+                                         weighted: linear / n * Task.trackLinearVelocityWeight)))
                 out.append(RewardTerm(
-                    name: "track_angular_velocity", weight: 2.0,
+                    name: "track_angular_velocity", weight: Task.trackAngularVelocityWeight,
                     purpose: "Rewards matching the commanded turn rate while not pitching or rolling. std² = 0.5.",
-                    standing: .evaluated(mean: angular / n, weighted: angular / n * 2.0)))
+                    standing: .evaluated(mean: angular / n,
+                                         weighted: angular / n * Task.trackAngularVelocityWeight)))
                 out.append(RewardTerm(
-                    name: "pose", weight: 1.0,
+                    name: "pose", weight: Task.poseWeight,
                     purpose: "Holds the legs near the home stance, with a per-joint tolerance that loosens once a velocity is commanded.",
-                    standing: .evaluated(mean: pose / n, weighted: pose / n)))
+                    standing: .evaluated(mean: pose / n,
+                                         weighted: pose / n * Task.poseWeight)))
             } else {
                 for name in ["track_linear_velocity", "track_angular_velocity", "pose"] {
                     out.append(RewardTerm(
-                        name: name, weight: name == "pose" ? 1.0 : 2.0,
+                        name: name,
+                        weight: name == "pose" ? Task.poseWeight
+                                               : Task.trackLinearVelocityWeight,
                         purpose: "Scored against the command the policy was given.",
                         standing: .missing("the command and the trunk's twist were not recorded")))
                 }

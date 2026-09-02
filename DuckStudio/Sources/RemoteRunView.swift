@@ -137,7 +137,7 @@ struct RemoteRunView: View {
                     .disabled(bench == nil || busy)
                 }
             } header: {
-                Text("Where the physics is")
+                SectionHeading(text: "Where the physics is")
             } footer: {
                 Text("A machine on your own network running duckbench.mjs. Plain http, because a Pi on a desk has no certificate — so only a private address or a tailnet one is accepted.")
                     .foregroundStyle(Theme.textSecondary)
@@ -185,7 +185,7 @@ struct RemoteRunView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 } header: {
-                    Text("What answered")
+                    SectionHeading(text: "What answered")
                 }
                 .listRowBackground(Theme.surfacePrimary)
 
@@ -196,7 +196,7 @@ struct RemoteRunView: View {
                     Stepper("For \(String(format: "%.0f", seconds)) s",
                             value: $seconds, in: 1...20, step: 1)
                 } header: {
-                    Text("What to run")
+                    SectionHeading(text: "What to run")
                 }
                 .listRowBackground(Theme.surfacePrimary)
 
@@ -204,7 +204,7 @@ struct RemoteRunView: View {
                     twist("From 0 s", step: $start)
                     twist("From \(String(format: "%.1f", then.at)) s", step: $then)
                 } header: {
-                    Text("What to command it")
+                    SectionHeading(text: "What to command it")
                 } footer: {
                     Text("Three numbers, and what they mean is the policy's business: for alpha_walking they are forward, sideways and turn; for flamingo-cycle the first is a flag and the second picks the foot. The policy's own card says which.")
                         .foregroundStyle(Theme.textSecondary)
@@ -273,7 +273,7 @@ struct RemoteRunView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 } header: {
-                    Text("Measured on the bench")
+                    SectionHeading(text: "Measured on the bench")
                 }
                 .listRowBackground(Theme.surfacePrimary)
             }
@@ -315,7 +315,7 @@ struct RemoteRunView: View {
                     }
                     .disabled(alreadyKept)
                 } header: {
-                    Text("Recorded")
+                    SectionHeading(text: "Recorded")
                 } footer: {
                     Text("Made on the bench just now, not shipped with the app. Keep it and it "
                        + "becomes a motion in your Motions — playable afterwards with no bench "

@@ -368,7 +368,7 @@ struct GhostDuckView: View {
             // came to ~37pt — under the HIG minimum, on the tap target for all
             // seven Lab modes, floating over a live 3D stage where a mis-hit
             // also orbits the camera.
-            .frame(maxWidth: .infinity, minHeight: 44)
+            .frame(maxWidth: .infinity, minHeight: DesignMetric.minimumTarget)
             .background(Theme.surfacePrimary, in: cell)
             .overlay(cell.strokeBorder(Theme.separator,
                                        lineWidth: GhostMetric.hairlineStroke))

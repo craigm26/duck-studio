@@ -23,11 +23,36 @@ import StudioKit
 /// them, which is the problem this rewrite exists to solve.
 ///
 /// THE PALETTE IS MICRODUCK'S AND THE APP IS NOT. Harmonising with a brand is
-/// not wearing it: there is no Pollen logo here, no Pollen wordmark, and the
-/// app says it is independent on its own store listing, its website and its
-/// Policies tab. The line worth holding is that a person must never be able to
-/// mistake this for something Pollen shipped — colour alone has never made
-/// that claim, and nothing here goes further than colour.
+/// not wearing it: there is no Pollen logo here and no Pollen wordmark. The
+/// line worth holding is that a person must never be able to mistake this for
+/// something Pollen shipped — colour alone has never made that claim, and
+/// nothing here goes further than colour.
+///
+/// WHERE THE CLAIM ACTUALLY LIVES, WHICH THIS COMMENT USED TO GET WRONG. It
+/// said the app "says it is independent on its own store listing, its website
+/// and its Policies tab". A grep of this repository for `not affiliated`,
+/// `unofficial` or `independent` found this comment and nothing else: there was
+/// no listing copy, no website and no such tab. The claim existed only where
+/// nobody but a developer would ever read it, which is the same as not making
+/// it — and a comment asserting a disclaimer is worse than no comment, because
+/// the next person to check reads the comment and stops looking.
+///
+/// So the sentence is now `StudioKit.Provenance.independence`, with
+/// `independenceShort` for a footer, and `ProvenanceTests` pins both. It is a
+/// tested kit string, which means it is a thing a screen can draw and a thing
+/// `swift test` can fail. Nothing in this file makes any independence claim; it
+/// maps tokens to `Color` and that is all it has ever done.
+///
+/// WHERE IT IS DRAWN: the Behaviours root, as the last row of the screen
+/// (`PolicyListView.independence`), spelled `StudioKit.Provenance.independence`
+/// for the reason below. It is also the first paragraph of
+/// `docs/POLLEN-ISSUE.md`. Nowhere else yet — not the store listing, not the
+/// website — and this comment says so rather than assuming it.
+///
+/// One thing to know before wiring it: `PolicyListView` and `IntentListView`
+/// each already have a `private enum Provenance` of their own, so inside those
+/// files the kit's type has to be spelled `StudioKit.Provenance` or the name
+/// resolves to the local one and the footer silently draws nothing.
 enum Theme {
 
     // MARK: - the bridge

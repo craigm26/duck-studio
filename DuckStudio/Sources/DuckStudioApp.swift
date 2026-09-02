@@ -47,6 +47,25 @@ enum AppTab: String, CaseIterable, Identifiable {
     }
 }
 
+/// The four places inside Studio another tab is allowed to name.
+///
+/// A ROUTE IS A PLACE, NOT A SCREEN. These are the four rows on the Studio root
+/// — Motions, Scenes, Draft with words, and Run on your network — and they are
+/// spelled as cases rather than as view builders so that the sender does not
+/// have to know which view a row opens, or hold the six stores that view wants.
+/// `StudioHubView` already holds all six; it is the only place that should be
+/// naming `AutomationChatView`.
+///
+/// FOUR AND NOT EVERY SCREEN IN THE APP, deliberately. A destination that no
+/// other tab has ever asked to reach is a destination nobody can prove works,
+/// and this enum is the list of the ones that are actually sent to. It grows
+/// when a caller appears, not before.
+enum StudioDestination: String, Identifiable, Hashable, CaseIterable {
+    case motions, scenes, draft, measure
+
+    var id: String { rawValue }
+}
+
 /// Which tab is showing, and the one way to change it from inside a screen.
 ///
 /// A SCREEN THAT SENDS SOMEBODY SOMEWHERE MUST BE ABLE TO ACTUALLY SEND THEM.
@@ -56,18 +75,56 @@ enum AppTab: String, CaseIterable, Identifiable {
 /// tells a person to go and tap a tab is a sentence the app could have obeyed
 /// itself.
 ///
-/// IT IS A ROUTER AND NOT A NAVIGATION MODEL, deliberately. It holds one value:
-/// which of the five is in front. Each tab keeps its own `NavigationStack` and
-/// its own path, because a tab that rewinds to its root every time another tab
-/// nudged it is a tab that loses what somebody was in the middle of.
+/// AND A TAB IS NOT ALWAYS THE WHOLE ROUTE. Behaviours → Retrain means "write a
+/// training request", which is Studio → Draft: two hops, of which the router
+/// could only make the first. Landing somebody on the Studio root with four
+/// rows in front of them and no mark on the one they asked for is the same
+/// failure as naming a tab and hoping, moved one screen further in. `pendingStudio`
+/// is the second hop, held until the tab that owns it can take it.
+///
+/// IT IS STILL A ROUTER AND NOT A NAVIGATION MODEL. It holds which of the five
+/// is in front and, optionally, ONE place inside Studio that has just been
+/// asked for. Each tab keeps its own `NavigationStack` and its own path, because
+/// a tab that rewinds to its root every time another tab nudged it is a tab that
+/// loses what somebody was in the middle of — which is why this is a one-shot
+/// request rather than a stored location. `StudioHubView` binds it straight to
+/// `navigationDestination(item:)`, so SwiftUI clears it back to nil the moment
+/// the person taps Back, and the tab is then free to be left where they left it.
 @MainActor final class AppRouter: ObservableObject {
     @Published var tab: AppTab
+
+    /// The place inside Studio somebody has just asked for, or nil.
+    ///
+    /// PUBLISHED AND WRITEABLE BECAUSE SwiftUI POPS IT. `navigationDestination(
+    /// item:)` takes a two-way binding: it pushes when this becomes non-nil and
+    /// writes nil back when the screen is dismissed. A one-way "consume it on
+    /// appear" version would have to guess when the person had left, and would
+    /// re-push the same screen the next time the Studio tab was selected.
+    @Published var pendingStudio: StudioDestination?
 
     init(tab: AppTab = .duck) {
         self.tab = tab
     }
 
+    /// Show a tab.
     func go(to tab: AppTab) {
+        go(to: tab, then: nil)
+    }
+
+    /// Show a tab, and — when the tab is Studio — the place inside it.
+    ///
+    /// `then` IS SET BEFORE THE TAB CHANGES so that the hub's
+    /// `navigationDestination` already has its item when the tab's view tree
+    /// comes forward: setting it afterwards makes the push a second animation a
+    /// person watches happen to them.
+    ///
+    /// A DESTINATION WITH A TAB THAT IS NOT STUDIO IS DROPPED RATHER THAN
+    /// REMEMBERED. Studio is the only tab that reads this, and a pending
+    /// destination left set while somebody is on Control would fire the next
+    /// time they touched the Studio tab — a push nobody asked for, arriving
+    /// minutes late.
+    func go(to tab: AppTab, then destination: StudioDestination?) {
+        pendingStudio = tab == .studio ? destination : nil
         self.tab = tab
     }
 }
@@ -102,6 +159,22 @@ struct DuckStudioApp: App {
     /// reason `models` is: three screens send work to a bench, and a bench
     /// chosen on one of them is the bench the others should use.
     @StateObject private var benches = BenchStore()
+
+    /// THE PHYSICS THIS APP SPENT ITS WHOLE LIFE SAYING IT DID NOT HAVE.
+    ///
+    /// A 1×1 WebView, alpha zero, running MuJoCo compiled to WebAssembly behind
+    /// a loopback HTTP server, answering the same ten endpoints the bench on
+    /// your network answers. It is held at the top because that is the only
+    /// place with a view hierarchy that lives as long as the app: iOS suspends
+    /// a WebView's content process the moment it is not in a window, and a
+    /// suspended process runs no JavaScript — so a bench parented to a tab
+    /// would stop being a bench whenever somebody changed tabs.
+    ///
+    /// NOTHING ELSE IN THE APP KNOWS IT IS SPECIAL. `BenchStore` puts it first
+    /// in the list with its port filled in; every screen that already reads
+    /// that list gets it for free, and `BenchPeer` dials it over HTTP exactly
+    /// as it dials a Raspberry Pi.
+    @StateObject private var phoneBench = PhoneBenchHost()
 
     /// Which tab is showing, and the only thing that may change it.
     ///
@@ -232,6 +305,25 @@ struct DuckStudioApp: App {
             // sanctioned way to move somebody between tabs, because a second
             // source of truth for the selection is a tab bar that disagrees
             // with the screen.
+            // THE BENCH THAT IS THIS PHONE, PUT WHERE WebKit WILL KEEP IT
+            // RUNNING. An overlay rather than a background: a background can be
+            // laid out at zero size, and a WebView with no size is a WebView
+            // iOS is entitled to suspend. One point in the corner, alpha zero
+            // on the UIView itself rather than `.opacity(0)`, no hit testing
+            // and hidden from VoiceOver — present to the system, absent to
+            // everybody else.
+            .overlay(alignment: .topLeading) {
+                PhoneBenchHostView(host: phoneBench)
+                    .frame(width: 1, height: 1)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+            // STARTED ONCE, WITH THE STORE IT HAS TO TELL. The listener's port
+            // comes from the kernel at bind time, so the first row of the bench
+            // list is unreachable until this has run — which is a real state
+            // with a sentence of its own rather than something to hide behind a
+            // spinner.
+            .task { phoneBench.start(benches: benches) }
             .environmentObject(router)
             // LARGE TITLES ARE THE DEFAULT AND THE ROOT DOES NOT IMPOSE THEM.
             // A `NavigationStack` root already gets a large title, so every tab

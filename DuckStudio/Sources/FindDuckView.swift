@@ -177,7 +177,7 @@ struct FindDuckView: View {
                 .accessibilityHint(Text("Connects to this duck and runs the handshake."))
             }
         } header: {
-            Text("Ducks in range")
+            SectionHeading(text: "Ducks in range")
         } footer: {
             // WHY A SCAN IS WORTH HAVING ON ITS OWN. Pollen's `duckctl scan`
             // deliberately connects to nothing for this reason, and it is
@@ -283,10 +283,12 @@ struct FindDuckView: View {
     // MARK: - the handshake, step by step
 
     private var handshakeSection: some View {
-        Section("The handshake") {
+        Section {
             ForEach(DuckLink.Step.allCases.filter { $0 != .scan }, id: \.self) { step in
                 stepRow(step)
             }
+        } header: {
+            SectionHeading(text: "The handshake")
         }
         .listRowBackground(Theme.surfacePrimary)
     }
@@ -416,7 +418,7 @@ struct FindDuckView: View {
                 .foregroundStyle(Theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         } header: {
-            Text("It answered")
+            SectionHeading(text: "It answered")
         } footer: {
             Text("A duck built on somebody's laptop reports no revision, and that is normal rather than a fault.")
                 .foregroundStyle(Theme.textSecondary)

@@ -36,20 +36,39 @@ struct BenchSettingsView: View {
                 .listRowBackground(Theme.surfacePrimary)
             }
 
-            Section("Run things on") {
-                if store.benches.isEmpty {
-                    Text("No bench yet. Without one this app can read a policy and blend one, "
-                       + "but not run it — an iPhone has no physics engine.")
-                        .font(.footnote).foregroundStyle(Theme.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                } else {
-                    ForEach(store.benches) { bench in
-                        row(bench)
-                    }
-                    .onDelete { indexes in
-                        indexes.map { store.benches[$0] }.forEach(store.delete)
-                    }
+            // TWO ForEach AND NOT ONE WITH A GUARD IN THE DELETE CLOSURE.
+            // `.onDelete` is attached to a ForEach and hands back indexes into
+            // whatever that ForEach was given; with the phone at index 0 of one
+            // combined list, a swipe on the first row would ask the store to
+            // delete a bench it must refuse — and a swipe that animates a row
+            // away and then puts it back is a control that lies about what it
+            // did. Splitting the list means the phone's row has no delete to
+            // offer in the first place.
+            Section {
+                phoneRow
+                ForEach(store.benches.filter(\.isEditable)) { bench in
+                    row(bench)
                 }
+                .onDelete { indexes in
+                    let editable = store.benches.filter(\.isEditable)
+                    indexes.map { editable[$0] }.forEach(store.delete)
+                }
+            } header: {
+                SectionHeading(text: "Run things on")
+            } footer: {
+                // THE CLAIM AND ITS CAVEAT TRAVEL TOGETHER. `samePhysics` says the
+                // phone runs the bench's physics — proven to the digit for the
+                // first fifty ticks — and `notTheSameTrajectory` says where the
+                // two inference engines part company after that. A screen that
+                // drew the first without the second would be the sentence the
+                // report file exists to forbid.
+                VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
+                    Text(PhoneBenchReport.alwaysOneBench)
+                    Text(PhoneBenchReport.samePhysics)
+                    Text(PhoneBenchReport.notTheSameTrajectory)
+                }
+                .foregroundStyle(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
             }
             .listRowBackground(Theme.surfacePrimary)
 
@@ -72,7 +91,7 @@ struct BenchSettingsView: View {
                     .buttonStyle(.plain)
                 }
             } header: {
-                Text("Add one")
+                SectionHeading(text: "Add one")
             } footer: {
                 Text(BenchSetup.preambleForAdding)
                     .foregroundStyle(Theme.textSecondary)
@@ -80,10 +99,12 @@ struct BenchSettingsView: View {
             }
             .listRowBackground(Theme.surfacePrimary)
 
-            Section("Setting one up, once") {
+            Section {
                 NavigationLink { BenchSetupView() } label: {
                     Label("The steps", systemImage: "list.number")
                 }
+            } header: {
+                SectionHeading(text: "Setting one up, once")
             }
             .listRowBackground(Theme.surfacePrimary)
         }
@@ -101,6 +122,43 @@ struct BenchSettingsView: View {
                 BenchEditorView(bench: store.armed(bench), store: store)
             }
         }
+    }
+
+    /// The bench that is this phone: selectable, and nothing else.
+    ///
+    /// NO GLYPH, NO SWIPE, NO TOKEN, AND NO "Wi-Fi only". Every one of those
+    /// belongs to an address somebody typed, and there is no address here — the
+    /// physics runs inside the app on a loopback port the system hands out at
+    /// launch. What is left is the one thing this row is for: making it the
+    /// bench every other screen will use.
+    ///
+    /// THE PORT IS NOT DRAWN, DELIBERATELY. It is different every launch and
+    /// means nothing to anybody; showing it would invite somebody to type it
+    /// somewhere. What IS drawn is whether the bench is up yet, because that is
+    /// the one state a person can be waiting on.
+    private var phoneRow: some View {
+        Button {
+            store.selectedID = BenchEndpoint.thisPhone.id
+        } label: {
+            HStack(spacing: Theme.spacing(.tight)) {
+                VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
+                    Label(PhoneBenchReport.name, systemImage: "iphone")
+                        .foregroundStyle(Theme.textPrimary)
+                    Text(store.phonePort == 0 ? PhoneBenchReport.notListening
+                                              : PhoneBenchReport.phoneRowNote)
+                        .font(.caption).foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: Theme.spacing(.tight))
+                if BenchEndpoint.thisPhone.id == store.selectedID {
+                    Image(systemName: "checkmark")
+                        .foregroundStyle(Theme.brandPrimary)
+                        .accessibilityLabel(Text("Selected"))
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     /// One saved bench: what it is called, where it is, and whether it is the
@@ -200,8 +258,10 @@ struct BenchEditorView: View {
 
     var body: some View {
         Form {
-            Section("Name") {
+            Section {
                 TextField("My bench", text: $bench.name)
+            } header: {
+                SectionHeading(text: "Name")
             }
             .listRowBackground(Theme.surfacePrimary)
 
@@ -220,7 +280,7 @@ struct BenchEditorView: View {
                     get: { bench.token ?? "" },
                     set: { bench.token = $0 }))
             } header: {
-                Text("Address")
+                SectionHeading(text: "Address")
             } footer: {
                 Text("Host and port, as the start script prints it. No http://, no trailing "
                    + "slash — this is not a web address.")
@@ -291,7 +351,7 @@ struct BenchEditorView: View {
                     }
                 }
             } header: {
-                Text("Check")
+                SectionHeading(text: "Check")
             } footer: {
                 Text("Asks the bench for its health — the one thing it answers without running "
                    + "any physics, so this works before anything else is set. It says which of "

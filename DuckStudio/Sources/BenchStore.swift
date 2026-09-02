@@ -17,9 +17,26 @@ import StudioKit
 /// side, as the app having forgotten. It becomes a bench called "My bench", and
 /// the old keys are then REMOVED — including the cleartext token, which this
 /// first left sitting in the plist it had just been moved out of.
+///
+/// AND THE FIRST ROW IS NOT SAVED AT ALL. This phone has a bench of its own now
+/// — MuJoCo compiled to WebAssembly, running in a WebView the app keeps alive,
+/// answering the same ten endpoints on a loopback port — so `benches` is a
+/// COMPOSED list: `BenchEndpoint.thisPhone` first, then whatever is in
+/// `UserDefaults`. Composed rather than inserted-on-load for three reasons, all
+/// of them mistakes that were available: a persisted phone row would write down
+/// a port that is different on the next launch; a phone row that could be
+/// deleted would leave somebody with an app that has physics and no way to
+/// reach it; and every screen that already reads `benches` — the Control deck's
+/// picker, the run screens, My Microduck — gets the phone for free and stays a
+/// zero-line diff, which is what makes this reviewable.
 @MainActor
 final class BenchStore: ObservableObject {
+    /// Every bench, the phone first. NOT what gets written down.
     @Published private(set) var benches: [BenchEndpoint] = []
+    /// The ones that are actually persisted — the machines on your network.
+    private var saved: [BenchEndpoint] = []
+    /// The loopback port the app's own listener came up on, or 0 before it has.
+    @Published private(set) var phonePort: Int = 0
     @Published private(set) var unreadableNote: String? = nil
     @Published var selectedID: UUID? {
         didSet { UserDefaults.standard.set(selectedID?.uuidString, forKey: Self.selectedKey) }
@@ -35,10 +52,18 @@ final class BenchStore: ObservableObject {
     private static let oldAddressKey = "duckbench.address"
     private static let oldTokenKey = "duckbench.token"
 
-    /// The chosen bench, or nil when nothing is set up yet. UNLIKE THE MODEL
-    /// STORE THERE IS NO FALLBACK: a phone has an on-device model and does not
-    /// have a physics engine, so "no bench" is a real state every caller has to
-    /// handle rather than something to paper over with a default.
+    /// THIS USED TO SAY "no bench" WAS A REAL STATE, and it is not one any
+    /// more. The sentence here was: a phone has an on-device model and does not
+    /// have a physics engine, so every caller must handle having no bench. The
+    /// second half was a claim about a build rather than about the hardware —
+    /// see `PhoneBenchReport.premiseWasAboutABuild` — and now that the app
+    /// carries MuJoCo, the list is never empty and `selected` is never nil.
+    ///
+    /// `makePeer` STILL ANSWERS NIL, and that Optional is kept on purpose: it
+    /// is the shape every caller is written against, and one of them is
+    /// `DriveView`, which this change is not allowed to touch. What was the
+    /// no-bench branch is now unreachable rather than removed.
+    ///
     /// The last policy this app loaded on each bench, by bench id.
     ///
     /// THE BENCH DOES NOT SAY WHICH POLICY IS LOADED. `/health` lists what a
@@ -66,7 +91,7 @@ final class BenchStore: ObservableObject {
     init() {
         if let data = UserDefaults.standard.data(forKey: Self.listKey) {
             let salvage = BenchEndpoint.decodeList(from: data)
-            benches = salvage.benches
+            saved = salvage.benches
             if salvage.unreadable != 0 {
                 UserDefaults.standard.set(salvage.unreadable ?? Self.uncountable,
                                           forKey: Self.unreadKey)
@@ -74,10 +99,38 @@ final class BenchStore: ObservableObject {
         }
         unreadableNote = Self.pendingNote()
         migrateSingleBenchIfNeeded()
+        recompose()
         if let raw = UserDefaults.standard.string(forKey: Self.selectedKey) {
             selectedID = UUID(uuidString: raw)
         }
+        // A FRESH INSTALL NOW SELECTS THE PHONE, and that is the whole change
+        // for somebody who has never set anything up: the app opens with a
+        // bench, and Control has something to drive. Anybody who already had a
+        // bench already has a `selectedID` — it is written in `init` the first
+        // time and on every change — so nothing moves under them.
         if selectedID == nil { selectedID = benches.first?.id }
+    }
+
+    /// Rebuild the visible list: the phone, then the saved machines.
+    ///
+    /// THE PORT IS STAMPED IN HERE AND NOWHERE ELSE. `BenchEndpoint.thisPhone`
+    /// carries `127.0.0.1:0`, which `resolved()` refuses with its own sentence;
+    /// `servedOn` is what turns it into an address once the listener has one.
+    private func recompose() {
+        benches = [BenchEndpoint.thisPhone.servedOn(port: phonePort)] + saved
+    }
+
+    /// The app's own bench came up on this port.
+    ///
+    /// PUBLISHED, BECAUSE A SCREEN OPENED BEFORE THE LISTENER WAS UP HAS TO
+    /// REDRAW WHEN IT ARRIVES. The WebView is brought up at launch and the
+    /// kernel hands out the port at bind time, so there is a real moment where
+    /// the first row exists and cannot be dialled — `PhoneBenchReport.notListening`
+    /// is the sentence for it, and this is what ends it.
+    func notePhoneBench(port: Int) {
+        guard port != phonePort else { return }
+        phonePort = port
+        recompose()
     }
 
     /// Bring the one unnamed bench across, once.
@@ -89,13 +142,18 @@ final class BenchStore: ObservableObject {
             .trimmingCharacters(in: .whitespaces)
         guard !address.isEmpty else { return }
         // Only if it is not already here — a re-run must not duplicate it.
-        guard !benches.contains(where: { $0.address == address }) else { return }
+        guard !saved.contains(where: { $0.address == address }) else { return }
 
         let token = UserDefaults.standard.string(forKey: Self.oldTokenKey) ?? ""
         var moved = BenchEndpoint(name: "My bench", address: address,
                                   hasToken: !token.isEmpty)
         moved.token = nil
-        benches.append(moved)
+        saved.append(moved)
+        // THE MIGRATED BENCH IS STILL THE SELECTED ONE, AND THAT IS DELIBERATE
+        // NOW THAT THE PHONE IS FIRST IN THE LIST. Somebody upgrading had one
+        // bench and was using it; putting a new first row in front of them and
+        // silently switching them to it would move their work to a different
+        // machine without asking.
         selectedID = moved.id
         flush()
 
@@ -144,7 +202,13 @@ final class BenchStore: ObservableObject {
         unreadableNote = nil
     }
 
+    /// REFUSED FOR THE PHONE, IN THE STORE AND NOT ONLY IN THE SCREEN. The
+    /// settings list does not offer an editor on that row, but a guard that
+    /// lives only in a view is a guard the next view forgets — and what this
+    /// one prevents is writing a loopback port into `UserDefaults` and dialling
+    /// it tomorrow, when it belongs to something else.
     func save(_ bench: BenchEndpoint) {
+        guard bench.isEditable else { return }
         var stored = bench
         if let token = bench.token, !token.isEmpty {
             BenchKeyStore.save(token, for: bench.id)
@@ -155,18 +219,23 @@ final class BenchStore: ObservableObject {
             stored.hasToken = false
         }
         stored.token = nil
-        if let index = benches.firstIndex(where: { $0.id == bench.id }) {
-            benches[index] = stored
+        if let index = saved.firstIndex(where: { $0.id == bench.id }) {
+            saved[index] = stored
         } else {
-            benches.append(stored)
+            saved.append(stored)
         }
+        recompose()
         if selectedID == nil { selectedID = stored.id }
         flush()
     }
 
+    /// The phone cannot be deleted, because an app with physics and no way to
+    /// reach it is worse than an app with no physics.
     func delete(_ bench: BenchEndpoint) {
+        guard bench.isEditable else { return }
         BenchKeyStore.clear(for: bench.id)
-        benches.removeAll { $0.id == bench.id }
+        saved.removeAll { $0.id == bench.id }
+        recompose()
         if selectedID == bench.id { selectedID = benches.first?.id }
         flush()
     }
@@ -178,8 +247,12 @@ final class BenchStore: ObservableObject {
         return out
     }
 
+    /// ONLY THE SAVED ONES ARE WRITTEN. `benches` has the phone at the front
+    /// and encoding that list would persist a port the kernel picked this
+    /// launch — the app would then dial it next time and reach whatever else
+    /// the system had given it in the meantime.
     private func flush() {
-        if let data = try? JSONEncoder().encode(benches) {
+        if let data = try? JSONEncoder().encode(saved) {
             UserDefaults.standard.set(data, forKey: Self.listKey)
         }
     }

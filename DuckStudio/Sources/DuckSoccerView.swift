@@ -337,7 +337,7 @@ private struct SoccerSetupSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Where") {
+                Section {
                     Picker("Venue", selection: $referee.venue) {
                         Text("Stadium").tag(SoccerReferee.Venue.stadium)
                         Text("Your floor (AR)").tag(SoccerReferee.Venue.ar)
@@ -367,10 +367,12 @@ private struct SoccerSetupSheet: View {
                             .font(.caption)
                             .foregroundStyle(Theme.textSecondary)
                     }
+                } header: {
+                    SectionHeading(text: "Where")
                 }
                 .listRowBackground(Theme.surfacePrimary)
 
-                Section("Your duck wears") {
+                Section {
                     Picker("Gear", selection: $referee.wearing) {
                         Text("Legs").tag(SoccerReferee.Gear.legs)
                         Text("Skates").tag(SoccerReferee.Gear.skates)
@@ -381,10 +383,12 @@ private struct SoccerSetupSheet: View {
                          : "Pollen's roller blades: glides 0.45 m/s, tops out at 0.6, propelled by the real swizzle recorded from the roller policy — and the CROUCH trick instead of a roulade. Speeds are the older rollers scene's; its training-parameter rebuild is pending.")
                         .font(.caption)
                         .foregroundStyle(Theme.textSecondary)
+                } header: {
+                    SectionHeading(text: "Your duck wears")
                 }
                 .listRowBackground(Theme.surfacePrimary)
 
-                Section("Match") {
+                Section {
                     Picker("Half length", selection: $referee.halfLength) {
                         Text("1 min").tag(60.0)
                         Text("2 min").tag(120.0)
@@ -394,6 +398,8 @@ private struct SoccerSetupSheet: View {
                     Text("Seconds of play in each of the two halves. A match is twice this.")
                         .font(.caption)
                         .foregroundStyle(Theme.textSecondary)
+                } header: {
+                    SectionHeading(text: "Match")
                 }
                 .listRowBackground(Theme.surfacePrimary)
 
@@ -1232,7 +1238,7 @@ final class SoccerCoordinator: NSObject, ARSessionDelegate {
     func session(_ session: ARSession, didFailWithError error: Error) {
         let code = (error as NSError).code
         referee?.status = code == ARError.Code.cameraUnauthorized.rawValue
-            ? "Camera access is off for OpenCastor — allow it in Settings, or play in the Stadium."
+            ? "Camera access is switched off for Microduck Studio — allow it in Settings, or play in the Stadium."
             : "The camera session failed: \(error.localizedDescription)"
     }
 

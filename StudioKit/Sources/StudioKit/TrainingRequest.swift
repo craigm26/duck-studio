@@ -263,6 +263,9 @@ public struct TrainingRequest: Equatable, Sendable {
         /// Asking to bite something thinner than the jaw closes.
         case underTheBite(millimetres: Double)
         case episodeTooLong(Double)
+        /// A request that uses the head as a lever against the robot's own
+        /// weight, with the arithmetic that says how little margin there is.
+        case leverAtTheStall(weightNewtons: Double, stallNewtons: Double)
 
         public var message: String {
             switch self {
@@ -291,6 +294,13 @@ public struct TrainingRequest: Equatable, Sendable {
                 return String(format: "%.0f s an episode is a long time to spend on one attempt. "
                     + "Every shipped task runs 2–8 s; a longer one is mostly the duck standing "
                     + "still being rewarded for it.", seconds)
+            case .leverAtTheStall(let weight, let stall):
+                return String(format: "This asks the head to lever the robot's own weight. The body "
+                    + "is %.1f N and the neck stalls at %.1f N — a margin of %.0f%%, which any "
+                    + "friction, angle or bounce uses up. No reward function widens it; the "
+                    + "servo and the lever are what they are. Train it if you like, but the "
+                    + "measured moves that tried this stayed on the floor.",
+                    weight, stall, (stall - weight) / weight * 100)
             }
         }
 
@@ -299,9 +309,19 @@ public struct TrainingRequest: Equatable, Sendable {
             switch self {
             case .unknownReward, .noRewards, .pastTheTorque, .pastTheReach, .underTheBite:
                 return true
-            case .episodeTooLong: return false
+            case .episodeTooLong, .leverAtTheStall: return false
             }
         }
+    }
+
+    /// The words that mark a request as trying to get the body up something.
+    public static let climbWords = ["lever", "climb", "stair", "step", "riser", "mantle", "ledge"]
+
+    /// Whether the request's own words say it is a climb. A heuristic over
+    /// text, used only to decide whether the lever arithmetic is worth saying.
+    public static func readsAsAClimb(name: String, summary: String, success: String) -> Bool {
+        let text = (name + " " + summary + " " + success).lowercased()
+        return climbWords.contains { text.contains($0) }
     }
 
     /// Everything wrong with this request, cheapest check first.
@@ -312,6 +332,18 @@ public struct TrainingRequest: Equatable, Sendable {
             found.append(.unknownReward(reward.function))
         }
         if episodeSeconds > 12 { found.append(.episodeTooLong(episodeSeconds)) }
+        // THE HEAD AS A LEVER IS CHECKED EVEN WITH NO PROP. The neck check below
+        // only ran for a prop's grams, so a request whose whole idea was the
+        // head pushing the body up a step passed with no arithmetic at all.
+        // The tell is a mouth or neck reward, nothing to pick up, and words
+        // about climbing in the request — a text heuristic, said as one, and
+        // the refusal it produces is advisory rather than fatal.
+        if prop == nil, Self.readsAsAClimb(name: name, summary: summary, success: successCriterion),
+           rewards.contains(where: { $0.function.hasPrefix("mouth_") || $0.function.hasPrefix("neck_") }) {
+            let weight = Retrieval.Drag.duckMass * 9.81
+            found.append(.leverAtTheStall(weightNewtons: weight,
+                                          stallNewtons: Retrieval.Drag.pullBeforeNeckStalls))
+        }
         if let prop {
             // PHYSICS, NOT THE OLD POLICY'S TRAINING SET. What the previous
             // network was shown does not bound a new one; the torque and the
@@ -491,8 +523,16 @@ extension TrainingRequest {
 
         Every function named above exists upstream, but not all in one module:
         `self_collision_cost` is mjlab's — `mjlab.tasks.velocity.mdp` — and the
-        rest are `mjlab_microduck/tasks/mdp.py`. Checked against
-        pollen-robotics/microduck_rl and mujocolab/mjlab on 2026-08-31.
+        rest are `mjlab_microduck/tasks/mdp.py`. Re-checked against
+        pollen-robotics/microduck_rl and mujocolab/mjlab on 2026-09-01, with three
+        things worth knowing before a config binds them: `pose_target_match` is
+        defined twice in mdp.py with different positional order (the later one
+        wins; this brief passes keywords, so it is safe, but a hand edit may
+        not be); `mouth_ground_proximity` and `mouth_perpendicular_to_ground`
+        read the ground-pick phase command and world z, so they belong to the
+        ground-pick task and misbehave in a velocity task or on stepped terrain;
+        `joint_torques_l2` and `is_alive` exist in both modules and microduck's
+        shadow mjlab's.
         \(signWarning)
 
         ## Episode and success

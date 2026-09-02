@@ -138,7 +138,7 @@ struct ModelSettingsView: View {
                     }
                 }
             } header: {
-                Text("Draft with")
+                SectionHeading(text: "Draft with")
             } footer: {
                 Text(store.selected.privacyNote)
                     .foregroundStyle(Theme.textSecondary)
@@ -176,7 +176,7 @@ struct ModelSettingsView: View {
                     .buttonStyle(.plain)
                 }
             } header: {
-                Text("Add one")
+                SectionHeading(text: "Add one")
             } footer: {
                 Text("Claude needs a bridge, because a subscription is a CLI on a computer rather than an HTTP endpoint and a phone cannot shell out. tools/claudebridge.mjs in this repo is that bridge: run it on a machine signed in to Claude Code and point this at it. Measured on a Raspberry Pi 5: a motion draft in 8.8 s and a training request in 26.5 s, against 766 s for a 7.5B model running locally on the same board.\n\nAnything speaking the OpenAI chat API works — Ollama, LM Studio, llama.cpp's server, vLLM. It does not have to be a big model: the app checks every number that comes back, so a small one that gets a joint name wrong is refused rather than believed.\n\nMeasured on a Raspberry Pi 5, CPU only: a 7.5B Gemma took 766 s to draft one motion; a 2B model with reasoning suppressed answered a fetch in 37 s. Small and quick beats large and correct here, because the checking is done afterwards either way.")
                     .foregroundStyle(Theme.textSecondary)
@@ -368,8 +368,10 @@ struct EndpointEditor: View {
 
     var body: some View {
         List {
-            Section("Name") {
+            Section {
                 TextField("What you will call it", text: $endpoint.name)
+            } header: {
+                SectionHeading(text: "Name")
             }
             .listRowBackground(Theme.surfacePrimary)
 
@@ -402,7 +404,7 @@ struct EndpointEditor: View {
                 }
                 .disabled(busy)
             } header: {
-                Text("Address")
+                SectionHeading(text: "Address")
             } footer: {
                 Text("Ends in /v1. Ollama, LM Studio and llama.cpp all serve their OpenAI-compatible API there, and without it the request lands on the wrong route.")
                     .foregroundStyle(Theme.textSecondary)
@@ -411,19 +413,23 @@ struct EndpointEditor: View {
             .listRowBackground(Theme.surfacePrimary)
 
             if available.isEmpty {
-                Section("Model") {
+                Section {
                     TextField("gemma4:e4b-it-qat", text: $endpoint.model)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .font(.body.monospaced())
+                } header: {
+                    SectionHeading(text: "Model")
                 }
                 .listRowBackground(Theme.surfacePrimary)
             } else {
-                Section("Model") {
+                Section {
                     Picker("Model", selection: $endpoint.model) {
                         ForEach(available, id: \.self) { Text($0).tag($0) }
                     }
                     .pickerStyle(.inline).labelsHidden()
+                } header: {
+                    SectionHeading(text: "Model")
                 }
                 .listRowBackground(Theme.surfacePrimary)
             }
@@ -463,7 +469,7 @@ struct EndpointEditor: View {
                     .padding(.vertical, Theme.spacing(.hairline))
                 }
             } header: {
-                Text("Check")
+                SectionHeading(text: "Check")
             } footer: {
                 Text("Asks the address for its list of models — the one thing a server answers without running anything, so this works before a model is named. It waits \(Int(Self.checkAllowance)) seconds rather than the timeout below, and says which of the several very different reasons an address can fail it hit: nothing listening, nothing serving an API there, a name that did not resolve, a key it wanted, a connection iOS would not make, or a machine that is simply slow.")
                     .foregroundStyle(Theme.textSecondary)

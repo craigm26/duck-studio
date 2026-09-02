@@ -52,7 +52,28 @@ targets:
     platform: iOS
     sources:
       - Sources
-      - Resources
+      # EVERYTHING BUT THE PHONE BENCH, which needs a different kind of
+      # reference and would otherwise be added twice.
+      - path: Resources
+        excludes:
+          - "phonebench"
+          - "phonebench/**"
+      # A FOLDER REFERENCE, AND THE DISTINCTION IS THE WHOLE FEATURE. Xcode's
+      # default is a GROUP: every file is added individually and copied into the
+      # bundle root, so `assets/mujoco.wasm` lands as `mujoco.wasm` beside
+      # `index.html` and the page's own `fetch('./assets/mujoco.js')` 404s. A
+      # folder reference copies the directory as a directory, which is what
+      # makes the page's relative fetches work — it fetches against its own
+      # origin and the origin is a loopback server serving this tree.
+      #
+      # IT IS ALSO WHAT KEEPS THE VENDORED ARTEFACTS HONEST. Nothing in here is
+      # compiled or processed; the bytes in the bundle are the bytes
+      # `scripts/make_phone_bench.sh` copied out of duck-sounds, and
+      # `MANIFEST.json` beside them carries the digest of each one so
+      # `scripts/check_no_studio_math.sh` can prove none of them was edited into
+      # a second implementation of the physics.
+      - path: Resources/phonebench
+        type: folder
       - Assets.xcassets
     dependencies:
       # MLXLLM MUST BE LINKED INTO THE BINARY even where no symbol of it is
@@ -285,7 +306,7 @@ targets:
         DEVELOPMENT_TEAM: WYGG3JXWMG
         CODE_SIGN_STYLE: Automatic
         MARKETING_VERSION: "1.1"
-        CURRENT_PROJECT_VERSION: "42"
+        CURRENT_PROJECT_VERSION: "43"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         SWIFT_VERSION: "5.9"
         TARGETED_DEVICE_FAMILY: "1,2"

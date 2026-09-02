@@ -90,7 +90,7 @@ struct PolicyBlendView: View {
             }
             .listRowBackground(Theme.surfacePrimary)
 
-            Section("Ingredients") {
+            Section {
                 picker("First", selection: $first)
                 picker("Second", selection: $second)
                 if chosenPair != nil {
@@ -113,6 +113,8 @@ struct PolicyBlendView: View {
                     }
                     .padding(.vertical, Theme.spacing(.hairline))
                 }
+            } header: {
+                SectionHeading(text: "Ingredients")
             }
             .listRowBackground(Theme.surfacePrimary)
 
@@ -134,7 +136,7 @@ struct PolicyBlendView: View {
             }
 
             if let blended {
-                Section("The blend") {
+                Section {
                     if let recipe {
                         LabeledContent("Mixed from", value: String(
                             format: "%.0f%% %@ / %.0f%% %@",
@@ -160,6 +162,8 @@ struct PolicyBlendView: View {
                     // NOT ORANGE: SAVING MAKES NOTHING NEW. The bytes already
                     // exist; this hands them to the share sheet.
                     Button("Save as .onnx") { export(blended) }
+                } header: {
+                    SectionHeading(text: "The blend")
                 }
                 .listRowBackground(Theme.surfacePrimary)
 
@@ -208,7 +212,7 @@ struct PolicyBlendView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 } header: {
-                    Text("Run it somewhere with physics")
+                    SectionHeading(text: "Run it somewhere with physics")
                 } footer: {
                     Text("Six seconds, commanded forward at vx 0.5 — below about 0.3 the walking "
                        + "policy simply stands, and two ducks standing still look alike.")

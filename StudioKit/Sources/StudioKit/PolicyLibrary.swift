@@ -36,18 +36,40 @@ public struct PolicyLibrary: Sendable {
         case imported
         /// Fetched from a URL the person typed.
         case fetched(host: String)
+        /// Made on this phone by the tuning search, out of the named policy.
+        ///
+        /// A FOURTH ORIGIN AND NOT A FLAVOUR OF `imported`, because it answers
+        /// a question the other three cannot. Every other entry in this library
+        /// arrived: somebody shipped it, sent it, or downloaded it, and the
+        /// weights were somebody else's before they were here. A tuned policy
+        /// was MADE here — its digest exists nowhere else in the world, nobody
+        /// else can reproduce it without the seed, and it has never been run on
+        /// a robot by anyone. Filing it as "Imported" would put the one network
+        /// in the list with no outside provenance in the same shelf as the ones
+        /// whose provenance is the point.
+        ///
+        /// IT CARRIES WHAT IT WAS MADE FROM, because that is the only part of
+        /// it anybody else has ever measured. The walk is the base policy's;
+        /// this changed a per-joint gain and trim.
+        case tuned(base: String)
 
         var rank: Int {
             switch self {
             case .bundled:  return 0
             case .imported: return 1
             case .fetched:  return 2
+            // LAST, WHICH IS ALSO NEWEST. A tuned policy is the only kind this
+            // app can produce, so it did not exist at the last launch and
+            // putting it at the bottom is where somebody will look for a thing
+            // they just made.
+            case .tuned:    return 3
             }
         }
 
         public static func < (a: Origin, b: Origin) -> Bool {
             if a.rank != b.rank { return a.rank < b.rank }
             if case .fetched(let x) = a, case .fetched(let y) = b { return x < y }
+            if case .tuned(let x) = a, case .tuned(let y) = b { return x < y }
             return false
         }
 
@@ -56,6 +78,44 @@ public struct PolicyLibrary: Sendable {
             case .bundled:  return "Bundled"
             case .imported: return "Imported"
             case .fetched(let host): return "From \(host)"
+            case .tuned(let base): return "Tuned here from \(base)"
+            }
+        }
+
+        /// Whose weights these are, in the word a list row has space for.
+        ///
+        /// "YOU" IS ONLY EVER TRUE OF ONE ORIGIN, and it is worth a field
+        /// rather than a guess at a call site. A bundled or fetched policy was
+        /// trained by somebody with a GPU cluster and a month; an imported one
+        /// might have been trained by anybody. A tuned one is the only entry
+        /// whose particular numbers came out of a search this person ran on
+        /// this phone — and even then only the residual is theirs, which is
+        /// what `caveat` is for.
+        public var author: String {
+            switch self {
+            case .bundled, .fetched: return "somebody else"
+            case .imported:          return "whoever sent it"
+            case .tuned:             return "you"
+            }
+        }
+
+        /// The thing a row must say beside an entry, or nil when the origin
+        /// carries no warning of its own.
+        ///
+        /// YELLOW, NOT RED, AND THE DIFFERENCE IS THE CLAIM. A refusal is red
+        /// because the file will not run. This will run — it is a valid policy
+        /// by every check this app makes — and what is wrong with it is that
+        /// nobody has ever run it anywhere but a simulator on a phone. That is
+        /// a caution, and a caution that shouted would be lumped in with the
+        /// errors and stop being read.
+        public var caveat: String? {
+            switch self {
+            case .bundled, .imported, .fetched: return nil
+            case .tuned(let base):
+                return "Made on this phone by searching a per-joint gain and trim and folding it "
+                     + "into \(base). Nothing was trained: the walk is still the base policy's. "
+                     + "Every number behind it came out of a simulator, and it has never run on "
+                     + "hardware."
             }
         }
     }
@@ -309,7 +369,7 @@ extension PolicyLibrary.Entry {
     public var isRemovable: Bool {
         switch origin {
         case .bundled: return false
-        case .imported, .fetched: return true
+        case .imported, .fetched, .tuned: return true
         }
     }
 
@@ -330,6 +390,16 @@ extension PolicyLibrary.Entry {
         case .imported:
             return "Removes \(displayName) from this phone. It was brought in as a file, so if "
                  + "this is the only copy, the weights are gone with it."
+        // THE ONLY ENTRY THAT EXISTS NOWHERE ELSE IN THE WORLD. A bundled file
+        // comes back with the app and a fetched one comes back off a server;
+        // even an imported policy is usually a copy of something. This was
+        // produced by a search on this phone, and the search is reproducible
+        // only from its seed and its base — which the manifest carries and a
+        // deleted policy does not.
+        case .tuned(let base):
+            return "Removes \(displayName) from this phone. It was made here by tuning "
+                 + "\(base), and this is the only copy there has ever been — no server has it "
+                 + "and no other machine made it. Export it first if the run was worth keeping."
         }
     }
 }

@@ -83,7 +83,7 @@ struct PhoneModelPickerView: View {
                     row(model)
                 }
             } header: {
-                Text("Tried on this app")
+                SectionHeading(text: "Tried on this app")
             } footer: {
                 Text(PhoneModelInstall.staysOpenNote + " " + PhoneModelInstall.cellularWarning)
                     .foregroundStyle(Theme.textSecondary)
@@ -152,7 +152,7 @@ struct PhoneModelPickerView: View {
                     hitRow(hit)
                 }
             } header: {
-                Text("Anything else")
+                SectionHeading(text: "Anything else")
             } footer: {
                 Text(PhoneModelSearch.scopeNote)
                     .foregroundStyle(Theme.textSecondary)

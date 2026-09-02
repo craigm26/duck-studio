@@ -170,7 +170,7 @@ struct RetrieveView: View {
                     .lineLimit(1...3)
                     .textInputAutocapitalization(.never)
             } header: {
-                Text("Say it plainly")
+                SectionHeading(text: "Say it plainly")
             } footer: {
                 Text("Try \"fetch the pencil\", \"drag the broom standing in the corner\", \"pick up the dowel 2 m away\". Weights, thicknesses and grip heights can be given outright — \"a 30 g stick 25 mm thick\", \"held 120 mm up\".")
                     .foregroundStyle(Theme.textSecondary)
@@ -191,7 +191,7 @@ struct RetrieveView: View {
                             .foregroundStyle(Theme.measured)
                     }
                 } header: {
-                    Text("The measurement this plan was kept with")
+                    SectionHeading(text: "The measurement this plan was kept with")
                 } footer: {
                     // NOT `reading.sentence`. That paragraph says which numbers
                     // came out of THESE words, and none of these did — they came
@@ -205,10 +205,12 @@ struct RetrieveView: View {
             }
 
             if restored == nil, !reading.understood.isEmpty {
-                Section("Read as") {
+                Section {
                     ForEach(reading.understood, id: \.self) {
                         Text($0).font(.footnote).foregroundStyle(Theme.textPrimary)
                     }
+                } header: {
+                    SectionHeading(text: "Read as")
                 }
                 .listRowBackground(Theme.surfacePrimary)
             }
@@ -224,7 +226,7 @@ struct RetrieveView: View {
                             .foregroundStyle(Theme.asked)
                     }
                 } header: {
-                    Text("Guessed")
+                    SectionHeading(text: "Guessed")
                 }
                 .listRowBackground(Theme.surfacePrimary)
                 // THE FOOTER THAT USED TO SIT HERE IS NOW `reading.sentence`, ONE
@@ -290,9 +292,9 @@ struct RetrieveView: View {
                 // trade one false statement for another. The honest header says
                 // what actually happened: the reading failed, not the duck.
                 if confidence == .notUnderstood {
-                    Text(Self.unreadHeader)
+                    SectionHeading(text: Self.unreadHeader)
                 } else {
-                    Text(plan.isPossible ? "It can do this" : "It cannot do this")
+                    SectionHeading(text: plan.isPossible ? "It can do this" : "It cannot do this")
                 }
             } footer: {
                 // THE VERDICT AND THE CAVEAT SHARE A SECTION IN THE TWO STATES
@@ -345,9 +347,9 @@ struct RetrieveView: View {
                 // section two rows up uses, and it is true in both halves of this
                 // state: the weight may be the person's, the thickness never is.
                 if confidence == .notUnderstood {
-                    Text("The plan for the guessed object · \(String(format: "%.1f s", plan.seconds))")
+                    SectionHeading(text: "The plan for the guessed object · \(String(format: "%.1f s", plan.seconds))")
                 } else {
-                    Text("The plan · \(String(format: "%.1f s", plan.seconds))")
+                    SectionHeading(text: "The plan · \(String(format: "%.1f s", plan.seconds))")
                 }
             } footer: {
                 Text("Two of these steps are the same ground pick, split at the moment the mouth is lowest.")
@@ -381,7 +383,7 @@ struct RetrieveView: View {
                 measurement("Pick runs for", String(format: "%.1f s of a %.0f s cycle",
                                                     Retrieval.pickDuration, Retrieval.phasePeriod))
             } header: {
-                Text("Where the numbers come from")
+                SectionHeading(text: "Where the numbers come from")
             } footer: {
                 Text("The two pull figures are CEILINGS, not demonstrations: the duck's 0.737 kg out of Pollen's MJCF, the ±0.6405 N⋅m training runs its joints at, the 0.084 m from the neck joint to the beak, and the 0.7–1.3 foot friction training randomises over. Nobody has measured this duck dragging anything, and a ceiling says what is impossible rather than what works.\n\nThe payload and the 4 s cycle are upstream's — sample_mouth_payload and GP_PERIOD in microduck_ground_pick_env_cfg.py, and GROUND_PICK_END_PHASE in robotd's control.rs. The mouth heights and the grasp window are measured here, through this app's kinematics over the recorded policy. They DISAGREE with the config's nominal hold of 1.50–1.70 s: the plant bottoms out at 1.16 s and is already climbing by 1.50. Closing the jaw on the config's window closes it on the way up.")
                     .foregroundStyle(Theme.textSecondary)
