@@ -11,9 +11,11 @@ import Foundation
 /// is the tread, so at any rise under 200 mm adjacent blocks interpenetrate,
 /// and because they collide with each other and sit on frictionless slides
 /// the solver shoves them apart. Below about 150 mm a duck simply STANDING on
-/// the first tread is thrown to the floor within ten control ticks. Every
-/// replay in that audit was scored on that flight, so below 150 mm it says
-/// nothing about climbing at all. That sentence is gone.
+/// the first tread is thrown to the floor within ten control ticks; from 150
+/// to 170 mm the shove turns vertical and presses the tread down into its
+/// feet, and a placed duck still fails. Every replay in that audit was scored
+/// on that flight, so below 180 mm it says nothing about climbing at all.
+/// That sentence is gone.
 ///
 /// WHAT IS KNOWN NOW, after six rounds and roughly 55,000 searched attempts,
 /// each claim re-scored from its saved file by an adversarial audit
@@ -23,13 +25,14 @@ import Foundation
 /// is UNRELIABLE AT EVERY HEIGHT. The best open-loop move, a beak-strut vault
 /// (beak planted on the tread, neck locked as a strut, hips extend, the trunk
 /// pivots over the head, the feet land on the tread), clears 2 of 9 cells at
-/// 40 mm, 2 of 9 at 50, 4 of 9 at 60, 2 of 9 at 70 and 1 of 9 at 80 — and the
-/// 60, 70 and 80 mm figures are ONE vector scored at three heights — and 0 of
-/// 9 at 90 mm or taller, against 9 of 9 for a duck simply placed on the tread
-/// and 0 of 9 for doing nothing on the same plant. Ten of those eleven clears
+/// 40 mm, 2 of 9 at 50, 5 of 9 at 60 (the round-six launch a56d459fb649,
+/// floor spawn, no servo), 2 of 9 at 70 and 1 of 9 at 80 — the 70 and 80 mm
+/// figures being ONE earlier vector scored at two heights — and 0 of 9 at
+/// 90 mm or taller, against 9 of 9 for a duck simply placed on the tread and
+/// 0 of 9 for doing nothing on the same plant. Eleven of those twelve clears
 /// are still upright fifty ticks later. The clears are isolated points, not a
-/// basin: one control tick of shift in the landing takes the 60 mm move from
-/// 4 of 9 to 1 of 9, and a 5 mm change of rise either side of 60 reads no.
+/// basin: one control tick of shift in the landing takes the earlier 60 mm
+/// move from 4 of 9 to 1 of 9, and a 5 mm change of rise either side reads no.
 /// Above 80 mm the ceiling is a lift budget, measured from two directions:
 /// everything tried buys about 38 mm of trunk lift where the criterion needs
 /// 59 mm at 80 and 99 mm at 120, with every servo saturated at the plant's
@@ -139,11 +142,11 @@ public struct StepCeiling: Equatable, Sendable {
     public static let current = StepCeiling(
         metres: 0,
         attempts: [Attempt(rise: 0.040, cleared: 2, of: 9), Attempt(rise: 0.050, cleared: 2, of: 9),
-                   Attempt(rise: 0.060, cleared: 4, of: 9), Attempt(rise: 0.070, cleared: 2, of: 9),
+                   Attempt(rise: 0.060, cleared: 5, of: 9), Attempt(rise: 0.070, cleared: 2, of: 9),
                    Attempt(rise: 0.080, cleared: 1, of: 9)],
-        oneVectorFrom: 0.060,
-        stableClears: 10,
-        clearsInAll: 11,
+        oneVectorFrom: 0.070,
+        stableClears: 11,
+        clearsInAll: 12,
         reliableCleared: 7,
         bandVerdict: "The search is finished at this scale, against a bar of 7 of 9 stable cells at "
                    + "60 mm: a landing servoed from measured trunk state cleared 0 of 9 stably, and a "
@@ -156,7 +159,7 @@ public struct StepCeiling: Equatable, Sendable {
                    + "that does not ask the duck to lift its own trunk unaided: a second duck, a "
                    + "wall or rail to react against, a lever or ramp placed first.",
         resolvableAbove: 0.011,
-        brokenFlightSoundAbove: 0.150,
+        brokenFlightSoundAbove: 0.180,
         episodes: 55_000,
         rounds: 6,
         move: "a beak-strut vault",
@@ -264,9 +267,10 @@ public struct StepCeiling: Equatable, Sendable {
     /// Why the earlier count is gone, for anyone who saw it.
     public var whyTheOldCountIsGone: String {
         String(format: "An earlier audit reported 0 of 54 replays clearing rises from 20 to 180 mm. Its "
-               + "staircase pushed its own step blocks apart at every rise under %.0f mm and threw a "
-               + "standing duck to the floor, so below that it measured the staircase, not the robot.",
-               brokenFlightSoundAbove * 1000)
+               + "staircase pushed its own step blocks apart at every rise under %.0f mm, throwing a "
+               + "standing duck to the floor below 150 mm and pressing the tread down into its feet "
+               + "above that, so below %.0f mm it measured the staircase, not the robot.",
+               brokenFlightSoundAbove * 1000, brokenFlightSoundAbove * 1000)
     }
 
     /// "21,000", in the kit's own words rather than a locale's.

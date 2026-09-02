@@ -215,7 +215,9 @@ blocks whose top is the tread, so at any rise under 200 mm adjacent blocks inter
 in z. They shipped on the same collision bit, on frictionless slides, and the solver
 shoved them apart: up to 20 mm of tread drift inside one control tick. Below about 150 mm
 a duck simply standing on the first tread was thrown to the floor within ten ticks. The
-first audit's "0 of 54 replays cleared 20–180 mm" measured that staircase, not the robot.
+first audit's "0 of 54 replays cleared 20–180 mm" measured that staircase, not the robot;
+from 150 to 170 mm the shove turned vertical and pressed the tread into a placed duck's feet,
+so the old flight was sound only at 180 mm.
 The repair (`site/stairs.js isolateSteps`, commit 279b016) zeroes each step geom's
 conaffinity: step-step stops colliding, step-duck, step-wall and step-prop do not change.
 Re-baselined, a placed duck passes at 40, 60, 90, 120 and 180 mm where before only 180 did.
@@ -252,12 +254,15 @@ policy sees 61 proprioceptive numbers); and every clear passes through the step 
 7–9 mm on the way up, soft contact rather than tunnelling. Roughly 50,000 attempts over
 five rounds.
 
-**Round six finished the search at this scale.** It asked the only question left: how high
+**Round six finished the search at this scale, and moved the record to 5 of 9.** It asked the only question left: how high
 can any launch lift the trunk, landing aside? A search whose objective was the count of
 cells with the trunk past the 95 mm bar — no landing term, no servo — over 340 new launch
 vectors, plus every published launch, plus the judge's rebuild of all of them from their
 parameters: 394 distinct launches at 60 mm, and the trunk clears the bar in at most 5 of
-9 cells. Every cell is reachable on its own; the cells trade and never accumulate. Since
+9 cells. Every cell is reachable on its own; the cells trade and never accumulate. One of
+those launches, best_r6_ceilvaultC_60mm.json, is the new record: it converts every cell where
+it has the height and clears 5 of 9 stably at 60 mm from a floor spawn with no servo, which
+is exactly the ceiling and still short of the bar. Since
 a clear needs the trunk above the bar, that ceiling bounds every landing law there could
 be, so the bar of 7 was never reachable. The limit was measured on a torque trace that
 reproduces the scorer's episodes exactly, and it is geometry rather than tuning: hip

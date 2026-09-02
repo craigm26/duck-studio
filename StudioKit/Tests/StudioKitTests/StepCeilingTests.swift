@@ -8,10 +8,10 @@ final class StepCeilingTests: XCTestCase {
         let c = StepCeiling.current
         XCTAssertEqual(c.metres, 0)
         XCTAssertEqual(c.attempts.map(\.rise), [0.040, 0.050, 0.060, 0.070, 0.080])
-        XCTAssertEqual(c.attempts.map(\.cleared), [2, 2, 4, 2, 1])
-        XCTAssertEqual(c.oneVectorFrom, 0.060)
-        XCTAssertEqual(c.stableClears, 10)
-        XCTAssertEqual(c.clearsInAll, 11)
+        XCTAssertEqual(c.attempts.map(\.cleared), [2, 2, 5, 2, 1])
+        XCTAssertEqual(c.oneVectorFrom, 0.070)
+        XCTAssertEqual(c.stableClears, 11)
+        XCTAssertEqual(c.clearsInAll, 12)
         XCTAssertTrue(c.attempts.allSatisfy { $0.of == 9 && $0.cleared < c.reliableCleared },
                       "nothing reaches the reliable bar: \(c.attempts)")
         XCTAssertEqual(c.tallestAnyCell, 0.080)
@@ -57,11 +57,11 @@ final class StepCeilingTests: XCTestCase {
     /// Never "the robot can climb 60 mm".
     func testARiseOnTheGridIsCalledUnreliableNotAClimb() {
         let c = StepCeiling.current
-        XCTAssertEqual(c.attempt(at: 0.060)?.cleared, 4)
+        XCTAssertEqual(c.attempt(at: 0.060)?.cleared, 5)
         XCTAssertNil(c.attempt(at: 0.065))
         let said = c.verdict(rise: 0.060)
         XCTAssertTrue(said.hasPrefix("A 60 mm rise. In simulation, on the simulator's four-step staircase, repaired"), said)
-        XCTAssertTrue(said.contains("gets up this rise in 4 of 9 perturbed attempts"), said)
+        XCTAssertTrue(said.contains("gets up this rise in 5 of 9 perturbed attempts"), said)
         XCTAssertTrue(said.contains("never reliably"), said)
         XCTAssertTrue(said.contains("a duck placed on the tread passes 9 of 9 and doing nothing 0 of 9"), said)
         XCTAssertTrue(said.contains("Unreliable at every height is not a climb"), said)
@@ -71,8 +71,8 @@ final class StepCeilingTests: XCTestCase {
     /// BETWEEN THE GRID'S RISES: the whole row is named and nothing is reliable.
     func testARiseBetweenTheGridsRisesNamesTheWholeRow() {
         let said = StepCeiling.current.verdict(rise: 0.045)
-        XCTAssertTrue(said.contains("gets up 40 mm in 2 of 9, 50 mm in 2 of 9, 60 mm in 4 of 9, 70 mm in 2 of 9 and 80 mm in 1 of 9 perturbed attempts"), said)
-        XCTAssertTrue(said.contains("(the 60, 70 and 80 mm figures are one move scored at 3 heights)"), said)
+        XCTAssertTrue(said.contains("gets up 40 mm in 2 of 9, 50 mm in 2 of 9, 60 mm in 5 of 9, 70 mm in 2 of 9 and 80 mm in 1 of 9 perturbed attempts"), said)
+        XCTAssertTrue(said.contains("(the 70 and 80 mm figures are one move scored at 2 heights)"), said)
         XCTAssertTrue(said.contains("and nothing reliably"), said)
         XCTAssertTrue(said.contains("nothing this app has can be shown to get up this one"), said)
     }
@@ -95,9 +95,9 @@ final class StepCeilingTests: XCTestCase {
         let s = StepCeiling.current.says
         for piece in ["In simulation only", "6 rounds", "55,000", "unreliable at every height",
                       "The search is finished at this scale", "a shorter lever or a stronger neck servo",
-                      "a beak-strut vault", "40 mm in 2 of 9", "60 mm in 4 of 9", "70 mm in 2 of 9",
-                      "80 mm in 1 of 9", "one move scored at 3 heights",
-                      "0 of 9 at 90 mm or taller", "10 of those 11 clears still upright fifty ticks later",
+                      "a beak-strut vault", "40 mm in 2 of 9", "60 mm in 5 of 9", "70 mm in 2 of 9",
+                      "80 mm in 1 of 9", "one move scored at 2 heights",
+                      "0 of 9 at 90 mm or taller", "11 of those 12 clears still upright fifty ticks later",
                       "9 of 9 for a duck placed on the tread",
                       "0 of 9 for doing nothing", "r6", "2026-09-02", "under 11 mm"] {
             XCTAssertTrue(s.contains(piece), "\(piece) missing from: \(s)")
@@ -110,7 +110,8 @@ final class StepCeilingTests: XCTestCase {
     func testTheOldCountIsExplainedNotErased() {
         let s = StepCeiling.current.whyTheOldCountIsGone
         XCTAssertTrue(s.contains("0 of 54"), s)
-        XCTAssertTrue(s.contains("under 150 mm"), s)
+        XCTAssertTrue(s.contains("under 180 mm"), s)
+        XCTAssertTrue(s.contains("below 150 mm"), s)
         XCTAssertTrue(s.contains("measured the staircase, not the robot"), s)
     }
 
