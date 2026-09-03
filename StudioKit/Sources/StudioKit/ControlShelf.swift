@@ -25,6 +25,7 @@ public enum ControlShelf {
     // MARK: - the chips
 
     public static let sceneChip = "Scene"
+    public static let poseChip = "Pose"
     /// The button on a motion's row, and the heading its answer lands under.
     public static let runItHere = "Run it here"
     public static let whatHappened = "What happened"
@@ -95,9 +96,38 @@ public enum ControlShelf {
         "A motion can go on a pad button too: open the buttons list under the controls, pick a "
       + "button, and choose it there. A press does what Run does here."
 
+    // MARK: - posing the duck on the picture
+
+    /// WHY POSING IS A MODE AND NOT A GESTURE ON A LIVE DUCK. The live lane
+    /// carries one payload — a velocity twist — and nothing in it can hold a
+    /// joint at an angle; a policy is writing every joint target, every tick,
+    /// and a finger cannot outvote it. So a pose is BUILT here and then RUN:
+    /// the bench takes the duck from where it is to the pose as a two-keyframe
+    /// track, which is the same batch door a motion goes through and the same
+    /// promise about the sticks.
+    public static let posingSaid =
+        "Grab a joint and move it. Nothing is sent while you pose: the duck on the picture is "
+      + "the pose you are building, and the bench goes on doing whatever it was doing."
+
+    /// The pose chip's second line while a pose is being built.
+    public static let posingNow = "Building one"
+    public static let holdIt = "Hold it on the bench"
+    public static let keepItAsAMotion = "Keep it as a motion"
+    public static let doneposing = "Done"
+
+    public static let holdingSaid =
+        "Holding it stops driving, takes the duck from where it is to this pose, and hands the "
+      + "sticks back — the same door a motion runs through, because it is one."
+
+    /// The pose became a motion in Studio, named.
+    public static func keptAsAMotion(_ name: String) -> String {
+        "Kept as \(name). It is in Studio with the other motions, and it is on the Motions chip."
+    }
+
     /// Everything this type says, so a screen can be checked against it.
     public static let everySentence: [String] = [
-        sceneChip, motionsChip, runItHere, whatHappened, sceneSheetSaid, motionSheetSaid, runsInItsOwnRoom,
+        sceneChip, poseChip, posingNow, motionsChip, runItHere, whatHappened, holdIt,
+        keepItAsAMotion, doneposing, posingSaid, holdingSaid, sceneSheetSaid, motionSheetSaid, runsInItsOwnRoom,
         runningStopsTheDrive, authoredAnywhere, noMotionsYet, alsoOnAButton,
     ]
 }

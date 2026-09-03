@@ -8,6 +8,7 @@ final class ControlShelfTests: XCTestCase {
         XCTAssertEqual(ControlShelf.sceneChip, "Scene")
         XCTAssertEqual(ControlShelf.motionsChip, "Motions")
         XCTAssertEqual(ControlShelf.runItHere, "Run it here")
+        XCTAssertEqual(ControlShelf.poseChip, "Pose")
         XCTAssertEqual(ControlShelf.whatHappened, "What happened")
     }
 
@@ -54,12 +55,28 @@ final class ControlShelfTests: XCTestCase {
         // The four LABELS are labels — a chip and a button and a heading —
         // and the rest are sentences. A label with a full stop on a capsule
         // would be a sentence pretending to be a control.
-        let labels = [ControlShelf.sceneChip, ControlShelf.motionsChip,
-                      ControlShelf.runItHere, ControlShelf.whatHappened]
+        let labels = [ControlShelf.sceneChip, ControlShelf.poseChip, ControlShelf.motionsChip,
+                      ControlShelf.runItHere, ControlShelf.whatHappened,
+                      ControlShelf.holdIt, ControlShelf.keepItAsAMotion,
+                      ControlShelf.doneposing, ControlShelf.posingNow]
         for said in labels { XCTAssertFalse(said.hasSuffix("."), said) }
         for said in ControlShelf.everySentence where !labels.contains(said) {
             XCTAssertTrue(said.hasSuffix(".") || said.hasSuffix("…"), said)
         }
         XCTAssertEqual(Set(ControlShelf.everySentence).count, ControlShelf.everySentence.count)
+    }
+
+    /// Posing sends nothing, and holding a pose is the batch door with the
+    /// same promise about the sticks. Both said where somebody is posing.
+    func testPosingSaysNothingIsSentAndHoldingSaysWhatItCosts() {
+        XCTAssertTrue(ControlShelf.posingSaid.contains("Nothing is sent while you pose"))
+        XCTAssertTrue(ControlShelf.holdingSaid.contains("stops driving"))
+        XCTAssertTrue(ControlShelf.holdingSaid.contains("hands the sticks back"))
+        XCTAssertEqual(ControlShelf.keptAsAMotion("Bow"),
+                       "Kept as Bow. It is in Studio with the other motions, and it is on the "
+                     + "Motions chip.")
+        for label in [ControlShelf.holdIt, ControlShelf.keepItAsAMotion, ControlShelf.doneposing] {
+            XCTAssertFalse(label.hasSuffix("."), label)
+        }
     }
 }

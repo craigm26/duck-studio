@@ -180,6 +180,21 @@ struct DriveView: View {
     @State private var runningMotion: String?
     @State private var motionOutcome: String?
 
+    /// THE POSE BEING BUILT ON THE PICTURE, or nil when nobody is posing.
+    /// Fifteen joints, the mouth included, exactly as a draft holds them —
+    /// it starts as the duck's live stance and nothing is sent while it moves.
+    @State private var posed: [Double]?
+    @State private var poseGroup = JointGroup.all[0].title
+    @State private var poseProjections = StageProjections()
+    @State private var posedJoint: Int?
+    @State private var pinnedPoseJoint: Int?
+    @State private var openedPoseCluster: Int?
+    @State private var poseRefusal: String?
+    /// Joints whose handle would fall off the glass, named rather than
+    /// silently dropped — the overlay's own accounting.
+    @State private var poseOffPicture: [Int] = []
+    @State private var poseNote: String?
+
     private enum Shelf: String, Identifiable {
         case scene, motions
         var id: String { rawValue }
@@ -586,6 +601,31 @@ struct DriveView: View {
         venueStage
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .measuringGlass { glass = $0 }
+            // THE HANDLES, WHILE SOMEBODY IS POSING. Above the stage and
+            // below the chrome: the same layer the editor puts them on, over
+            // the same `DuckStage`, so a joint is grabbed here exactly as it
+            // is grabbed in Studio.
+            .overlay {
+                if posed != nil {
+                    JointHandleOverlay(handles: poseHandles,
+                                       projections: poseProjections,
+                                       drawn: poseGroupJoints,
+                                       editable: true,
+                                       focused: posedJoint,
+                                       pinned: $pinnedPoseJoint,
+                                       opened: $openedPoseCluster,
+                                       refusal: $poseRefusal,
+                                       offPicture: $poseOffPicture,
+                                       select: { posedJoint = $0 },
+                                       write: { joint, value in
+                                           guard var pose = posed else { return }
+                                           guard pose.indices.contains(joint) else { return }
+                                           pose[joint] = value
+                                           posed = pose
+                                       },
+                                       goToEditingKeyframe: {})
+                }
+            }
             .overlay(alignment: .top) { topChrome }
             .overlay(alignment: .topLeading) { stageNotes }
             // BOTTOM-TRAILING, NEVER TRAILING-CENTRED. Width along an edge is
@@ -632,6 +672,26 @@ struct DriveView: View {
         flight?.cancel()
         running = true
         flight = Task { await drive() }
+    }
+
+    /// The duck as the stage should draw it: the bench's own stance, or the
+    /// pose being built ON that stance — the same root, so a posed duck stays
+    /// where the physics put it and only its joints move.
+    private var posedStance: StagePose {
+        guard let posed else { return pose }
+        return DuckStance(jointAngles: posed, root: pose.root)
+    }
+
+    /// The joints of the group being posed.
+    private var poseGroupJoints: Set<Int> {
+        Set(JointGroup.all.first { $0.title == poseGroup }?.joints ?? [])
+    }
+
+    /// The handles for the pose being built. EMPTY WHEN NOBODY IS POSING, so
+    /// the stage draws no targets over a duck somebody is driving.
+    private var poseHandles: [JointHandles.Handle] {
+        guard let posed else { return [] }
+        return JointHandles.handles(at: posed).filter { poseGroupJoints.contains($0.joint) }
     }
 
     /// The world picker's own entries as rows, so the sheet decides nothing
@@ -780,8 +840,21 @@ struct DriveView: View {
                 HStack(spacing: Theme.spacing(.tight)) {
                     venuePicker
                     ControlShelfChips(standing: world?.name,
+                                      posing: posed != nil,
                                       openScene: { shelf = .scene },
-                                      openMotions: { shelf = .motions })
+                                      openMotions: { shelf = .motions },
+                                      pose: {
+                                          // THE POSE STARTS WHERE THE DUCK IS.
+                                          // Anything else would be a pose about
+                                          // a duck that is not on the picture.
+                                          if posed == nil {
+                                              posed = pose.jointAngles
+                                              poseNote = nil
+                                          } else {
+                                              posed = nil
+                                              posedJoint = nil
+                                          }
+                                      })
                     PadChrome(desk: desk, venue: venue, bench: bench, token: token,
                               lastAction: $lastAction,
                               engage: { engageLoop() },
@@ -865,6 +938,11 @@ struct DriveView: View {
                                               style: .continuous)
                         .strokeBorder(Theme.separator, lineWidth: DriveMetric.hairlineStroke))
                     .transition(.move(edge: .bottom))
+            } else if posed != nil {
+                // THE POSE BAR TAKES THE PAD'S PLACE. A person building a pose
+                // is not driving, and two thumb pads under a duck being posed
+                // would be two controls for two different jobs in one corner.
+                poseBar
             } else {
                 // THE PAD AND ITS HANDLE ARE THE CAMERA'S FOOTPRINT. Measured
                 // here, on the pair that is present when the drawer is down,
@@ -881,6 +959,99 @@ struct DriveView: View {
         .padding(.horizontal, Theme.spacing(.snug))
         .padding(.bottom, Theme.spacing(.tight))
         .measuringChromeHeight { bottomChromeHeight = $0 }
+    }
+
+    /// What a pose can do: which joints the handles are on, hold it on the
+    /// bench, keep it in Studio, and put the sticks back.
+    private var poseBar: some View {
+        VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
+            HStack(spacing: Theme.spacing(.tight)) {
+                Picker(ControlShelf.poseChip, selection: $poseGroup) {
+                    ForEach(JointGroup.all) { group in Text(group.title).tag(group.title) }
+                }
+                .pickerStyle(.menu)
+                .tint(Theme.actionSecondary)
+                Spacer(minLength: 0)
+                Button(ControlShelf.doneposing) {
+                    posed = nil; posedJoint = nil; poseNote = nil; poseRefusal = nil
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Theme.actionSecondary)
+                .frame(minHeight: DesignMetric.minimumTarget)
+            }
+            if let poseNote {
+                Text(poseNote)
+                    .font(.caption)
+                    .foregroundStyle(Theme.textSecondary)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text(ControlShelf.posingSaid)
+                    .font(.caption)
+                    .foregroundStyle(Theme.textSecondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            HStack(spacing: Theme.spacing(.tight)) {
+                Button(ControlShelf.holdIt) { Task { await holdThePose() } }
+                    .buttonStyle(.primaryAction)
+                    .disabled(busy || bench == nil)
+                Button(ControlShelf.keepItAsAMotion) { keepThePose() }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Theme.actionSecondary)
+                    .frame(minHeight: DesignMetric.minimumTarget)
+            }
+        }
+        .padding(Theme.spacing(.snug))
+        .onStageChrome(DriveMetric.viewport.inner)
+    }
+
+    /// Take the duck from where it is to the pose, on the bench.
+    ///
+    /// TWO KEYFRAMES AND NOT ONE: where the duck is now, and the pose. One
+    /// keyframe would ask the bench to blend from whatever the settle left,
+    /// which is a different move every time it is pressed. This is the same
+    /// batch door a motion runs through — `ControlShelf.holdingSaid` says so
+    /// beside the button — so it stops driving and puts the sticks back.
+    @MainActor private func holdThePose() async {
+        guard let posed else { return }
+        let now = pose.jointAngles
+        var draft = IntentDraft.blank(named: ControlShelf.poseChip)
+        draft.keys = [IntentDraft.Key(time: 0, pose: now),
+                      IntentDraft.Key(time: DriveMetric.poseSeconds, pose: posed)]
+        let wasDriving = running
+        busy = true
+        defer {
+            busy = false
+            if wasDriving { engageLoop() }
+        }
+        flight?.cancel()
+        if running { await halt() }
+        do {
+            let address = try requireBench()
+            let call = try DuckBench.perform(address, keys: draft.benchTrack,
+                                             seconds: DriveMetric.poseSeconds + 0.5, rollouts: 1)
+            let data = try await askForABatch(call)
+            poseNote = try DuckBench.readOutcome(data, when: Date(), askedForWorld: false).told
+            Haptic.behaviourStarted()
+        } catch let refusal as DuckBench.Refusal {
+            poseNote = refusal.message
+        } catch let error as DuckBench.ReadError {
+            poseNote = error.message
+        } catch {
+            poseNote = error.localizedDescription
+        }
+    }
+
+    /// Keep the pose as a motion in Studio, where every other motion lives.
+    @MainActor private func keepThePose() {
+        guard let posed else { return }
+        var draft = IntentDraft.blank(named: "\(ControlShelf.poseChip) \(drafts.drafts.count + 1)")
+        draft.keys = [IntentDraft.Key(time: 0, pose: pose.jointAngles),
+                      IntentDraft.Key(time: DriveMetric.poseSeconds, pose: posed)]
+        drafts.save(draft)
+        poseNote = ControlShelf.keptAsAMotion(draft.name)
+        Haptic.behaviourStarted()
     }
 
     /// The handle that brings the settings up over the picture.
@@ -934,10 +1105,12 @@ struct DriveView: View {
         // scattered down a column because fourteen 200 kg bodies do not
         // stay in the stack they boot in. Drawing the request instead
         // would draw a staircase that is not there.
-        DuckStage(pose: pose,
+        DuckStage(pose: posedStance,
                   environment: world?.asEnvironment ?? .bareFloor,
                   props: drawnProps,
                   orbit: $orbit,
+                  handles: poseHandles,
+                  onProject: { poseProjections = $0 },
                   rolling: rollingBall,
                   // ZOOM AND RESET ARE REAL BUTTONS HERE, so they come off the
                   // rotor: one control in two places is two places for it to
@@ -2808,6 +2981,10 @@ struct DriveView: View {
 /// can run the formula over it. How tall to let a viewport get is not a fact
 /// about anything, it is a judgement about a phone.
 private enum DriveMetric {
+    /// How long the bench takes to move from where the duck is to a posed
+    /// pose. Long enough to be a move rather than a snap, short enough that
+    /// a person waiting for the sticks does not wonder.
+    static let poseSeconds: TimeInterval = 1.2
     /// How long a batch motion run may take. Eight rollouts of a stairs cell
     /// on a small board is minutes; one rollout of a two-second motion is
     /// seconds, and this is the ceiling either way.

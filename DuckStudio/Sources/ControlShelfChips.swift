@@ -18,8 +18,12 @@ struct ControlShelfChips: View {
     /// The world standing on the bench, as it read back. Nil until a bench has
     /// answered, which is exactly when the chip says the bench's own world.
     let standing: String?
+    /// Whether a pose is being built right now, so the chip reads as a state
+    /// rather than as a thing that has not happened.
+    let posing: Bool
     let openScene: () -> Void
     let openMotions: () -> Void
+    let pose: () -> Void
 
     var body: some View {
         HStack(spacing: Theme.spacing(.tight)) {
@@ -27,6 +31,8 @@ struct ControlShelfChips: View {
                  glyph: "square.stack.3d.up", act: openScene)
             chip(ControlShelf.motionsChip, detail: nil,
                  glyph: "figure.walk.motion", act: openMotions)
+            chip(ControlShelf.poseChip, detail: posing ? ControlShelf.posingNow : nil,
+                 glyph: "hand.draw", act: pose)
         }
     }
 
