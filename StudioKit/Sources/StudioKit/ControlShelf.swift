@@ -119,6 +119,19 @@ public enum ControlShelf {
         "Holding it stops driving, takes the duck from where it is to this pose, and hands the "
       + "sticks back — the same door a motion runs through, because it is one."
 
+    /// THE ONE FACT THAT MADE A CORRECT RUN LOOK BROKEN. A batch call runs on
+    /// the bench's OWN second duck — `/perform` and `/climb` step an mjData
+    /// that is not the live lane's, which is exactly why a run cannot disturb
+    /// a world somebody is driving in. The consequence nobody had said out
+    /// loud: the duck on the Control picture is the LIVE one, so it stands
+    /// there while the motion runs perfectly somewhere the screen was not
+    /// drawing. The answer is to draw the run the bench sent back, and to say
+    /// which duck it was.
+    public static let thisIsTheRun =
+        "This is the run the bench sent back. A motion runs beside the duck you drive rather "
+      + "than on it, so the live duck stayed where it was — what you are watching is what "
+      + "actually happened, frame for frame."
+
     /// The pose became a motion in Studio, named.
     public static func keptAsAMotion(_ name: String) -> String {
         "Kept as \(name). It is in Studio with the other motions, and it is on the Motions chip."
@@ -127,7 +140,7 @@ public enum ControlShelf {
     /// Everything this type says, so a screen can be checked against it.
     public static let everySentence: [String] = [
         sceneChip, poseChip, posingNow, motionsChip, runItHere, whatHappened, holdIt,
-        keepItAsAMotion, doneposing, posingSaid, holdingSaid, sceneSheetSaid, motionSheetSaid, runsInItsOwnRoom,
+        keepItAsAMotion, doneposing, posingSaid, holdingSaid, thisIsTheRun, sceneSheetSaid, motionSheetSaid, runsInItsOwnRoom,
         runningStopsTheDrive, authoredAnywhere, noMotionsYet, alsoOnAButton,
     ]
 }

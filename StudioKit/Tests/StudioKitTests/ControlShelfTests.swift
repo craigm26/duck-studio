@@ -79,4 +79,11 @@ final class ControlShelfTests: XCTestCase {
             XCTAssertFalse(label.hasSuffix("."), label)
         }
     }
+
+    /// The sentence that explains why a correct run looked like nothing
+    /// happening: two ducks, and the picture was drawing the other one.
+    func testTheRunSaysWhichDuckItWas() {
+        XCTAssertTrue(ControlShelf.thisIsTheRun.contains("beside the duck you drive"))
+        XCTAssertTrue(ControlShelf.thisIsTheRun.contains("frame for frame"))
+    }
 }

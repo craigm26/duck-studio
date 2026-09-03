@@ -193,6 +193,13 @@ struct DriveView: View {
     /// Joints whose handle would fall off the glass, named rather than
     /// silently dropped — the overlay's own accounting.
     @State private var poseOffPicture: [Int] = []
+
+    /// THE RUN, BEING WATCHED. A batch call steps the bench's own second duck,
+    /// so the live duck this picture draws does not move while a motion runs —
+    /// which read as the motion barely running. This is the answer the bench
+    /// sent back, played on the picture at the rate it was recorded.
+    @State private var playback: DuckIntentClip?
+    @State private var playhead: TimeInterval = 0
     @State private var poseNote: String?
 
     private enum Shelf: String, Identifiable {
@@ -678,6 +685,10 @@ struct DriveView: View {
     /// pose being built ON that stance — the same root, so a posed duck stays
     /// where the physics put it and only its joints move.
     private var posedStance: StagePose {
+        // THE RUN FIRST. While a clip is playing it IS what the screen is
+        // about, root and all — the batch duck's own trajectory, not the live
+        // duck's position with somebody else's joints on it.
+        if let playback { return .at(playback.pose(at: playhead)) }
         guard let posed else { return pose }
         return DuckStance(jointAngles: posed, root: pose.root)
     }
@@ -736,10 +747,7 @@ struct DriveView: View {
         // is the half that was missing and read as the Drive button resetting
         // itself.
         let wasDriving = running
-        defer {
-            runningMotion = nil
-            if wasDriving { engageLoop() }
-        }
+        defer { runningMotion = nil }
         flight?.cancel()
         if running { await halt() }
         do {
@@ -748,12 +756,15 @@ struct DriveView: View {
             switch BenchRoute.of(draft: draft, scene: scene,
                                  graspables: health?.graspables ?? []) {
             case .climb(let rise, let cell, let intent, _):
-                let call = try DuckBench.climb(address, intent: intent, rise: rise, cell: cell)
+                let call = try DuckBench.climb(address, intent: intent, rise: rise, cell: cell,
+                                           clip: true)
                 let data = try await askForABatch(call)
                 let cellOutcome = Pipeline.CellOutcome(try DuckBench.readClimbed(data),
                                                        when: Date())
                 motionOutcome = [StairsChallenge.scoredWhereItIsScored, cellOutcome.told,
-                                 StairsChallenge.oneCellIsNotAScore].joined(separator: " ")
+                                 StairsChallenge.oneCellIsNotAScore,
+                                 ControlShelf.thisIsTheRun].joined(separator: " ")
+                await watch(try DuckBench.readClimbedClip(data, named: draft.name))
             case .perform(let standing, let because):
                 let call = try DuckBench.perform(address, keys: draft.benchTrack,
                                                  seconds: draft.duration + 0.5, rollouts: 1,
@@ -761,7 +772,10 @@ struct DriveView: View {
                 let data = try await askForABatch(call)
                 let outcome = try DuckBench.readOutcome(data, when: Date(),
                                                         askedForWorld: standing?.plan != nil)
-                motionOutcome = [outcome.told, because].compactMap { $0 }.joined(separator: " ")
+                motionOutcome = [outcome.told, because, ControlShelf.thisIsTheRun]
+                    .compactMap { $0 }.joined(separator: " ")
+                await watch(try? DuckBench.readPerformedClip(data, named: draft.name,
+                                                             laid: outcome.laid))
             case .notYet(let blocked):
                 motionOutcome = blocked.message
             }
@@ -773,6 +787,26 @@ struct DriveView: View {
         } catch {
             motionOutcome = error.localizedDescription
         }
+        // AND THE STICKS COME BACK, after the run has been watched rather than
+        // before it: resuming the loop mid-playback would put the live duck's
+        // answers underneath a clip of the other one.
+        if wasDriving { engageLoop() }
+    }
+
+    /// Play a clip the bench sent back, on the picture, at the rate it was
+    /// recorded — then give the picture back to the live duck.
+    @MainActor private func watch(_ clip: DuckIntentClip?) async {
+        guard let clip, clip.duration > 0 else { return }
+        playback = clip
+        playhead = 0
+        let step = 1 / max(clip.hz, 1)
+        while playhead < clip.duration {
+            try? await Task.sleep(nanoseconds: UInt64(step * 1_000_000_000))
+            if Task.isCancelled { break }
+            playhead += step
+        }
+        playback = nil
+        playhead = 0
     }
 
     /// One batch call, with the deadline a bench running physics needs. The
@@ -1021,10 +1055,7 @@ struct DriveView: View {
                       IntentDraft.Key(time: DriveMetric.poseSeconds, pose: posed)]
         let wasDriving = running
         busy = true
-        defer {
-            busy = false
-            if wasDriving { engageLoop() }
-        }
+        defer { busy = false }
         flight?.cancel()
         if running { await halt() }
         do {
@@ -1032,8 +1063,11 @@ struct DriveView: View {
             let call = try DuckBench.perform(address, keys: draft.benchTrack,
                                              seconds: DriveMetric.poseSeconds + 0.5, rollouts: 1)
             let data = try await askForABatch(call)
-            poseNote = try DuckBench.readOutcome(data, when: Date(), askedForWorld: false).told
+            let outcome = try DuckBench.readOutcome(data, when: Date(), askedForWorld: false)
+            poseNote = [outcome.told, ControlShelf.thisIsTheRun].joined(separator: " ")
             Haptic.behaviourStarted()
+            await watch(try? DuckBench.readPerformedClip(data, named: ControlShelf.poseChip,
+                                                         laid: nil))
         } catch let refusal as DuckBench.Refusal {
             poseNote = refusal.message
         } catch let error as DuckBench.ReadError {
@@ -1041,6 +1075,7 @@ struct DriveView: View {
         } catch {
             poseNote = error.localizedDescription
         }
+        if wasDriving { engageLoop() }
     }
 
     /// Keep the pose as a motion in Studio, where every other motion lives.
