@@ -44,6 +44,15 @@ struct JointHandleOverlay: View {
     let editable: Bool
     /// The joint whose slider row is selected below.
     let focused: Int?
+    /// Whether the floating label is drawn ON the duck.
+    ///
+    /// FALSE WHERE THE HOST HAS SOMEWHERE BETTER FOR IT. The pill is a card
+    /// about 150 by 120 points and it is placed against the target, so on the
+    /// Control tab — where the joints being posed are the head and the neck,
+    /// at the top of a duck drawn small — it covered the very part somebody
+    /// was moving. A screen that draws the name, the angle and a slider of its
+    /// own passes false and gets a bare ring on the joint.
+    var showsLabel = true
 
     /// The joint whose label a long press pinned up.
     @Binding var pinned: Int?
@@ -212,7 +221,8 @@ struct JointHandleOverlay: View {
             .overlay { if target.joint == focused { ring } }
             .contentShape(Circle())
             .overlay(alignment: above ? Alignment.top : Alignment.bottom) {
-                if pinned == target.joint || (pinned == nil && focused == target.joint) {
+                if showsLabel,
+                   pinned == target.joint || (pinned == nil && focused == target.joint) {
                     pill(control, angle: angle, folded: target)
                         .offset(x: pillShift(target, width: width),
                                 y: above ? -OverlayMetric.labelStandoff
@@ -229,8 +239,17 @@ struct JointHandleOverlay: View {
             .onTapGesture {
                 pinned = nil
                 refusal = nil
-                opened = nil
-                select(target.joint)
+                // A SECOND TAP ON A JOINT THAT IS SITTING ON OTHERS SPREADS
+                // THEM. The pill's "4 joints here" line was the only way in,
+                // and a host that draws no pill would have had none — the
+                // folded joints would be unreachable without orbiting the
+                // stage. The first tap still just selects.
+                if focused == target.joint, target.count > 1 {
+                    opened = target.joint
+                } else {
+                    opened = nil
+                    select(target.joint)
+                }
             }
             // SIMULTANEOUS, so a press that turns into a drag does both — the
             // label stays up while the joint moves, which is the one moment a

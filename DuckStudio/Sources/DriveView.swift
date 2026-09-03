@@ -619,6 +619,7 @@ struct DriveView: View {
                                        drawn: poseGroupJoints,
                                        editable: true,
                                        focused: posedJoint,
+                                       showsLabel: false,
                                        pinned: $pinnedPoseJoint,
                                        opened: $openedPoseCluster,
                                        refusal: $poseRefusal,
@@ -1013,7 +1014,14 @@ struct DriveView: View {
                 .foregroundStyle(Theme.actionSecondary)
                 .frame(minHeight: DesignMetric.minimumTarget)
             }
-            if let poseNote {
+            // THE JOINT UNDER THE FINGER, OFF THE DUCK. Its name, the angle
+            // it is at, and a slider for it: the handle says WHERE, this says
+            // WHAT and by HOW MUCH, and neither of them covers the part being
+            // moved — which the floating card did, on exactly the joints this
+            // mode is most used for.
+            if let joint = posedJoint, let posed, posed.indices.contains(joint) {
+                jointReadout(joint, angle: posed[joint])
+            } else if let poseNote {
                 Text(poseNote)
                     .font(.caption)
                     .foregroundStyle(Theme.textSecondary)
@@ -1023,7 +1031,6 @@ struct DriveView: View {
                 Text(ControlShelf.posingSaid)
                     .font(.caption)
                     .foregroundStyle(Theme.textSecondary)
-                    .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
             }
             HStack(spacing: Theme.spacing(.tight)) {
@@ -1038,6 +1045,35 @@ struct DriveView: View {
         }
         .padding(Theme.spacing(.snug))
         .onStageChrome(DriveMetric.viewport.inner)
+    }
+
+    /// The focused joint, said and settable: a telemetry row and a slider,
+    /// the same pair the editor puts under its stage.
+    @ViewBuilder private func jointReadout(_ joint: Int, angle: Double) -> some View {
+        let control = JointControl(index: joint)
+        let travel = control.lower...max(control.upper, control.lower + DriveMetric.oneDegree)
+        VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
+            TelemetryRow(label: control.name, value: control.degrees(angle))
+                .accessibilityHidden(true)
+            Slider(value: Binding(get: { angle },
+                                  set: { value in
+                                      guard var pose = posed, pose.indices.contains(joint)
+                                      else { return }
+                                      pose[joint] = value
+                                      posed = pose
+                                  }),
+                   in: travel, step: DriveMetric.oneDegree)
+                .tint(Theme.actionSecondary)
+                .accessibilityLabel(Text(control.name))
+                .accessibilityValue(Text(control.spoken(at: angle)))
+            HStack {
+                Text(control.travelLabel.lower)
+                Spacer()
+                Text(control.travelLabel.upper)
+            }
+            .font(.caption2)
+            .foregroundStyle(Theme.textTertiary)
+        }
     }
 
     /// Take the duck from where it is to the pose, on the bench.
@@ -3016,6 +3052,8 @@ struct DriveView: View {
 /// can run the formula over it. How tall to let a viewport get is not a fact
 /// about anything, it is a judgement about a phone.
 private enum DriveMetric {
+    /// A degree, in radians — the step a joint slider takes.
+    static let oneDegree = Double.pi / 180
     /// How long the bench takes to move from where the duck is to a posed
     /// pose. Long enough to be a move rather than a snap, short enough that
     /// a person waiting for the sticks does not wonder.

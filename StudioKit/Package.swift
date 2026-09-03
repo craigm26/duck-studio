@@ -30,7 +30,7 @@ let package = Package(
         // ninth output by 1.07". `DuckTuner` is built on it, so the floor moves
         // with it rather than being left at a tag where the search would have
         // nowhere to put its answer.
-        .package(url: "https://github.com/craigm26/duckkit.git", from: "1.34.0")
+        .package(url: "https://github.com/craigm26/duckkit.git", from: "1.35.0")
     ],
     targets: [
         .target(
