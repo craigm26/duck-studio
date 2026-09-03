@@ -250,4 +250,36 @@ final class PadPilotTests: XCTestCase {
         XCTAssertTrue(pilot.isPlaying)
         XCTAssertFalse(pilot.isRecording)
     }
+
+    /// THE STICKS DO NOT AIM AT A NETWORK THAT IS NOT ON THE SERVOS. Asking
+    /// once per engagement is right until the ask does not take — a bench
+    /// restarted, a swap from another screen, a post cut off by a Stop — and
+    /// then a thumb on the stick moved nothing. The bench's own word for what
+    /// is driving is what corrects it.
+    func testTheWantedNetworkIsAskedForAgainWhenTheBenchIsDrivingAnother() {
+        var pilot = PadPilot()
+        let first = pilot.step(steering: forward, simSeconds: 0, policySaid: nil,
+                               wanting: walking, now: clock)
+        XCTAssertEqual(first.load, walking, "asked once, before the bench has said anything")
+        let quiet = pilot.step(steering: forward, simSeconds: 0.1, policySaid: walking,
+                               wanting: walking, now: clock)
+        XCTAssertNil(quiet.load, "the bench is driving it: nothing to ask for")
+        let corrected = pilot.step(steering: forward, simSeconds: 0.2,
+                                   policySaid: "BEST_alpha_stand.onnx",
+                                   wanting: walking, now: clock)
+        XCTAssertEqual(corrected.load, walking,
+                       "the bench says something else is driving, so it is asked for again")
+    }
+
+    /// And a bench that has answered nothing keeps the once-only rule, so a
+    /// network it refuses is not re-posted on every round trip.
+    func testANetworkIsNotReAskedWhileTheBenchHasNotSaidWhatIsDriving() {
+        var pilot = PadPilot()
+        XCTAssertEqual(pilot.step(steering: forward, simSeconds: 0, policySaid: nil,
+                                  wanting: walking, now: clock).load, walking)
+        for tick in 1...5 {
+            XCTAssertNil(pilot.step(steering: forward, simSeconds: Double(tick) / 10,
+                                    policySaid: nil, wanting: walking, now: clock).load)
+        }
+    }
 }

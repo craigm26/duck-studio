@@ -82,10 +82,10 @@ public struct PadPilot: Equatable, Sendable {
                               now: Date) -> Go {
         switch state {
         case .steering:
-            return Go(command: steering, load: ask(for: wanting))
+            return Go(command: steering, load: ask(for: wanting, driving: policySaid))
 
         case .recording(var recording):
-            let load = ask(for: wanting)
+            let load = ask(for: wanting, driving: policySaid)
             let sampled = recording.sample(steering, atSim: simSeconds,
                                            policySaid: policySaid, now: now)
             if case .closed(let refusal) = sampled {
@@ -116,7 +116,7 @@ public struct PadPilot: Equatable, Sendable {
             case .command(let twist):
                 return Go(command: twist)
             case .swap(let name, let twist):
-                return Go(command: twist, load: ask(for: name))
+                return Go(command: twist, load: ask(for: name, driving: policySaid))
             case .finished:
                 // THE STICKS TAKE OVER WITH NO ANNOUNCEMENT. A person who has
                 // a thumb on the pad while a bound sequence ends does not need
@@ -124,14 +124,30 @@ public struct PadPilot: Equatable, Sendable {
                 state = .steering
                 let slot = chained
                 chained = nil
-                return Go(command: steering, load: ask(for: wanting), thenLoading: slot)
+                return Go(command: steering, load: ask(for: wanting, driving: policySaid), thenLoading: slot)
             }
         }
     }
 
-    /// One name, once. Nil for a name already asked for on this engagement.
-    private mutating func ask(for name: String?) -> String? {
-        guard let name, !name.isEmpty, !asked.contains(name) else { return nil }
+    /// One name, once — UNLESS THE BENCH SAYS SOMETHING ELSE IS DRIVING.
+    ///
+    /// Asking once per engagement is what stops a bench that refuses a network
+    /// being asked again on every round trip. But it also meant that when the
+    /// ask did not take — the bench restarted, a quick action from another
+    /// screen swapped underneath, the post was cut off by a Stop — the sticks
+    /// went on aiming at a network that was not on the servos, and the duck
+    /// stood still while somebody pushed a thumb. `driving` is the bench's own
+    /// word for what IS on the servos, off `/intent`'s reply, so this is a
+    /// measurement disagreeing with an intention, not a guess: when they
+    /// disagree the name is asked for again, and when the bench has not
+    /// answered yet (`driving` nil) the once-only rule stands.
+    private mutating func ask(for name: String?, driving: String?) -> String? {
+        guard let name, !name.isEmpty else { return nil }
+        if let driving, driving != name {
+            asked.insert(name)
+            return name
+        }
+        guard !asked.contains(name) else { return nil }
         asked.insert(name)
         return name
     }

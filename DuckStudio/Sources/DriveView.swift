@@ -67,6 +67,8 @@ struct DriveView: View {
     @ObservedObject var model: LibraryModel
     @ObservedObject var benches: BenchStore
     @ObservedObject var scenes: SceneStore
+    /// Studio's motions, so one can be run from the picture. See `ControlShelf`.
+    @ObservedObject var drafts: DraftStore
 
     /// The model endpoints, handed down so the gear can open Settings.
     ///
@@ -172,6 +174,16 @@ struct DriveView: View {
     /// it is a thing somebody reads once and closes, and a caption that came
     /// back open on every launch would be an overlay over the duck by default.
     @State private var venueLineIsOpen = false
+    /// Which of the two Studio doors is open, and what the last motion run
+    /// said. See `ControlShelfChips`.
+    @State private var shelf: Shelf?
+    @State private var runningMotion: String?
+    @State private var motionOutcome: String?
+
+    private enum Shelf: String, Identifiable {
+        case scene, motions
+        var id: String { rawValue }
+    }
     /// Round trips completed since Drive was pressed, and the sim seconds they
     /// bought. THE RATE IS THE ONE NUMBER THAT TELLS YOU WHETHER THIS IS
     /// DRIVEABLE: a bench on the far side of a slow link answers so rarely that
@@ -421,6 +433,26 @@ struct DriveView: View {
             cutOffByStop = false
             flight?.cancel()
         }
+        .sheet(item: $shelf) { which in
+            switch which {
+            case .scene:
+                ControlSceneSheet(entries: sceneRows, standing: world?.name,
+                                  choose: { slot in
+                                      guard worldEntries.indices.contains(slot) else { return }
+                                      let picked = worldEntries[slot].choice
+                                      guard picked != standingChoice else { return }
+                                      flight?.cancel()
+                                      flight = Task {
+                                          if running { await halt() }
+                                          await stand(in: picked)
+                                      }
+                                  })
+            case .motions:
+                ControlMotionsSheet(motions: motionRows, running: runningMotion,
+                                    outcome: motionOutcome,
+                                    run: { id in Task { await runMotion(id) } })
+            }
+        }
         .alert(failureTitle, isPresented: Binding(
             get: { failure != nil }, set: { if !$0 { failure = nil } })) {
             Button("OK", role: .cancel) {}
@@ -591,6 +623,87 @@ struct DriveView: View {
         flight = Task { await drive() }
     }
 
+    /// The world picker's own entries as rows, so the sheet decides nothing
+    /// about which worlds exist.
+    private var sceneRows: [ControlSceneRow] {
+        worldEntries.enumerated().map { slot, entry in
+            ControlSceneRow(slot: slot, label: entry.label,
+                            isStanding: entry.choice == standingChoice)
+        }
+    }
+
+    /// Studio's motions, each with the room it will lay for a run. The room is
+    /// the motion's own scene — a batch run lays its own world and leaves the
+    /// driven one standing, which is what `ControlShelf.runsInItsOwnRoom` says.
+    private var motionRows: [ControlMotionRow] {
+        drafts.drafts.map { draft in
+            let room = draft.sceneID.flatMap { id in scenes.scenes.first { $0.id == id } }
+            return ControlMotionRow(
+                id: draft.id, name: draft.name,
+                room: room.map { ControlShelf.authoredIn($0.name) } ?? ControlShelf.authoredAnywhere)
+        }
+    }
+
+    /// Run one of Studio's motions on this bench.
+    ///
+    /// IT STOPS THE DRIVE LOOP FIRST AND SAYS SO BEFOREHAND. A motion is a
+    /// track of joint angles, `/perform` and `/climb` are batch calls, and the
+    /// live lane carries a velocity twist and nothing else — so there is no
+    /// arrangement in which this is a steering command. The route is
+    /// `BenchRoute.of`, the same decision the pipeline screen's Run takes, so a
+    /// challenge room goes to the harness and everything else lays its own
+    /// world; and the outcome is the kit's own sentence about what happened.
+    @MainActor private func runMotion(_ id: UUID) async {
+        guard runningMotion == nil, let draft = drafts.drafts.first(where: { $0.id == id })
+        else { return }
+        runningMotion = id.uuidString
+        motionOutcome = nil
+        defer { runningMotion = nil }
+        flight?.cancel()
+        if running { await halt() }
+        do {
+            let address = try requireBench()
+            let scene = draft.sceneID.flatMap { held in scenes.scenes.first { $0.id == held } }
+            switch BenchRoute.of(draft: draft, scene: scene,
+                                 graspables: health?.graspables ?? []) {
+            case .climb(let rise, let cell, let intent, _):
+                let call = try DuckBench.climb(address, intent: intent, rise: rise, cell: cell)
+                let data = try await askForABatch(call)
+                let cellOutcome = Pipeline.CellOutcome(try DuckBench.readClimbed(data),
+                                                       when: Date())
+                motionOutcome = [StairsChallenge.scoredWhereItIsScored, cellOutcome.told,
+                                 StairsChallenge.oneCellIsNotAScore].joined(separator: " ")
+            case .perform(let standing, let because):
+                let call = try DuckBench.perform(address, keys: draft.benchTrack,
+                                                 seconds: draft.duration + 0.5, rollouts: 1,
+                                                 world: standing?.plan, spawn: standing?.spawn)
+                let data = try await askForABatch(call)
+                let outcome = try DuckBench.readOutcome(data, when: Date(),
+                                                        askedForWorld: standing?.plan != nil)
+                motionOutcome = [outcome.told, because].compactMap { $0 }.joined(separator: " ")
+            case .notYet(let blocked):
+                motionOutcome = blocked.message
+            }
+            Haptic.behaviourStarted()
+        } catch let refusal as DuckBench.Refusal {
+            motionOutcome = refusal.message
+        } catch let error as DuckBench.ReadError {
+            motionOutcome = error.message
+        } catch {
+            motionOutcome = error.localizedDescription
+        }
+    }
+
+    /// One batch call, with the deadline a bench running physics needs. The
+    /// drive loop's own requests keep their per-request deadline; this is the
+    /// one door on this screen that waits for seconds of physics.
+    private func askForABatch(_ call: DuckBench.Call) async throws -> Data {
+        var request = DuckBench.urlRequest(for: call, token: token)
+        request.timeoutInterval = DriveMetric.motionSeconds
+        let (data, _) = try await URLSession.shared.data(for: request)
+        return data
+    }
+
     /// The glass and the chrome standing on it, as the kit's types.
     private var stageGlass: StageViewport.Glass {
         StageViewport.Glass(widthPoints: Double(glass.width),
@@ -645,22 +758,22 @@ struct DriveView: View {
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: venueLineIsOpen)
                 Spacer(minLength: 0)
-                Button {
-                    withAnimation(Theme.motion(reduced: reduceMotion)) {
-                        venueLineIsOpen.toggle()
-                    }
-                } label: {
-                    Image(systemName: venueLineIsOpen ? "chevron.up" : "chevron.down")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(Theme.textSecondary)
-                        .frame(minWidth: DesignMetric.minimumTarget,
-                               minHeight: DesignMetric.minimumTarget)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(Text(StageViewport.captionSaid(expanded: venueLineIsOpen)))
-                .accessibilityHint(Text(StageViewport.chromeFloatsSaid))
+                Image(systemName: venueLineIsOpen ? "chevron.up" : "chevron.down")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(Theme.textSecondary)
             }
+            // THE LINE IS THE BUTTON. A forty-four point chevron beside a
+            // sixteen point sentence spent a whole row of the picture on a
+            // target the sentence itself can be, and the picture is what this
+            // layout is for.
+            .contentShape(Rectangle())
+            .onTapGesture {
+                withAnimation(Theme.motion(reduced: reduceMotion)) { venueLineIsOpen.toggle() }
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityLabel(Text(StageViewport.captionSaid(expanded: venueLineIsOpen)))
+            .accessibilityHint(Text(StageViewport.chromeFloatsSaid))
             if let refusal = cameraDoor.refusal(for: .venue) {
                 Text(refusal)
                     .font(.caption2)
@@ -685,10 +798,22 @@ struct DriveView: View {
             // what `refitCamera` clears — so at an accessibility size, where
             // the strip does grow past that, the camera stands further back
             // rather than the chrome landing on the duck.
-            PadChrome(desk: desk, venue: venue, bench: bench, token: token,
-                      lastAction: $lastAction,
-                      engage: { engageLoop() },
-                      library: model, models: settingsModels)
+            // ONE ROW, FIVE CHIPS, SCROLLING. The two Studio doors sit beside
+            // the three the pad already had; five capsules are wider than a
+            // phone, and a row that scrolls is the one arrangement that adds
+            // neither a second row of chrome nor a glyph nobody can read.
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: Theme.spacing(.tight)) {
+                    ControlShelfChips(standing: world?.name,
+                                      openScene: { shelf = .scene },
+                                      openMotions: { shelf = .motions })
+                    PadChrome(desk: desk, venue: venue, bench: bench, token: token,
+                              lastAction: $lastAction,
+                              engage: { engageLoop() },
+                              library: model, models: settingsModels)
+                }
+                .padding(.horizontal, Theme.spacing(.hairline))
+            }
         }
         .padding(.horizontal, Theme.spacing(.snug))
         .padding(.vertical, Theme.spacing(.tight))
@@ -726,7 +851,12 @@ struct DriveView: View {
         if venue == .sim {
             StageCameraColumn(orbit: $orbit, showsFollow: true, nearStopIsFitted: orbit.follows)
                 .padding(.trailing, Theme.spacing(.snug))
-                .padding(.bottom, Theme.spacing(.snug))
+                // ABOVE THE PAD, NOT ON IT. Both this column and the Turn stick
+                // are bottom-trailing on the same stage, so the column landed
+                // on the stick and half of it was off the edge. The pad's own
+                // measured height is what lifts it clear, and it is a number
+                // this screen already keeps for the camera.
+                .padding(.bottom, padChromeHeight + Theme.spacing(.snug))
         }
     }
 
@@ -1311,9 +1441,6 @@ struct DriveView: View {
                 ThumbPad(title: "Move", stick: $touchSticks.left)
                 Spacer(minLength: Theme.spacing(.tight))
                 VStack(spacing: Theme.spacing(.tight)) {
-                    HStack(spacing: Theme.spacing(.tight)) {
-                        padButton(.leftBumper); padButton(.rightBumper)
-                    }
                     // FOUR ACROSS WHERE THEY FIT, TWO BY TWO WHERE THEY DO NOT.
                     // On the narrowest phone still supported, four sixty-point
                     // buttons between two thumb pads are wider than the screen;
@@ -1341,6 +1468,15 @@ struct DriveView: View {
             // the pads and the buttons each carry their own surface already.
         } else {
             VStack(spacing: Theme.spacing(.snug)) {
+                // THE BUMPERS LIVE HERE NOW. On the picture they were a third
+                // row in a column about 129 points wide, where two labels of
+                // two characters each do not fit and were squeezed to a
+                // sliver; the four face buttons fit because their labels are
+                // one character. Down here the row is full width, both labels
+                // are readable, and the picture gets a 60-point row back.
+                HStack(spacing: Theme.spacing(.tight)) {
+                    padButton(.leftBumper); padButton(.rightBumper)
+                }
                 HStack(spacing: Theme.spacing(.tight)) {
                     padButton(.dpadLeft); padButton(.dpadDown); padButton(.dpadRight)
                 }
@@ -2650,6 +2786,10 @@ struct DriveView: View {
 /// can run the formula over it. How tall to let a viewport get is not a fact
 /// about anything, it is a judgement about a phone.
 private enum DriveMetric {
+    /// How long a batch motion run may take. Eight rollouts of a stairs cell
+    /// on a small board is minutes; one rollout of a two-second motion is
+    /// seconds, and this is the ceiling either way.
+    static let motionSeconds: TimeInterval = 900
     // `captionBacking` MOVED WITH THE BOX IT BELONGED TO. It had exactly one
     // reader, `floorCaption`, and that body is now `StageCaptionBox` in
     // `DesignComponents` — where `StageCaptionBox.backing` is the same 0.85 in

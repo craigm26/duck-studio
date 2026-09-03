@@ -265,7 +265,8 @@ struct DuckStudioApp: App {
                     // falls back to a second EndpointStore whose flush
                     // overwrites the shared one — two Settings screens
                     // disagreeing about one list.
-                    DriveView(model: model, benches: benches, scenes: scenes, models: models)
+                    DriveView(model: model, benches: benches, scenes: scenes, drafts: drafts,
+                              models: models)
                 }
                     .tabItem { Label(AppTab.control.title, systemImage: AppTab.control.symbol) }
                     .tag(AppTab.control)

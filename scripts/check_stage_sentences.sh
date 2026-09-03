@@ -67,6 +67,7 @@ FILES=(
   SequenceListView.swift
   SequenceStore.swift
   TalkToTheDuckView.swift
+  ControlShelfChips.swift
 )
 
 if [ ! -d "$SRC" ]; then

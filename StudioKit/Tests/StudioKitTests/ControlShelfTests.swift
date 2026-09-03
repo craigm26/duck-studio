@@ -1,0 +1,67 @@
+import XCTest
+@testable import StudioKit
+
+/// The two doors Control opens onto Studio, and what they are allowed to claim.
+final class ControlShelfTests: XCTestCase {
+
+    func testTheChipsAreTheTwoWordsTheScreenDraws() {
+        XCTAssertEqual(ControlShelf.sceneChip, "Scene")
+        XCTAssertEqual(ControlShelf.motionsChip, "Motions")
+        XCTAssertEqual(ControlShelf.runItHere, "Run it here")
+        XCTAssertEqual(ControlShelf.whatHappened, "What happened")
+    }
+
+    /// The chip's second line is a readback or the bench's own world; it never
+    /// invents a name for a world nobody set.
+    func testTheStandingLineNamesTheWorldOrTheBenchsOwn() {
+        XCTAssertEqual(ControlShelf.standingSaid("Stairs challenge, 60 mm"),
+                       "Stairs challenge, 60 mm")
+        XCTAssertEqual(ControlShelf.standingSaid(nil), "The bench's own world")
+        XCTAssertEqual(ControlShelf.standingSaid(""), "The bench's own world")
+    }
+
+    /// A motion run from Control is a batch run, and every sentence about it
+    /// says so rather than letting it read as a steering command.
+    func testRunningAMotionIsSaidToStopTheDrive() {
+        XCTAssertTrue(ControlShelf.runningStopsTheDrive.contains("stops driving"))
+        XCTAssertTrue(ControlShelf.runningStopsTheDrive.contains("sticks come back"))
+        XCTAssertTrue(ControlShelf.motionSheetSaid.contains("stops the drive loop"))
+        XCTAssertEqual(ControlShelf.running("lever_up"), "Running lever_up on the bench…")
+    }
+
+    /// A batch run lays its own room and leaves the driven world standing —
+    /// the fact `/perform` established, said where somebody presses Run.
+    func testTheRoomAMotionRunsInIsItsOwnAndTheDrivenWorldIsLeftStanding() {
+        XCTAssertTrue(ControlShelf.runsInItsOwnRoom.contains("room it was authored in"))
+        XCTAssertTrue(ControlShelf.runsInItsOwnRoom.contains("left standing"))
+        XCTAssertEqual(ControlShelf.authoredIn("Stairs challenge, 60 mm"),
+                       "Authored in Stairs challenge, 60 mm, and that is the room it will lay "
+                     + "for the run.")
+        XCTAssertTrue(ControlShelf.authoredAnywhere.contains("bare floor"))
+    }
+
+    /// The one thing this door cannot do is named where somebody would look
+    /// for it, with the reason.
+    func testTheButtonNotYetSaysWhyAndWhereToGoInstead() {
+        XCTAssertTrue(ControlShelf.notOnAButtonYet.contains("cannot go on a pad button yet"))
+        XCTAssertTrue(ControlShelf.notOnAButtonYet.contains("round trip"))
+        XCTAssertTrue(ControlShelf.notOnAButtonYet.contains("Run it from here"))
+    }
+
+    func testEverySentenceSaysTheThingItIsFor() {
+        for said in ControlShelf.everySentence {
+            XCTAssertFalse(said.isEmpty)
+            XCTAssertFalse(said.lowercased().contains("rlhf"))
+        }
+        // The four LABELS are labels — a chip and a button and a heading —
+        // and the rest are sentences. A label with a full stop on a capsule
+        // would be a sentence pretending to be a control.
+        let labels = [ControlShelf.sceneChip, ControlShelf.motionsChip,
+                      ControlShelf.runItHere, ControlShelf.whatHappened]
+        for said in labels { XCTAssertFalse(said.hasSuffix("."), said) }
+        for said in ControlShelf.everySentence where !labels.contains(said) {
+            XCTAssertTrue(said.hasSuffix(".") || said.hasSuffix("…"), said)
+        }
+        XCTAssertEqual(Set(ControlShelf.everySentence).count, ControlShelf.everySentence.count)
+    }
+}
