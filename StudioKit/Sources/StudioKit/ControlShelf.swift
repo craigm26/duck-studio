@@ -68,6 +68,11 @@ public enum ControlShelf {
         "Running this stops driving. The duck is put back on its feet, the motion runs once on "
       + "the bench, and the sticks come back when it is done."
 
+    /// While the run the bench sent back is playing on the picture.
+    public static func watching(_ name: String) -> String {
+        "Playing \(name) — the run the bench sent back."
+    }
+
     public static func running(_ name: String) -> String {
         "Running \(name) on the bench…"
     }
@@ -141,6 +146,6 @@ public enum ControlShelf {
     public static let everySentence: [String] = [
         sceneChip, poseChip, posingNow, motionsChip, runItHere, whatHappened, holdIt,
         keepItAsAMotion, doneposing, posingSaid, holdingSaid, thisIsTheRun, sceneSheetSaid, motionSheetSaid, runsInItsOwnRoom,
-        runningStopsTheDrive, authoredAnywhere, noMotionsYet, alsoOnAButton,
+        runningStopsTheDrive, authoredAnywhere, noMotionsYet, alsoOnAButton, watching("x"),
     ]
 }

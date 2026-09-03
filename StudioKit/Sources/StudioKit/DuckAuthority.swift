@@ -8,7 +8,7 @@ import Foundation
 /// Bluetooth pairing and reads an API version; `BenchPeer` posts to a bench
 /// whose bearer token, when there is one, says the caller may use A BENCH and
 /// says nothing at all about a duck; the WebRTC and bridge transports do not
-/// exist, and `DuckWebRTC.fiveThingsNobodyHereKnows` lists whose job it would be
+/// exist, and `DuckWebRTC.twoThingsStillOpen` lists whose job it would be
 /// to say how they authenticate — a list, not an implementation. An
 /// `authenticated` case sitting here unfilled is an invitation: the first screen
 /// that needed a green tick would set it, and a green tick that means "somebody

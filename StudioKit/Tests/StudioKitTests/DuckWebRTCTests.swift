@@ -14,25 +14,33 @@ import XCTest
 final class DuckWebRTCTests: XCTestCase {
 
     /// Five unknowns, numbered, each naming what would answer it.
-    func testTheListNamesFiveThingsAndWhereEachAnswerLives() {
-        let said = DuckWebRTC.fiveThingsNobodyHereKnows
-        for number in ["1. ", "2. ", "3. ", "4. ", "5. "] {
-            XCTAssertTrue(said.contains(number), "\(number) is missing from the list")
-        }
-        XCTAssertTrue(said.contains("mediad"), said)
-        XCTAssertTrue(said.contains("ICE"), said)
-        XCTAssertTrue(said.contains("TURN"), said)
-        XCTAssertTrue(said.contains("bridge"), said)
-        XCTAssertTrue(said.contains("label"), said)
-        XCTAssertTrue(said.contains("DuckLineSequence"), said)
+    /// The list of unknowns is now a list of what was READ, and what is
+    /// genuinely still open. Four of the original five were answered from
+    /// `pollen-robotics/microduck`, which is public.
+    func testWhatIsKnownIsTheContractAndWhatIsOpenIsSaidSeparately() {
+        let known = DuckWebRTC.whatIsKnownNow
+        XCTAssertTrue(known.contains("8443"))
+        XCTAssertTrue(known.contains("ANSWERS the offer"))
+        XCTAssertTrue(known.contains("`control`"))
+        XCTAssertTrue(known.contains("no gate"))
+        let open = DuckWebRTC.twoThingsStillOpen
+        XCTAssertTrue(open.contains("TURN"))
+        XCTAssertTrue(open.contains("studio-to-studio"))
+        XCTAssertFalse(open.contains("datachannel"),
+                       "the channel's label and shape are known now")
     }
 
-    /// The screen sentence is a "not yet" that names what is missing, which is
-    /// the house rule: a blocked surface never ships as an inert control.
-    func testTheScreenSentenceSaysNotYetAndSaysWhy() {
+    /// The screen still says not-yet, and the REASON has changed: it was a
+    /// contract nobody had read, and it is now a dependency this app has not
+    /// linked. A sentence that did not move when the reason moved would be the
+    /// worse of the two failures.
+    func testTheScreenSentenceSaysNotYetAndSaysWhichThingIsMissing() {
         let said = DuckWebRTC.whyThereIsNoClient
-        XCTAssertTrue(said.contains("No WebRTC yet"), said)
-        XCTAssertTrue(said.contains("five specific things"), said)
+        XCTAssertTrue(said.contains("No WebRTC client here yet"), said)
+        XCTAssertTrue(said.contains("a peer connection rather than a contract"), said)
+        XCTAssertTrue(said.contains("transcribed from the client the robot itself serves"), said)
+        XCTAssertFalse(said.contains("five specific things"),
+                       "four of the five were read; the sentence cannot still claim them")
     }
 
     /// The peers this package actually has, asked directly. Cheap, total over
@@ -105,7 +113,7 @@ final class DuckWebRTCTests: XCTestCase {
         XCTAssertEqual(offenders, [],
                        "Something now conforms to DuckWebRTC.Signalling. Before that is allowed "
                      + "to stand, the five unknowns it was written against have to be answered "
-                     + "and struck off DuckWebRTC.fiveThingsNobodyHereKnows.")
+                     + "and struck off DuckWebRTC.twoThingsStillOpen.")
     }
 
     /// The scan can find something, which is the half of it a green result does

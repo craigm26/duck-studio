@@ -218,6 +218,12 @@ struct ControlMotionsSheet: View {
                     .foregroundStyle(Theme.measured)
             }
             Button {
+                // OUT OF THE WAY FIRST. The run plays on the picture behind
+                // this sheet, so a sheet that stays up is a sheet standing in
+                // front of the only thing the press was for — which is exactly
+                // what "the motion barely runs in Control" looked like the
+                // second time.
+                dismiss()
                 run(motion.id)
             } label: {
                 Text(ControlShelf.runItHere).frame(maxWidth: .infinity)

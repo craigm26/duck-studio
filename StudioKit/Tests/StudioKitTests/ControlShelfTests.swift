@@ -28,6 +28,8 @@ final class ControlShelfTests: XCTestCase {
         XCTAssertTrue(ControlShelf.runningStopsTheDrive.contains("sticks come back"))
         XCTAssertTrue(ControlShelf.motionSheetSaid.contains("stops the drive loop"))
         XCTAssertEqual(ControlShelf.running("lever_up"), "Running lever_up on the bench…")
+        XCTAssertEqual(ControlShelf.watching("lever_up"),
+                       "Playing lever_up — the run the bench sent back.")
     }
 
     /// A batch run lays its own room and leaves the driven world standing —

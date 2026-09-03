@@ -811,12 +811,26 @@ struct DriveView: View {
         guard let clip, clip.duration > 0 else { return }
         playback = clip
         playhead = 0
-        let step = 1 / max(clip.hz, 1)
-        while playhead < clip.duration {
-            try? await Task.sleep(nanoseconds: UInt64(step * 1_000_000_000))
-            if Task.isCancelled { break }
-            playhead += step
+        lastAction = ControlShelf.watching(clip.name)
+        // THE WALL CLOCK, NOT A COUNT OF SLEEPS. Adding a step per iteration
+        // makes the playback as slow as the sleeps actually are — every one
+        // overshoots a little, and fifty of them a second turn a two-second
+        // motion into three. Reading the clock instead means a frame that is
+        // late is skipped rather than shifting everything after it, which is
+        // what the editor's own transport does.
+        let started = Date()
+        while true {
+            let elapsed = Date().timeIntervalSince(started)
+            if elapsed >= clip.duration || Task.isCancelled { break }
+            playhead = elapsed
+            try? await Task.sleep(nanoseconds: UInt64(1_000_000_000 / max(clip.hz, 1)))
         }
+        // THE LAST FRAME IS DRAWN. Ending on whatever the clock said leaves the
+        // duck a frame or two short of the pose the motion finished in, which
+        // on a motion that ends standing is the difference between "it worked"
+        // and "it nearly worked".
+        playhead = clip.duration
+        try? await Task.sleep(nanoseconds: 120_000_000)
         playback = nil
         playhead = 0
     }
@@ -2008,7 +2022,8 @@ struct DriveView: View {
                 DisclosureGroup("Why there is no WebRTC client") {
                     VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
                         Text(DuckWebRTC.whyThereIsNoClient)
-                        Text(DuckWebRTC.fiveThingsNobodyHereKnows)
+                        Text(DuckWebRTC.whatIsKnownNow)
+                        Text(DuckWebRTC.twoThingsStillOpen)
                     }
                     .font(.footnote)
                     .foregroundStyle(Theme.textSecondary)

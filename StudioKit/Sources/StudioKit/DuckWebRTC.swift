@@ -45,41 +45,48 @@ public enum DuckWebRTC {
     /// — by reading `mediad`, by reading whatever serves its offer, by watching
     /// one session — and writing them as five separate unknowns rather than as
     /// "WebRTC is not implemented" is what makes them assignable.
-    public static let fiveThingsNobodyHereKnows =
-        "Five things about this transport are unknown here, and each of them is a question with "
-      + "an answer somebody can go and read.\n\n"
-      + "1. WHERE THE OFFER LIVES. mediad is named as the thing that speaks WebRTC, and nothing "
-      + "in this project has read how a client obtains its session description — whether an HTTP "
-      + "endpoint on the robot serves one, whether the phone offers first, or whether a "
-      + "rendezvous service sits between them.\n\n"
-      + "2. HOW A PHONE PROVES WHO IT IS. There is no authentication step transcribed anywhere "
-      + "in this app for this link. DuckAuthority has no authenticated case for exactly this "
-      + "reason: nothing here has ever proved anything to a duck.\n\n"
-      + "3. WHAT ICE HAS TO REACH. Whether the duck and the phone are expected to be on one LAN, "
-      + "whether a STUN server is involved, and whether a TURN relay exists for the case where "
-      + "they are not — three different products for the person holding the phone.\n\n"
-      + "4. THE BRIDGE'S TOKEN. A studio-to-studio bridge relays this same vocabulary to a duck "
-      + "the other phone can reach, and what authorises that relay is not designed. It is the "
-      + "same question as (2) with a worse blast radius, because the peer is a program on "
-      + "somebody else's phone.\n\n"
-      + "5. THE DATACHANNEL'S LABEL AND SHAPE. Whether the JSON-RPC lines travel on a channel "
-      + "with a known label, whether it is reliable and ordered — which decides outright whether "
-      + "DuckLineSequence measures loss or measures nothing — and whether one channel carries "
-      + "both directions."
+    /// FOUR OF THE FIVE ARE ANSWERED, AND THE ANSWERS ARE READ RATHER THAN
+    /// GUESSED. `pollen-robotics/microduck` is public: `duck-ipc-proto` is a
+    /// crate in it, `docs/design/remote-webrtc.md` documents the transport, and
+    /// `mediad/webclient/index.html` is a working client that speaks the
+    /// signalling protocol by hand. `DuckSignalling` is the transcription.
+    ///
+    /// This list is kept, shortened, because the shape of it was the useful
+    /// part: a question with an address is assignable and "not implemented" is
+    /// not. What remains is genuinely open, and one of the two is open in
+    /// Pollen's own document rather than only in ours.
+    public static let whatIsKnownNow =
+        "The signalling path is no longer a guess. mediad runs the signalling server in its own "
+      + "process on port 8443, bound on every interface; a client asks who is producing, starts a "
+      + "session with the producer, and ANSWERS the offer the robot makes; SDP and candidates "
+      + "travel as one `peer` message with the payload flattened beside the session id; and the "
+      + "robot API arrives on a reliable, ordered datachannel called `control` carrying the same "
+      + "JSON-RPC one object per line that the Unix socket carries. There is no authentication "
+      + "step because the first version of that transport has no gate, which their own design "
+      + "note states and defends."
+
+    public static let twoThingsStillOpen =
+        "Two things are still open. Reaching a duck that is NOT on this network needs a "
+      + "signalling path over the internet, a STUN server and a TURN relay — Pollen's own note "
+      + "carries that as an open question rather than a design, so it is not ours to guess at "
+      + "either. And a studio-to-studio bridge — this app relaying to a duck another phone can "
+      + "reach — still has nothing that authorises the relay, which is the same question with a "
+      + "worse blast radius, because the peer is a program on somebody else's phone."
 
     /// What a screen says where a Connect button would be.
     public static let whyThereIsNoClient =
-        "No WebRTC yet. This is the transport Pollen's contract names for driving a robot, and "
-      + "this app has the vocabulary for it and no client behind it — five specific things about "
-      + "their signalling path have not been read, and a client written against a guess produces "
-      + "calls a duck refuses by name, which looks exactly like a feature the duck does not have."
+        "No WebRTC client here yet, and what is missing is now a peer connection rather than a "
+      + "contract. The signalling and the control channel are transcribed from the client the "
+      + "robot itself serves, and the messages are tested; what this app does not yet link "
+      + "against is something that can hold a peer connection and answer an offer. Until it "
+      + "does, the robot's own console is the camera and the bridge is the controls."
 }
 
 /// Agreeing on how to reach the far end. See `DuckWebRTC` for why nothing
 /// implements this.
 ///
 /// THE MEMBERS ARE THE SHAPE OF THE QUESTION, NOT A TRANSCRIPTION OF AN ANSWER.
-/// Every one of them corresponds to one of `fiveThingsNobodyHereKnows`: where
+/// Every one of them corresponds to something in `whatIsKnownNow`: where
 /// the offer comes from, what authorises the exchange, what candidates have to
 /// be traded, and what the resulting channel is called. Whoever fills this in
 /// will change these signatures, and that is expected — what must not happen is
