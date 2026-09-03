@@ -36,6 +36,12 @@ final class PadDesk: ObservableObject {
     @Published var map: DuckPadMap = .defaults(in: .walk)
     @Published var pilot = PadPilot()
     @Published private(set) var sequences: [DuckSequence] = []
+    /// Studio's motions, by id and name. HELD RATHER THAN OWNED: the drafts
+    /// belong to `DraftStore` and this is the pad's read of them, refreshed
+    /// from the tab, so a button bound to a motion can say its name and a
+    /// motion deleted in Studio becomes a named not-yet instead of a dead
+    /// button.
+    @Published private(set) var motions: [UUID: String] = [:]
 
     private let maps = PadMapStore()
     private let store = SequenceStore()
@@ -88,6 +94,14 @@ final class PadDesk: ObservableObject {
 
     func name(ofSequence id: UUID) -> String? {
         sequences.first { $0.id == id }?.name
+    }
+
+    func name(ofMotion id: UUID) -> String? { motions[id] }
+
+    /// What Studio holds right now. Called from the tab when the drafts move.
+    func learn(motions named: [UUID: String]) {
+        guard motions != named else { return }
+        motions = named
     }
 
     /// Start a bound sequence. Returns the line to print.

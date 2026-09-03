@@ -389,6 +389,17 @@ struct DriveView: View {
         // showing the last bench's staircase would be describing a world this
         // bench has never been in.
         .onChange(of: peerKey) { _, _ in flight = Task { await refreshWorld() } }
+        // WHAT STUDIO HOLDS, AS THE PAD SEES IT. A button bound to a motion
+        // reads its name from here, and a motion deleted in Studio turns that
+        // button into a named not-yet rather than a dead one.
+        .onChange(of: drafts.drafts) { _, held in
+            desk.learn(motions: Dictionary(held.map { ($0.id, $0.name) },
+                                           uniquingKeysWith: { first, _ in first }))
+        }
+        .task(id: drafts.drafts.count) {
+            desk.learn(motions: Dictionary(drafts.drafts.map { ($0.id, $0.name) },
+                                           uniquingKeysWith: { first, _ in first }))
+        }
         // A STOP THAT DOES NOT HAVE TO BE FOUND. The bar below is always on
         // screen, but "always on screen" is a sighted guarantee: a VoiceOver
         // user still has to swipe to it, and the swipes happen while the duck
@@ -748,62 +759,16 @@ struct DriveView: View {
     /// refusal from the camera door is NOT collapsed: a venue that cannot be
     /// entered has to say so where the control is.
     private var topChrome: some View {
-        VStack(spacing: Theme.spacing(.hairline)) {
-            venuePicker
-            HStack(alignment: .firstTextBaseline, spacing: Theme.spacing(.tight)) {
-                Text(venue.oneLine)
-                    .font(.caption2)
-                    .foregroundStyle(Theme.textSecondary)
-                    .lineLimit(venueLineIsOpen ? nil : 1)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: venueLineIsOpen)
-                Spacer(minLength: 0)
-                Image(systemName: venueLineIsOpen ? "chevron.up" : "chevron.down")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(Theme.textSecondary)
-            }
-            // THE LINE IS THE BUTTON. A forty-four point chevron beside a
-            // sixteen point sentence spent a whole row of the picture on a
-            // target the sentence itself can be, and the picture is what this
-            // layout is for.
-            .contentShape(Rectangle())
-            .onTapGesture {
-                withAnimation(Theme.motion(reduced: reduceMotion)) { venueLineIsOpen.toggle() }
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityAddTraits(.isButton)
-            .accessibilityLabel(Text(StageViewport.captionSaid(expanded: venueLineIsOpen)))
-            .accessibilityHint(Text(StageViewport.chromeFloatsSaid))
-            if let refusal = cameraDoor.refusal(for: .venue) {
-                Text(refusal)
-                    .font(.caption2)
-                    .foregroundStyle(Theme.textSecondary)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            // THE RECORD AND SAY-IT CHIPS, IN THE TOP STRIP AND NOT THE BOTTOM
-            // ONE — AND THAT IS A MEASUREMENT RATHER THAN A TASTE.
-            // `StageViewport.nearestDistance` takes the tightest of the column,
-            // the top strip and the bottom cluster, and on the 393 x 740
-            // full-bleed glass the BOTTOM is the piece that binds: the pad deck
-            // already leaves the duck a nought-point gap at the near stop.
-            // Another fifty-two points down there pushes the near stop from
-            // 0.77 m to 1.23 m — the duck drawn a third smaller on the one
-            // screen that exists to watch it. Up here nothing moves at all
-            // until the top strip passes 208 points, which is where the top
-            // becomes the binding piece instead of the bottom; the switch, the
-            // collapsed caption and a chip row are about 156. It is measured
-            // either way — this VStack is what `topChromeHeight` reports and
-            // what `refitCamera` clears — so at an accessibility size, where
-            // the strip does grow past that, the camera stands further back
-            // rather than the chrome landing on the duck.
-            // ONE ROW, FIVE CHIPS, SCROLLING. The two Studio doors sit beside
-            // the three the pad already had; five capsules are wider than a
-            // phone, and a row that scrolls is the one arrangement that adds
-            // neither a second row of chrome nor a glyph nobody can read.
+        VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
+            // ONE ROW. The switch, the two Studio doors and the three pad chips
+            // scroll together, so the strip is a switch tall instead of three
+            // rows plus a caption — about a hundred and thirty points of
+            // picture handed back to the duck, on the one screen that exists
+            // to watch it. The venue's own sentence moved into the drawer,
+            // where a thing you read once and close belongs.
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: Theme.spacing(.tight)) {
+                    venuePicker
                     ControlShelfChips(standing: world?.name,
                                       openScene: { shelf = .scene },
                                       openMotions: { shelf = .motions })
@@ -813,6 +778,18 @@ struct DriveView: View {
                               library: model, models: settingsModels)
                 }
                 .padding(.horizontal, Theme.spacing(.hairline))
+            }
+            // A VENUE THAT CANNOT BE ENTERED STAYS ON THE PICTURE. It is a
+            // refusal about the switch immediately above it — the camera is
+            // off, so "Your floor" is not there — and a person who cannot see
+            // why a venue is missing is looking at a bug rather than a rule.
+            if let refusal = cameraDoor.refusal(for: .venue) {
+                Text(refusal)
+                    .font(.caption2)
+                    .foregroundStyle(Theme.textSecondary)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .padding(.horizontal, Theme.spacing(.snug))
@@ -1379,7 +1356,8 @@ struct DriveView: View {
     /// above, sticks, faces, dpad, and the two system buttons that do nothing
     /// here at the bottom. Order within each cluster is `padd`'s.
     private func padButton(_ control: DuckPad.Control) -> some View {
-        let shown = desk.map.shown(for: control, naming: desk.name(ofSequence:))
+        let shown = desk.map.shown(for: control, naming: desk.name(ofSequence:),
+                                   namingMotion: desk.name(ofMotion:))
         let isLive = shown.isLive
         return Group {
             if isLive {
@@ -1526,6 +1504,23 @@ struct DriveView: View {
                 // an `if venue != .real` in the body now holds for free. Every
                 // chip switches an overlay drawn over a duck this app is
                 // rendering, and the robot venue renders none.
+                // WHERE YOU ARE DRIVING, IN WORDS. It was a row on the
+                // picture and it is a thing somebody reads once, so it reads
+                // here and the picture keeps the points.
+                Section {
+                    DisclosureGroup(isExpanded: $venueLineIsOpen) {
+                        Text(venue.oneLine)
+                            .font(.caption)
+                            .foregroundStyle(Theme.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } label: {
+                        Text(StageViewport.captionSaid(expanded: venueLineIsOpen))
+                            .font(.footnote)
+                            .foregroundStyle(Theme.textSecondary)
+                    }
+                    .accessibilityHint(Text(StageViewport.chromeFloatsSaid))
+                }
+                .listRowBackground(Theme.surfacePrimary)
                 Section {
                     layerChips
                         .listRowInsets(EdgeInsets())
@@ -2188,6 +2183,12 @@ struct DriveView: View {
         case .reset:
             lastAction = "\(control.face) → reset"
             flight = Task { await putBack() }
+        case .run(let motion):
+            // THE SAME DOOR THE MOTIONS SHEET OPENS. A press is not a round
+            // trip here: the loop stops, the bench runs the track once, and
+            // the sticks come back — which is what the binding says it does.
+            lastAction = "\(control.face) → \(desk.name(ofMotion: motion) ?? "")"
+            await runMotion(motion)
         case .play(let id, let slot):
             // A REPLAY IS A STATE OF THE DRIVE LOOP, NEVER A SECOND ONE. The
             // pilot hands `drive()` the recorded command each round trip; all

@@ -164,7 +164,7 @@ struct ControlMotionsSheet: View {
                             Text(ControlShelf.motionSheetSaid)
                             Text(ControlShelf.runsInItsOwnRoom)
                             Text(ControlShelf.runningStopsTheDrive)
-                            Text(ControlShelf.notOnAButtonYet)
+                            Text(ControlShelf.alsoOnAButton)
                         }
                         .font(.caption)
                         .foregroundStyle(Theme.textSecondary)

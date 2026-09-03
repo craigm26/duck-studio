@@ -61,6 +61,11 @@ public struct DuckPadMap: Equatable, Sendable {
         /// "chain", as one case rather than two.
         case play(sequence: UUID, thenLoading: DuckOfficialPolicies.Slot?)
         case drive
+        /// A motion from Studio, run once on the bench. NOT a live command:
+        /// the press stops the drive loop, the bench runs the track, and the
+        /// sticks come back — which is why this could not exist until there
+        /// was a door that could say all three (see `ControlShelf`).
+        case run(motion: UUID)
         case stop
         case reset
         /// Named, with the reason, exactly as `DuckPad.unsupported` is.
@@ -226,9 +231,21 @@ public struct DuckPadMap: Equatable, Sendable {
         return .notYet(DuckPadMap.sequenceIsGone(control))
     }
 
-    public func shown(for control: DuckPad.Control,
-                      naming: (UUID) -> String?) -> Shown {
+    /// The same door for a motion: a binding whose motion has been deleted in
+    /// Studio becomes a named not-yet on the way out rather than a button that
+    /// does nothing.
+    public func effect(for control: DuckPad.Control,
+                       naming: (UUID) -> String?,
+                       namingMotion: (UUID) -> String?) -> Effect {
         let here = effect(for: control, naming: naming)
+        guard case .run(let id) = here, namingMotion(id) == nil else { return here }
+        return .notYet(DuckPadMap.motionIsGone(control))
+    }
+
+    public func shown(for control: DuckPad.Control,
+                      naming: (UUID) -> String?,
+                      namingMotion: (UUID) -> String? = { _ in nil }) -> Shown {
+        let here = effect(for: control, naming: naming, namingMotion: namingMotion)
         let robot = DuckPad.binding(for: control)?.onTheRobot ?? "—"
         var live = true
         var caption: String
@@ -247,6 +264,11 @@ public struct DuckPadMap: Equatable, Sendable {
                 caption = "Play \(name)"
                 here_ = "Plays the sequence \(name)."
             }
+        case .run(let id):
+            let name = namingMotion(id) ?? ""
+            caption = "Run \(name)"
+            here_ = "Runs the motion \(name) once on the bench. Driving stops while it runs "
+                  + "and the sticks come back after."
         case .drive:
             caption = "Drive"
             here_ = "Feeds the velocity twist."
@@ -350,12 +372,11 @@ public struct DuckPadMap: Equatable, Sendable {
       + "entry it has no network for says so when you press it rather than failing quietly. When "
       + "/health grows the field, this reads it."
 
-    public static let motionOnAButtonIsNotYet =
-        "A motion on a button is not built yet. A motion is keyframes, and the only way this app can "
-      + "play one is POST /perform on a bench: a batch call that runs whole rollouts, takes minutes "
-      + "and answers with a verdict rather than a picture. Nothing in the robot vocabulary carries "
-      + "keyframes at all, so a button that played one while you steer would be a control with no "
-      + "wire behind it. Slots and sequences go on the buttons today; a motion is run from Studio."
+    /// A motion this map names that Studio no longer holds.
+    public static func motionIsGone(_ control: DuckPad.Control) -> String {
+        "\(control.face) is bound to a motion this phone no longer holds. It was deleted in "
+      + "Studio, so there is nothing to run; bind it again to give the button something to do."
+    }
 
     public static let mapLivesOnThisPhone =
         "This map lives on this phone, not on the bench. Every entry names a role or one of your "
@@ -432,6 +453,7 @@ public struct DuckPadMap: Equatable, Sendable {
             var body: [String: Any] = ["effect": "play", "sequence": id.uuidString]
             if let then { body["thenLoading"] = then.rawValue }
             return body
+        case .run(let id): return ["effect": "run", "motion": id.uuidString]
         case .drive: return ["effect": "drive"]
         case .stop: return ["effect": "stop"]
         case .reset: return ["effect": "reset"]
@@ -493,6 +515,11 @@ public struct DuckPadMap: Equatable, Sendable {
             let then = (body["thenLoading"] as? String)
                 .flatMap { DuckOfficialPolicies.Slot(rawValue: $0) }
             return .play(sequence: id, thenLoading: then)
+        case "run":
+            guard let raw = body["motion"] as? String, let id = UUID(uuidString: raw) else {
+                return nil
+            }
+            return .run(motion: id)
         case "drive": return .drive
         case "stop": return .stop
         case "reset": return .reset
@@ -523,7 +550,7 @@ public struct DuckPadMap: Equatable, Sendable {
     /// Every sentence this type ships, for the word test and the script that
     /// backs it up.
     public static let allSentences: [String] = [
-        sticksAreAlwaysMapped, modeIsAnAssumption, motionOnAButtonIsNotYet,
+        sticksAreAlwaysMapped, modeIsAnAssumption,
         mapLivesOnThisPhone, sticksRowTitle, putThePadBack, putThePadBackDetail,
         steerBySlot, steerByWhateverIsLoaded, pickANetwork, playIt,
         playThenLoad(.walk),

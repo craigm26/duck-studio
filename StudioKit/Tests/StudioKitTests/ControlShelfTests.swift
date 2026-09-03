@@ -40,12 +40,10 @@ final class ControlShelfTests: XCTestCase {
         XCTAssertTrue(ControlShelf.authoredAnywhere.contains("bare floor"))
     }
 
-    /// The one thing this door cannot do is named where somebody would look
-    /// for it, with the reason.
-    func testTheButtonNotYetSaysWhyAndWhereToGoInstead() {
-        XCTAssertTrue(ControlShelf.notOnAButtonYet.contains("cannot go on a pad button yet"))
-        XCTAssertTrue(ControlShelf.notOnAButtonYet.contains("round trip"))
-        XCTAssertTrue(ControlShelf.notOnAButtonYet.contains("Run it from here"))
+    /// The same run on a pad button, named where somebody would look for it.
+    func testTheButtonPathIsNamedAndIsTheSameRun() {
+        XCTAssertTrue(ControlShelf.alsoOnAButton.contains("pad button"))
+        XCTAssertTrue(ControlShelf.alsoOnAButton.contains("A press does what Run does here."))
     }
 
     func testEverySentenceSaysTheThingItIsFor() {

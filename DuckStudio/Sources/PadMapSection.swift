@@ -142,7 +142,8 @@ struct PadMapSection: View {
     // MARK: - the fourteen rows
 
     private func buttonRow(_ control: DuckPad.Control) -> some View {
-        let shown = desk.map.shown(for: control, naming: desk.name(ofSequence:))
+        let shown = desk.map.shown(for: control, naming: desk.name(ofSequence:),
+                                   namingMotion: desk.name(ofMotion:))
         return Button {
             editing = .map(control)
         } label: {

@@ -12,12 +12,10 @@ import DuckEvidence
 /// keeps across benches, and refusing to let them bind a role their next bench
 /// will fill would make the map less portable than the thing it describes.
 ///
-/// **Play a motion** IS BINDABLE AND PRINTS ITS REASON. That is the shipped
-/// `DuckPad.unsupported` idiom, not a new one: the row exists, it takes the
-/// binding, and pressing that button on the pad prints
-/// `DuckPadMap.motionOnAButtonIsNotYet` — which names `/perform`, the rollouts
-/// and the minutes, so the not-yet is a job somebody could do rather than a
-/// shrug. A greyed-out row would have told nobody anything.
+/// **A MOTION IS A ROW NOW, NOT A NOT-YET.** It was one until this tab had a
+/// door that could stop the drive loop, run a batch call and hand the sticks
+/// back; `ControlShelf` is that door, so the row binds `.run(motion:)` and the
+/// press goes through the same path the Motions sheet's Run does.
 ///
 /// NOTHING HERE POSTS ANYTHING. Binding is an edit to a file on this phone.
 struct PadBindSheet: View {
@@ -29,7 +27,8 @@ struct PadBindSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     private var shown: DuckPadMap.Shown {
-        desk.map.shown(for: control, naming: desk.name(ofSequence:))
+        desk.map.shown(for: control, naming: desk.name(ofSequence:),
+                       namingMotion: desk.name(ofMotion:))
     }
 
     var body: some View {
@@ -67,6 +66,24 @@ struct PadBindSheet: View {
                 } header: {
                     SectionHeading(text: "Play a sequence")
                 }
+                // ONE ROW PER MOTION. A press stops the drive loop, runs the
+                // track once and hands the sticks back — the door Control now
+                // has, which is what turned this from a not-yet into a row.
+                if !desk.motions.isEmpty {
+                    Section {
+                        ForEach(desk.motions.sorted { $0.value < $1.value }, id: \.key) { held in
+                            Button { bind(.run(motion: held.key)) } label: {
+                                row(held.value, second: ControlShelf.runsInItsOwnRoom)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    } header: {
+                        SectionHeading(text: ControlShelf.motionsChip)
+                    } footer: {
+                        Text(ControlShelf.runningStopsTheDrive)
+                            .foregroundStyle(Theme.textSecondary)
+                    }
+                }
 
                 Section {
                     Button { bind(.stop) } label: {
@@ -75,11 +92,6 @@ struct PadBindSheet: View {
                     .buttonStyle(.plain)
                     Button { bind(.reset) } label: {
                         row("Reset", second: "Puts the duck back on its feet.")
-                    }
-                    .buttonStyle(.plain)
-                    // BINDABLE, AND IT PRINTS ITS REASON WHEN PRESSED.
-                    Button { bind(.notYet(DuckPadMap.motionOnAButtonIsNotYet)) } label: {
-                        row("Play a motion", second: DuckPadMap.motionOnAButtonIsNotYet)
                     }
                     .buttonStyle(.plain)
                     Button {

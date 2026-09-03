@@ -88,16 +88,16 @@ public enum ControlShelf {
         "No motions yet. A motion is a track of poses you write in Studio — record one from a "
       + "bench, or author one on the timeline — and every one of them turns up here."
 
-    /// Nothing in this app can put a motion on a pad button yet, said where
-    /// somebody would look for it.
-    public static let notOnAButtonYet =
-        "A motion cannot go on a pad button yet. A button press is answered inside one round "
-      + "trip of the drive loop and a motion is a batch run that takes seconds, so it needs a "
-      + "door that can say \"this is running\" and hand the sticks back. Run it from here."
+    /// Where the same run lives on the pad. It stopped being a not-yet the
+    /// moment this door existed: a button bound to a motion takes exactly this
+    /// path, so the two cannot drift.
+    public static let alsoOnAButton =
+        "A motion can go on a pad button too: open the buttons list under the controls, pick a "
+      + "button, and choose it there. A press does what Run does here."
 
     /// Everything this type says, so a screen can be checked against it.
     public static let everySentence: [String] = [
         sceneChip, motionsChip, runItHere, whatHappened, sceneSheetSaid, motionSheetSaid, runsInItsOwnRoom,
-        runningStopsTheDrive, authoredAnywhere, noMotionsYet, notOnAButtonYet,
+        runningStopsTheDrive, authoredAnywhere, noMotionsYet, alsoOnAButton,
     ]
 }

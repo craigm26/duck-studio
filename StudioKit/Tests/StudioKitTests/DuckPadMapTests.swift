@@ -178,20 +178,40 @@ final class DuckPadMapTests: XCTestCase {
         XCTAssertTrue(shown.detail.contains("roulade"), shown.detail)
     }
 
-    func testAMotionOnAButtonIsAnExplicitNotYetWithItsReason() {
-        XCTAssertTrue(DuckPadMap.motionOnAButtonIsNotYet.contains("/perform"))
-        XCTAssertTrue(DuckPadMap.motionOnAButtonIsNotYet.contains("rollouts"))
+    /// A MOTION GOES ON A BUTTON. It could not until there was a door that
+    /// stops the drive loop, runs the track and hands the sticks back; there
+    /// is one now, so the binding is real rather than a named not-yet.
+    func testAMotionCanBeBoundToAButtonAndSaysWhatItWillDo() {
         var map = DuckPadMap.defaults(in: .walk)
-        map.bind(.notYet(DuckPadMap.motionOnAButtonIsNotYet), to: .b)
-        let shown = map.shown(for: .b, naming: { _ in nil })
+        let motion = UUID()
+        map.bind(.run(motion: motion), to: .b)
+        XCTAssertEqual(map.effect(for: .b), .run(motion: motion))
+        let shown = map.shown(for: .b, naming: { _ in nil }, namingMotion: { _ in "lever_up" })
+        XCTAssertTrue(shown.isLive)
+        XCTAssertEqual(shown.caption, "Run lever_up")
+        XCTAssertTrue(shown.detail.contains("once on the bench"), shown.detail)
+        XCTAssertTrue(shown.detail.contains("sticks come back"), shown.detail)
+    }
+
+    /// And a motion deleted in Studio becomes a named not-yet on the way out,
+    /// exactly as a deleted sequence does — never a button that does nothing.
+    func testAMotionDeletedInStudioBecomesANamedNotYet() {
+        var map = DuckPadMap.defaults(in: .walk)
+        map.bind(.run(motion: UUID()), to: .b)
+        let shown = map.shown(for: .b, naming: { _ in nil }, namingMotion: { _ in nil })
         XCTAssertFalse(shown.isLive)
-        // THE REASON IS THE WHOLE OF THE ROW'S SECOND LINE, with padd's words
-        // for the robot after it — which is exactly what `.unsupported` rows
-        // already read like, and the reason a person presses one at all.
-        XCTAssertTrue(shown.detail.hasPrefix(DuckPadMap.motionOnAButtonIsNotYet), shown.detail)
-        XCTAssertTrue(shown.detail.contains("Body-pose mode"), shown.detail)
-        XCTAssertEqual(map.effect(for: .b), .notYet(DuckPadMap.motionOnAButtonIsNotYet),
-                       "and a press prints the reason on its own, the shipped idiom")
+        XCTAssertTrue(shown.detail.hasPrefix(DuckPadMap.motionIsGone(.b)), shown.detail)
+        XCTAssertTrue(DuckPadMap.motionIsGone(.b).contains("deleted in"))
+    }
+
+    /// The binding survives the round trip through the file, so a button keeps
+    /// its motion across a relaunch.
+    func testAMotionBindingSurvivesTheFile() throws {
+        var map = DuckPadMap.defaults(in: .walk)
+        let motion = UUID()
+        map.bind(.run(motion: motion), to: .y)
+        let read = try DuckPadMap.decode(try map.encoded())
+        XCTAssertEqual(read.effect(for: .y), .run(motion: motion))
     }
 
     // MARK: - the file
