@@ -193,7 +193,56 @@ public enum DriveVenue: String, CaseIterable, Identifiable, Sendable {
     /// verbs `robotd` takes over its Unix socket. A Pi sitting between the two
     /// would be a small program. It does not exist, so this says what it would
     /// take instead of offering a button that would need it.
-    public static let whatABridgeWouldTake =
+    // MARK: - the console the robot serves, which is WebRTC without writing one
+
+    /// WHAT WEBRTC WOULD AND WOULD NOT BUY, now that the contract is readable
+    /// rather than guessed at. `pollen-robotics/microduck` is public;
+    /// `duck-ipc-proto` is a crate in it and `docs/design/remote-webrtc.md`
+    /// documents the transport: `mediad` runs a signalling server in its own
+    /// process on port 8443, one peer connection carries video, audio, a
+    /// reliable `control` channel and an unreliable `teleop` one, and `control`
+    /// carries THE SAME JSON-RPC the Unix socket carries, one object per line.
+    ///
+    /// SO WEBRTC BUYS VIDEO, NOT CONTROL. Every driving call on that channel is
+    /// a call the bridge in this repo already relays over TCP, which means a
+    /// WebRTC client written here would ship a hundred megabytes of libwebrtc
+    /// to reach a surface this app can already reach. What it would add is the
+    /// camera, and reaching a robot that is not on this network.
+    ///
+    /// AND THE ROBOT ALREADY SHIPS A CLIENT FOR THAT. `mediad` serves its own
+    /// console over HTTP on port 8080 — `mediad/src/web.rs`, the page embedded
+    /// in the binary so the page and the daemon cannot disagree about their
+    /// versions. It negotiates the session, shows the video and opens the
+    /// control channel. Sending somebody to it is a door; writing a second
+    /// client would be a second implementation of a protocol whose own
+    /// documentation says the pipe should stay dumb.
+    /// The heading over the door.
+    public static let consoleHeading = "The robot's own console"
+
+    public static let consoleIsTheRobotsOwn =
+        "Your robot serves its own console: a page with the camera on it and the same control "
+      + "channel this app speaks. It runs on the robot rather than here, so it is the robot's "
+      + "version of that page and not this app's idea of it."
+
+    /// What the console is, in a sentence that does not overclaim what this app
+    /// did to produce it.
+    public static let consoleIsNotThisApp =
+        "This app is not driving that page. It opens it, and everything on it — the video, the "
+      + "session, the buttons — is the robot's own software answering for itself."
+
+    /// Where it is, when there is an address to say it about.
+    public static func consoleAt(_ host: String) -> String {
+        "http://\(host):8080"
+    }
+
+    /// The one thing a person should know before they open a page that can
+    /// drive a robot, and it is the robot's own decision rather than ours.
+    public static let consoleHasNoGate =
+        "Anybody on your network who opens that page can drive the robot: the first version of "
+      + "the robot's WebRTC transport has no gate on it, by its own design note. That is a "
+      + "property of your network, not of this app."
+
+        public static let whatABridgeWouldTake =
         "There is a shorter route than WebRTC and it has not been built either. The bench "
       + "already speaks half of the robot's own vocabulary over HTTP — state, intent, stop, "
       + "policy, reset — and robotd takes those same verbs as JSON-RPC on a Unix socket at "

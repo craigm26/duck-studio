@@ -161,6 +161,10 @@ struct DriveView: View {
     @State private var notesHeight: CGFloat = 0
     /// The AR venue's own panel, measured, so the readout stacks under it.
     @State private var arHudHeight: CGFloat = 0
+    /// Where the robot's own console is. TYPED, NOT DISCOVERED: `mediad` does
+    /// not advertise itself over Bonjour, so an address is the honest control
+    /// until something on the robot broadcasts one.
+    @AppStorage("robot.console.host") private var consoleHost = "duck.local"
     /// Whether the controls drawer is up.
     ///
     /// PER SCREEN, AND CLOSED BY DEFAULT. `stage.legend.expanded` is app-wide
@@ -692,6 +696,13 @@ struct DriveView: View {
         if let playback { return .at(playback.pose(at: playhead)) }
         guard let posed else { return pose }
         return DuckStance(jointAngles: posed, root: pose.root)
+    }
+
+    /// The console's address, when what was typed can be one.
+    private var consoleURL: URL? {
+        let host = consoleHost.trimmingCharacters(in: .whitespaces)
+        guard !host.isEmpty, !host.contains("/"), !host.contains(" ") else { return nil }
+        return URL(string: DriveVenue.consoleAt(host))
     }
 
     /// The joints of the group being posed.
@@ -1914,6 +1925,41 @@ struct DriveView: View {
                 }
             } header: {
                 SectionHeading(text: "Robot")
+            }
+            .listRowBackground(Theme.surfacePrimary)
+            // THE CONSOLE THE ROBOT SERVES, WHICH IS THE CAMERA AND THE
+            // CONTROL CHANNEL WITHOUT A SECOND CLIENT. Opened in the system
+            // browser rather than drawn here: the page is the robot's own, it
+            // is served from the daemon that negotiates the session, and a
+            // WebView of it would be this app taking responsibility for
+            // software it did not write and cannot version.
+            Section {
+                Text(DriveVenue.consoleIsTheRobotsOwn)
+                    .font(.footnote)
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                TextField("duck.local", text: $consoleHost)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .keyboardType(.URL)
+                    .frame(minHeight: DesignMetric.minimumTarget)
+                if let url = consoleURL {
+                    Link(destination: url) {
+                        Label(DriveVenue.consoleAt(consoleHost), systemImage: "safari")
+                            .frame(minHeight: DesignMetric.minimumTarget)
+                    }
+                    .tint(Theme.actionSecondary)
+                }
+                Text(DriveVenue.consoleIsNotThisApp)
+                    .font(.caption)
+                    .foregroundStyle(Theme.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Label(DriveVenue.consoleHasNoGate, systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(Theme.warning)
+                    .fixedSize(horizontal: false, vertical: true)
+            } header: {
+                SectionHeading(text: DriveVenue.consoleHeading)
             }
             .listRowBackground(Theme.surfacePrimary)
 

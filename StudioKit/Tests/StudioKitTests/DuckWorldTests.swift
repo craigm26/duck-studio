@@ -791,4 +791,15 @@ final class DuckWorldTests: XCTestCase {
         }
     }
 
+
+    /// The console is the robot's, and every sentence about it says so rather
+    /// than letting this app take credit for a page it did not write.
+    func testTheConsoleSentencesGiveTheRobotItsOwnPage() {
+        XCTAssertEqual(DriveVenue.consoleHeading, "The robot's own console")
+        XCTAssertTrue(DriveVenue.consoleIsTheRobotsOwn.contains("serves its own console"))
+        XCTAssertTrue(DriveVenue.consoleIsNotThisApp.contains("not driving that page"))
+        XCTAssertEqual(DriveVenue.consoleAt("duck.local"), "http://duck.local:8080")
+        XCTAssertTrue(DriveVenue.consoleHasNoGate.contains("no gate on it"))
+        XCTAssertTrue(DriveVenue.consoleHasNoGate.contains("property of your network"))
+    }
 }
