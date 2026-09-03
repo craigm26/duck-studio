@@ -1,0 +1,15 @@
+[Unit]
+Description=Relay robotd's Unix socket to TCP for Microduck Studio
+After=network.target
+
+[Service]
+# RESTARTED, BECAUSE THE DEADMAN CANNOT ACT IF THIS PROCESS IS THE THING THAT
+# DIED. robotd's own twist deadman is the backstop under this one; a bridge that
+# stays down is a robot that answers nothing, which is safe, and a bridge that
+# comes back is a robot somebody can stop.
+ExecStart=@BIN@ --socket @SOCKET@ --port @PORT@ --deadman @DEADMAN@ --token-file @TOKEN@
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=default.target
