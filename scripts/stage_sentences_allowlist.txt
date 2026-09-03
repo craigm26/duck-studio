@@ -128,3 +128,26 @@ TalkToTheDuckView.swift|Not driven
 TalkToTheDuckView.swift|Read on this phone
 TalkToTheDuckView.swift|A model wrote this
 TalkToTheDuckView.swift|Kept as \(sequence.name)
+
+# TuneView.swift, baselined 2026-09-03 when the guard was widened to cover it.
+# THE HOLE THIS CLOSES: the move search's screen was in the guard's file list and
+# the tuner's was not, so the one screen that judges whether a policy improved was
+# the one screen the tested-sentence rule had stopped applying to. Baselining is
+# what makes the NEXT literal fail; the list only shrinks.
+TuneView.swift|What this does
+TuneView.swift|None
+TuneView.swift|Say what to hold
+TuneView.swift|What words may not change
+TuneView.swift|Search a move's keyframes
+TuneView.swift|The other search
+TuneView.swift|Scored on
+TuneView.swift|Every weight is \(DuckTuner.configFile)'s own, read from the same place the 
+TuneView.swift|Not scored · \(run.refusals.count)
+TuneView.swift|Named rather than dropped. A shorter list is not a better one — it is the 
+TuneView.swift|Asking this bench whether it can score a search…
+TuneView.swift|Start the search
+TuneView.swift|Stop
+TuneView.swift|Ends the search after the current episode.
+TuneView.swift|This bench
+TuneView.swift|How long
+TuneView.swift|Result

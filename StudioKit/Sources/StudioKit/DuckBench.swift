@@ -770,6 +770,32 @@ public enum DuckBench {
         Step(at: 0), Step(at: 0.5, vx: 0.5),
     ]
 
+    /// A SECOND COMMAND, AND IT IS A DEFECT FIX RATHER THAN A PRECAUTION.
+    ///
+    /// The search runs under `walkingCommand` and the held-out check ran under
+    /// it too, so a winner was only ever asked to keep the walk in the one
+    /// direction it was tuned in. Measured over eight seeds of the shipped
+    /// schedule: four of the eight winners collapsed SIDEWAYS travel to
+    /// 1.6-2.0% of the unchanged network's while gaining +0.92 to +0.98 of
+    /// reward, and every one of the eight passed every gate this app has. The
+    /// other four kept 82-86%. There is no middle, and nothing looked — so
+    /// whether somebody's tuned policy could still step sideways was a coin
+    /// flip that no screen mentioned.
+    ///
+    /// The same asymmetry is what the objective's `kept` factor exists to
+    /// refuse; it was simply never evaluated anywhere but forwards.
+    public static let sidewaysCommand: [Step] = [
+        Step(at: 0), Step(at: 0.5, vy: 0.3),
+    ]
+
+    /// And a turning one, for the same reason: a yaw-suppression win is
+    /// exactly what collapses under a command that asks for yaw. Measured on
+    /// the seed-A winner: 0.261 m -> 0.018 m, a 93% loss, while the reward
+    /// went UP by 0.406.
+    public static let turningCommand: [Step] = [
+        Step(at: 0), Step(at: 0.5, vx: 0.3, vyaw: 0.6),
+    ]
+
     /// A `/perform` answer, as something a draft can keep.
     ///
     /// THE PLANT COMES OUT OF THE ANSWER AND NOWHERE ELSE. This used to take a

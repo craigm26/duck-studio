@@ -633,12 +633,13 @@ final class TuneRun: ObservableObject {
             // arrangement the nine bundled networks already use.
             let policy = try await put(baseFile, address: address, token: token)
 
-            func score(_ vector: DuckTuner.TuningVector, drops: [Double]) async throws
+            func score(_ vector: DuckTuner.TuningVector, drops: [Double],
+                       under command: [DuckBench.Step] = DuckBench.walkingCommand) async throws
                 -> DuckTuner.Score {
                 let answer = try DuckBench.readTuned(await ask(try DuckBench.tune(
                     address, policy: policy, gain: vector.gain, offset: vector.offset,
                     seconds: schedule.seconds, drops: drops,
-                    schedule: DuckBench.walkingCommand,
+                    schedule: command,
                     terms: DuckTuner.terms.map(\.key)), token: token))
                 episodesDone += answer.episodes
                 duration = DuckTuner.durationSoFar(episodesDone: episodesDone,
@@ -669,6 +670,11 @@ final class TuneRun: ObservableObject {
             // is nil when the bench reported only an aggregate — in which case
             // the verdict is withheld rather than computed against a number
             // nobody measured.
+            // THE OLD FLOOR IS STILL MEASURED AND STILL SHOWN, for one release.
+            // Every tuned file in the wild was judged by it, and a number that
+            // vanishes takes its own history with it; the paired verdict is
+            // what DECIDES, and the two print side by side so a person can see
+            // the old rule and the new one disagree on their own file.
             let floor = DuckTuner.noiseFloor(
                 try baselineHeld.perDrop.map { try DuckTuner.reward($0) })
 
@@ -737,6 +743,37 @@ final class TuneRun: ObservableObject {
             // in the whole search that nothing had checked for the walk.
             let walkKept = baselineHeld.travelled > 0
                 ? min(max(held.travelled / baselineHeld.travelled, 0), 1) : 1
+            // AND THE SAME QUESTION SIDEWAYS, WHICH IS THE DEFECT FIX. The
+            // search runs forwards and so did the check, so a winner was only
+            // ever asked to keep the walk in the direction it was tuned in.
+            // Four of eight measured winners collapsed sideways travel to
+            // under 2% of the unchanged network's while GAINING reward, and
+            // passed every gate this app had. Sixteen more episodes on a
+            // 289-episode run, and the verdict below refuses them.
+            let sideways = try await score(parent, drops: schedule.heldOutDrops,
+                                           under: DuckBench.sidewaysCommand)
+            let baselineSideways = try await score(.identity, drops: schedule.heldOutDrops,
+                                                   under: DuckBench.sidewaysCommand)
+            let sidewaysKept = baselineSideways.travelled > 0
+                ? min(max(sideways.travelled / baselineSideways.travelled, 0), 1) : 1
+            // PAIRED, DROP BY DROP. The drop height moves this reward far more
+            // than a trim does — 0.0919 of spread against 0.0285-0.0416 of
+            // effect — so a mean against a range asked a harder question than
+            // anybody meant and answered it with the wrong number.
+            let verdicts: [DuckTuner.Verdict] = (try? [
+                DuckTuner.verdict(
+                    paired: try DuckTuner.pairedDifferences(
+                        candidate: held.perDrop.map { (try? DuckTuner.reward($0)) ?? .nan },
+                        baseline: baselineHeld.perDrop.map { (try? DuckTuner.reward($0)) ?? .nan }),
+                    walkKept: walkKept, command: "vx 0.5"),
+                DuckTuner.verdict(
+                    paired: try DuckTuner.pairedDifferences(
+                        candidate: sideways.perDrop.map { (try? DuckTuner.reward($0)) ?? .nan },
+                        baseline: baselineSideways.perDrop.map {
+                            (try? DuckTuner.reward($0)) ?? .nan
+                        }),
+                    walkKept: sidewaysKept, command: "vy 0.3"),
+            ]) ?? []
             let export = try DuckTuner.export(
                 baseFile: baseFile, basePolicy: name, declaredActionScale: declaredScale,
                 vector: parent, schedule: schedule, seed: seed,
@@ -748,10 +785,12 @@ final class TuneRun: ObservableObject {
                                                   elapsed: Date().timeIntervalSince(startedAt))
             result = Result(
                 verdict: held.diverged > 0 ? DuckTuner.rejectedAsDiverged
-                    : (floor.map {
-                        DuckTuner.heldOutVerdict(gain: held.reward - baselineHeld.reward,
-                                                 noiseFloor: $0, walkKept: walkKept)
-                    } ?? DuckTuner.noNoiseFloor),
+                    : [DuckTuner.verdictSentence(verdicts),
+                       floor.map {
+                           "The rule this app shipped until now compared a mean against a range: "
+                         + DuckTuner.heldOutVerdict(gain: held.reward - baselineHeld.reward,
+                                                    noiseFloor: $0, walkKept: walkKept)
+                       }].compactMap { $0 }.joined(separator: "\n\n"),
                 residual: parent.described,
                 provenance: DuckTuner.provenance(
                     episodes: episodesDone, seconds: schedule.seconds,

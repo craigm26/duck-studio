@@ -723,6 +723,134 @@ public enum DuckTuner {
         return high - low
     }
 
+    // MARK: - the paired verdict, and the command it is taken under
+
+    /// Candidate minus baseline ON THE SAME DROP.
+    ///
+    /// WHY PAIRED, IN NUMBERS. The drop height moves this reward far more than
+    /// a trim does: the unchanged network's own spread across the eight
+    /// held-out drops measured 0.0919, while the paired difference between a
+    /// candidate and that baseline measured 0.0285 to 0.0416. Comparing a mean
+    /// against a range therefore asks a harder question than the one anybody
+    /// means to ask, and answers it with a number two to three times the size
+    /// of the effect. `MoveSearch.pairedDifferences` has done this correctly
+    /// for cells since it shipped; this is the same argument for drops.
+    public static func pairedDifferences(candidate: [Double],
+                                         baseline: [Double]) throws -> [Double] {
+        guard candidate.count == baseline.count else {
+            throw PairedRefusal.differentDropCount(candidate: candidate.count,
+                                                   base: baseline.count)
+        }
+        guard candidate.count >= 4 else { throw PairedRefusal.tooFewDrops(candidate.count) }
+        guard candidate.allSatisfy(\.isFinite), baseline.allSatisfy(\.isFinite) else {
+            throw PairedRefusal.notANumber
+        }
+        return zip(candidate, baseline).map { $0 - $1 }
+    }
+
+    public enum PairedRefusal: Error, Equatable {
+        case differentDropCount(candidate: Int, base: Int)
+        case tooFewDrops(Int)
+        case notANumber
+        case aggregateOnly
+
+        public var message: String {
+            switch self {
+            case .differentDropCount(let candidate, let base):
+                return "The candidate ran \(candidate) drops and the unchanged network ran "
+                     + "\(base). A paired comparison needs the same drops on both sides, in the "
+                     + "same order, or it is comparing different questions."
+            case .tooFewDrops(let count):
+                return "\(count) drop\(count == 1 ? "" : "s") is not enough to say anything "
+                     + "about a spread. Four is the fewest this app will call a verdict."
+            case .notANumber:
+                return "One of those episodes reported something that is not a number, so the "
+                     + "comparison is refused rather than carried out around it."
+            case .aggregateOnly:
+                return DuckTuner.noNoiseFloor
+            }
+        }
+    }
+
+    /// What a winner did under ONE command, on the drops it never saw.
+    public struct Verdict: Equatable, Sendable {
+        /// The command this was taken under, in the words a person reads.
+        public let command: String
+        public let meanGain: Double
+        /// The population spread of the PAIRED differences — not the
+        /// baseline's own range, which is the number the old floor used.
+        public let spread: Double
+        public let positive: Int
+        public let drops: Int
+        /// The travel this candidate kept UNDER THIS COMMAND, as a fraction of
+        /// the unchanged network's. The whole point of the second command.
+        public let walkKept: Double
+
+        public init(command: String, meanGain: Double, spread: Double,
+                    positive: Int, drops: Int, walkKept: Double) {
+            self.command = command; self.meanGain = meanGain; self.spread = spread
+            self.positive = positive; self.drops = drops; self.walkKept = walkKept
+        }
+
+        public var standardError: Double {
+            drops > 0 ? spread / Double(drops).squareRoot() : .infinity
+        }
+
+        /// EVERY DROP POSITIVE, AND THE WALK KEPT. A sign test over n drops is
+        /// 2^-n under the null, which at eight drops is 0.004 — and unlike a
+        /// mean against a range it cannot be passed by one lucky episode.
+        public var survived: Bool { positive == drops && drops >= 4 && walkKept >= 0.75 }
+
+        public var sentence: String {
+            let kept = Int((walkKept * 100).rounded())
+            guard walkKept >= 0.75 else {
+                return "Under \(command) it kept \(kept)% of the unchanged network's distance. "
+                     + "A gain bought by moving less is the hole in the reward, not a result, "
+                     + "and no reward rescues it."
+            }
+            guard positive == drops else {
+                return "Under \(command) it beat the unchanged network on \(positive) of "
+                     + "\(drops) drop heights it never saw. Not all of them, so this is not a "
+                     + "result — which is the usual outcome and a real answer."
+            }
+            return "Under \(command) it beat the unchanged network on all \(drops) drop heights "
+                 + "it never saw, by \(signed(meanGain)) on average with a spread of "
+                 + "\(number(spread, places: 4)), and kept \(kept)% of its distance."
+        }
+    }
+
+    /// One verdict from the paired differences and the travel that went with
+    /// them.
+    public static func verdict(paired: [Double], walkKept: Double,
+                               command: String) -> Verdict {
+        let n = paired.count
+        let mean = n > 0 ? paired.reduce(0, +) / Double(n) : 0
+        let variance = n > 0
+            ? paired.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / Double(n) : 0
+        return Verdict(command: command, meanGain: mean, spread: variance.squareRoot(),
+                       positive: paired.filter { $0 > 0 }.count, drops: n, walkKept: walkKept)
+    }
+
+    /// EVERY COMMAND HAS TO SURVIVE, and the sentence names the one that did
+    /// not. A winner is kept only if it is a winner in every direction it was
+    /// checked in; anything else is the farm this objective exists to refuse.
+    public static func survived(_ verdicts: [Verdict]) -> Bool {
+        !verdicts.isEmpty && verdicts.allSatisfy(\.survived)
+    }
+
+    public static func verdictSentence(_ verdicts: [Verdict]) -> String {
+        guard !verdicts.isEmpty else { return noNoiseFloor }
+        if let failed = verdicts.first(where: { !$0.survived }) {
+            let others = verdicts.filter { $0.survived }.map(\.command)
+            let rest = others.isEmpty ? ""
+                : " It did survive under \(others.joined(separator: " and ")), which is why this "
+                + "is worth saying rather than simply failing: the gain is real in one direction "
+                + "and paid for in another."
+            return failed.sentence + rest
+        }
+        return verdicts.map(\.sentence).joined(separator: " ")
+    }
+
     /// Said when the floor could not be measured.
     public static let noNoiseFloor =
         "This bench reported one number for the whole batch rather than one per drop, so the "
