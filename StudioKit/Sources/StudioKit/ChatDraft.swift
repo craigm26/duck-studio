@@ -12,7 +12,7 @@ public enum ChatDraft {
 
     /// What kind of thing the sentence is asking for.
     public enum Kind: String, Sendable, CaseIterable {
-        case motion, rule, retrieval, training, tweak
+        case motion, rule, retrieval, training, tweak, search
 
         /// The kind in the words a person uses, for the line that says how a
         /// sentence was read. "retrieval" is not a word anybody types.
@@ -23,8 +23,19 @@ public enum ChatDraft {
             case .retrieval: return "fetching something"
             case .training:  return "a training brief"
             case .tweak:     return "an edit to a motion"
+            case .search:    return "a change to a search"
             }
         }
+
+        /// The kinds a typed sentence may be routed to.
+        ///
+        /// `tweak` AND `search` ARE ABSENT ON PURPOSE. Both edit something
+        /// already on a screen and are reached from that screen; a router that
+        /// could produce one would be routing to a surface with no object in
+        /// front of it. DATA rather than two hard-coded `!=` checks, so a
+        /// seventh kind cannot quietly become routable — and so the test that
+        /// walks every routable kind cannot silently start walking one more.
+        public static let routable: [Kind] = [.motion, .rule, .retrieval, .training]
     }
 
     // MARK: - what to tell the model
@@ -75,6 +86,10 @@ public enum ChatDraft {
             // Editing needs the motion in front of it, which this door cannot
             // see. `tweakInstructions(for:)` is the one to call.
             return "Use tweakInstructions(for:) — editing a motion needs the motion."
+        case .search:
+            // Same shape, same reason: changing a search needs the search's own
+            // handles and the move they are on, and this door sees neither.
+            return "Use SearchWords.instructions(for:spec:) — changing a search needs the search."
         case .training:
             let rewards = TrainingRequest.vocabulary
                 .sorted { $0.key < $1.key }

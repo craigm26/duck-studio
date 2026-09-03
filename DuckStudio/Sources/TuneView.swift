@@ -37,6 +37,9 @@ import StudioKit
 struct TuneView: View {
     @ObservedObject var library: LibraryModel
     @ObservedObject var benches: BenchStore
+    /// The models a sentence can be read by. Only the words section uses it,
+    /// and only to ask — nothing it answers reaches a term weight.
+    @ObservedObject var models: EndpointStore
 
     /// Which network the residual is folded into. Only policies that load: a
     /// fold into a file this app refused would be a fold into nothing.
@@ -48,6 +51,15 @@ struct TuneView: View {
     @StateObject private var run = TuneRun()
     @State private var orbit = OrbitState()
     @State private var outgoing: ExportedFile?
+    /// ONE SCHEDULE, READ IN BOTH PLACES. The panel's line and the run used to
+    /// reach for `.onAPhone` separately, so a sentence that changed the
+    /// schedule would have changed the run and not the line describing it — the
+    /// screen and the numbers would have disagreed with nobody able to see it.
+    @State private var schedule = DuckTuner.Schedule.onAPhone
+    @State private var sentence = ""
+    @State private var reading = false
+    @State private var wordNotes: [String] = []
+    @State private var wordRefusals: [String] = []
     @Environment(\.dynamicTypeSize) private var typeSize
 
     /// The viewport the duck gets when text is at a normal size. The same
@@ -67,8 +79,11 @@ struct TuneView: View {
     var body: some View {
         Form {
             beforeYouRunIt
+            sayWhatToHold
+            whatWordsMayNotChange
             whatItIsScoredOn
             whatIsRefused
+            theOtherSearch
             thisBench
             howLong
             if run.isRunning || !run.generations.isEmpty { runPanel }
@@ -99,24 +114,150 @@ struct TuneView: View {
         Section {
             VStack(alignment: .leading, spacing: Theme.spacing(.snug)) {
                 Text(DuckTuner.notTraining)
-                Text(DuckTuner.Schedule.onAPhone.described)
+                Text(schedule.described)
                 Text(DuckTuner.Schedule.headIsNotSearched)
             }
             .font(.footnote)
             .foregroundStyle(Theme.textSecondary)
             .fixedSize(horizontal: false, vertical: true)
 
-            Picker("Fold into", selection: $basePolicyID) {
-                Text("None").tag(String?.none)
-                ForEach(candidates) { entry in
-                    Text(entry.displayName).tag(String?.some(entry.id))
-                }
-            }
-            .disabled(run.isRunning)
+            foldInto
+                .disabled(run.isRunning)
         } header: {
             SectionHeading(text: "What this does")
         }
         .listRowBackground(Theme.surfacePrimary)
+    }
+
+    /// TITLES, WITH EIGHT HEX ONLY WHERE TWO OF THEM COLLIDE, and the labels
+    /// worked out ONCE rather than per row. `pickerLabels` has to see the whole
+    /// list to know which two titles collide, so calling it inside the `ForEach`
+    /// would rebuild the same dictionary for every candidate.
+    private var foldInto: some View {
+        let labels = PolicyLibrary.pickerLabels(candidates)
+        return Picker("Fold into", selection: $basePolicyID) {
+            Text("None").tag(String?.none)
+            ForEach(candidates) { entry in
+                Text(labels[entry.id] ?? entry.title).tag(String?.some(entry.id))
+            }
+        }
+    }
+
+    // MARK: - words, and the two things they may move
+
+    /// A sentence that changes HOW THIS RUNS, never WHAT IT IS SCORED ON.
+    ///
+    /// EVERY NUMBER A SENTENCE WRITES IS A CONTROL ABOVE IT. The schedule line
+    /// in "What this does" redraws from the edited schedule, so the sentence
+    /// and the numbers cannot disagree; and a weight asked for is refused BY
+    /// NAME rather than dropped, because an instruction that vanished is one
+    /// somebody believes landed.
+    private var sayWhatToHold: some View {
+        Section {
+            TextField("hold the knees, six generations", text: $sentence, axis: .vertical)
+                .lineLimit(1...4)
+                .disabled(run.isRunning || reading)
+            Button {
+                readIt()
+            } label: {
+                Text(reading ? "Reading…" : "Read it").frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.primaryAction)
+            .disabled(sentence.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                      || run.isRunning || reading || models.selected.kind == .appleOnDevice)
+
+            // DISABLED ONLY FOR APPLE'S PATH, and told why. A typed value is
+            // the shape it guarantees, and a search change is a list.
+            if models.selected.kind == .appleOnDevice {
+                Text(SearchWords.appleHandsBackOneValue(models.selected.name))
+                    .font(.caption)
+                    .foregroundStyle(Theme.warning)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(wordNotes, id: \.self) { note in
+                Label {
+                    Text(note).font(.footnote).foregroundStyle(Theme.textSecondary)
+                } icon: {
+                    Image(systemName: "checkmark.seal").foregroundStyle(Theme.success)
+                }
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(wordRefusals, id: \.self) { refusal in
+                Label {
+                    Text(refusal).font(.footnote).foregroundStyle(Theme.textSecondary)
+                } icon: {
+                    Image(systemName: "xmark.octagon").foregroundStyle(Theme.refused)
+                }
+                .fixedSize(horizontal: false, vertical: true)
+            }
+        } header: {
+            SectionHeading(text: "Say what to hold")
+        }
+        .listRowBackground(Theme.surfacePrimary)
+    }
+
+    private var whatWordsMayNotChange: some View {
+        Section {
+            Text(DuckTuner.whatWordsMayNotChange)
+                .font(.caption)
+                .foregroundStyle(Theme.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
+        } header: {
+            SectionHeading(text: "What words may not change")
+        }
+        .listRowBackground(Theme.surfacePrimary)
+    }
+
+    /// THE OTHER SEARCH, NAMED WHERE SOMEBODY LOOKING FOR IT ARRIVES. "The
+    /// search in the tuning" usually means the one that changes a move's poses
+    /// and times, and this screen is not it.
+    private var theOtherSearch: some View {
+        Section {
+            Text(MoveSearch.onlyTheStairs)
+                .font(.footnote)
+                .foregroundStyle(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(MoveSearch.theOtherSearchIsHere)
+                .font(.caption)
+                .foregroundStyle(Theme.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
+            NavigationLink {
+                MoveSearchView(benches: benches, models: models)
+            } label: {
+                Label("Search a move's keyframes", systemImage: "magnifyingglass")
+            }
+        } header: {
+            SectionHeading(text: "The other search")
+        }
+        .listRowBackground(Theme.surfacePrimary)
+    }
+
+    private func readIt() {
+        let asked = sentence.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !asked.isEmpty else { return }
+        reading = true
+        wordNotes = []; wordRefusals = []
+        Task {
+            defer { reading = false }
+            do {
+                let answer = try await DraftEngine.ask(
+                    models.selected, kind: .search, prompt: asked, knownIntents: [],
+                    instructions: DuckTuner.wordsInstructions(for: schedule))
+                let read = try SearchWords.read(fromJSON: answer.json)
+                let outcome = schedule.outcome(applying: read.edits)
+                schedule = outcome.schedule
+                wordNotes = outcome.notes
+                wordRefusals = outcome.refusals
+                // NO SEAL FOR A SENTENCE NOBODY READ.
+                if outcome.notes.isEmpty && outcome.refusals.isEmpty {
+                    wordRefusals = [SearchWords.nothingWasRead]
+                }
+            } catch let failure as SearchWords.Failure {
+                wordRefusals = [failure.message]
+            } catch {
+                wordRefusals = [error.localizedDescription]
+            }
+        }
     }
 
     // MARK: - the reward
@@ -361,9 +502,9 @@ struct TuneView: View {
             return
         }
         Haptic.behaviourStarted()
-        Task { await run.search(baseFile: bytes, named: entry.displayName,
+        Task { await run.search(baseFile: bytes, named: entry.fileName,
                                 declaredScale: library.declaredScale(for: entry),
-                                benches: benches) }
+                                schedule: schedule, benches: benches) }
     }
 
     private func export(_ result: TuneRun.Result) {
@@ -472,7 +613,7 @@ final class TuneRun: ObservableObject {
     // MARK: - the search
 
     func search(baseFile: Data, named name: String, declaredScale: Double?,
-                benches: BenchStore) async {
+                schedule: DuckTuner.Schedule, benches: BenchStore) async {
         guard readiness?.canSearch == true else {
             failure = DuckTuner.notYet
             return
@@ -481,7 +622,6 @@ final class TuneRun: ObservableObject {
         generations = []; episodesDone = 0; startedAt = Date()
         defer { isRunning = false }
 
-        let schedule = DuckTuner.Schedule.onAPhone
         let seed = UInt64.random(in: 1...UInt64(Int32.max))
         var rng = DuckTuner.Seeded(seed: seed)
 

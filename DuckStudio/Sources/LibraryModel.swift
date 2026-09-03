@@ -52,16 +52,16 @@ final class LibraryModel: ObservableObject {
             .sorted { $0.name < $1.name }
     }
 
-    /// Keep a policy's manifest with it, so what the author wrote down survives
-    /// the install.
-    /// - Note: Called straight after `accept`, so the entry it belongs to is
-    ///   already in the library. The identity comes from the WEIGHTS, which is
-    ///   why the entry is looked up rather than reconstructed here — a manifest
-    ///   filed under a made-up identity would be a manifest nothing ever reads.
-    func rememberManifest(_ data: Data, forPolicyNamed name: String) {
-        guard let stored = library.entries.first(where: { $0.displayName == name }) else { return }
-        PolicyLibrary.persistManifest(data, for: stored, into: container)
-    }
+    /// `rememberManifest` IS GONE, AND ITS LOOKUP WAS THE BUG. It matched the
+    /// library on a display name while the community installer handed it
+    /// `"\(manifest.name).onnx"` — a string the installer invented — so
+    /// re-installing over an already-held, digest-named entry hit the silent
+    /// `else { return }`, the manifest was never written, and the bench fell
+    /// back to guessing the action scale from a file name that matched nothing.
+    /// A wrong number on a working screen.
+    ///
+    /// The manifest now goes in with the weights, in ONE call: see
+    /// `accept(_:named:origin:title:manifest:)` and `PolicyLibrary.persist`.
 
     /// The manifest stored with a policy, if it came with one.
     func manifest(for entry: PolicyLibrary.Entry) -> PolicyManifest? {
@@ -196,18 +196,64 @@ final class LibraryModel: ObservableObject {
     /// A policy from anywhere — a file the system handed over, or bytes
     /// downloaded from a repository. `origin` names the host when it was
     /// fetched; nil means it arrived as a file.
-    func accept(_ data: Data, named name: String, origin host: String?) {
+    ///
+    /// THE NAME AND THE MANIFEST GO IN WITH THE WEIGHTS. Both used to be lost
+    /// on the way: the file name because `persist` wrote `<identity>.onnx` and
+    /// nothing else, the manifest because it was a second call that looked the
+    /// entry back up by a name that did not match. One call writes all three,
+    /// so there is no window in which the bytes are on disk and what they are
+    /// called is not.
+    ///
+    /// - Parameter title: the author's own word for the policy, when the caller
+    ///   has one — the community installer reads it out of the manifest. It is
+    ///   NOT a typed title: nobody has typed anything at this point, and the
+    ///   ladder decides whether the author's claim is the one to show.
+    /// - Returns: the entry, so a caller that needs to keep working with what it
+    ///   just installed does not have to go looking for it by name.
+    @discardableResult
+    func accept(_ data: Data, named name: String, origin host: String?,
+                title: String? = nil, manifest: Data? = nil) -> PolicyLibrary.Entry {
+        let plate = PolicyNameplate(fileName: name, originHost: host)
         let entry = PolicyLibrary.entry(
             for: data, name: name,
-            origin: host.map { PolicyLibrary.Origin.fetched(host: $0) } ?? .imported)
+            origin: host.map { PolicyLibrary.Origin.fetched(host: $0) } ?? .imported,
+            nameplate: plate, authorName: title, arrivalWasRecorded: true)
         // Stored under its identity, so two people sending you `policy.onnx`
         // do not overwrite each other.
-        try? PolicyLibrary.persist(data, entry: entry, into: container)
+        try? PolicyLibrary.persist(data, entry: entry, into: container,
+                                   manifest: manifest)
         var updated = library
-        lastImport = updated.add(entry)
-            ? "Added \(entry.displayName)."
-            : "\(entry.displayName) is already in your library."
+        // BY IDENTITY, WHICH IS THE ONLY THING THAT ANSWERS "DO I ALREADY HAVE
+        // THESE WEIGHTS". Looking the held entry up by name would find the
+        // wrong one exactly when two files share a name, which is the case the
+        // digest identity exists for.
+        let held = library.entries.first { $0.identity == entry.identity }
+        let added = updated.add(entry)
+        lastImport = PolicyLibrary.arrivalMessage(added: added, incoming: entry, held: held)
         library = updated
+        return added ? entry : (held ?? entry)
+    }
+
+    /// Rename a policy — a title only, and nothing else moves.
+    ///
+    /// NO `reload()`. A rename does not touch the weights, the identity, the
+    /// manifest sidecar or the file name, so re-parsing nine ONNX files to see
+    /// a string change would be the app doing eight hundred milliseconds of
+    /// work to redraw one row.
+    ///
+    /// - Returns: the kit's refusal when there is one, so the sheet can show
+    ///   the sentence rather than inventing a second wording of it.
+    @discardableResult
+    func rename(_ entry: PolicyLibrary.Entry, to typed: String?) -> PolicyTitleRule.Refusal? {
+        switch PolicyLibrary.rename(entry, to: typed, in: container) {
+        case .success(let renamed):
+            var updated = library
+            updated.replace(renamed)
+            library = updated
+            return nil
+        case .failure(let refusal):
+            return refusal
+        }
     }
 
     /// A shared motion.

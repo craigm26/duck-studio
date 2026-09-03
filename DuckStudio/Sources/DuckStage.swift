@@ -12,11 +12,24 @@ struct OrbitState: Equatable {
     var azimuth: Float = .pi / 4
     /// Clamped short of straight up and straight down: at the poles the
     /// azimuth stops meaning anything and the view snaps as you cross.
-    var elevation: Float = 0.30
+    var elevation = Float(StageCamera.defaultElevation)
     /// Metres from the point being looked at. The robot is 0.25 m tall, so the
     /// useful range is close — but a staircase is over a metre long, so the far
     /// end has to reach far enough to see one whole.
-    var distance: Float = 0.85
+    var distance = Float(StageCamera.defaultDistance)
+
+    /// The range this stage's zoom may move in.
+    ///
+    /// ONE ZOOM LAW, NOT TWO: every stage gets `.stage` — today's numbers,
+    /// today's behaviour — and the screens that measure their glass hand in a
+    /// better range. A second clamp living beside this one would mean the same
+    /// pinch stops at different distances depending on which screen you are on.
+    ///
+    /// It is also what closes a discontinuity nobody could see while zoom was a
+    /// gesture: `frame(_:)` and `resetView()` wrote `distance` unclamped while
+    /// `zoom` clamped, so a scene framed beyond the far stop snapped inward on
+    /// the first pinch and jumped back out on the next reset.
+    var limits: StageCamera.Limits = .stage
     /// Whether the camera rides with the robot or stays put.
     ///
     /// FIXED IS THE DEFAULT, and that is the whole answer to "where is it?".
@@ -57,6 +70,10 @@ struct OrbitState: Equatable {
             homeFocus = nil
             homeDistance = nil
             homeElevation = nil
+            // AND THE RANGE GOES BACK TOO. A stage that forgets what it was
+            // framed on must forget the range that framing widened, or the next
+            // screen to reuse this state keeps a far stop it cannot explain.
+            limits = .stage
             return
         }
         let aim = SIMD3(Float(framing.targetX), Float(framing.targetZ), 0)
@@ -64,19 +81,48 @@ struct OrbitState: Equatable {
         homeDistance = Float(framing.distance)
         homeElevation = Float(framing.elevation)
         focus = aim
-        distance = Float(framing.distance)
-        elevation = Float(framing.elevation)
+        // WIDENED BEFORE THE DISTANCE IS WRITTEN, so a framing outside today's
+        // stops is inside the range by the time the first zoom press asks.
+        limits = limits.containing(framing.distance)
+        distance = Float(StageCamera.clamped(framing.distance, to: limits))
+        elevation = Float(StageCamera.clampedElevation(framing.elevation))
+    }
+
+    /// Narrow the zoom range to what this piece of glass can actually hold: as
+    /// close as the whole robot still fits and still clears the chrome standing
+    /// on the picture. The opening framing is never shut out of it.
+    mutating func fit(to glass: StageViewport.Glass,
+                      duckOffsetMetres: Double = 0,
+                      chrome: StageViewport.Chrome = .column) {
+        limits = .fitting(glass, duckOffsetMetres: duckOffsetMetres, chrome: chrome,
+                          home: homeDistance.map(Double.init))
+        distance = Float(StageCamera.clamped(Double(distance), to: limits))
     }
 
     static let defaults = OrbitState()
 
+    /// The same camera, riding the robot.
+    ///
+    /// FIXED IS STILL THE DEFAULT EVERYWHERE ELSE, and the reasoning above
+    /// stands: standing still and letting the duck walk away is what makes
+    /// travel visible. The Control tab is the one screen where the picture is
+    /// the whole tab, and on a stage that big a camera on the trunk keeps the
+    /// robot in the middle of a world that is fifteen times its own size. The
+    /// toggle is on the glass either way.
+    static let following: OrbitState = {
+        var state = OrbitState()
+        state.follows = true
+        return state
+    }()
+
     mutating func drag(dx: Float, dy: Float) {
-        azimuth -= dx * 0.01
-        elevation = min(max(elevation + dy * 0.01, -0.2), 1.3)
+        azimuth -= dx * Float(StageCamera.radiansPerDragPoint)
+        elevation = Float(StageCamera.clampedElevation(
+            Double(elevation + dy * Float(StageCamera.radiansPerDragPoint))))
     }
 
     mutating func zoom(by scale: Float) {
-        distance = min(max(distance / scale, 0.20), 4.0)
+        distance = Float(StageCamera.zoomed(Double(distance), by: Double(scale), to: limits))
     }
 
     /// Back to the starting angle, keeping whether the camera follows.
@@ -93,13 +139,24 @@ struct OrbitState: Equatable {
     /// the camera is FOR does not.
     mutating func resetView() {
         let following = follows
+        let range = limits
         let home = (homeFocus, homeDistance, homeElevation)
         self = .defaults
         follows = following
+        // THE RANGE SURVIVES A RESET, for the same reason `follows` does: it is
+        // a fact about this stage's glass and this stage's framing, not part of
+        // the angle a reset puts back.
+        limits = range
         (homeFocus, homeDistance, homeElevation) = home
         focus = homeFocus
-        if let homeDistance { distance = homeDistance }
-        if let homeElevation { elevation = homeElevation }
+        // RESET LANDS SOMEWHERE THE ZOOM LAW ALLOWS. It used to restore
+        // `homeDistance` unclamped, so on a stage framed outside the stops the
+        // first press of a zoom button jumped the camera somewhere else.
+        distance = Float(StageCamera.clamped(
+            Double(homeDistance ?? Float(StageCamera.defaultDistance)), to: limits))
+        if let homeElevation {
+            elevation = Float(StageCamera.clampedElevation(Double(homeElevation)))
+        }
     }
 
     /// Camera position, relative to whatever it is looking at.
@@ -174,6 +231,15 @@ struct StageProjections: Equatable {
     /// duck" a fact rather than a guess. `JointHandles.place` compares each
     /// grip against it.
     var trunkDepth: Double = 0
+    /// The glass these points landed on.
+    ///
+    /// PUBLISHED BECAUSE THE OVERLAY PLACES AGAINST IT. `JointHandles.placed`
+    /// drops a target whose box crosses the edge, and the edge is the stage's
+    /// own size — so a stage that changes shape while the pose stands still has
+    /// to republish, or the overlay keeps deciding what fits against the size
+    /// the picture used to be. `changed(from:to:)` compares this for that
+    /// reason and no other.
+    var size: CGSize = .zero
 }
 
 /// A turntable view of the robot IN A PLACE — not AR. The bench is somewhere to
@@ -214,15 +280,23 @@ struct DuckStage: View {
     /// reporting it. Moving the ball this way leaves `props` alone, so a
     /// rolling ball does not rebuild every step and wall on every round trip.
     var rolling: SIMD2<Double>?
+    /// Whether the stage's own rotor carries zoom and reset.
+    ///
+    /// DEFAULTED TRUE, SO THE SEVEN UNTOUCHED CALLERS COMPILE AND BEHAVE. The
+    /// two screens that draw a real camera column pass `false`: they are real
+    /// buttons now, and one control in two places is two places for it to
+    /// drift. The four ORBIT actions stay on every stage — nothing visible
+    /// replaces those.
+    var showsCameraActions = true
 
     /// One notch of camera movement, in the points of drag the pan recogniser
     /// hands `OrbitState.drag` — so an action IS the gesture, one notch of it,
     /// and there is no second scale factor to keep in step. 24 points is about
     /// fourteen degrees: small enough to aim with, big enough to feel, and a
     /// whole turn in twenty-six swipes rather than a hundred.
-    private static let notch: Float = 24
+    private static let notch = Float(StageCamera.orbitNotchPoints)
     /// And one notch of pinch, as the ratio `zoom(by:)` already takes.
-    private static let zoomNotch: Float = 1.25
+    private static let zoomNotch = Float(StageCamera.zoomNotch)
 
     /// What is in the place, in the legend's own words.
     ///
@@ -266,27 +340,54 @@ struct DuckStage: View {
             // answer. Naming: left and right are the drag they stand in for,
             // higher and lower say where the camera ends up, because "tilt up"
             // is ambiguous about whether the camera or the duck is what tilts.
-            .accessibilityAction(named: Text("Orbit left")) {
+            //
+            // THE WORDS ARE THE KIT'S NOW. They were seven literals here and
+            // two more on the legend's camera chip; with a column of real
+            // buttons drawing the same three, nine literals for one vocabulary
+            // is nine places for one state to be spelled two ways.
+            .accessibilityAction(named: Text(StageCamera.orbitLeftSaid)) {
                 orbit.drag(dx: -Self.notch, dy: 0)
             }
-            .accessibilityAction(named: Text("Orbit right")) {
+            .accessibilityAction(named: Text(StageCamera.orbitRightSaid)) {
                 orbit.drag(dx: Self.notch, dy: 0)
             }
-            .accessibilityAction(named: Text("Look from higher")) {
+            .accessibilityAction(named: Text(StageCamera.lookHigherSaid)) {
                 orbit.drag(dx: 0, dy: Self.notch)
             }
-            .accessibilityAction(named: Text("Look from lower")) {
+            .accessibilityAction(named: Text(StageCamera.lookLowerSaid)) {
                 orbit.drag(dx: 0, dy: -Self.notch)
             }
-            .accessibilityAction(named: Text("Zoom in")) {
-                orbit.zoom(by: Self.zoomNotch)
-            }
-            .accessibilityAction(named: Text("Zoom out")) {
-                orbit.zoom(by: 1 / Self.zoomNotch)
-            }
-            .accessibilityAction(named: Text("Reset the view")) {
-                orbit.resetView()
-            }
+            .modifier(CameraRotorActions(orbit: $orbit, showing: showsCameraActions))
+    }
+}
+
+/// Zoom and reset on the stage's own rotor — ONLY WHERE THERE IS NO COLUMN.
+///
+/// A rotor action and a button that do the same thing are two controls to keep
+/// in step, and the one that drifts is the one nobody can see. Written as a
+/// modifier rather than an `if` in the body because `accessibilityAction(named:)`
+/// is a modifier and a conditional chain of them changes the view's type.
+private struct CameraRotorActions: ViewModifier {
+    @Binding var orbit: OrbitState
+    let showing: Bool
+
+    private static let notch = Float(StageCamera.zoomNotch)
+
+    @ViewBuilder func body(content: Content) -> some View {
+        if showing {
+            content
+                .accessibilityAction(named: Text(StageCamera.zoomInSaid)) {
+                    orbit.zoom(by: Self.notch)
+                }
+                .accessibilityAction(named: Text(StageCamera.zoomOutSaid)) {
+                    orbit.zoom(by: 1 / Self.notch)
+                }
+                .accessibilityAction(named: Text(StageCamera.resetSaid)) {
+                    orbit.resetView()
+                }
+        } else {
+            content
+        }
     }
 }
 
@@ -378,9 +479,17 @@ struct StageSurface: UIViewRepresentable {
         let camera = PerspectiveCamera()
         camera.camera.fieldOfViewInDegrees = 40
         // RealityKit measures that angle along the VERTICAL axis by default,
-        // which is what `DuckScene.authoringFieldOfView` assumes when it
-        // frames a scene: the stage is at least as wide as it is tall, so the
-        // vertical field is the tighter one.
+        // which is what `DuckScene.authoringFieldOfView` assumes when it frames
+        // a scene.
+        //
+        // THE SECOND HALF OF THAT COMMENT WAS WRONG AND IS GONE. It read "the
+        // stage is at least as wide as it is tall, so the vertical field is the
+        // tighter one" — true of a 351 × 300 card and false the moment the
+        // Control tab's stage became the whole tab. The field is still 40°
+        // vertical and is never written at runtime; what changed is that
+        // `authoringFraming(aspect:)` now solves the distance from whichever
+        // axis binds, so a tall stage stands further back instead of losing the
+        // first riser off the side.
         world.addChild(camera)
         context.coordinator.camera = camera
 
@@ -789,6 +898,7 @@ struct StageSurface: UIViewRepresentable {
                 if sent != nil { sent = nil; onProject(StageProjections()) }
                 return
             }
+            let glass = view.bounds.size
             let eye = camera?.position(relativeTo: nil) ?? .zero
             func world(_ point: DuckVector) -> SIMD3<Float> {
                 duck.convert(position: DuckGhostEntity.rk(point), to: nil)
@@ -816,7 +926,8 @@ struct StageSurface: UIViewRepresentable {
             }
             let trunk = world(DuckKinematics.trunkOriginInModelFrame)
             let next = StageProjections(handles: made,
-                                        trunkDepth: Double(simd_distance(trunk, eye)))
+                                        trunkDepth: Double(simd_distance(trunk, eye)),
+                                        size: glass)
             guard changed(from: sent, to: next) else { return }
             sent = next
             onProject(next)
@@ -830,6 +941,12 @@ struct StageSurface: UIViewRepresentable {
         /// target for a difference of a fifth of a point.
         private func changed(from old: StageProjections?, to new: StageProjections) -> Bool {
             guard let old, old.handles.count == new.handles.count else { return true }
+            // THE GLASS IS PART OF THE ANSWER. Which targets fit is decided
+            // against the stage's own size, so a stage that changes shape under
+            // a still pose has to republish — without this, a picture that just
+            // grew keeps placing handles against the size it used to be, and
+            // the joints that came back into reach stay counted as off it.
+            if old.size != new.size { return true }
             for (was, now) in zip(old.handles, new.handles) {
                 if was.joint != now.joint { return true }
                 // The DEPTH matters only through the one thing it decides —
@@ -1222,7 +1339,13 @@ struct StageLegend: View {
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(Text("Camera"))
+        // THE ONE WORD THIS TRACK MOVES ON THIS LEGEND, and it moves because it
+        // is now spelled in two places: here and on the camera column's own
+        // toggle. `StageCameraTests` pins the ten camera words as one
+        // vocabulary. `followWord` is deliberately NOT touched — it is a
+        // `LocalizedStringKey` and it sets this chip's width, and this legend is
+        // drawn by three screens this track may not re-lay-out.
+        .accessibilityLabel(Text(StageCamera.cameraSaid))
         .accessibilityValue(Text(followWord))
     }
 
@@ -1322,5 +1445,224 @@ struct StageLegend: View {
     private var panel: RoundedRectangle {
         RoundedRectangle(cornerRadius: Theme.radius(StageMetric.panel),
                          style: .continuous)
+    }
+}
+
+// MARK: - the camera's controls, as things on the picture
+
+/// A card the floating chrome sits on, over a live render.
+///
+/// ONE GROUND FOR EVERY FLOATING PIECE. The venue switch, the collapsed caption,
+/// the camera column and the drawer handle are all words and targets laid over a
+/// picture that changes sixty times a second, so each of them has whatever
+/// contrast the frame behind it happens to give — which is the failure the
+/// legend and the readout panel each fixed separately, and this is the third
+/// place it would have been fixed a third way. `Theme.surfacePrimary` at
+/// `StageViewport.Chrome.backing` is a ground `PaletteTests` measures every ink
+/// against, and the hairline is what says where the surface starts on a palette
+/// whose grounds sit within about 1.1:1 of each other.
+///
+/// IT IS NOT A FULL-WIDTH BAND. Each piece takes the size of what is in it and
+/// no more; the gaps between them are picture, and a touch that lands in one
+/// falls through to the stage's own recognisers because nothing is drawn there.
+struct StageChrome: ViewModifier {
+    var radius: Palette.Radius = Palette.Radius.control
+
+    func body(content: Content) -> some View {
+        content
+            .background(Theme.surfacePrimary.opacity(StageViewport.Chrome.backing), in: shape)
+            .overlay(shape.strokeBorder(Theme.separator,
+                                        lineWidth: DesignMetric.hairlineStroke))
+    }
+
+    private var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: Theme.radius(radius), style: .continuous)
+    }
+}
+
+extension View {
+    /// Put this floating piece on the stage's one chrome ground.
+    func onStageChrome(_ radius: Palette.Radius = Palette.Radius.control) -> some View {
+        modifier(StageChrome(radius: radius))
+    }
+}
+
+/// The camera's controls, as buttons on the picture.
+///
+/// A TRAILING COLUMN PINNED TO THE BOTTOM, NOT A STRIP AND NOT CENTRED.
+/// `StageLegend`'s own rule settles the shape: width is free — the duck is
+/// centred-ish and a strip along an edge does not reach it — and height over the
+/// middle is what covers a robot. Four 44-point buttons stacked at the
+/// bottom-trailing corner never cross the duck's eye line, and
+/// `StageViewportTests` proves the gap at every viewport this app draws and at
+/// the near stop, including when the duck is off centre, which on the drive
+/// stage it is.
+///
+/// DISCRETE BUTTONS, NEVER A SLIDER. A continuous control here would fight the
+/// `UIPinchGestureRecognizer` the stage already carries, and one notch is
+/// exactly one notch of that pinch — `StageCamera.zoomNotch`, the same step the
+/// rotor takes — so the two inputs cannot disagree about how far a press goes.
+struct StageCameraColumn: View {
+    @Binding var orbit: OrbitState
+    /// The camera toggle, on the one screen with no legend to carry it.
+    var showsFollow = false
+    /// Whether the near stop came from `orbit.fit(...)` — true only on the
+    /// Control tab while Following. Elsewhere the stop is the plain 200 mm and
+    /// the hint must not claim the whole robot fits, because nothing measured it.
+    var nearStopIsFitted = false
+
+    private var distance: Double { Double(orbit.distance) }
+    private var home: Double? { orbit.homeDistance.map(Double.init) }
+    private var framing: String {
+        StageCamera.framingSaid(distanceMetres: distance, home: home)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            button(StageCamera.zoomInSaid, symbol: "plus.magnifyingglass",
+                   can: StageCamera.canZoom(inward: true, from: distance, to: orbit.limits),
+                   why: nearStopIsFitted ? StageCamera.nearestSaid : StageCamera.nearStopSaid) {
+                orbit.zoom(by: Float(StageCamera.zoomNotch))
+            }
+            button(StageCamera.zoomOutSaid, symbol: "minus.magnifyingglass",
+                   can: StageCamera.canZoom(inward: false, from: distance, to: orbit.limits),
+                   why: StageCamera.farthestSaid) {
+                orbit.zoom(by: 1 / Float(StageCamera.zoomNotch))
+            }
+            button(StageCamera.resetSaid, symbol: "arrow.counterclockwise",
+                   can: true, why: nil) {
+                orbit.resetView()
+            }
+            if showsFollow { follow }
+        }
+        .onStageChrome()
+        // A COLUMN OF FOUR NAMED BUTTONS IS NOT A GROUP WITH A NAME. Each one
+        // says what it does and carries the framing as its value, so a press has
+        // an audible result on a stage nothing else describes.
+        .accessibilityElement(children: .contain)
+    }
+
+    /// One 44-point button.
+    ///
+    /// DISABLED AT A STOP, WITH THE REASON AS ITS HINT. Off with a reason is the
+    /// shape this app ships; on and doing nothing is the one it does not. The
+    /// hint is `StageCamera`'s sentence, so what the button refuses and what it
+    /// says about refusing cannot drift.
+    private func button(_ said: String, symbol: String, can: Bool, why: String?,
+                        press: @escaping () -> Void) -> some View {
+        Button(action: press) {
+            Image(systemName: symbol)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(can ? Theme.textPrimary : Theme.textSecondary)
+                .frame(width: DesignMetric.minimumTarget,
+                       height: DesignMetric.minimumTarget)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!can)
+        .accessibilityLabel(Text(said))
+        .accessibilityValue(Text(framing))
+        // THE REASON IS SPOKEN ONLY AT THE STOP. Off the stop the button has
+        // no refusal to explain, and the framing is already its value — an
+        // empty hint is simply not spoken, while repeating the value would
+        // say the same sentence twice.
+        .accessibilityHint(Text(can ? "" : (why ?? "")))
+    }
+
+    /// The Fixed / Following toggle. THE WORD IS THE STATE, not the wash:
+    /// `surfaceInteractive` differs from its ground by about 1.02:1 in light,
+    /// which `Theme` says in as many words is a hint and not information.
+    private var follow: some View {
+        Button { orbit.follows.toggle() } label: {
+            Image(systemName: orbit.follows ? "location.fill" : "mappin.and.ellipse")
+                .font(.footnote.weight(orbit.follows ? .semibold : .regular))
+                .foregroundStyle(orbit.follows ? Theme.textPrimary : Theme.textSecondary)
+                .frame(width: DesignMetric.minimumTarget,
+                       height: DesignMetric.minimumTarget)
+                .background { if orbit.follows { Circle().fill(Theme.surfaceInteractive) } }
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text(StageCamera.cameraSaid))
+        .accessibilityValue(Text(orbit.follows ? StageCamera.followingSaid
+                                               : StageCamera.fixedSaid))
+    }
+}
+
+/// The size button. `EmptyView()` when there is nothing to gain: a disabled
+/// button that is disabled on a whole class of phone reads as broken, and a
+/// control that moves the picture six points is worse than none.
+struct StageSizeButton: View {
+    @Binding var size: StageViewport.Size
+    let canGrow: Bool
+    /// `StageViewport.growTakesFromTheListSaid`.
+    let costSaid: String
+
+    var body: some View {
+        // OFFERED ONLY WHERE GROWING GAINS SOMETHING, and at `.tall` always, so
+        // the way back is never taken away by a rotation that shortened the
+        // container.
+        if canGrow || size == .tall {
+            Button {
+                withAnimation(Theme.settle) {
+                    size = size == .tall ? .standard : .tall
+                }
+            } label: {
+                Image(systemName: size == .tall
+                      ? "arrow.down.right.and.arrow.up.left"
+                      : "arrow.up.left.and.arrow.down.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Theme.textPrimary)
+                    .frame(width: DesignMetric.minimumTarget,
+                           height: DesignMetric.minimumTarget)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .onStageChrome()
+            .accessibilityLabel(Text(size == .tall ? StageViewport.smallerSaid
+                                                   : StageViewport.biggerSaid))
+            .accessibilityValue(Text(StageViewport.spoken(size)))
+            .accessibilityHint(Text(costSaid))
+        }
+    }
+}
+
+// A SUMMING `PreferenceKey` WAS THE PLAN AND IS NOT WHAT SHIPPED. §C.5 asked for
+// a `StageReserveKey` whose reduce adds rather than last-wins, because the editor
+// reserves two separately measured pieces out of one container. The GUARANTEE is
+// right and is kept; the mechanism is not, for a reason this machine cannot check
+// away. `onPreferenceChange`'s action is `@Sendable` in the current SDK, this app
+// builds at Swift 5.9 where capturing a non-Sendable `self` in one is a warning
+// rather than an error, and the app target cannot be compiled here to find out
+// which it is today — so the construct that could only be verified on a Mac was
+// replaced by one that cannot be wrong. Two measured `@State` heights summed in a
+// computed property give the same answer, are read at the point of use instead of
+// pushed up a tree, and raise no concurrency question. See
+// `IntentAuthorView.reserved`, and the build log for the deviation.
+
+extension View {
+    /// Report this view's own size — the glass, for the occlusion maths and the
+    /// aspect-aware framing. A `.background` rather than an `.overlay` so it
+    /// never takes a touch away from what it is measuring.
+    func measuringGlass(_ into: @escaping (CGSize) -> Void) -> some View {
+        background {
+            GeometryReader { proxy in
+                Color.clear
+                    .onAppear { into(proxy.size) }
+                    .onChange(of: proxy.size) { _, now in into(now) }
+            }
+        }
+    }
+
+    /// Report how tall a floating piece of chrome came out.
+    ///
+    /// MEASURED, NOT BUDGETED, AND THAT IS THE WHOLE ARGUMENT. What the top
+    /// strip and the bottom cluster cost depends on the text size, on whether
+    /// the caption is open and on whether the camera door has a refusal to
+    /// print. A number typed here would be right at the default size and wrong
+    /// at AX5 — and the thing it decides is whether the camera's near stop lets
+    /// a press put the robot behind a control.
+    func measuringChromeHeight(_ into: @escaping (CGFloat) -> Void) -> some View {
+        measuringGlass { into($0.height) }
     }
 }

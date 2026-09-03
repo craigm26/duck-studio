@@ -640,7 +640,27 @@ extension DuckScene {
     /// the first riser. So the camera holds the duck and that riser, and the
     /// rest of the flight runs out of frame, which is the honest picture of
     /// what a published entry actually does.
-    public var authoringFraming: Framing? {
+    /// The square, conservative bound — what every caller got before stages had
+    /// a shape, and what a caller with nothing to measure still gets.
+    ///
+    /// KEPT AS A PROPERTY. `DuckWorld.swift` reads it and `ChallengeSceneTests`
+    /// calls it four more times; a signature change here would drag a file this
+    /// track may not open into the same commit.
+    public var authoringFraming: Framing? { authoringFraming(aspect: 1) }
+
+    /// Where to put the camera to author against this scene, ON A STAGE OF A
+    /// GIVEN SHAPE. `aspect` is the viewport's width divided by its height.
+    ///
+    /// THE OLD PRECONDITION IS GONE AND IT WAS LOAD-BEARING. This was solved
+    /// against the vertical field alone on the stated ground that "the stage is
+    /// at least as wide as it is tall on every phone" — true of a 351 × 300
+    /// stage and false the moment somebody can make the picture taller. On a
+    /// tall portrait stage the horizontal half-extent the camera sees is a
+    /// fraction of the vertical one, against `authoringMargin` of 1.15, so the
+    /// first riser — the entire thing this framing exists to hold — goes off the
+    /// SIDE. Fixed here and not in the renderer: the field stays 40° vertical
+    /// and the distance is solved from whichever axis binds.
+    public func authoringFraming(aspect: Double) -> Framing? {
         guard let first = steps.min(by: { $0.x < $1.x }) else { return nil }
         let face = first.x - first.halfDepth
         let targetX = face / 2
@@ -651,16 +671,18 @@ extension DuckScene {
         let across = max(abs(face - targetX), abs(targetX)) + DuckScene.duckHalfSpan
         // The camera looks down at `authoringElevation`: a vertical span
         // foreshortens by cos(elevation) and the duck's depth leans into the
-        // vertical by sin(elevation). The stage is at least as wide as it is
-        // tall on every phone (its height is under the narrowest width) and
-        // the field of view is vertical, so a square frame is the conservative
-        // bound and `half` is the larger of the two.
+        // vertical by sin(elevation).
         let elevation = DuckScene.authoringElevation
         let up = max(abs(DuckScene.duckStandingHeight - targetZ), abs(targetZ)) * cos(elevation)
                + DuckScene.duckHalfSpan * sin(elevation)
-        let half = max(across, up)
 
-        let distance = half / tan(DuckScene.authoringFieldOfView / 2) * DuckScene.authoringMargin
+        // THE FIELD IS VERTICAL AND THE GLASS IS NOT ALWAYS SQUARE, so the two
+        // axes are solved separately and the binding one wins. At `aspect == 1`
+        // the horizontal half-angle equals the vertical one and this reduces
+        // exactly to the shipped expression, `max(across, up) / tan(halfV)`.
+        let halfV = DuckScene.authoringFieldOfView / 2
+        let halfH = atan(tan(halfV) * max(aspect, 0.01))
+        let distance = max(up / tan(halfV), across / tan(halfH)) * DuckScene.authoringMargin
         return Framing(targetX: targetX, targetZ: targetZ,
                        distance: distance, elevation: DuckScene.authoringElevation)
     }

@@ -117,9 +117,13 @@ public enum DraftRouting {
             return .ask(question.trimmingCharacters(in: .whitespacesAndNewlines))
         }
         guard let raw = json["kind"] as? String else { throw RoutingError.unreadable }
-        // `tweak` is deliberately absent: it edits a motion already on screen
-        // and is reached from that screen, never from a sentence typed here.
-        guard let kind = ChatDraft.Kind(rawValue: raw.lowercased()), kind != .tweak else {
+        // `tweak` and `search` are deliberately absent: both edit something
+        // already on a screen and are reached from that screen, never from a
+        // sentence typed here. The list is DATA — `ChatDraft.Kind.routable` —
+        // so a seventh kind cannot quietly become routable by being added to
+        // the enum.
+        guard let kind = ChatDraft.Kind(rawValue: raw.lowercased()),
+              ChatDraft.Kind.routable.contains(kind) else {
             throw RoutingError.unknownKind(raw)
         }
         let because = (json["because"] as? String)?
@@ -170,9 +174,17 @@ public enum DraftRouting {
     /// meant the localhost preset — another app serving a model — and now reads
     /// as the downloaded kind, which speaks no HTTP at all. Both exist, so both
     /// are named.
+    ///
+    /// TWO KINDS, NOT ONE, SINCE THE CONTROL TAB GREW A DRIVING GRAMMAR.
+    /// `DuckPadMap`/`PadPilot` read a driving sentence against measurements the
+    /// same way `Retrieval` reads a fetching one, so the old "one kind of
+    /// request" was a sentence the app had outgrown. Nothing in the pad track
+    /// prints this — the Control tab prints `DuckTalk.withoutAModel` — but the
+    /// Draft tab does, and a Draft tab telling somebody the app can do one
+    /// thing when it can do two is a smaller claim than the truth.
     public static let needsAModel =
-        "Without a model this app can only work out one kind of request on its own — fetching "
-      + "something, because that is measured rather than written. For a motion, a rule or a "
-      + "training brief, add one in Settings: Apple's on-device model, a model downloaded onto "
-      + "this phone, or anything on your network speaking the OpenAI chat API."
+        "Without a model this app can only work out two kinds of request on its own — fetching "
+      + "something, and driving, because both are measured rather than written. For a motion, a "
+      + "rule or a training brief, add one in Settings: Apple's on-device model, a model "
+      + "downloaded onto this phone, or anything on your network speaking the OpenAI chat API."
 }

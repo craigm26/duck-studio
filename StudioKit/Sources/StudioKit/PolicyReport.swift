@@ -91,7 +91,20 @@ public struct PolicyReport: Equatable, Sendable {
     // MARK: - building one
 
     /// Read a file and say everything there is to say about it.
+    ///
+    /// THE SUBJECT OF EVERY SENTENCE IS THE FILE, and when the file's name is a
+    /// bare digest there is no file name worth saying. `PolicyLibrary.persist`
+    /// stores every imported policy as `<identity>.onnx`, so before nameplates
+    /// existed this sentence read "4f2a…3.onnx is a Microduck policy" — a
+    /// verdict about a hash. `PolicyNaming.subject` substitutes "This file",
+    /// which is what a person reading the row is looking at.
+    ///
+    /// STILL BUILT FROM THE FILE NAME AND NEVER FROM THE TITLE. A verdict that
+    /// took the display title would go stale the moment somebody renamed the
+    /// policy, and there is no second headline field anywhere for it to go
+    /// stale in.
     public static func of(_ data: Data, name: String) -> PolicyReport {
+        let subject = PolicyNaming.subject(for: name)
         // `describe` first: it is the non-judgmental read, and its failure is
         // the only case where nothing can be shown at all.
         let structure: DuckPolicy.Description
@@ -100,7 +113,7 @@ public struct PolicyReport: Equatable, Sendable {
         } catch {
             return PolicyReport(
                 outcome: .unreadable,
-                headline: "\(name) is not an ONNX model",
+                headline: "\(subject) is not an ONNX model",
                 reason: unreadableReason(error, byteCount: data.count),
                 remedy: data.isEmpty
                     ? nil
@@ -114,7 +127,7 @@ public struct PolicyReport: Equatable, Sendable {
             _ = try DuckPolicy.load(from: data)
             return PolicyReport(
                 outcome: .runnable,
-                headline: "\(name) is a Microduck policy",
+                headline: "\(subject) is a Microduck policy",
                 reason: "",
                 remedy: nil,
                 facts: facts)
@@ -122,14 +135,14 @@ public struct PolicyReport: Equatable, Sendable {
             let (reason, remedy) = explain(error, structure: structure)
             return PolicyReport(
                 outcome: .refused,
-                headline: "\(name) will not load in Microduck Studio",
+                headline: "\(subject) will not load in Microduck Studio",
                 reason: reason,
                 remedy: remedy,
                 facts: facts)
         } catch {
             return PolicyReport(
                 outcome: .refused,
-                headline: "\(name) will not load in Microduck Studio",
+                headline: "\(subject) will not load in Microduck Studio",
                 reason: "\(error)",
                 remedy: nil,
                 facts: facts)

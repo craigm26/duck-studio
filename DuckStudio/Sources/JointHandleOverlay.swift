@@ -51,6 +51,12 @@ struct JointHandleOverlay: View {
     @Binding var opened: Int?
     /// Why the last drag was turned away, in the kit's own words.
     @Binding var refusal: String?
+    /// The joints this frame's placement dropped, reported up so the screen can
+    /// COUNT them. It used to drop them and say nothing: a joint whose box
+    /// crossed the edge appeared in neither the drawn targets nor any cluster,
+    /// and the only way to find out was to notice a handle you expected was not
+    /// there.
+    @Binding var offPicture: [Int]
 
     /// Select a joint: focus it and bring its slider into view.
     let select: (Int) -> Void
@@ -79,8 +85,16 @@ struct JointHandleOverlay: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let targets = placed(in: proxy.size)
+            let out = placed(in: proxy.size)
+            let targets = out.kept
             ZStack(alignment: .topLeading) {
+                // REPORTED FROM A `.task`, NOT FROM THE BODY. Writing state
+                // while a view is being evaluated is the "Modifying state
+                // during view update" warning and an undefined pass; an id'd
+                // task runs after it, once per distinct answer.
+                Color.clear
+                    .frame(width: 0, height: 0)
+                    .task(id: out.offPicture) { offPicture = out.offPicture }
                 // A CLEAR SHEET UNDER AN OPENED LIST. A tap anywhere that is
                 // not a name closes the list; without it the list stays up
                 // until a name is chosen, over the targets it is hiding.
@@ -90,7 +104,7 @@ struct JointHandleOverlay: View {
                         .onTapGesture { opened = nil }
                 }
                 ForEach(targets) { target in
-                    marker(target, width: Double(proxy.size.width))
+                    marker(target, in: proxy.size)
                         .position(x: CGFloat(target.at.x), y: CGFloat(target.at.y))
                 }
                 // DRAWN LAST SO IT IS ON TOP. An opened cluster is a menu over
@@ -132,17 +146,22 @@ struct JointHandleOverlay: View {
     /// AND NOTHING IS DRAWN OFF THE PICTURE. A target whose centre is past
     /// the stage's edge is a target half of which cannot be hit; the kit
     /// keeps only those that sit whole inside it.
-    private func placed(in size: CGSize) -> [JointHandles.Placed] {
+    private func placed(in size: CGSize)
+        -> (kept: [JointHandles.Placed], offPicture: [Int]) {
         var seen = projections.handles.filter { drawn.contains($0.joint) }
         if let focused, let index = seen.firstIndex(where: { $0.joint == focused }) {
             seen.insert(seen.remove(at: index), at: 0)
         }
-        return JointHandles.place(
+        return JointHandles.placed(
             seen.map { (joint: $0.joint, at: $0.grip, depth: $0.depth) },
             trunkDepth: projections.trunkDepth,
             minimumSeparation: Double(DesignMetric.minimumTarget),
             within: Double(size.width), Double(size.height),
-            inset: Double(DesignMetric.minimumTarget / 2))
+            inset: Double(DesignMetric.minimumTarget / 2),
+            // THE BAND THE CAMERA'S BUTTONS STAND IN. A handle under a button is
+            // a handle nobody can press — the button takes the touch — so it is
+            // named off the picture rather than drawn under one.
+            reservingTrailing: StageViewport.Chrome.column.footprint)
     }
 
     /// The drag law a joint would follow from where the camera is now.
@@ -159,17 +178,21 @@ struct JointHandleOverlay: View {
         return law(for: focused) == .edgeOn
     }
 
-    @ViewBuilder private func marker(_ target: JointHandles.Placed, width: Double) -> some View {
+    @ViewBuilder private func marker(_ target: JointHandles.Placed,
+                                     in glass: CGSize) -> some View {
         if target.count > 1 && target.joint != focused {
             cluster(target)
         } else {
-            handle(target, width: width)
+            handle(target, in: glass)
         }
     }
 
     // MARK: - one joint
 
-    @ViewBuilder private func handle(_ target: JointHandles.Placed, width: Double) -> some View {
+    @ViewBuilder private func handle(_ target: JointHandles.Placed,
+                                     in glass: CGSize) -> some View {
+        let width = Double(glass.width)
+        let above = label(above: target, in: Double(glass.height))
         let control = JointControl(index: target.joint)
         let angle = handles.first { $0.joint == target.joint }?.angle ?? control.home
         let edgeOn = law(for: target.joint) == .edgeOn
@@ -188,12 +211,12 @@ struct JointHandleOverlay: View {
             .overlay { if edgeOn { edgeMark } }
             .overlay { if target.joint == focused { ring } }
             .contentShape(Circle())
-            .overlay(alignment: label(above: target) ? Alignment.top : Alignment.bottom) {
+            .overlay(alignment: above ? Alignment.top : Alignment.bottom) {
                 if pinned == target.joint || (pinned == nil && focused == target.joint) {
                     pill(control, angle: angle, folded: target)
                         .offset(x: pillShift(target, width: width),
-                                y: label(above: target)
-                                ? -OverlayMetric.labelStandoff : OverlayMetric.labelStandoff)
+                                y: above ? -OverlayMetric.labelStandoff
+                                         : OverlayMetric.labelStandoff)
                 }
             }
             .accessibilityElement(children: .ignore)
@@ -343,8 +366,8 @@ struct JointHandleOverlay: View {
 
     /// The label goes ABOVE the target unless the target is near the top of the
     /// stage, where above is off the picture.
-    private func label(above target: JointHandles.Placed) -> Bool {
-        target.at.y > OverlayMetric.labelFlips
+    private func label(above target: JointHandles.Placed, in height: Double) -> Bool {
+        target.at.y > OverlayMetric.labelFlipsFraction * height
     }
 
     private func pill(_ control: JointControl, angle: Double,
@@ -469,6 +492,15 @@ struct JointHandleOverlay: View {
                 .background(card)
                 .padding(Theme.spacing(.tight))
         }
+        // THE OFF-PICTURE COUNT IS NOT A THIRD BRANCH HERE, AND THE PLAN ASKED
+        // FOR ONE. §C.5 has it both in this notice and in the editor's group
+        // capsule, which would draw one tested kit sentence twice on one stage —
+        // the duplication this project's own rules exist to prevent. It is drawn
+        // once, in the capsule, top-leading beside the caption that says which
+        // group's handles these are: that is where somebody is already reading
+        // about which handles exist, it is a small card rather than a full-width
+        // one over the duck's feet, and it is visible even while the two
+        // branches above are showing a refusal. Recorded in the build log.
     }
 
     /// The ground every floating piece of text on this overlay sits on.
@@ -519,16 +551,29 @@ private enum OverlayMetric {
     static let edgeMarkStroke: CGFloat = 3
     static let edgeMarkTilt = -45.0
 
-    /// How wide the label is taken to be when it is kept on the stage. The
-    /// label sizes itself; this is the width a name and a reading fill.
+    /// How wide the label is taken to be when it is kept on the stage.
+    ///
+    /// AN UPPER BOUND, NOT THE WIDTH. The label sizes itself from a name, a
+    /// reading and up to two buttons; this is what `pillShift` assumes when it
+    /// slides one back onto the picture, and `pillShift` clamps against the
+    /// stage's real width, so a label narrower than this is shifted no further
+    /// than it needs. The old comment called it "the width a name and a reading
+    /// fill", which reads as a measurement of something and is not one.
     static let pillWidth: CGFloat = 150
 
     /// How far the label sits off its target.
     static let labelStandoff: CGFloat = 8
 
-    /// Above this many points down the stage, the label goes above the target;
-    /// nearer the top than this it goes below, because above is off the picture.
-    static let labelFlips = 80.0
+    /// How far down the stage the label flips from below its target to above it,
+    /// AS A FRACTION OF THE STAGE.
+    ///
+    /// IT WAS AN ABSOLUTE EIGHTY POINTS, and eighty points meant "the top
+    /// quarter or so" only while every stage in this app was three hundred tall.
+    /// On the editor's grown picture — 534 points, and more on an iPad — eighty
+    /// points is the top seventh, so a handle a fifth of the way down got a
+    /// label above it that ran off the picture the rule exists to keep it on.
+    /// Written as the fraction the number always meant.
+    static let labelFlipsFraction = 80.0 / 300.0
 
     /// The floating card's corner. A card over a render, so `.card` — the same
     /// radius the legend's panel took when it was there.

@@ -24,6 +24,24 @@ import DuckEvidence
 /// one filling that slot. `Binding.here` says which is which, and the screen
 /// prints it, because a control that looks live and does nothing is the thing
 /// this app is built not to ship.
+///
+/// THIS TABLE IS NOW THE DEFAULT A MAP DEPARTS FROM, NOT THE ONLY ANSWER.
+/// `DuckPadMap` lays a person's own arrangement over it — a recorded sequence
+/// on Y, a slot on Start, a sequence-then-slot chain on B — and it is SPARSE: a
+/// control nobody has remapped falls straight through to
+/// `binding(for:)!.here`, so what ships is what happens until somebody decides
+/// otherwise, and "put the pad back" is a return to exactly these rows.
+/// Nothing here moved to make that work, which is why every assertion in
+/// `DuckPadTests` still passes untouched.
+///
+/// AND `onTheRobot` SURVIVES EVERY REMAP, WHICH IS THE HALF THAT MATTERS.
+/// `Binding.here` is what a control does against a bench and a person may
+/// change it; `onTheRobot` is `padd`'s own words for what the ROBOT does with
+/// that button, and it is not this app's to reassign — the muscle memory this
+/// whole file exists to respect belongs to the pad, not to the mapping. So a Y
+/// carrying somebody's own recorded sequence still reads "Head mode — the
+/// sticks pose the head" beside it, and a tester who knows the robot still
+/// knows which button they are looking at.
 public enum DuckPad {
 
     /// A control on the pad, named as the pad's own face prints it.

@@ -143,7 +143,7 @@ struct PolicyListView: View {
                             isPresented: Binding(get: { removing != nil },
                                                  set: { if !$0 { removing = nil } }),
                             presenting: removing) { entry in
-            Button("Remove \(entry.displayName)", role: .destructive) {
+            Button("Remove \(entry.title)", role: .destructive) {
                 model.removePolicy(entry)
                 removing = nil
             }
@@ -603,8 +603,13 @@ struct PolicyListView: View {
                 // different things.
                 Image(systemName: entry.isRunnable ? "checkmark.seal" : "xmark.seal")
                     .foregroundStyle(entry.isRunnable ? Theme.measured : Theme.refused)
-                    .accessibilityLabel(Text(entry.report.headline))
-                Text(entry.displayName)
+                    // THE POLICY, NOT THE FILE. `report.headline` names the
+                    // FILE, and for every digest-named entry in the list that
+                    // sentence is "This file is a Microduck policy" — an
+                    // accessibility label that identifies nothing, on the one
+                    // control whose job is to say which row you are on.
+                    .accessibilityLabel(Text(entry.runnabilityLabel))
+                Text(entry.title)
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(Theme.textPrimary)
                 Spacer(minLength: Theme.spacing(.tight))
@@ -839,13 +844,50 @@ struct PolicyDetailView: View {
     /// owns a second copy of.
     @EnvironmentObject private var router: AppRouter
     @State private var clips: [String: DuckIntentClip] = [:]
-    @State private var outgoing: Outgoing?
     @State private var failure: String?
 
-    /// Clips whose recorded-from policy is this file. Matched on the filename
-    /// the recorder wrote, which is the only link the clip carries.
+    /// The one sheet this screen can have up, and which one it is.
+    ///
+    /// ONE OPTIONAL, BECAUSE TWO CANNOT BOTH BE NIL BY ACCIDENT. `IntentListView`
+    /// already paid for this lesson and wrote it down: two `.sheet` modifiers on
+    /// one view are not two slots — the second wins, and which one that is
+    /// depends on modifier order rather than on anything a reader can see. This
+    /// screen grew its second sheet in build 47, so it takes the same shape
+    /// rather than rediscovering the same silent failure.
+    private enum Presented: Identifiable {
+        /// A packaged policy file and the message that goes with it.
+        case share(Outgoing)
+        /// Giving this policy a name. ONE DOOR, ON THIS SCREEN — the list
+        /// behind it has none, because a rename affordance on every row is a
+        /// screen full of controls for the one thing nobody does twice.
+        case rename
+
+        var id: String {
+            switch self {
+            case .share(let out): return "share:\(out.id)"
+            case .rename:         return "rename"
+            }
+        }
+    }
+
+    @State private var presented: Presented?
+
+    /// The entry as the library holds it NOW.
+    ///
+    /// A NAVIGATION DESTINATION IS BUILT FROM A VALUE AND KEEPS IT. `entry` was
+    /// copied when the row was tapped, so after a rename it still carries the
+    /// old title — the sheet would close onto a navigation bar that had not
+    /// changed. The library is observed, so looking the entry back up by
+    /// identity is what makes this screen agree with itself.
+    private var shown: PolicyLibrary.Entry {
+        model.library.entries.first { $0.id == entry.id } ?? entry
+    }
+
+    /// Clips whose recorded-from policy is this file. Matched on the FILE name
+    /// the recorder wrote, which is the only link the clip carries — and a
+    /// rename must never break it.
     private var madeFromThisPolicy: [DuckIntentClip] {
-        clips.values.filter { $0.policy == entry.displayName }.sorted { $0.name < $1.name }
+        clips.values.filter { $0.policy == entry.fileName }.sorted { $0.name < $1.name }
     }
 
     var body: some View {
@@ -859,10 +901,17 @@ struct PolicyDetailView: View {
                         .disabled(!entry.isRunnable && !entry.identity.isNetworkIdentity)
                 }
             }
-            .sheet(item: $outgoing) { out in
-                NavigationStack {
-                    ShareDestinationsView(title: entry.displayName,
-                                          file: out.url, message: out.message)
+            .sheet(item: $presented) { what in
+                switch what {
+                case .share(let out):
+                    NavigationStack {
+                        ShareDestinationsView(title: shown.title,
+                                              file: out.url, message: out.message)
+                    }
+                case .rename:
+                    PolicyRenameSheet(entry: shown) { typed in
+                        model.rename(shown, to: typed)
+                    }
                 }
             }
             .alert("Could not share", isPresented: Binding(
@@ -875,14 +924,24 @@ struct PolicyDetailView: View {
     /// The person pasting this is about to ask strangers to run it on a robot,
     /// so an unrecognised policy is described as unrecognised.
     private func share() {
+        // THE LIVE ENTRY, SHADOWED ON PURPOSE. A rename changes what a
+        // digest-named policy exports as, and the copy this destination was
+        // built with does not know about it.
+        let entry = shown
         guard let data = PolicyStore.data(for: entry) else {
             failure = "The policy file could not be re-read."
             return
         }
         do {
-            let url = try ExportFile.write(data, named: entry.displayName)
-            outgoing = Outgoing(url: url,
-                                message: CommunityShare.message(forPolicy: entry, standing: standing))
+            // THE FILE LEAVES UNDER ITS OWN NAME, never under a nickname. A
+            // title means something on this phone and nothing in somebody
+            // else's downloads folder — `exportFileName` reaches for it only
+            // when there is no file name to use, and the drafted message then
+            // says whose word it is.
+            let url = try ExportFile.write(data, named: entry.exportFileName)
+            presented = .share(Outgoing(
+                url: url,
+                message: CommunityShare.message(forPolicy: entry, standing: standing)))
         } catch let error as ExportFile.Failure {
             failure = error.message
         } catch {
@@ -905,6 +964,8 @@ struct PolicyDetailView: View {
                 Text(DuckOfficialPolicies.summary(for: standing))
                     .font(.footnote)
                     .foregroundStyle(Theme.textPrimary)
+                nameRow
+                fileNameRow
                 // STACKED, NOT A `TelemetryRow`. A digest is 64 characters
                 // wide: set beside its label it either truncates or wraps to
                 // three lines of body-sized monospace, and it has to stay
@@ -926,6 +987,16 @@ struct PolicyDetailView: View {
                         .foregroundStyle(Theme.textSecondary)
                 }
                 arrived
+                // WHERE A POLICY CAME FROM CANNOT BE RECOVERED AFTER THE FACT.
+                // Anything imported before this build was persisted with no
+                // record of its host, and the app will not guess one out of a
+                // manifest's training repository — so the pill stays the honest
+                // grey and this says why it is grey.
+                if !shown.arrivalWasRecorded {
+                    Text(PolicyNaming.arrivalNotRecorded)
+                        .font(.caption)
+                        .foregroundStyle(Theme.textSecondary)
+                }
             } header: {
                 SectionHeading(text: "Provenance")
             }
@@ -976,6 +1047,18 @@ struct PolicyDetailView: View {
                     // the other four stay rows. `PrimaryActionStyle` is what
                     // makes it one — including the part where it darkens under
                     // the thumb instead of shrinking away from it.
+                    // THE ONE CASE WHERE NAMING IT IS THE POINT OF THE SCREEN.
+                    // A `.digest` title says the app does not know what this
+                    // file was called; offering the fix as a row among five
+                    // would bury the answer to the question the title asks.
+                    if shown.titleSource == .digest {
+                        Button { presented = .rename } label: {
+                            Label("Name this policy", systemImage: "pencil")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.primaryAction)
+                        .listRowSeparator(.hidden)
+                    }
                     if let preview = madeFromThisPolicy.first {
                         NavigationLink { IntentPlayerView(clip: preview, store: scenes,
                                                           drafts: drafts, models: models) } label: {
@@ -1040,7 +1123,13 @@ struct PolicyDetailView: View {
                     // see the thing move at all, and saying "run it on a bench"
                     // to somebody who already has the recording is what sent
                     // people away from the answer.
-                    if madeFromThisPolicy.isEmpty {
+                    if PolicyNaming.isDigestName(entry.fileName) {
+                        // A NOT-YET, BESIDE CONTROLS THAT STILL WORK. Probe and
+                        // the bench are unaffected; it is only the clip link
+                        // that has nothing to match on, and matching by
+                        // fingerprint is not built.
+                        sectionFootnote(PolicyNaming.recordingsNeedAFileName)
+                    } else if madeFromThisPolicy.isEmpty {
                         sectionFootnote("Nothing has been recorded from this network yet, so there is nothing to play. A preview cannot play a policy: watching one move means running it on a bench, and this iPhone is one. Run it on a bench, record it, and keep the recording — it comes back under Studio → Motions, in \"Brought in\".\n\nProbe hands it one observation and shows the fourteen numbers it answers with, and the robot they command. That works with no bench at all, but a network has no time axis, so nothing plays there either.")
                     } else {
                         sectionFootnote("Watch it move plays a recording made when this network drove a robot in physics — what it did, not what somebody asked for. Probe is the other half: hand it one observation and see the fourteen numbers it answers with. A network has no time axis, so nothing plays in Probe.\n\nRun it on a bench to record it again under your own commands, on your own floor.")
@@ -1099,9 +1188,80 @@ struct PolicyDetailView: View {
         }
         .scrollContentBackground(.hidden)
         .background(Theme.backgroundSecondary)
-        .navigationTitle(entry.displayName)
+        .navigationTitle(shown.title)
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { clips = (try? DuckIntentClip.bundled()) ?? [:] }
+    }
+
+    /// What this policy is CALLED, and the door to changing it.
+    ///
+    /// THE WHOLE ROW IS THE BUTTON, and the pencil is a hint rather than the
+    /// target. A 44 pt glyph at the end of a row somebody has to aim at is the
+    /// affordance this app keeps failing to make findable; a row that responds
+    /// anywhere is one nobody has to aim at.
+    ///
+    /// AND THE CAPTION UNDER IT IS THE POINT OF THE WHOLE SECTION. Every rung
+    /// of the ladder is a different KIND of claim — a person's word, a checked
+    /// fact about the weights, a stranger's claim about them — and a screen
+    /// that showed the name without saying where it came from would be setting
+    /// all three in the same typeface.
+    private var nameRow: some View {
+        Button { presented = .rename } label: {
+            VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
+                HStack(alignment: .firstTextBaseline, spacing: Theme.spacing(.tight)) {
+                    Text("Name")
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.textSecondary)
+                    Spacer(minLength: Theme.spacing(.tight))
+                    Text(shown.title)
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.textPrimary)
+                        .multilineTextAlignment(.trailing)
+                    Image(systemName: "pencil")
+                        .foregroundStyle(Theme.actionSecondary)
+                }
+                if let explanation = shown.titleExplanation {
+                    Text(explanation)
+                        .font(.caption)
+                        .foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text("Name, \(shown.title)"))
+        .accessibilityHint(Text("Renames this policy on this phone."))
+    }
+
+    /// What the file is called, under the name a person reads.
+    ///
+    /// IT IS DRAWN EVEN WHEN THERE IS NOTHING TO SHOW, because "not kept" is
+    /// the honest answer and an absent row would read as a screen that had not
+    /// finished loading. What it does NOT do is print the digest a second time
+    /// under a label saying "file name" — the digest is above, called what it
+    /// is.
+    private var fileNameRow: some View {
+        VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
+            Text("File name")
+                .font(.subheadline)
+                .foregroundStyle(Theme.textSecondary)
+            if PolicyNaming.isDigestName(shown.fileName) {
+                Text(PolicyNaming.fileNameUnknown)
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.textPrimary)
+                Text(PolicyNaming.fileNameNotKept)
+                    .font(.caption)
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text(shown.fileName)
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(Theme.textPrimary)
+                    .textSelection(.enabled)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// How the file got onto this phone, as opposed to whose weights they are.

@@ -1,0 +1,130 @@
+# Sentences the five viewport files draw that NO TEST READS.
+#
+# THIS IS THE DEBT MADE VISIBLE, NOT PERMISSION. The standing rule is that every
+# user-visible sentence is a tested kit string, and it was followed by hand until
+# build 47, which means it held exactly as far as everybody's memory. Nothing in
+# this repo grepped for `Text("` before `check_stage_sentences.sh`. Running that
+# guard over these five files found the list below already there.
+#
+# So the list ships full and the count is printed on every run. A NEW literal
+# fails immediately; an existing one leaves the day somebody moves the sentence
+# into StudioKit beside a test that reads it letter by letter and deletes the
+# line here. THE LIST ONLY SHRINKS.
+#
+# One entry per line, exactly: <file basename>|<the literal, verbatim>
+# Matched as a fixed whole line, because a sentence is full of regex
+# metacharacters and a full stop matches anything.
+#
+# WHAT IS ALREADY NOT HERE, because build 47 moved it into the kit: the seven
+# camera rotor actions and the legend's "Camera" (StageCamera.words, pinned by
+# StageCameraTests), every sentence on the new camera column and size button
+# (StageCamera.nearestSaid / farthestSaid / framingSaid, StageViewport.biggerSaid
+# / smallerSaid / spoken / growTakesFromTheListSaid), the whole of the Control
+# tab's new floating chrome (StageViewport.drawerSaid / drawerCostSaid /
+# captionSaid / chromeFloatsSaid), the AR venue's refusal
+# (DriveVenue.arHasNoZoom) and the off-picture count
+# (JointHandles.offPictureSaid).
+
+DuckStage.swift|The robot on the stage, in 3D
+DuckStage.swift|Trunk height
+DuckStage.swift|Drag to orbit · pinch to zoom · double-tap to reset
+DuckStage.swift|The trunk position, the ground clearance and how to move the camera.
+DriveView.swift|Settings
+DriveView.swift|no joint within 10° of a stop
+DriveView.swift|On its side — Reset puts it back
+DriveView.swift|Set up a bench
+DriveView.swift|Pick a bench to drive against. This iPhone is one; a machine on your network is another.
+DriveView.swift|Stop zeroes the command and lets the duck settle under it — if it falls over stopping, that is the policy. Reset puts it back on its feet, which is not something a robot can do for itself.
+DriveView.swift|Stop and Reset
+DriveView.swift|Manage benches
+DriveView.swift|Controller
+DriveView.swift|Find and pair a duck
+DriveView.swift|Robot
+DriveView.swift|Connection
+DriveView.swift|Battery
+DriveView.swift|This link
+DriveView.swift|What it would take
+DriveView.swift|Stop
+DriveView.swift|Zeroes the command and lets the duck settle under it.
+DriveView.swift|Reset
+DriveView.swift|Puts the duck back on its feet and clears the trip count.
+DriveView.swift|Centre
+DriveView.swift|Left
+DriveView.swift|Right
+IntentAuthorView.swift|Tune by preference
+IntentAuthorView.swift|Export the motion
+IntentAuthorView.swift|Publish to Hugging Face
+IntentAuthorView.swift|Bare floor
+IntentAuthorView.swift|More
+IntentAuthorView.swift|It goes from the list and from this iPhone. This cannot be undone.
+IntentAuthorView.swift|Forgets the deleted scene and poses against nothing.
+IntentAuthorView.swift|Keyframe
+IntentAuthorView.swift|Pick a moment, then move the joints. The robot above shows the keyframe you are editing. A new one holds whatever the motion was already doing at that instant — every pose stays pinned, though the curve between them re-eases, because each span is smoothed on its own.
+IntentAuthorView.swift|Handles on the stage
+IntentAuthorView.swift|Change it
+IntentAuthorView.swift|Describe a change
+IntentAuthorView.swift|\(models.selected.name) is asked for a list of changes to THIS motion, not for a new one. Anything it does not mention is left exactly as it is. \(models.selected.privacyNote)
+IntentAuthorView.swift|Models
+IntentAuthorView.swift|\(models.selected.name) hands back a whole motion as a typed value, which is the shape it guarantees and the reason drafting works on it. There is no typed shape here for a list of edits, so this app does not ask it for one. Add a server here rather than picking a different model: any OpenAI-compatible address will do, and a small local one is plenty, because every angle it asks for is checked and clamped here afterwards.
+IntentAuthorView.swift|Not applied
+IntentAuthorView.swift|Put it back
+IntentAuthorView.swift|What changed
+IntentAuthorView.swift|Puts the robot above at this moment.
+IntentAuthorView.swift|Move it
+IntentAuthorView.swift|Keyframes
+IntentAuthorView.swift|Between keyframes the robot is interpolated with smoothstep — it arrives and leaves at rest. A linear blend would change speed instantly at every keyframe, and a servo asked to do that answers with a jolt the balance controller then has to absorb.
+IntentAuthorView.swift|Add half a second on the end
+IntentAuthorView.swift|Nothing to flag. Every pose is inside its travel and nothing moves faster than the recorded corpus does.
+IntentAuthorView.swift|Checks
+IntentAuthorView.swift|These are the things a phone can check: travel, ordering, and how fast a joint is asked to move against what the recorded corpus actually does. What it cannot check is whether the robot stays up, because that needs physics.
+IntentAuthorView.swift|Every authored move in this app — step_up, lever_up, riser_up, climb — was written this way and searched against a real step, and all four get up their flight 0 times in 16. Authoring is the easy half.
+IntentAuthorView.swift|Before you run it
+JointHandleOverlay.swift|\(target.count)
+
+# Build 47's fourteen new app files, baselined by the lead after review (2026-09-02).
+# The same rule: this list only shrinks. Move a line into StudioKit beside a test and delete it here.
+MoveSearchView.swift|What this searches
+MoveSearchView.swift|Where in the move
+MoveSearchView.swift|The move
+MoveSearchView.swift|Handles · \(spec.handles.count) unlocked
+MoveSearchView.swift|One joint…
+MoveSearchView.swift|Shape
+MoveSearchView.swift|Describe what to hold
+MoveSearchView.swift|Every number a sentence writes is a control above that you could have set 
+MoveSearchView.swift|What this will cost
+MoveSearchView.swift|How much these conditions move a score
+MoveSearchView.swift|Asking this bench whether it can score a climb…
+MoveSearchView.swift|Measure this move
+MoveSearchView.swift|Measure what each handle is worth
+MoveSearchView.swift|Stop
+MoveSearchView.swift|Ends the search after the current cell.
+MoveSearchView.swift|This bench
+MoveSearchView.swift|Search
+MoveSearchView.swift|What each handle is worth
+MoveSearchView.swift|Result
+MoveSearchView.swift|Cells that did not answer · \(run.failedCells.count)
+MoveSearchView.swift|What this does not search
+PadBindSheet.swift|What \(control.face) does now
+PadBindSheet.swift|Load a network
+PadBindSheet.swift|Play a sequence
+PadBindSheet.swift|The bench's own controls
+PadMapSection.swift|The buttons
+PadMapSection.swift|Sequences
+PadMapSection.swift|\(control.face), \(shown.caption)
+PolicyRenameSheet.swift|Name
+SequenceKeepSheet.swift|Nothing to keep
+SequenceKeepSheet.swift|That did not work
+SequenceKeepSheet.swift|Kept on the bench
+SequenceKeepSheet.swift|The two clocks
+SequenceKeepSheet.swift|Where it came from
+SequenceKeepSheet.swift|What went out
+SequenceKeepSheet.swift|What to do with it
+SequenceKeepSheet.swift|Put it on a button
+SequenceListView.swift|Nothing recorded yet
+SequenceListView.swift|That did not work
+SequenceListView.swift|On the bench
+SequenceListView.swift|What a sequence is
+TalkToTheDuckView.swift|Not driven
+TalkToTheDuckView.swift|Read on this phone
+TalkToTheDuckView.swift|A model wrote this
+TalkToTheDuckView.swift|Kept as \(sequence.name)

@@ -88,6 +88,15 @@ final class DraftRoutingTests: XCTestCase {
         XCTAssertTrue(s.contains("Apple's on-device model"), s)
         XCTAssertTrue(s.contains("downloaded onto this phone"), s)
         XCTAssertTrue(s.contains("OpenAI chat API"), s)
+        // TWO KINDS, NOT ONE. The Control tab's driving grammar reads a
+        // sentence against measurements the same way `Retrieval` reads a
+        // fetching one, so "one kind of request" became false the moment
+        // `DuckPadMap`/`PadPilot` shipped. Nothing in that track prints this
+        // sentence; the Draft tab does.
+        XCTAssertTrue(s.contains("two kinds of request"), s)
+        XCTAssertTrue(s.contains("fetching something, and driving"), s)
+        XCTAssertTrue(s.contains("both are measured rather than written"), s)
+        XCTAssertFalse(s.contains("one kind of request"), s)
     }
 
     /// AND THE APPLE REFUSALS NAME IT TOO. Somebody on a device without Apple
@@ -108,10 +117,15 @@ final class DraftRoutingTests: XCTestCase {
     /// only category names sorts by vocabulary and nobody says "motion".
     func testEveryRoutableKindIsDescribedWithExamples() {
         let c = DraftRouting.catalogue
-        for kind in ChatDraft.Kind.allCases where kind != .tweak {
+        // `routable` AND NOT `allCases where kind != .tweak`. A sixth kind —
+        // `search` — landed, and a loop written as "everything but tweak" would
+        // have started demanding a catalogue row for a kind no sentence can be
+        // routed to. The list is data so this loop cannot silently widen.
+        for kind in ChatDraft.Kind.routable {
             XCTAssertTrue(c.contains(kind.rawValue), "\(kind.rawValue) is missing from the catalogue")
         }
         XCTAssertFalse(c.contains("tweak"), "tweak is not routable from a sentence")
+        XCTAssertFalse(c.contains("search"), "search is not routable from a sentence")
         for example in ["take a slow bow", "fetch the stick", "when something is close",
                         "teach it to jump"] {
             XCTAssertTrue(c.contains(example), "the catalogue lost the \(example) example")

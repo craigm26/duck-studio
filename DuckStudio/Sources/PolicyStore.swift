@@ -19,7 +19,13 @@ enum PolicyStore {
         if let data = try? Data(contentsOf: container) { return data }
 
         // Otherwise it is one of the bundled seeds, which keep their own names.
-        if let url = Bundle.main.url(forResource: entry.displayName
+        //
+        // THE FILE NAME, NEVER THE TITLE. A bundled policy is renamable — the
+        // nameplate is keyed by identity and lives in the container — so the
+        // string a person reads on the row is not the string this lookup needs.
+        // Handing `Bundle.main` a nickname finds nothing, and finding nothing
+        // here is a Probe button that does not work.
+        if let url = Bundle.main.url(forResource: entry.fileName
                                         .replacingOccurrences(of: ".onnx", with: ""),
                                      withExtension: "onnx") {
             return try? Data(contentsOf: url)

@@ -66,6 +66,13 @@ final class ZZLocalModelProbe: XCTestCase {
             print("PROBE trainable=\(request.isTrainable) "
                   + "refusals=\(request.refusals.map(\.message))")
             print("PROBE file \(request.fileName)")
+        case .search:
+            // A SEARCH CHANGE NEEDS THE SEARCH, which this probe does not
+            // hold — `SearchWords.instructions(for:spec:)` takes a move and a
+            // spec, and neither is reachable from an environment variable. The
+            // reading is still exercised, which is the half that can be.
+            let reading = try SearchWords.read(fromJSON: json)
+            print("PROBE search \(reading.summary) — \(reading.edits.count) edits")
         case .retrieval:
             let (object, stick) = try ChatDraft.stick(fromJSON: json)
             let plan = Retrieval.plan(for: stick)

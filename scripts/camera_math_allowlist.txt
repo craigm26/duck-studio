@@ -1,0 +1,34 @@
+# Screens that have NOT adopted StageViewport / StageCamera yet.
+#
+# THIS IS THE DEBT, NAMED. Build 47's viewport track landed the shared constants
+# in two screens — the Control tab and the motion editor — and left the rest
+# holding their own copies. The plan said in as many words: "This build lands the
+# shared constant in two screens and leaves four inconsistent; say so, do not
+# paper over it." This file is the saying so. A pass over these prints a count,
+# so a green gate can never be mistaken for a converted app.
+#
+# One entry per line: <file basename>::<pattern tag>. Per FILE and per TAG, never
+# per line — four owners edit this tree at once and a line number is stale the
+# moment one of them saves.
+#
+# THE LIST ONLY SHRINKS. Adding an entry to make a new hit go away is the one
+# thing it is not for; a new screen writing its own field of view or its own 300
+# is the failure this guard exists to catch.
+
+# --- fieldOfViewInDegrees, written outside the stage that owns the camera -----
+# Two other RealityKit stages set their own angle: the soccer pitch at 42° and
+# the Lab's at 45°. Neither is wrong — they frame different things — but neither
+# is reachable from the framing arithmetic either, so a scene solved for a 40°
+# field and drawn through a 45° one would be off and nothing would say. Build 48.
+DuckSoccerView.swift::fov
+DuckLabStage.swift::fov
+
+# --- 300 / 320 as "how tall a stage is" ---------------------------------------
+# The other three of the five copies of that number. `TuneView` keeps an
+# instance `let`, `SceneEditorView` and `BenchView` a static each, and 320 is
+# already a fourth answer to the same question. Tracks D and E own two of these
+# files this build and were asked NOT to change them (§C.7 requests 2 and 3);
+# `SceneEditorView` is unassigned.
+TuneView.swift::stageheight
+SceneEditorView.swift::stageheight
+BenchView.swift::stageheight

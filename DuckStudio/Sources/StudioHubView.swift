@@ -112,9 +112,25 @@ struct StudioHubView: View {
                 // with an address. Adding a case for a screen no router names
                 // would be widening a type to describe a wish.
                 NavigationLink {
-                    TuneView(library: model, benches: benches)
+                    TuneView(library: model, benches: benches, models: models)
                 } label: {
                     Label("Tune it on this phone", systemImage: "slider.horizontal.3")
+                }
+                // THE OTHER SEARCH, AND THE ONE MOST PEOPLE MEAN. Tune searches
+                // a NETWORK — twenty-eight numbers folded into a last layer.
+                // This searches a MOVE: the poses and times of an authored
+                // keyframe track, scored on the challenge's own grid. They
+                // cannot share a screen, because one needs a base policy in
+                // front of it and the other needs a move, so the second is its
+                // own door here and a pointer on the first.
+                //
+                // NOT A `StudioDestination`, for the same reason Tune is not:
+                // nothing routes here by name. A case for a screen no router
+                // names would be widening a type to describe a wish.
+                NavigationLink {
+                    MoveSearchView(benches: benches, models: models)
+                } label: {
+                    Label("Search a move's keyframes", systemImage: "magnifyingglass")
                 }
                 // THE ONE PLACE IN THE APP WHERE A NUMBER THIS PHONE PRODUCES
                 // CAN BE THE SAME NUMBER SOMEBODY ELSE PUBLISHED. It is under

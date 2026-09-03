@@ -179,4 +179,41 @@ final class PolicyReportTests: XCTestCase {
         XCTAssertTrue(c.contains("does not look at layers or activations"), c)
         XCTAssertTrue(PolicyReport.widthsTheRobotChecks.contains("refused everywhere"))
     }
+
+    // MARK: - what a verdict calls the file
+
+    /// `PolicyLibrary.persist` stores every imported policy as
+    /// `<identity>.onnx`, so before nameplates existed this sentence read
+    /// "4f2a…3.onnx is a Microduck policy" — a verdict about a hash. The
+    /// subject substitution is in the kit precisely so it is asserted here
+    /// rather than looked at on a phone.
+    func testAVerdictAboutADigestNamedFileSaysThisFile() throws {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "synthetic_valid",
+                                                  withExtension: "onnx",
+                                                  subdirectory: "Fixtures/refusals"))
+        let data = try Data(contentsOf: url)
+        let digest = String(repeating: "4f2a13b7", count: 8)
+        let r = PolicyReport.of(data, name: "\(digest).onnx")
+        XCTAssertEqual(r.headline, "This file is a Microduck policy")
+    }
+
+    /// AND A FILE WITH A REAL NAME IS STILL NAMED. The substitution is for the
+    /// case where there is nothing to name, not a blanket anonymisation.
+    func testAVerdictStillNamesARealFile() throws {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "synthetic_valid",
+                                                  withExtension: "onnx",
+                                                  subdirectory: "Fixtures/refusals"))
+        let r = PolicyReport.of(try Data(contentsOf: url), name: "alpha_walking.onnx")
+        XCTAssertEqual(r.headline, "alpha_walking.onnx is a Microduck policy")
+    }
+
+    func testARefusalAboutADigestNamedFileSaysThisFile() throws {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "relu_instead_of_elu",
+                                                  withExtension: "onnx",
+                                                  subdirectory: "Fixtures/refusals"))
+        let digest = String(repeating: "4f2a13b7", count: 8)
+        let r = PolicyReport.of(try Data(contentsOf: url), name: "\(digest).onnx")
+        XCTAssertEqual(r.outcome, .refused)
+        XCTAssertEqual(r.headline, "This file will not load in Microduck Studio")
+    }
 }

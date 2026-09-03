@@ -64,12 +64,15 @@ final class PolicyRemovalTests: XCTestCase {
                                          name: "policy.onnx", origin: .imported)
         try PolicyLibrary.persist(data, entry: mine, into: dir)
         try PolicyLibrary.persist(Data("other weights".utf8), entry: theirs, into: dir)
-        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: dir.path).count, 2)
+        // TWO FILES EACH NOW: the weights and the nameplate that remembers what
+        // they were called, which is the whole of this build's root fix.
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: dir.path).count, 4)
 
         XCTAssertTrue(PolicyLibrary.remove(mine, from: dir))
-        let left = try FileManager.default.contentsOfDirectory(atPath: dir.path)
-        XCTAssertEqual(left, ["\(theirs.identity.value).onnx"],
-                       "the other person's policy must survive")
+        let left = try FileManager.default.contentsOfDirectory(atPath: dir.path).sorted()
+        XCTAssertEqual(left, ["\(theirs.identity.value).nameplate.json",
+                              "\(theirs.identity.value).onnx"].sorted(),
+                       "the other person's policy must survive, name and all")
     }
 
     func testRemovingABundledPolicyDoesNothingAndSaysSo() throws {
@@ -80,7 +83,8 @@ final class PolicyRemovalTests: XCTestCase {
         // must refuse: the real one is in the app bundle and this is not it.
         try PolicyLibrary.persist(Data("weights".utf8), entry: bundled, into: dir)
         XCTAssertFalse(PolicyLibrary.remove(bundled, from: dir))
-        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: dir.path).count, 1)
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: dir.path).count, 2,
+                       "the weights and their nameplate both stay put")
     }
 
     func testRemovingSomethingAlreadyGoneReportsFalseRatherThanThrowing() throws {

@@ -98,4 +98,49 @@ final class CommunityShareTests: XCTestCase {
         XCTAssertTrue(message.contains("AUTHORED"))
         XCTAssertTrue(message.contains("no physics ran"))
     }
+
+    // MARK: - a nickname is labelled as one the one time it leaves the phone
+
+    /// A title somebody typed means something to them and nothing to a
+    /// recipient. Leading with it as if it were the file's name would be this
+    /// app exporting a private label as a public fact.
+    func testAPersonsOwnNameIsMarkedAsTheirsInTheSharedMessage() throws {
+        let folder = try XCTUnwrap(Bundle.module.url(forResource: "Fixtures/policies",
+                                                     withExtension: nil))
+        let data = try Data(contentsOf: folder.appendingPathComponent("roulade.onnx"))
+        let entry = PolicyLibrary.entry(
+            for: data, name: "spin.onnx", origin: .imported,
+            nameplate: PolicyNameplate(fileName: "spin.onnx", title: "Waddle v3"),
+            manifest: nil, arrivalWasRecorded: true)
+        let message = CommunityShare.message(forPolicy: entry, standing: .unrecognised)
+        XCTAssertTrue(message.hasPrefix("Waddle v3 — a Microduck policy."), message)
+        XCTAssertTrue(message.contains("That is what I call it here."), message)
+        XCTAssertTrue(message.contains("spin.onnx"), message)
+    }
+
+    func testAFileThatWasNeverRenamedSharesUnderItsFileName() throws {
+        let entry = try entry(named: "alpha_walking.onnx")
+        let message = CommunityShare.message(forPolicy: entry, standing: .unrecognised)
+        XCTAssertEqual(message.components(separatedBy: "\n\n").first,
+                       "alpha_walking.onnx — a Microduck policy.")
+        XCTAssertFalse(message.contains("what I call it"),
+                       "nobody named this one, so there is no nickname to disclose")
+    }
+
+    /// THE FINGERPRINT IS STILL THE PART ANYBODY CAN CHECK, and adding a
+    /// sentence about a nickname must not push it out of the message.
+    func testTheShareMessageStillLeadsWithTheFingerprint() throws {
+        let folder = try XCTUnwrap(Bundle.module.url(forResource: "Fixtures/policies",
+                                                     withExtension: nil))
+        let data = try Data(contentsOf: folder.appendingPathComponent("roulade.onnx"))
+        let entry = PolicyLibrary.entry(
+            for: data, name: "spin.onnx", origin: .imported,
+            nameplate: PolicyNameplate(fileName: "spin.onnx", title: "Waddle v3"),
+            manifest: nil, arrivalWasRecorded: true)
+        guard case .parameters(let fingerprint) = entry.identity else {
+            return XCTFail("roulade loads")
+        }
+        let message = CommunityShare.message(forPolicy: entry, standing: .unrecognised)
+        XCTAssertTrue(message.contains(fingerprint), message)
+    }
 }

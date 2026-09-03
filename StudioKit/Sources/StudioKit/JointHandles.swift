@@ -364,9 +364,61 @@ public enum JointHandles {
                              trunkDepth: Double, minimumSeparation: Double,
                              within width: Double, _ height: Double,
                              inset: Double) -> [Placed] {
-        place(projected, trunkDepth: trunkDepth, minimumSeparation: minimumSeparation)
-            .filter { $0.at.x >= inset && $0.at.y >= inset
-                   && $0.at.x <= width - inset && $0.at.y <= height - inset }
+        placed(projected, trunkDepth: trunkDepth, minimumSeparation: minimumSeparation,
+               within: width, height, inset: inset).kept
+    }
+
+    /// `place`, keeping only targets whose whole box sits inside a viewport —
+    /// AND SAYING WHICH JOINTS IT DROPPED.
+    ///
+    /// THE DROP WAS SILENT. A joint filtered out here appeared in neither the
+    /// drawn targets nor any cluster and nothing on screen said so, and the
+    /// accounting test that covers the folding overload never covered this one.
+    /// A joint FOLDED INTO an anchor that was then dropped vanished twice over:
+    /// it was not drawn, it was not in a cluster anybody could open, and the
+    /// count of what was lost was zero.
+    ///
+    /// `reservingTrailing` is the band along the trailing edge the camera column
+    /// stands in. A handle under a button is a handle nobody can press, so it is
+    /// named off the picture rather than drawn under one.
+    ///
+    /// The single-return overload above stays and is expressed through this one,
+    /// so the two can never disagree about which targets survive.
+    public static func placed(_ projected: [(joint: Int, at: ScreenPoint, depth: Double)],
+                              trunkDepth: Double, minimumSeparation: Double,
+                              within width: Double, _ height: Double,
+                              inset: Double,
+                              reservingTrailing: Double = 0)
+        -> (kept: [Placed], offPicture: [Int]) {
+        let anchors = place(projected, trunkDepth: trunkDepth,
+                            minimumSeparation: minimumSeparation)
+        let trailingEdge = width - inset - max(0, reservingTrailing)
+        var kept: [Placed] = []
+        var offPicture: [Int] = []
+        for anchor in anchors {
+            if anchor.at.x >= inset, anchor.at.y >= inset,
+               anchor.at.x <= trailingEdge, anchor.at.y <= height - inset {
+                kept.append(anchor)
+            } else {
+                // THE FOLDED ONES GO WITH IT. They are at the same spot by
+                // definition, so an anchor off the picture takes every joint
+                // that landed on it off the picture too.
+                offPicture.append(anchor.joint)
+                offPicture.append(contentsOf: anchor.clustered)
+            }
+        }
+        return (kept, offPicture)
+    }
+
+    /// Why a joint has no handle right now, and the two things that bring it
+    /// back. IT NAMES BOTH MOVES: a bigger picture reaches the ones near the
+    /// edge, and an orbit reaches the ones that went round the back.
+    public static func offPictureSaid(_ count: Int) -> String {
+        count == 1
+            ? "1 joint is off the edge of the picture, so it has no handle. Make the picture "
+            + "bigger, or orbit until it comes into view."
+            : "\(count) joints are off the edge of the picture, so they have no handle. Make "
+            + "the picture bigger, or orbit until they come into view."
     }
 
     public static func place(_ projected: [(joint: Int, at: ScreenPoint, depth: Double)],

@@ -418,8 +418,10 @@ struct BenchView: View {
         // from the older prototype still has that file on their phone, and it
         // is the same network. Dropping the alternative would silently de-rate
         // their policy to the walking action scale.
-        let kind = DuckPolicyKind.allCases.first { $0.fileName == entry.displayName
-                                                || "BEST_" + $0.fileName == entry.displayName }
+        // ON THE FILE NAME, NEVER ON THE TITLE. A title is a person's word and
+        // matches nothing here on purpose; the match — and the `BEST_` spelling
+        // with it — now lives in the kit where a test can reach it.
+        let kind = PolicyNaming.kind(forFileName: entry.fileName)
         // THE MANIFEST BEATS THE FILE NAME, when the policy came with one. The
         // match above can only ever recognise the nine Pollen ship; a policy
         // somebody trained themselves matches nothing and falls to `.walk`'s

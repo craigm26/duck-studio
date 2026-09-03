@@ -109,8 +109,11 @@ struct AutomationChatView: View {
         case motion = "Motion", rule = "Rule", fetch = "Fetch", train = "Train"
         var id: String { rawValue }
 
-        /// The tab a routed kind lands on. `tweak` has none: it edits a motion
-        /// already on screen and is never routed from a typed sentence.
+        /// The tab a routed kind lands on. `tweak` and `search` have none:
+        /// both edit something already on a screen and are reached from that
+        /// screen, never routed from a typed sentence. `ChatDraft.Kind.routable`
+        /// is the list, and `DraftRouting.read` refuses either one before it can
+        /// get here.
         init?(_ kind: ChatDraft.Kind) {
             switch kind {
             case .motion:    self = .motion
@@ -118,6 +121,7 @@ struct AutomationChatView: View {
             case .retrieval: self = .fetch
             case .training:  self = .train
             case .tweak:     return nil
+            case .search:    return nil
             }
         }
 

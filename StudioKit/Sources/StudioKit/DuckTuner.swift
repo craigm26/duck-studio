@@ -1273,3 +1273,189 @@ public enum DuckTuner {
 }
 
 private func trimmed(_ value: Double) -> String { DuckTuner.trimmed(value) }
+
+// MARK: - words, on the policy search
+//
+// ADDITIVE ONLY. Nothing above this line changes: `provenance`, `export`,
+// `terms`, the ONNX `microduck_studio.terms` key and the manifest `terms` array
+// are untouched, so no shipped string becomes false. What is added is a way for
+// a sentence to move the two things a sentence is allowed to move — how long
+// this runs, and which joints it may move — and to be refused BY NAME for
+// anything else; the step it takes is the schedule's own sigma.
+
+extension DuckTuner.Schedule {
+
+    /// The complement of `searchedSlots`, so "hold the knees" has somewhere to
+    /// write.
+    public var heldSlots: [Int] {
+        (0..<DuckModel.policyJointCount).filter { !searchedSlots.contains($0) }
+    }
+
+    /// The same edits, on the schedule the POLICY search runs.
+    ///
+    /// EDITS THIS SCHEDULE HAS NO SEAT FOR ARE REFUSED BY NAME, NEVER IGNORED.
+    /// A keyframe's timing, a move's shape parameter and a rise are facts about
+    /// a MOVE; this searches a network and has none of them. Silently dropping
+    /// one would let somebody believe a sentence landed.
+    public func outcome(applying edits: [SearchWords.Edit])
+        -> (schedule: DuckTuner.Schedule, notes: [String], refusals: [String]) {
+        var searched = Set(searchedSlots)
+        var lambda = self.lambda
+        var generations = self.generations
+        var notes: [String] = []
+        var refusals: [String] = []
+
+        /// A word's POLICY SLOTS. The mouth is joint 9 and has no slot at all —
+        /// every alpha policy skips it — so a word that means the beak lands
+        /// nowhere and says so.
+        func slots(_ word: String) -> (slots: [Int], namedTheMouth: Bool)? {
+            guard let targets = MotionTweak.targets(for: word) else { return nil }
+            var out: [Int] = []
+            var mouth = false
+            for target in targets {
+                guard let joint = DuckModel.jointIndex(of: target.joint) else { continue }
+                if joint == DuckModel.mouthIndex { mouth = true; continue }
+                out.append(joint < DuckModel.mouthIndex ? joint : joint - 1)
+            }
+            return (out, mouth)
+        }
+
+        for edit in edits {
+            switch edit {
+            case .termWeight(let term, _):
+                refusals.append(SearchWords.termWeightsAreNotYours
+                              + " The weight asked for was \(term).")
+
+            case .hold(let word, let at):
+                guard at == nil else {
+                    refusals.append(Self.noMomentsHere(word))
+                    continue
+                }
+                guard let found = slots(word) else {
+                    refusals.append(SearchWords.Failure
+                        .unknownJoint(word, closest: MotionProposal.closest(to: word)).skipped)
+                    continue
+                }
+                if found.namedTheMouth { refusals.append(Self.theMouthHasNoSlot) }
+                let before = searched.count
+                searched.subtract(found.slots)
+                notes.append("\(word) held — \(before - searched.count) of "
+                           + "\(DuckModel.policyJointCount) slots taken out of the search.")
+
+            case .free(let word, let at, let degrees):
+                guard at == nil else {
+                    refusals.append(Self.noMomentsHere(word))
+                    continue
+                }
+                guard let found = slots(word) else {
+                    refusals.append(SearchWords.Failure
+                        .unknownJoint(word, closest: MotionProposal.closest(to: word)).skipped)
+                    continue
+                }
+                if found.namedTheMouth { refusals.append(Self.theMouthHasNoSlot) }
+                let before = searched.count
+                searched.formUnion(found.slots)
+                notes.append("\(word) searched — \(searched.count - before) slots added.")
+                if degrees != 0 { refusals.append(Self.noDegreesHere) }
+
+            case .generations(let value):
+                generations = Swift.min(Swift.max(value, 1), 60)
+                notes.append("\(generations) generations.")
+
+            case .children(let value):
+                lambda = Swift.min(Swift.max(value, 1), 20)
+                notes.append("\(lambda) candidates per generation.")
+
+            case .time(let at, _):
+                refusals.append(Self.noSeatHere(
+                    "a keyframe's timing", asked: String(format: "%.2f s", at)))
+
+            case .shape(let key, _):
+                refusals.append(Self.noSeatHere("a move's \(key)", asked: key))
+
+            case .rise(let value):
+                refusals.append(Self.noSeatHere(
+                    "a stair rise", asked: StairsChallenge.riseSaid(value > 1 ? value / 1000
+                                                                              : value)))
+            }
+        }
+
+        let schedule = DuckTuner.Schedule(
+            lambda: lambda, generations: generations,
+            gainSigma: gainSigma, offsetSigma: offsetSigma, seconds: seconds,
+            searchedSlots: searched.sorted(),
+            searchDrops: searchDrops, heldOutDrops: heldOutDrops)
+        return (schedule, notes, refusals)
+    }
+
+    static func noSeatHere(_ field: String, asked: String) -> String {
+        "This search has no \(field) to change — it searches a network's twenty-eight numbers, "
+      + "not a move's keyframes. \"\(asked)\" was read and refused rather than dropped, because "
+      + "an instruction that vanished is one somebody believes landed. The keyframe search under "
+      + "Measure is the screen that has it."
+    }
+
+    static func noMomentsHere(_ word: String) -> String {
+        noSeatHere("moment to hold \(word) at", asked: "at that moment")
+    }
+
+    static let theMouthHasNoSlot =
+        "The beak is not in this search and cannot be put into it. Every alpha policy answers "
+      + "with fourteen joint commands and the mouth is the one they skip, so there is no slot "
+      + "here to hold or free."
+
+    static let noDegreesHere =
+        "Degrees were asked for and none were set. A handle on this search is a per-joint "
+      + "multiplier and a trim, not an angle: the step it takes is the schedule's own sigma, "
+      + "which is the same size for every slot it may move. Degrees are the keyframe search's "
+      + "unit."
+}
+
+extension DuckTuner {
+
+    /// What a model is told when a sentence is about THIS search.
+    ///
+    /// THE SAME JOINT VOCABULARY AND THE SAME JSON SHAPE the keyframe search
+    /// asks for, because both replies are read by `SearchWords.read(fromJSON:)`
+    /// — one reader, two hosts. What differs is what this host HAS: no
+    /// keyframes, no moments, no shape parameters and no rise, so the
+    /// instructions say so rather than letting a model ask for one and be
+    /// refused afterwards.
+    public static func wordsInstructions(for schedule: Schedule) -> String {
+        let held = schedule.heldSlots
+            .map { MotionTweak.plainName(DuckModel.jointNames[DuckModel.jointOfPolicySlot($0)]) }
+        let heldSaid = held.isEmpty ? "nothing" : MotionTweak.spoken(held)
+        return """
+        You change the SETTINGS of a search over a trained network for a 25 cm \
+        robot duck. It searches one multiplier and one trim per joint and folds \
+        the best of them into the network's last layer. You do not write a \
+        motion and you do not score one.
+
+        \(MotionProposal.grounding())
+
+        \(schedule.described)
+        Held out of the search right now: \(heldSaid).
+
+        "hold" takes a part out of the search; "free" puts one back. There are \
+        NO keyframes here and no moments — do not use "at". There is no move, \
+        so do not ask for a blend, a gap, a side, an approach or a rise.
+
+        You may NOT change what the score is. There is no reward weight here \
+        and no term to weigh.
+
+        Answer with JSON and nothing else. No explanation, no markdown fence.
+        Exactly this shape:
+        {"summary":"what you changed","edits":[{"hold":"knees"},\
+        {"free":"ankles"},{"generations":6},{"children":4}]}
+        """
+    }
+
+    /// The hard no on term weights, said where the six weights are on screen.
+    public static let whatWordsMayNotChange =
+        "Words can change how long this runs and which joints it may move. They cannot change "
+      + "what it is scored on. The six weights come out of "
+      + "`microduck_velocity_env_cfg` and are read, never typed, because the provenance line "
+      + "that travels inside every exported file says the run was scored at that file's own "
+      + "weights — and a sentence that moved one would make three shipped claims false at once: "
+      + "that line, the ONNX's own `microduck_studio.terms`, and the manifest."
+}

@@ -132,6 +132,42 @@ struct IntentAuthorView: View {
     /// scrolls its slider back into view both times.
     @State private var handleTaps = 0
 
+    // MARK: - how big the picture is
+
+    /// Whether the picture has been made bigger.
+    ///
+    /// PER SCREEN, NOT APP-WIDE. `stage.legend.expanded` is app-wide because
+    /// "numbers or the duck" is one preference; how much of a screen the picture
+    /// may take is a judgement about THAT screen's controls, and this screen's
+    /// controls are fifteen sliders one of which a handle tap has to reach.
+    @AppStorage("stage.big.author") private var stageSizeRaw =
+        StageViewport.Size.standard.rawValue
+    private var stageSize: StageViewport.Size {
+        get { StageViewport.Size(rawValue: stageSizeRaw) ?? .standard }
+        nonmutating set { stageSizeRaw = newValue.rawValue }
+    }
+    /// The whole container this screen has, and how much of it the pieces that
+    /// must survive a bigger picture have already taken.
+    ///
+    /// SUMMED, NOT LAST-WINS. Two pieces have to come out of one container and
+    /// the third is a constant, so they are added rather than one of them
+    /// winning: the transport bar, the panel picker, and ONE list row — the row
+    /// a handle tap scrolls to, which is `StageViewport.rowReserve` with its
+    /// arithmetic written down where a test reads it. Measured rather than
+    /// budgeted, because what those two cost depends on the text size.
+    @State private var available: CGFloat = 0
+    @State private var transportHeight: CGFloat = 0
+    @State private var panelPickerHeight: CGFloat = 0
+    private var reserved: CGFloat {
+        transportHeight + panelPickerHeight + CGFloat(StageViewport.rowReserve)
+    }
+    /// The stage's own shape, which is what the framing is now solved against.
+    /// A tall stage has a narrower horizontal field than a square one, and the
+    /// first riser is the thing that leaves the frame first.
+    @State private var stageAspect: Double = 1
+    /// The joints the placement dropped this frame, counted rather than lost.
+    @State private var offPictureJoints: [Int] = []
+
     /// The joints the chosen group holds.
     private var handleGroupJoints: Set<Int> {
         Set(JointGroup.all.first { $0.title == handleGroup }?.joints ?? [])
@@ -224,6 +260,14 @@ struct IntentAuthorView: View {
         // `scrollTo` from the tap is what lets the stage stay a plain view with
         // no scroll machinery in it.
         ScrollViewReader { rows in
+        // THE READER SUPPLIES `available` AND NOTHING ELSE. A bigger picture
+        // takes its room from the list below it, so the question "is there
+        // enough to be worth offering" needs the height of the whole container
+        // and the height of the pieces that must survive — the transport bar,
+        // the panel picker, and one list row, which is the row a handle tap
+        // scrolls to. All three are measured; only the row is a constant, and it
+        // is `StageViewport.rowReserve` with its arithmetic written down.
+        GeometryReader { container in
         VStack(spacing: 0) {
             stage
 
@@ -238,6 +282,7 @@ struct IntentAuthorView: View {
                          playhead: $playhead, isRunning: $isRunning)
                 .padding(.horizontal, Theme.spacing(.snug))
                 .padding(.vertical, Theme.spacing(.hairline))
+                .measuringChromeHeight { transportHeight = $0 }
 
             Picker("Panel", selection: $panel) {
                 ForEach(Panel.allCases) { Text($0.rawValue).tag($0) }
@@ -245,6 +290,7 @@ struct IntentAuthorView: View {
             .pickerStyle(.segmented)
             .padding(.horizontal, Theme.spacing(.snug))
             .padding(.bottom, Theme.spacing(.hairline))
+            .measuringChromeHeight { panelPickerHeight = $0 }
 
             List {
                 switch panel {
@@ -262,6 +308,9 @@ struct IntentAuthorView: View {
             // the ground.
             .scrollContentBackground(.hidden)
             .background(Theme.backgroundSecondary)
+        }
+        .onAppear { available = container.size.height }
+        .onChange(of: container.size) { _, now in available = now.height }
         }
         .background(Theme.backgroundPrimary)
         .navigationTitle(draft.name)
@@ -353,6 +402,10 @@ struct IntentAuthorView: View {
         // the Author-against menu is a deliberate act, so re-aiming the camera
         // is not the app moving on its own.
         .onChange(of: draft.sceneID) { _, _ in frameForAuthoring() }
+        // A DIFFERENT SHAPE IS THE SAME SCENE FROM A DIFFERENT DISTANCE, not a
+        // different thing to look at — so this re-solves the distance and leaves
+        // the angle where somebody put it. See `reframeForShape`.
+        .onChange(of: stageAspect) { _, _ in reframeForShape() }
         .sheet(isPresented: $preferring) {
             NavigationStack {
                 PreferenceSearchView(draft: draft, scene: scene) { chosen in
@@ -478,6 +531,7 @@ struct IntentAuthorView: View {
                     pinned: $pinnedJoint,
                     opened: $openedCluster,
                     refusal: $handleRefusal,
+                    offPicture: $offPictureJoints,
                     select: { joint in
                         panel = .joints
                         isRunning = false
@@ -495,7 +549,46 @@ struct IntentAuthorView: View {
                     })
         }
         .overlay(alignment: .topLeading) { groupCapsule }
-        .frame(maxHeight: typeSize.isAccessibilitySize ? nil : AuthoringMetric.stageHeight)
+        // THE CAMERA'S BUTTONS, BOTTOM-TRAILING, OPPOSITE THE CAPSULE. No
+        // follow toggle: this camera is deliberately framed on the duck and the
+        // first riser, and one riding the trunk would fight that framing for no
+        // gain — see `authoringFraming(aspect:)`.
+        .overlay(alignment: .bottomTrailing) {
+            StageCameraColumn(orbit: $orbit)
+                .padding(Theme.spacing(.tight))
+        }
+        // AND THE SIZE BUTTON, TOP-TRAILING. It pays best here: the transport
+        // bar, the panel picker and ONE list row are all that must survive, and
+        // that row is the one a handle tap scrolls to.
+        //
+        // NOT DRAWN AT ALL AT ACCESSIBILITY SIZES, and that is the same rule the
+        // button applies to itself elsewhere. The cap comes off entirely at AX —
+        // the branch below hands `nil` — so both states of this control produce
+        // the identical picture, and a control that changes nothing visible is
+        // exactly what this app calls inert.
+        .overlay(alignment: .topTrailing) {
+            if !typeSize.isAccessibilitySize {
+                StageSizeButton(
+                    size: Binding(get: { stageSize }, set: { stageSize = $0 }),
+                    canGrow: StageViewport.canGrow(available: Double(available),
+                                                   reserved: Double(reserved)),
+                    costSaid: StageViewport.growTakesFromTheListSaid)
+                    .padding(Theme.spacing(.tight))
+            }
+        }
+        // THE SHAPE IS MEASURED, because the framing is now solved against it.
+        .measuringGlass { size in
+            guard size.width > 0, size.height > 0 else { return }
+            stageAspect = Double(size.width / size.height)
+        }
+        // NOT CAPPED AT ACCESSIBILITY SIZES — the branch is preserved exactly as
+        // it was. The panels below reflow at AX5 and a fixed viewport would take
+        // the room they need out of them; the duck shrinks to make way, nothing
+        // below disappears, and the size button is not drawn because there is
+        // nothing left to grow into.
+        .frame(maxHeight: typeSize.isAccessibilitySize ? nil
+               : CGFloat(StageViewport.height(stageSize, available: Double(available),
+                                              reserved: Double(reserved))))
         .clipShape(viewport)
         .overlay(viewport.strokeBorder(Theme.separator,
                                        lineWidth: AuthoringMetric.hairlineStroke))
@@ -519,20 +612,61 @@ struct IntentAuthorView: View {
     /// chips that choose it sit below the sliders and are off screen for
     /// most of an edit; without this the six handles have no caption.
     private var groupCapsule: some View {
-        Text(handleGroup)
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(Theme.textSecondary)
-            .padding(.horizontal, Theme.spacing(.tight))
-            .padding(.vertical, Theme.spacing(.hairline))
-            .background(Capsule().fill(Theme.surfacePrimary
-                                         .opacity(AuthoringMetric.capsuleBacking)))
-            .padding(Theme.spacing(.tight))
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
+        VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
+            Text(handleGroup)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(Theme.textSecondary)
+                .padding(.horizontal, Theme.spacing(.tight))
+                .padding(.vertical, Theme.spacing(.hairline))
+                .background(Capsule().fill(Theme.surfacePrimary
+                                             .opacity(AuthoringMetric.capsuleBacking)))
+                .accessibilityHidden(true)
+            // THE DROP IS COUNTED NOW, AND IT IS NOT HIDDEN FROM A SCREEN
+            // READER. A joint whose 44-point box crosses the edge — or that
+            // falls under the camera column — used to appear in neither the
+            // drawn targets nor any cluster, and nothing on screen said so. The
+            // sentence names the two moves that bring it back, so it is a
+            // not-yet beside a control that still does something rather than an
+            // absence somebody has to notice.
+            if !offPictureJoints.isEmpty {
+                Text(JointHandles.offPictureSaid(offPictureJoints.count))
+                    .font(.caption2)
+                    .foregroundStyle(Theme.textSecondary)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: AuthoringMetric.offPictureWidth, alignment: .leading)
+                    .padding(.horizontal, Theme.spacing(.tight))
+                    .padding(.vertical, Theme.spacing(.hairline))
+                    .background(RoundedRectangle(cornerRadius: Theme.radius(Palette.Radius.card),
+                                                 style: .continuous)
+                        .fill(Theme.surfacePrimary
+                                .opacity(AuthoringMetric.capsuleBacking)))
+            }
+        }
+        .padding(Theme.spacing(.tight))
+        .allowsHitTesting(false)
     }
 
+    /// Point the camera at the thing being authored, AT THE SHAPE THE STAGE IS.
     private func frameForAuthoring() {
-        orbit.frame(scene?.authoringFraming)
+        orbit.frame(scene?.authoringFraming(aspect: stageAspect))
+    }
+
+    /// A stage that changed shape re-solves the DISTANCE ONLY.
+    ///
+    /// AZIMUTH, ELEVATION AND FOCUS ARE LEFT ALONE, and that is the whole rule:
+    /// making the picture bigger must not throw away the angle somebody was
+    /// working at. The relative zoom is kept too — if they had pulled in to half
+    /// the opening distance, they are still at half of it — because the ratio is
+    /// what somebody chose and the absolute number is what the shape decides.
+    private func reframeForShape() {
+        guard let now = scene?.authoringFraming(aspect: stageAspect) else { return }
+        let was = orbit.homeDistance.map(Double.init) ?? now.distance
+        let ratio = was > 0 ? now.distance / was : 1
+        orbit.limits = orbit.limits.containing(now.distance)
+        orbit.distance = Float(StageCamera.clamped(Double(orbit.distance) * ratio,
+                                                   to: orbit.limits))
+        orbit.homeDistance = Float(now.distance)
     }
 
     private var viewport: RoundedRectangle {
@@ -782,8 +916,17 @@ struct IntentAuthorView: View {
                     if thinking { Spacer(); ProgressView() }
                 }
             }
+            // A SHIPPED INERT CONTROL, AND THE FILE ALREADY DISAGREED WITH
+            // ITSELF ABOUT IT. The gate read `kind != .openAICompatible` while
+            // the comment three lines below and the footer both say a downloaded
+            // MLX model can do this too — and `DraftEngine` routes
+            // `.downloadedMLX`, and `ChatDraft.tweakInstructions` is
+            // kind-agnostic. So the button was dead for a model the app says
+            // works, with the sentence beside it explaining why it should not
+            // be. What actually cannot express a list of edits is Apple's typed
+            // path, and that is now what the gate names.
             .disabled(thinking || asked.trimmingCharacters(in: .whitespaces).isEmpty
-                      || models.selected.kind != .openAICompatible)
+                      || models.selected.kind == .appleOnDevice)
         } header: {
             SectionHeading(text: "Describe a change")
         } footer: {
@@ -1511,7 +1654,23 @@ enum AuthoringMetric {
     /// Above this the panels stop fitting on a small phone; below it the duck
     /// is a thumbnail of a duck. At an accessibility size the cap comes off
     /// entirely — see `IntentAuthorView.stage`.
-    static let stageHeight: CGFloat = 300
+    ///
+    /// IT IS THE KIT'S NUMBER NOW. This was one of five independent copies of
+    /// 300 — `DriveMetric.viewportHeight`, `SceneMetric.viewportHeight`,
+    /// `TuneView`'s own instance `let` and `BenchMetric`'s 320 were the others —
+    /// defensible while the number never moved and drift the moment a control
+    /// can change it. The name and every call site stay; only the source moved.
+    static let stageHeight = CGFloat(StageViewport.standardHeight)
+
+    /// How wide the off-picture count is allowed to grow.
+    ///
+    /// A NOTE ON A PICTURE, HELD TO A COLUMN. It sits top-leading over the stage
+    /// and the camera's buttons are bottom-trailing, so a sentence allowed the
+    /// full width would run under them at the one text size where it wraps to
+    /// two lines. Narrower than the stage on the narrowest phone still
+    /// supported, and it wraps rather than truncating — the count and the two
+    /// moves that fix it are the whole of the sentence.
+    static let offPictureWidth: CGFloat = 220
 
     /// The stage's card. Its legend takes `viewport.inner`, which is how the
     /// concentric rule is expressed rather than asserted: pick a different

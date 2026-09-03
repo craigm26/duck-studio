@@ -104,7 +104,11 @@ struct DriveView: View {
     private var token: String? { bench.flatMap { benches.armed($0).token } }
 
     @State private var health: DuckBench.Health?
-    @State private var chosen = ""
+    /// The pad map, the pilot and the sequences — one object, one line.
+    ///
+    /// NAMED `desk` AND NOT `pad`: `pad` is already the PadReader on this
+    /// screen (the Bluetooth controller). See the build log, deviation 1.
+    @StateObject private var desk = PadDesk()
     @State private var live: DuckDrive.Live?
     @State private var touchSticks = DuckDrive.Sticks.centred
     @State private var running = false
@@ -127,7 +131,47 @@ struct DriveView: View {
     @State private var failureTitle = DriveView.benchRefusedTitle
     private static let benchRefusedTitle = "The bench refused"
     private static let worldRefusedTitle = "This world cannot be built"
-    @State private var orbit = OrbitState.defaults
+    /// FOLLOWING BY DEFAULT, AND ONLY ON THIS SCREEN.
+    ///
+    /// `OrbitState.defaults` is Fixed and the reasoning behind that stands
+    /// everywhere else: a camera locked to the trunk shows a duck that never
+    /// moves and a world that slides past, which cannot tell you whether the
+    /// robot reached the step. What changed here is the stage: it is the whole
+    /// tab now, so there is room to follow, and the bench's own world puts steps
+    /// over a metre to one side of a fixed camera aimed at a bounding box. The
+    /// toggle is on the picture, bottom-trailing, either way.
+    @State private var orbit = OrbitState.following
+    /// The stage's real size in points, measured rather than assumed. It is what
+    /// the near stop is fitted to and what the occlusion arithmetic is about.
+    @State private var glass: CGSize = .zero
+    /// How tall the floating strip at the top and the cluster at the bottom
+    /// actually came out, measured — the two footprints the camera has to clear.
+    @State private var topChromeHeight: CGFloat = 0
+    @State private var bottomChromeHeight: CGFloat = 0
+    /// The PAD cluster's own height — the sticks, the buttons and the handle —
+    /// measured on the pad itself, so it keeps its last value while the drawer
+    /// is up. This, not `bottomChromeHeight`, is the footprint the camera
+    /// clears: the drawer is a cover somebody opened and is deliberately not
+    /// in the camera's arithmetic (see `stageChrome`).
+    @State private var padChromeHeight: CGFloat = 0
+    /// The readout panel's height, measured. It is the piece most often over
+    /// the duck, and it is folded into the TOP footprint with the strip.
+    @State private var notesHeight: CGFloat = 0
+    /// The AR venue's own panel, measured, so the readout stacks under it.
+    @State private var arHudHeight: CGFloat = 0
+    /// Whether the controls drawer is up.
+    ///
+    /// PER SCREEN, AND CLOSED BY DEFAULT. `stage.legend.expanded` is app-wide
+    /// because "numbers or the duck" is one preference; whether the settings are
+    /// over the picture is a judgement about THIS screen, whose controls are a
+    /// pad somebody is holding while a robot walks. It ships closed because an
+    /// overlay that covers the duck the moment the tab opens is exactly the
+    /// build-41 failure this app has already paid for once.
+    @AppStorage("control.drawer") private var drawerIsUp = false
+    /// Whether the venue's own sentence is open over the picture. Not stored:
+    /// it is a thing somebody reads once and closes, and a caption that came
+    /// back open on every launch would be an overlay over the duck by default.
+    @State private var venueLineIsOpen = false
     /// Round trips completed since Drive was pressed, and the sim seconds they
     /// bought. THE RATE IS THE ONE NUMBER THAT TELLS YOU WHETHER THIS IS
     /// DRIVEABLE: a bench on the far side of a slow link answers so rarely that
@@ -245,17 +289,51 @@ struct DriveView: View {
     private var pose: StagePose { live?.stance ?? .home }
 
     var body: some View {
-        VStack(spacing: 0) {
-            venueSwitch
-            venueStage
-            // NOT IN THE ROBOT VENUE, because there is no picture there for a
-            // layer to go on top of. Every chip switches an overlay drawn over
-            // a duck this app is rendering, and the robot venue renders none:
-            // the chips would be nine controls that change nothing.
-            if venue != .real { layerChips }
-            venueControls
+        // FULL-BLEED WHERE THERE IS A PICTURE, STACKED WHERE THERE IS NOT.
+        //
+        // The Control tab's stage used to be a 300-point card with a venue
+        // switch above it, a row of chips under it and a settings list under
+        // that — a duck the size of a playing card on a screen whose whole
+        // subject is the duck. It is now the background of the tab, and the
+        // switch, the caption, the readout, the sticks and the camera buttons
+        // float ON it. `StageViewport.chromeFloatsSaid` says so on the glass.
+        //
+        // NOTHING IS PRESENTED AND NOTHING IS RE-PARENTED. There is no
+        // `fullScreenCover`, no sheet and no second `DuckStage` or `OrbitState`
+        // anywhere in this file. That is what retires the four risks: a cover
+        // would fire `onDisappear` (:running = false, flight?.cancel(),
+        // pad.stop()) and stop a duck mid-drive; it would re-enter `.task`; it
+        // would rebuild `ARDriveContainer`, whose `dismantleUIView` nils the
+        // anchor and loses the placed duck; and it would take the slider row a
+        // handle tap scrolls to off the glass. The chrome going up and down is
+        // an overlay appearing beside the stage, never around it.
+        //
+        // THE ROBOT VENUE IS THE ONE THAT STAYS STACKED, because it draws no
+        // picture at all — `venueStage` is `EmptyView()` there — so a ZStack
+        // would be floating chrome over nothing.
+        Group {
+            if venue == .real {
+                VStack(spacing: 0) {
+                    venueSwitch
+                    robotControls
+                }
+            } else {
+                controlStage
+            }
         }
         .background(Theme.backgroundPrimary)
+        // THE COERCION IS THE KIT'S AND IT RUNS THREE TIMES — on appear,
+        // whenever the door changes underneath (somebody walks to Settings and
+        // switches the camera off while this is on screen), and on every pick.
+        // It hangs on the ROOT rather than on the switch because two layouts
+        // draw that switch now, and a rule attached to one of them would be a
+        // rule that stops running when the other is on screen.
+        .onAppear { venue = DriveVenue.coerce(venue, camera: cameraDoor) }
+        .refreshingCameraDoor($cameraDoor)
+        .onChange(of: cameraDoor) { _, _ in
+            venue = DriveVenue.coerce(venue, camera: cameraDoor)
+        }
+        .onChange(of: venue) { _, now in entered(now) }
         // THE TAB'S NAME, NOT THE VERB. This screen was pushed from a menu row
         // that said "Drive one live", so the bar repeated the row that opened
         // it. It is the Control tab's root now: the tab bar below says Control
@@ -367,20 +445,32 @@ struct DriveView: View {
     /// and switches the camera off while this is on screen), and on every pick.
     /// A view writing `if !door.canOfferAR { venue = .sim }` inline would be
     /// the same rule with nothing asserting it.
+    /// THE SWITCH ITSELF. Split out from the caption and the refusal because
+    /// the two layouts that draw it need those in different shapes: the Robot
+    /// venue stacks them under it in a column, and the full-bleed stage puts the
+    /// caption behind a disclosure so a three-line sentence does not eat the top
+    /// of the picture. The COERCION and the camera door moved to the root, so
+    /// they are asked once whichever branch is on screen.
+    private var venuePicker: some View {
+        Picker("Where", selection: $venue) {
+            ForEach(DriveVenue.allCases.filter { $0.canBeEntered(camera: cameraDoor) }) {
+                one in Text(one.label).tag(one)
+            }
+        }
+        .pickerStyle(.segmented)
+        // THE CAP LIFTS AT ACCESSIBILITY SIZES, which is `VenuePicker`'s
+        // argument about its own two-segment switch and applies harder to
+        // three: a segmented control truncates rather than wrapping, so a
+        // width that keeps "Sim | Your floor | Robot" off the edges of an
+        // iPad is the width that hides them at AX5.
+        .frame(maxWidth: typeSize.isAccessibilitySize ? nil : DriveMetric.venueSwitchWidth)
+    }
+
+    /// The switch with its caption under it, as the Robot venue draws it — that
+    /// screen has no picture, so nothing is competing for the room.
     private var venueSwitch: some View {
         VStack(spacing: Theme.spacing(.hairline)) {
-            Picker("Where", selection: $venue) {
-                ForEach(DriveVenue.allCases.filter { $0.canBeEntered(camera: cameraDoor) }) {
-                    one in Text(one.label).tag(one)
-                }
-            }
-            .pickerStyle(.segmented)
-            // THE CAP LIFTS AT ACCESSIBILITY SIZES, which is `VenuePicker`'s
-            // argument about its own two-segment switch and applies harder to
-            // three: a segmented control truncates rather than wrapping, so a
-            // width that keeps "Sim | Your floor | Robot" off the edges of an
-            // iPad is the width that hides them at AX5.
-            .frame(maxWidth: typeSize.isAccessibilitySize ? nil : DriveMetric.venueSwitchWidth)
+            venuePicker
             Text(venue.oneLine)
                 .font(.caption2)
                 .foregroundStyle(Theme.textSecondary)
@@ -403,12 +493,6 @@ struct DriveView: View {
         }
         .padding(.horizontal, Theme.spacing(.snug))
         .padding(.top, Theme.spacing(.tight))
-        .onAppear { venue = DriveVenue.coerce(venue, camera: cameraDoor) }
-        .refreshingCameraDoor($cameraDoor)
-        .onChange(of: cameraDoor) { _, _ in
-            venue = DriveVenue.coerce(venue, camera: cameraDoor)
-        }
-        .onChange(of: venue) { _, now in entered(now) }
     }
 
     /// What a change of venue does to the drive that is already running.
@@ -440,12 +524,269 @@ struct DriveView: View {
         }
     }
 
-    /// The list under the picture.
-    @ViewBuilder private var venueControls: some View {
-        switch venue {
-        case .sim, .ar: controls
-        case .real: robotControls
+    // MARK: - the full-bleed stage and the chrome on it
+
+    /// The Control tab: one picture, filling the tab, with everything else
+    /// floating on it.
+    ///
+    /// EVERY PIECE IS AN OVERLAY ON THE STAGE, NOT A ROW AROUND IT. That is what
+    /// makes the picture full-bleed and it is also what keeps the hit-testing
+    /// honest: an overlay is laid out in the stage's frame but only hit-tests
+    /// what it actually draws, so a pinch or a pan that lands between the switch
+    /// and the sticks reaches the `UIPinchGestureRecognizer` underneath. There
+    /// is deliberately no full-size `.contentShape` anywhere below.
+    ///
+    /// NOTHING HERE IS CLIPPED AND NOTHING HERE IS A CARD. The 300-point cap,
+    /// the rounded viewport and its hairline all went with the layout that had
+    /// something above and below the picture to be a card against.
+    private var controlStage: some View {
+        venueStage
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .measuringGlass { glass = $0 }
+            .overlay(alignment: .top) { topChrome }
+            .overlay(alignment: .topLeading) { stageNotes }
+            // BOTTOM-TRAILING, NEVER TRAILING-CENTRED. Width along an edge is
+            // free; height over the middle is what covers a robot.
+            .overlay(alignment: .bottomTrailing) { cameraColumn }
+            .overlay(alignment: .bottom) { bottomChrome }
+            // THE NEAR STOP IS FITTED TO THE GLASS AND THE CHROME ON IT, so the
+            // zoom-in button stops before a press could put the duck behind the
+            // sticks. Re-run whenever any of the three measurements moves.
+            .onChange(of: glass) { _, _ in refitCamera() }
+            .onChange(of: topChromeHeight) { _, _ in refitCamera() }
+            .onChange(of: notesHeight) { _, _ in refitCamera() }
+            .onChange(of: padChromeHeight) { _, _ in refitCamera() }
+            .onChange(of: orbit.follows) { _, _ in refitCamera() }
+            // A THUMB HELD WHEN THE PADS LEAVE THE GLASS IS NOT THE NEXT
+            // COMMAND. `ThumbPad` recentres only in `DragGesture.onEnded`,
+            // which never fires for a view that was removed, and its "Centre"
+            // action goes with it — so the last deflection would keep being
+            // posted by `drive()` with no stick on screen. The same rule
+            // `halt()` applies, at the other door. Zeroing on close as well is
+            // free: a released pad is already centred, and a real controller
+            // is unaffected because `sticks` prefers `pad.sticks` off-centre.
+            .onChange(of: drawerIsUp) { _, _ in touchSticks = .centred }
+            // AND WHENEVER SOMETHING ELSE PUTS THE RANGE BACK. `readWorld` ends
+            // on `orbit.frame(nil)` — the build-46 black-stage fix, untouched —
+            // which resets the range along with the framing, so without this the
+            // near stop silently reverts to the global 0.20 m after every world
+            // read and the zoom-in button starts allowing a press that hides the
+            // robot. It cannot loop: `refitCamera` is a pure function of the
+            // glass, the chrome and `follows`, so re-asserting it writes the
+            // same value and the second pass changes nothing.
+            .onChange(of: orbit.limits) { _, _ in refitCamera() }
+    }
+
+    /// Start the drive loop from anywhere that is not the Drive button, THE
+    /// WAY THE DRIVE BUTTON DOES: the errand in `flight` is cancelled first.
+    /// A `putBack` or a `swap` left in the slot would otherwise be orphaned,
+    /// and Stop's `flight?.cancel()` could no longer reach it — a /reset posted
+    /// before a chip was tapped would land after Stop and stand the duck up.
+    /// The cost is the one the Drive button already pays: a read-only errand
+    /// (`connect`, `refreshWorld`) may be cut and has to be asked again.
+    @MainActor private func engageLoop() {
+        guard !running else { return }
+        flight?.cancel()
+        running = true
+        flight = Task { await drive() }
+    }
+
+    /// The glass and the chrome standing on it, as the kit's types.
+    private var stageGlass: StageViewport.Glass {
+        StageViewport.Glass(widthPoints: Double(glass.width),
+                            heightPoints: Double(glass.height))
+    }
+
+    /// The chrome the CAMERA has to clear. The drawer is deliberately not in it:
+    /// it is a cover somebody opened, `StageViewport.drawerCostSaid` says so,
+    /// and no camera distance undoes it — `StageViewport.canClear` answers false
+    /// for that footprint and `nearestDistance` would hand back the far stop.
+    /// Pushing the camera to four metres because a list is up would be the app
+    /// moving for a reason nobody asked for.
+    private var stageChrome: StageViewport.Chrome {
+        StageViewport.Chrome.column.over(top: Double(topChromeHeight + notesHeight),
+                                         bottom: Double(padChromeHeight))
+    }
+
+    /// Narrow the zoom range to what this picture can hold.
+    ///
+    /// ONLY WHILE THE CAMERA FOLLOWS, AND THAT IS AN HONESTY RULE RATHER THAN A
+    /// SHORTCUT. A fitted near stop is a claim about where the robot is drawn,
+    /// and the kit works it out from the duck's offset FROM THE AIM POINT.
+    /// Following, the aim point is the trunk and the offset is nothing, which is
+    /// a measurement. Fixed, the aim point is the scene's bounding box and the
+    /// offset is whatever the bench's world happens to be — a number nobody here
+    /// has measured — so the stage keeps the plain range instead of a fitted one
+    /// derived from a guess.
+    @MainActor private func refitCamera() {
+        guard glass.width > 0, glass.height > 0 else { return }
+        guard orbit.follows else {
+            orbit.limits = .stage
+            return
         }
+        orbit.fit(to: stageGlass, chrome: stageChrome)
+    }
+
+    /// The strip along the top: where you are driving, and what that means.
+    ///
+    /// THE CAPTION IS COLLAPSED TO A DISCLOSURE, because `DriveVenue.oneLine` is
+    /// three lines of prose on a phone and it would eat the top third of the
+    /// picture to say something that does not change while you drive. The
+    /// refusal from the camera door is NOT collapsed: a venue that cannot be
+    /// entered has to say so where the control is.
+    private var topChrome: some View {
+        VStack(spacing: Theme.spacing(.hairline)) {
+            venuePicker
+            HStack(alignment: .firstTextBaseline, spacing: Theme.spacing(.tight)) {
+                Text(venue.oneLine)
+                    .font(.caption2)
+                    .foregroundStyle(Theme.textSecondary)
+                    .lineLimit(venueLineIsOpen ? nil : 1)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: venueLineIsOpen)
+                Spacer(minLength: 0)
+                Button {
+                    withAnimation(Theme.motion(reduced: reduceMotion)) {
+                        venueLineIsOpen.toggle()
+                    }
+                } label: {
+                    Image(systemName: venueLineIsOpen ? "chevron.up" : "chevron.down")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(Theme.textSecondary)
+                        .frame(minWidth: DesignMetric.minimumTarget,
+                               minHeight: DesignMetric.minimumTarget)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text(StageViewport.captionSaid(expanded: venueLineIsOpen)))
+                .accessibilityHint(Text(StageViewport.chromeFloatsSaid))
+            }
+            if let refusal = cameraDoor.refusal(for: .venue) {
+                Text(refusal)
+                    .font(.caption2)
+                    .foregroundStyle(Theme.textSecondary)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            // THE RECORD AND SAY-IT CHIPS, IN THE TOP STRIP AND NOT THE BOTTOM
+            // ONE — AND THAT IS A MEASUREMENT RATHER THAN A TASTE.
+            // `StageViewport.nearestDistance` takes the tightest of the column,
+            // the top strip and the bottom cluster, and on the 393 x 740
+            // full-bleed glass the BOTTOM is the piece that binds: the pad deck
+            // already leaves the duck a nought-point gap at the near stop.
+            // Another fifty-two points down there pushes the near stop from
+            // 0.77 m to 1.23 m — the duck drawn a third smaller on the one
+            // screen that exists to watch it. Up here nothing moves at all
+            // until the top strip passes 208 points, which is where the top
+            // becomes the binding piece instead of the bottom; the switch, the
+            // collapsed caption and a chip row are about 156. It is measured
+            // either way — this VStack is what `topChromeHeight` reports and
+            // what `refitCamera` clears — so at an accessibility size, where
+            // the strip does grow past that, the camera stands further back
+            // rather than the chrome landing on the duck.
+            PadChrome(desk: desk, venue: venue, bench: bench, token: token,
+                      lastAction: $lastAction,
+                      engage: { engageLoop() },
+                      library: model, models: settingsModels)
+        }
+        .padding(.horizontal, Theme.spacing(.snug))
+        .padding(.vertical, Theme.spacing(.tight))
+        .onStageChrome(DriveMetric.viewport.inner)
+        .padding(Theme.spacing(.snug))
+        .measuringChromeHeight { topChromeHeight = $0 }
+    }
+
+    /// The readout and the floor note, under the top strip at the leading edge.
+    ///
+    /// UNDER IT AND NOT BESIDE IT. Both used to be `.topLeading` and
+    /// `.bottomLeading` of a 300-point card that had nothing else on it. On a
+    /// full-bleed stage the top is where the venue switch lives, so the readout
+    /// is pushed down by the strip's MEASURED height rather than by a guess, and
+    /// the floor note comes with it — the bottom corner it used to take is where
+    /// a thumb now rests on a stick.
+    private var stageNotes: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if hasReadout { hud }
+            if worldRouteMissing { floorCaption }
+        }
+        // MEASURED BEFORE THE STRIP'S PADDING IS ADDED, so `notesHeight` is the
+        // panel alone and the top footprint is strip + panel, not strip twice.
+        .measuringChromeHeight { notesHeight = $0 }
+        .padding(.top, topChromeHeight + (venue == .ar ? arHudHeight : 0))
+    }
+
+    /// The camera's buttons, bottom-trailing — and NOT on your own floor.
+    ///
+    /// `DriveVenue.arHasNoZoom` is why, and it is one line inside the AR panel's
+    /// already-collapsed disclosure rather than a disabled column drawn here.
+    /// A zoom on that venue would either do nothing or scale a duck `arIsNot`
+    /// promises is drawn at the size it really is.
+    @ViewBuilder private var cameraColumn: some View {
+        if venue == .sim {
+            StageCameraColumn(orbit: $orbit, showsFollow: true, nearStopIsFitted: orbit.follows)
+                .padding(.trailing, Theme.spacing(.snug))
+                .padding(.bottom, Theme.spacing(.snug))
+        }
+    }
+
+    /// The bottom of the picture: the pad, or the drawer that slides over it,
+    /// and the handle between them.
+    ///
+    /// THE HANDLE NEVER MOVES AND IS NEVER THE STOP. Stop is the bar below this,
+    /// outside the stage, a `safeAreaInset` that this file does not touch. What
+    /// this decides is only whether the sticks or the settings are above it.
+    private var bottomChrome: some View {
+        VStack(spacing: Theme.spacing(.tight)) {
+            if drawerIsUp {
+                controls
+                    .frame(height: CGFloat(StageViewport.drawerHeight(
+                        available: Double(glass.height))))
+                    .clipShape(RoundedRectangle(cornerRadius: Theme.radius(DriveMetric.viewport),
+                                                style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: Theme.radius(DriveMetric.viewport),
+                                              style: .continuous)
+                        .strokeBorder(Theme.separator, lineWidth: DriveMetric.hairlineStroke))
+                    .transition(.move(edge: .bottom))
+            } else {
+                // THE PAD AND ITS HANDLE ARE THE CAMERA'S FOOTPRINT. Measured
+                // here, on the pair that is present when the drawer is down,
+                // so the value simply stays while the drawer is up — no zero is
+                // written, and the drawer's own height never reaches the camera.
+                VStack(spacing: Theme.spacing(.tight)) {
+                    padDeck(compact: true)
+                    drawerHandle
+                }
+                .measuringChromeHeight { padChromeHeight = $0 }
+            }
+            if drawerIsUp { drawerHandle }
+        }
+        .padding(.horizontal, Theme.spacing(.snug))
+        .padding(.bottom, Theme.spacing(.tight))
+        .measuringChromeHeight { bottomChromeHeight = $0 }
+    }
+
+    /// The handle that brings the settings up over the picture.
+    private var drawerHandle: some View {
+        Button {
+            withAnimation(Theme.motion(reduced: reduceMotion)) { drawerIsUp.toggle() }
+        } label: {
+            HStack(spacing: Theme.spacing(.tight)) {
+                Image(systemName: drawerIsUp ? "chevron.down" : "chevron.up")
+                Text(StageViewport.drawerSaid(open: drawerIsUp))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .font(.footnote.weight(.medium))
+            .foregroundStyle(Theme.textSecondary)
+            .padding(.horizontal, Theme.spacing(.standard))
+            .frame(minHeight: DesignMetric.minimumTarget)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onStageChrome()
+        .accessibilityLabel(Text(StageViewport.drawerSaid(open: drawerIsUp)))
+        .accessibilityHint(Text(StageViewport.drawerCostSaid))
     }
 
     // MARK: - the duck
@@ -457,34 +798,34 @@ struct DriveView: View {
     /// so the corner of the panel is drawn at the next step down rather than at
     /// whatever looked right. Two radii chosen independently read as two
     /// stacked rectangles; two radii a step apart read as one machined part.
+    /// THE PICTURE, AND NOTHING ELSE IN IT.
+    ///
+    /// THE READOUT AND THE FLOOR NOTE MOVED OUT AND THE CARD WENT ENTIRELY.
+    /// This was a `ZStack` inside a 300-point `.frame(maxHeight:)`, clipped to a
+    /// rounded viewport with a hairline round it, because it was one card among
+    /// several stacked down the tab. It is the tab now: there is nothing above
+    /// or below it for a card edge to separate it from, the readout is an
+    /// overlay `controlStage` places under the measured top strip, and the cap
+    /// is gone in both directions — including the accessibility branch, whose
+    /// whole job was to stop a fixed height clipping a reflowed `TelemetryRow`.
+    /// Nothing can clip it now; there is no height to lift.
     private var stage: some View {
-        ZStack(alignment: .topLeading) {
-            // THE READBACK, NOT THE REQUEST. `world` is what `GET /world`
-            // answered, so the blocks on the stage are where the bench's own
-            // qpos says they are — at y = 1.305 and 200 mm tall whatever the
-            // scene asked for, and, on a bench nobody has given a world to,
-            // scattered down a column because fourteen 200 kg bodies do not
-            // stay in the stack they boot in. Drawing the request instead
-            // would draw a staircase that is not there.
-            DuckStage(pose: pose,
-                      environment: world?.asEnvironment ?? .bareFloor,
-                      props: drawnProps,
-                      orbit: $orbit,
-                      rolling: rollingBall)
-            if hasReadout { hud }
-            if worldRouteMissing { floorCaption }
-        }
-        // NOT CAPPED AT ACCESSIBILITY SIZES. `TelemetryRow` exists so a
-        // stacked label-over-value survives large text — and a fixed 300pt
-        // viewport then clipped exactly that reflow, hiding the numbers from
-        // the people who enlarged them in order to read them. The duck shrinks
-        // to make room; the words do not disappear.
-        .frame(maxHeight: typeSize.isAccessibilitySize ? nil : DriveMetric.viewportHeight)
-        .clipShape(viewport)
-        .overlay(viewport.strokeBorder(Theme.separator,
-                                       lineWidth: DriveMetric.hairlineStroke))
-        .padding(.horizontal, Theme.spacing(.snug))
-        .padding(.top, Theme.spacing(.tight))
+        // THE READBACK, NOT THE REQUEST. `world` is what `GET /world`
+        // answered, so the blocks on the stage are where the bench's own
+        // qpos says they are — at y = 1.305 and 200 mm tall whatever the
+        // scene asked for, and, on a bench nobody has given a world to,
+        // scattered down a column because fourteen 200 kg bodies do not
+        // stay in the stack they boot in. Drawing the request instead
+        // would draw a staircase that is not there.
+        DuckStage(pose: pose,
+                  environment: world?.asEnvironment ?? .bareFloor,
+                  props: drawnProps,
+                  orbit: $orbit,
+                  rolling: rollingBall,
+                  // ZOOM AND RESET ARE REAL BUTTONS HERE, so they come off the
+                  // rotor: one control in two places is two places for it to
+                  // drift. The four orbit actions stay — nothing replaces those.
+                  showsCameraActions: false)
     }
 
     /// What the stage draws standing in the world, with the ball where the
@@ -519,12 +860,16 @@ struct DriveView: View {
     private var floorCaption: some View {
         // THE BOX MOVED TO `DesignComponents`, THE PLACEMENT STAYED HERE. A
         // second screen needed the same caption and was about to hand-copy
-        // this one. Where it sits is this screen's business — the drive stage
-        // keeps its bottom corner — and what it looks like is the design
-        // system's.
+        // this one. Where it sits is this screen's business, and it changed:
+        // it used to take the stage's BOTTOM-LEADING corner, which on a
+        // full-bleed picture is where a thumb rests on the Move stick. It hangs
+        // under the readout at the leading edge instead, capped at the readout's
+        // own width so it cannot run under the camera column.
         StageCaptionBox(text: DuckWorld.floorIsNotAReadback)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-            .padding(Theme.spacing(.tight))
+            .frame(maxWidth: typeSize.isAccessibilitySize ? nil : DriveMetric.readoutWidth,
+                   alignment: .leading)
+            .padding(.horizontal, Theme.spacing(.snug))
+            .padding(.bottom, Theme.spacing(.tight))
     }
 
     /// The same drive, drawn on the floor you are standing on.
@@ -536,24 +881,20 @@ struct DriveView: View {
     /// chips into nine controls that change nothing, which is the shape this
     /// app does not ship. `ARDriveStage` keeps the top corner for what is real
     /// and what is not; this takes the bottom one.
+    /// THE SAME CHROME OVER THE CAMERA FEED, and no camera column — see
+    /// `cameraColumn` and `DriveVenue.arHasNoZoom`. The readout comes with it
+    /// through `stageNotes`, for the reason above: every chip switches an
+    /// overlay drawn from `live`, and none of those stops being true because the
+    /// floor is a camera feed.
     private var arStage: some View {
-        ZStack(alignment: .bottomLeading) {
-            ARDriveStage(pose: pose, world: world, ball: live?.ball,
-                         benchIsThisPhone: bench?.isThisPhone == true,
-                         trips: trips, tickMillis: health?.host?.tickMillis)
-            if hasReadout { hud }
-        }
-            .frame(maxHeight: typeSize.isAccessibilitySize ? nil : DriveMetric.viewportHeight)
-            .clipShape(viewport)
-            .overlay(viewport.strokeBorder(Theme.separator,
-                                           lineWidth: DriveMetric.hairlineStroke))
-            .padding(.horizontal, Theme.spacing(.snug))
-            .padding(.top, Theme.spacing(.tight))
-    }
-
-    private var viewport: RoundedRectangle {
-        RoundedRectangle(cornerRadius: Theme.radius(DriveMetric.viewport),
-                         style: .continuous)
+        ARDriveStage(pose: pose, world: world, ball: live?.ball,
+                     benchIsThisPhone: bench?.isThisPhone == true,
+                     trips: trips, tickMillis: health?.host?.tickMillis,
+                     // UNDER THE TOP STRIP, NOT BENEATH IT: the AR panel and
+                     // the readout share the leading edge, so the panel is
+                     // pushed down by the strip and the readout by both.
+                     topInset: topChromeHeight,
+                     onHudHeight: { arHudHeight = $0 })
     }
 
     /// Whether the overlay has anything to say. An empty panel is a rectangle
@@ -731,8 +1072,8 @@ struct DriveView: View {
     }
 
     private var policyLine: String {
-        guard !chosen.isEmpty else { return "no policy loaded" }
-        return "policy \(chosen)"
+        DuckPadMap.drivingLine(mapped: desk.map.locomotionFilename(among: health?.policies ?? []),
+                               benchSaid: live?.policy)
     }
 
     /// What the link is, in the PEER'S own words.
@@ -908,8 +1249,8 @@ struct DriveView: View {
     /// above, sticks, faces, dpad, and the two system buttons that do nothing
     /// here at the bottom. Order within each cluster is `padd`'s.
     private func padButton(_ control: DuckPad.Control) -> some View {
-        let binding = DuckPad.binding(for: control)
-        let isLive = binding?.isLive ?? false
+        let shown = desk.map.shown(for: control, naming: desk.name(ofSequence:))
+        let isLive = shown.isLive
         return Group {
             if isLive {
                 padPress(control).buttonStyle(.primaryActionMoves)
@@ -925,9 +1266,17 @@ struct DriveView: View {
         .brightness(pad.lastPressed == control ? DriveMetric.pressDelta : 0)
         .animation(Theme.motion(reduced: reduceMotion), value: pad.lastPressed)
         .accessibilityLabel(Text(control.face))
-        .accessibilityHint(Text(binding.map {
-            $0.isLive ? "On the robot: \($0.onTheRobot)" : "Does nothing against a bench"
-        } ?? ""))
+        .accessibilityHint(Text(shown.detail))
+        // A REMAPPED CONTROL SAYS SO WITHOUT A WORD ON THE PICTURE. Four points
+        // in the measured colour, and the sentence itself is in `shown.detail`
+        // above, which is what VoiceOver reads.
+        .overlay(alignment: .topTrailing) {
+            if shown.isCustom {
+                Circle().fill(Theme.measured)
+                    .frame(width: DriveMetric.remapDot, height: DriveMetric.remapDot)
+                    .accessibilityHidden(true)
+            }
+        }
     }
 
     private func padPress(_ control: DuckPad.Control) -> some View {
@@ -936,59 +1285,82 @@ struct DriveView: View {
         }
     }
 
-    /// The pad, as a card.
+    /// The pad. ONE BUILDER, TWO LAYOUTS, AND NEITHER OF THEM DRAWS A CONTROL
+    /// THE OTHER ALSO DRAWS.
     ///
-    /// BUMPERS ABOVE THE STICKS, and the rest under them in the clusters a pad
-    /// has: faces, dpad, then Start and Select. Somebody who has driven the
-    /// robot should not have to read this layout — see `padButton` for why the
-    /// clusters no longer flank the sticks.
-    private var padDeck: some View {
-        VStack(spacing: Theme.spacing(.snug)) {
-            HStack(spacing: Theme.spacing(.tight)) {
-                padButton(.leftBumper)
-                Spacer(minLength: Theme.spacing(.tight))
-                padButton(.rightBumper)
-            }
-            HStack(spacing: Theme.spacing(.standard)) {
+    /// `compact: true` is what floats over the full-bleed picture: the two
+    /// sticks at the bottom corners with the bumpers and the four face buttons
+    /// in the gap between them. Those seven are what a hand on the glass reaches
+    /// for while a duck is walking, and they sit low and wide so the middle of
+    /// the picture — where the robot is — stays picture.
+    ///
+    /// `compact: false` is the REST of the pad, in the drawer: the dpad and the
+    /// two system buttons. They are here because `padd` binds fifteen controls
+    /// and pressing a dead one is how a tester learns that the mouth is servo
+    /// nine and no network drives it — dropping them to make room would have
+    /// deleted the sentence rather than the button. They are not on the picture
+    /// because none of them moves the duck against a bench.
+    ///
+    /// BOTH GO THROUGH `padButton`, so both take the same `press(control:)` door
+    /// and the same sixty-point `PrimaryActionStyle.moves` target. Somebody who
+    /// has driven the robot should not have to read either layout — see
+    /// `padButton` for why the clusters no longer flank the sticks.
+    @ViewBuilder private func padDeck(compact: Bool) -> some View {
+        if compact {
+            HStack(alignment: .bottom, spacing: Theme.spacing(.tight)) {
                 ThumbPad(title: "Move", stick: $touchSticks.left)
-                ThumbPad(title: "Turn", stick: $touchSticks.right, verticalIsLive: false)
-            }
-            // FOUR ACROSS WHERE THEY FIT, TWO BY TWO WHERE THEY DO NOT. On the
-            // narrowest phone still supported, four sixty-point buttons plus a
-            // card's padding are wider than the screen; `ViewThatFits` folds
-            // them rather than truncating a glyph or clipping a target.
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: Theme.spacing(.tight)) {
-                    padButton(.y); padButton(.x); padButton(.b); padButton(.a)
-                }
+                Spacer(minLength: Theme.spacing(.tight))
                 VStack(spacing: Theme.spacing(.tight)) {
                     HStack(spacing: Theme.spacing(.tight)) {
-                        padButton(.y); padButton(.x)
+                        padButton(.leftBumper); padButton(.rightBumper)
                     }
-                    HStack(spacing: Theme.spacing(.tight)) {
-                        padButton(.b); padButton(.a)
+                    // FOUR ACROSS WHERE THEY FIT, TWO BY TWO WHERE THEY DO NOT.
+                    // On the narrowest phone still supported, four sixty-point
+                    // buttons between two thumb pads are wider than the screen;
+                    // `ViewThatFits` folds them rather than truncating a glyph
+                    // or clipping a target.
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: Theme.spacing(.tight)) {
+                            padButton(.y); padButton(.x); padButton(.b); padButton(.a)
+                        }
+                        VStack(spacing: Theme.spacing(.tight)) {
+                            HStack(spacing: Theme.spacing(.tight)) {
+                                padButton(.y); padButton(.x)
+                            }
+                            HStack(spacing: Theme.spacing(.tight)) {
+                                padButton(.b); padButton(.a)
+                            }
+                        }
                     }
                 }
+                Spacer(minLength: Theme.spacing(.tight))
+                ThumbPad(title: "Turn", stick: $touchSticks.right, verticalIsLive: false)
             }
-            HStack(spacing: Theme.spacing(.tight)) {
-                padButton(.dpadLeft); padButton(.dpadDown); padButton(.dpadRight)
+            // NO CARD BEHIND THE WHOLE ROW. A full-width opaque band across the
+            // bottom of a live picture is the thing this layout exists to avoid;
+            // the pads and the buttons each carry their own surface already.
+        } else {
+            VStack(spacing: Theme.spacing(.snug)) {
+                HStack(spacing: Theme.spacing(.tight)) {
+                    padButton(.dpadLeft); padButton(.dpadDown); padButton(.dpadRight)
+                }
+                HStack(spacing: Theme.spacing(.tight)) {
+                    padButton(.start); padButton(.select)
+                }
             }
-            HStack(spacing: Theme.spacing(.tight)) {
-                padButton(.start); padButton(.select)
-            }
+            .frame(maxWidth: .infinity)
+            .padding(Theme.spacing(.snug))
+            .background(Theme.surfacePrimary, in: deckCard)
+            // THE SAME HAIRLINE EVERY OTHER CARD ON THIS SCREEN HAS. The
+            // readout panel, the chips and the thumb pads all take a `separator`
+            // edge; the deck alone did not, so the one card that fills the width
+            // was the one card with no edge — and on a palette whose grounds sit
+            // within about 1.1:1 of each other, an edge is the only thing that
+            // says where a surface starts. It is not a decoration here, it is
+            // the boundary.
+            .overlay(deckCard.strokeBorder(Theme.separator,
+                                           lineWidth: DriveMetric.hairlineStroke))
         }
-        .frame(maxWidth: .infinity)
-        .padding(Theme.spacing(.snug))
-        .background(Theme.surfacePrimary, in: deckCard)
-        // THE SAME HAIRLINE EVERY OTHER CARD ON THIS SCREEN HAS. The viewport,
-        // the readout panel, the chips and the thumb pads inside this very deck
-        // all take a `separator` edge; the deck alone did not, so the one card
-        // that fills the width was the one card with no edge — and on a palette
-        // whose grounds sit within about 1.1:1 of each other, an edge is the
-        // only thing that says where a surface starts. It is not a decoration
-        // here, it is the boundary.
-        .overlay(deckCard.strokeBorder(Theme.separator,
-                                       lineWidth: DriveMetric.hairlineStroke))
     }
 
     /// The deck's shape, drawn once so its fill and its edge cannot disagree
@@ -1012,8 +1384,22 @@ struct DriveView: View {
                 }
                 .listRowBackground(Theme.surfacePrimary)
             } else {
+                // THE CHIPS CAME INTO THE DRAWER WITH EVERYTHING ELSE, and they
+                // are still not drawn in the Robot venue — this whole list is
+                // only reached from `sim` and `ar`, so the rule that used to be
+                // an `if venue != .real` in the body now holds for free. Every
+                // chip switches an overlay drawn over a duck this app is
+                // rendering, and the robot venue renders none.
                 Section {
-                    padDeck
+                    layerChips
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                } header: {
+                    SectionHeading(text: StageViewport.drawerLayersSaid)
+                }
+
+                Section {
+                    padDeck(compact: false)
                         // THE DECK DRAWS ITS OWN CARD, so the row hands it the
                         // whole width and gets out of the way. That is what
                         // makes the concentric radii legible: the card is
@@ -1022,6 +1408,8 @@ struct DriveView: View {
                         // third corner radius nobody chose in the middle.
                         .listRowInsets(EdgeInsets())
                         .listRowBackground(Color.clear)
+                } header: {
+                    SectionHeading(text: StageViewport.drawerPadRestSaid)
                 } footer: {
                     Text(DuckDrive.says(twist))
                         .font(.caption.monospacedDigit())
@@ -1050,30 +1438,21 @@ struct DriveView: View {
                         }
                     }
                     worldPicker
-                    if let health {
-                        Picker("Policy", selection: $chosen) {
-                            ForEach(health.policies, id: \.self) { Text($0).tag($0) }
-                        }
-                        .onChange(of: chosen) { _, now in
-                            // NOT FOR A POLICY THE BENCH ALREADY HOLDS. `connect`
-                            // fills the picker from the store's record of the
-                            // last load, and My Microduck's quick actions write
-                            // that record too; posting `/policy` again for it
-                            // would reload what is loaded, or — the case this
-                            // guards — undo a quick action just launched from
-                            // the front door.
-                            guard now != benches.lastLoaded(for: bench?.id) else { return }
-                            flight = Task { await swap(to: now) }
-                        }
-                        if chosen.isEmpty {
-                            // WHY DRIVE WAITS. The bench lists what it holds and
-                            // never says what is loaded, so this app will not
-                            // guess by loading the first name in the list.
-                            Text("Pick a policy to drive with. The bench does not say which one it has loaded, so nothing is chosen for you.")
-                                .font(.footnote)
-                                .foregroundStyle(Theme.textSecondary)
-                        }
-                    }
+                    // WHERE THE POLICY PICKER WAS. The sticks are mapped to a
+                    // ROLE with a shipped default, so nothing here waits for a
+                    // pick; `DuckPadMap.sticksAreAlwaysMapped` says so under the
+                    // row. The swap closure ALWAYS posts — the "already loaded"
+                    // guard lives in `DuckPadMap.toPost`, which is consulted for
+                    // the automatic locomotion load and nothing else, so a
+                    // deliberate pick from the editor is never swallowed.
+                    PadMapSection(desk: desk, policies: health?.policies ?? [],
+                                  swap: { name in flight = Task { await swap(to: name) } },
+                                  play: { id in
+                                      desk.play(id, thenLoading: nil,
+                                                among: health?.policies ?? [], face: "")
+                                      engageLoop()
+                                  },
+                                  bench: bench, token: token, library: model)
                     NavigationLink { BenchSettingsView(store: benches) } label: {
                         Label("Manage benches", systemImage: "gearshape")
                     }
@@ -1499,8 +1878,9 @@ struct DriveView: View {
     /// picks it up. None of them is a control you look at while you press it.
     ///
     /// EACH ONE IS DISABLED BY A DIFFERENT THING, AND STOP BY THE LEAST. Drive
-    /// waits for a policy to have been chosen, because there is nothing to drive
-    /// until one is loaded. Reset waits for the screen to stop being busy, which
+    /// waits only for a bench: what the sticks drive is the pad map's answer and
+    /// the map always has one — see `DuckPadMap.sticksAreAlwaysMapped`.
+    /// Reset waits for the screen to stop being busy, which
     /// is right: a second reset on top of one already going out is a request the
     /// person cannot follow. Stop waits for nothing except a bench being
     /// selected — it pre-empts instead, cancelling whatever is in flight before
@@ -1554,6 +1934,10 @@ struct DriveView: View {
             // Stop able to cancel only the one `flight` still held.
             flight?.cancel()
             running.toggle()
+            // PAUSE ENDS A TAKE AND A REPLAY. Both are states of this one loop,
+            // so the thing that stops the loop is the thing that ends them, and
+            // what was driven up to the pause is kept rather than dropped.
+            if !running { desk.pilot.cutOff(.paused) }
             if running { flight = Task { await drive() } }
         } label: {
             transportLabel(running ? "Pause" : "Drive",
@@ -1561,7 +1945,7 @@ struct DriveView: View {
                            icons: icons, expands: expands)
         }
         .buttonStyle(.primaryActionMoves)
-        .disabled(chosen.isEmpty || bench == nil)
+        .disabled(bench == nil)
         .accessibilityHint(Text(running
             ? "Stops sending intents. The duck keeps whatever command it last had."
             : "Starts the loop that sends the sticks to the bench."))
@@ -1629,8 +2013,10 @@ struct DriveView: View {
             lastAction = DriveVenue.robotIsNotDrivenYet
             return
         }
-        guard let binding = DuckPad.binding(for: control) else { return }
-        switch binding.here {
+        // THE MAP IS THE ONE DOOR, AND IT IS NEVER NIL. An unmapped control
+        // lifts the shipped `DuckPad.binding(for:)` row unchanged, so the table
+        // padd's own order is built from stays the thing a remap departs FROM.
+        switch desk.map.effect(for: control) {
         case .loadSlot(let slot):
             // THE SLOT NAMES A ROLE, NOT A FILE. Which policy fills `roulade`
             // is the bench's business; this asks for the role and lets the
@@ -1649,14 +2035,14 @@ struct DriveView: View {
                 lastAction = "\(control.face): \(DuckQuickActions.notHeldHere(slot))"
                 return
             }
-            // ONE SWAP, THROUGH THE PICKER. Setting `chosen` fires the picker's
-            // `onChange`, which puts the swap in `flight` where Stop can cut
-            // it off. A face button used to ALSO start its own swap here — two
-            // `/policy` posts per press, and only the later one cancellable, so
-            // a stop pressed after a face button could still be followed by a
-            // network landing on the servos. Pressing the slot that is already
-            // loaded changes nothing and so swaps nothing, which is right.
-            chosen = policy
+            // ONE SWAP, STRAIGHT INTO `flight` WHERE STOP CAN CUT IT OFF. It
+            // used to go through the policy picker's `onChange`, which is gone
+            // with the gate; the reason it goes through `flight` has not
+            // changed. A face button used to ALSO start its own swap beside
+            // that one — two `/policy` posts per press, and only the later one
+            // cancellable, so a stop pressed after a face button could still be
+            // followed by a network landing on the servos.
+            flight = Task { await swap(to: policy) }
             lastAction = "\(control.face) → \(slot.title): \(policy)"
         case .drive:
             break
@@ -1666,7 +2052,14 @@ struct DriveView: View {
         case .reset:
             lastAction = "\(control.face) → reset"
             flight = Task { await putBack() }
-        case .unsupported(let why):
+        case .play(let id, let slot):
+            // A REPLAY IS A STATE OF THE DRIVE LOOP, NEVER A SECOND ONE. The
+            // pilot hands `drive()` the recorded command each round trip; all
+            // this does is start the loop if it is not already running.
+            lastAction = desk.play(id, thenLoading: slot,
+                                   among: health?.policies ?? [], face: control.face)
+            if desk.pilot.isPlaying { engageLoop() }
+        case .notYet(let why):
             // NOT SILENCE. A tester pressing a button they know from the robot
             // gets told why it does nothing here rather than concluding the
             // link is broken.
@@ -1927,12 +2320,17 @@ struct DriveView: View {
             // line here loaded the first name in that list on every connect —
             // which, once My Microduck could load a policy of its own, meant
             // opening this tab silently undid the quick action somebody had
-            // just launched. `chosen` is now filled only from the store's
-            // record of the last policy this app loaded on this bench, and the
-            // picker's `onChange` refuses to swap to a policy that record
-            // already names, so this fills the picker without a request. With
-            // no record, `chosen` stays empty and Drive waits for a pick.
-            if chosen.isEmpty, let known = benches.lastLoaded(for: bench?.id) { chosen = known }
+            // just launched. The map settles against what this bench holds IN
+            // MEMORY ONLY: a network it does not have is put back with
+            // `DuckPadMap.staleNetwork`, a role it cannot fill keeps its role,
+            // and nothing is asked for.
+            //
+            // `/health` still says nothing about what is loaded — `/intent`'s
+            // reply does, which is why the readout can name it without a
+            // request. The first `POST /policy` of a session happens on the
+            // first round trip after Drive, where the person can see it coming.
+            lastAction = desk.settle(against: health?.policies ?? [],
+                                     lastLoaded: benches.lastLoaded(for: bench?.id)) ?? lastAction
             // AND WHAT ROOM IT IS STANDING IN, which is the other half of "what
             // am I looking at". `/health` says which policies the bench holds;
             // this says where the duck is, and the stage draws the answer. An
@@ -2071,8 +2469,34 @@ struct DriveView: View {
         while running {
             do {
                 let peer = try requirePeer()
-                try await peer.notify(.move(twist))
+                // ONE CONSULT PER ROUND TRIP, BEFORE THE NOTIFY. `live?.t` is
+                // the bench's clock BEFORE this twist is applied, which is
+                // exactly what `DuckBench.Step.at` means, and `live?.policy` is
+                // the bench's own word for what is on the servos. The pilot
+                // hands back one command whether it is steering, recording or
+                // replaying — there is never a second intent stream.
+                let go = desk.step(steering: twist, simSeconds: live?.t,
+                                   policySaid: live?.policy)
+                if let want = go.load { await swap(to: want) }
+                try await peer.notify(.move(go.command))
                 live = await peer.live
+                // A CHAINED SEQUENCE LOADS ITS SLOT WHEN IT FINISHES, and a
+                // take that closed itself on a ceiling prints its own sentence.
+                // Neither is in the seam as written; without them the chain is
+                // silently half a chain and the ceiling is silent. See the
+                // build log, deviation 3.
+                if let slot = go.thenLoading {
+                    if let file = DuckQuickActions.filename(filling: slot,
+                                                            among: health?.policies ?? []) {
+                        await swap(to: file)
+                    } else {
+                        // NOT SILENCE: the map may chain onto a slot this bench
+                        // does not hold, and the pad, the map section and the
+                        // bind sheet all say so — the chain says so too.
+                        lastAction = DuckQuickActions.notHeldHere(slot)
+                    }
+                }
+                if let note = go.note { lastAction = note }
                 trips += 1
                 noticeJoints()
                 await askWhatItSaw()
@@ -2126,6 +2550,10 @@ struct DriveView: View {
     @MainActor private func halt() async {
         running = false
         touchSticks = .centred
+        // STOP ENDS A TAKE AND A REPLAY TOO, and what was driven up to the stop
+        // is kept. This cannot throw and cannot await, so it changes nothing
+        // about the one thing this function exists to do.
+        desk.pilot.cutOff(.stop)
         if let flight, !flight.isCancelled { cutOffByStop = true }
         flight?.cancel()
         stopping = true
@@ -2200,6 +2628,9 @@ struct DriveView: View {
             // RECORDED, so the picker can show it next time without a request
             // and My Microduck's card and this tab agree about the servos.
             if let id = bench?.id { benches.noteLoaded(policy, on: id) }
+            // AND THE DESK LEARNS IT TOO, so the map's automatic locomotion
+            // load does not ask for a network that is already on the servos.
+            desk.noteLoaded(policy)
             Haptic.behaviourStarted()
             // THE PEER DID NOT SEE THIS EITHER — see `putBack`. A different
             // network is on the servos and the block the peer is holding came
@@ -2231,9 +2662,15 @@ private enum DriveMetric {
     /// The pad deck card. Its thumb pads take `deck.inner`.
     static let deck = Palette.Radius.group
 
-    /// How much of the screen the duck is allowed. Above this the controls stop
-    /// fitting on a small phone; below it the duck is a thumbnail of a duck.
-    static let viewportHeight: CGFloat = 300
+    // `viewportHeight` HAS GONE WITH THE CAP IT WAS. It was 300 — "how much of
+    // the screen the duck is allowed" — one of the five independent copies of
+    // that number `StageViewport.standardHeight` exists to replace. This screen
+    // does not cap the picture any more: the stage IS the tab, and the two
+    // pieces of chrome that stand on it are MEASURED (`topChromeHeight`,
+    // `bottomChromeHeight`) rather than budgeted. Nothing in this file reads it,
+    // and a constant kept for a layout that is gone is a number the next person
+    // has to work out is dead. `StageViewport.standardHeight` is where the 300
+    // lives for the screens that still cap.
 
     /// How wide the three-segment venue switch is allowed to get. The same
     /// argument `VenuePicker` makes about its two: wide enough that "Sim |
@@ -2268,6 +2705,15 @@ private enum DriveMetric {
 
     /// A hairline STROKE, the app's one.
     static let hairlineStroke = DesignMetric.hairlineStroke
+
+    /// The dot in the corner of a face button somebody has remapped.
+    ///
+    /// FOUR POINTS IS A MARK, NOT A CONTROL. It is never the only way the
+    /// remap is known — `DuckPadMap.Shown.detail` is the accessibility hint on
+    /// the same button and the map's own row spells it out — so nothing is
+    /// carried by a four-point circle alone, and it takes none of the sixty
+    /// points the button owes a thumb.
+    static let remapDot: CGFloat = 4
 
     /// How far a press darkens a control: the delta `PrimaryActionStyle` uses,
     /// by name. It is here because a button pressed on a paired controller has

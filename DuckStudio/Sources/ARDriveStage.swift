@@ -61,6 +61,12 @@ struct ARDriveStage: View {
     /// numbers a person can watch while they find out.
     let trips: Int
     let tickMillis: Double?
+    /// How far the host's floating top strip reaches down, measured there; the
+    /// panel is pushed under it rather than drawn beneath it.
+    var topInset: CGFloat = 0
+    /// The panel's own height, reported back so the host's readout stacks
+    /// under it instead of over it.
+    var onHudHeight: ((CGFloat) -> Void)? = nil
 
     @StateObject private var model = ARDriveModel()
     @Environment(\.dynamicTypeSize) private var typeSize
@@ -115,6 +121,16 @@ struct ARDriveStage: View {
                         .font(.caption2)
                         .foregroundStyle(Theme.warning)
                 }
+                // WHY THERE IS NO ZOOM COLUMN ON THIS VENUE, said inside the
+                // disclosure that is already collapsed — so it costs the camera
+                // feed zero added height, which is the failure this disclosure
+                // exists to prevent. The camera in your hand IS the camera:
+                // there is one recogniser on this stage and it places the duck,
+                // and a scale factor here would falsify `DriveVenue.arIsNot`,
+                // which has a test on it.
+                Text(DriveVenue.arHasNoZoom)
+                    .font(.caption2)
+                    .foregroundStyle(Theme.textSecondary)
             } label: {
                 Text(DriveVenue.arWhatIsRealTitle)
                     .font(.caption2.weight(.medium))
@@ -129,6 +145,8 @@ struct ARDriveStage: View {
         .frame(maxWidth: typeSize.isAccessibilitySize ? nil : ARDriveMetric.hudWidth,
                alignment: .leading)
         .padding(Theme.spacing(.snug))
+        .measuringChromeHeight { onHudHeight?($0) }
+        .padding(.top, topInset)
     }
 
     private var panel: RoundedRectangle {

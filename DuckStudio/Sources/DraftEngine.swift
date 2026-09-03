@@ -48,6 +48,14 @@ enum DraftEngine {
     /// `ChatDraft` to read.
     /// `instructions` overrides the ones the kind would build. Editing a motion
     /// needs the motion in the prompt, and the kind alone cannot see it.
+    ///
+    /// A CALLER THAT SUPPLIES `instructions` IS NOT CLAIMING THE `kind`; `kind`
+    /// is consulted only to build the instructions it has just overridden. That
+    /// is why the Control tab can ask for a driving sequence with `.motion` and
+    /// `DuckTalk.instructions` without a fifth `ChatDraft.Kind`, a new row in
+    /// `DraftRouting.catalogue` or a router round trip — the reply is read by
+    /// `SequenceProposal.read(fromJSON:)`, which is the only thing that decides
+    /// what came back.
     static func ask(_ endpoint: ModelEndpoint, kind: ChatDraft.Kind,
                     prompt: String, knownIntents: Set<String>,
                     instructions override: String? = nil) async throws -> Answer {

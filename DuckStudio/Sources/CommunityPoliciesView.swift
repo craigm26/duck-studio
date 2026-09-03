@@ -421,15 +421,20 @@ struct CommunityPoliciesView: View {
                 failure = "That file is larger than this app will load."
                 return
             }
-            model.accept(data, named: "\(manifest.name).onnx",
-                         origin: "huggingface.co/\(entry.id)")
-            // AND KEEP THE MANIFEST, which this screen already has in hand.
-            // Installing the weights alone threw away the command layout, the
-            // author's caveats, and the action scale — leaving the bench to
-            // guess the scale from a file name that matches nothing.
-            if let raw = manifestBytes[entry.id] {
-                model.rememberManifest(raw, forPolicyNamed: "\(manifest.name).onnx")
-            }
+            // THE REAL DOWNLOADED FILE NAME, NOT A FABRICATED ONE. This used to
+            // hand over `"\(manifest.name).onnx"` — a string this screen made
+            // up — as if it were the name of the file it had just fetched, and
+            // then look the entry back up by that same invention to attach the
+            // manifest. The lookup missed on every already-held policy, the
+            // manifest was silently dropped, and the bench fell back to
+            // guessing the action scale from a name that matched nothing.
+            //
+            // ONE CALL NOW CARRIES ALL THREE: the file's own name, the author's
+            // word for the policy, and the manifest bytes this screen already
+            // has in hand.
+            model.accept(data, named: request.url.lastPathComponent,
+                         origin: "huggingface.co/\(entry.id)",
+                         title: manifest.name, manifest: manifestBytes[entry.id])
         } catch {
             failure = "\(error)"
         }

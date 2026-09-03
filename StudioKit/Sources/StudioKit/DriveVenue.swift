@@ -118,6 +118,22 @@ public enum DriveVenue: String, CaseIterable, Identifiable, Sendable {
       + "which knows nothing about your room — so the duck will walk through your sofa, and the "
       + "square on the floor is the edge of the world it is actually in, not of yours."
 
+    /// Why there is no zoom on your floor, said where the person looks for one.
+    ///
+    /// THE CAMERA IN YOUR HAND IS THE CAMERA. There is one recogniser in the AR
+    /// stage and it places the duck; a zoom button would either do nothing or
+    /// would scale a duck that `arIsNot` promises is drawn at the size it really
+    /// is — and that promise has a test on it. So this is a not-yet beside a
+    /// control that still does something: the two moves that DO change what you
+    /// see are named.
+    ///
+    /// IT CARRIES THE SAME 2.9 m FIGURE `arIsNot` STATES, and a test asserts
+    /// both, so the two sentences about the same box cannot drift apart.
+    public static let arHasNoZoom =
+        "There is no zoom on your floor. The duck, the steps and the square are drawn at the "
+      + "size they really are — a 250 mm robot in a 2.9 m world — so the way to see it closer "
+      + "is to walk closer, or to tap the floor nearer to you to put it down again."
+
     /// The one thing nobody here has measured, said where it will be noticed.
     ///
     /// TWO ENGINES ON ONE PHONE IS AN UNMEASURED ARRANGEMENT. The phone bench

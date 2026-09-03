@@ -23,7 +23,7 @@ final class PolicyLibraryTests: XCTestCase {
         let entries = PolicyLibrary.read(directory: try policies(), origin: .bundled)
         XCTAssertEqual(entries.count, 9, "nine vendored networks")
         for entry in entries {
-            XCTAssertTrue(entry.isRunnable, "\(entry.displayName): \(entry.report.reason)")
+            XCTAssertTrue(entry.isRunnable, "\(entry.fileName): \(entry.report.reason)")
             XCTAssertTrue(entry.identity.isNetworkIdentity,
                           "a loadable policy is identified by its parameters")
         }
@@ -112,8 +112,46 @@ final class PolicyLibraryTests: XCTestCase {
         let u2 = try PolicyLibrary.persist(second, entry: e2, into: container)
         XCTAssertNotEqual(u1, u2, "two files called policy.onnx must not collide")
 
-        let reread = PolicyLibrary.read(directory: container, origin: .imported)
+        let reread = PolicyLibrary.read(directory: container, origin: .imported,
+                                        nameplatesIn: container)
         XCTAssertEqual(reread.count, 2, "both survive a relaunch")
+        // THE ASSERTION THIS TEST HAS ALWAYS BEEN MISSING. Storing by identity
+        // was proved; keeping the name was not, and it was not kept — both came
+        // back called after their own digests, which is the bug this whole
+        // track exists to close.
+        XCTAssertEqual(reread.map(\.fileName), ["policy.onnx", "policy.onnx"])
+    }
+
+    /// The root fix: bytes and a nameplate in ONE call, so the name cannot be
+    /// lost between two of them.
+    func testPersistWritesTheNameplateBesideTheWeights() throws {
+        let container = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("duck-studio-tests-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: container) }
+        let data = try fixture("Fixtures/policies", "roulade.onnx")
+        let entry = PolicyLibrary.entry(for: data, name: "spin.onnx", origin: .imported)
+        try PolicyLibrary.persist(data, entry: entry, into: container)
+        let plate = try XCTUnwrap(PolicyLibrary.nameplate(forIdentity: entry.id, in: container))
+        XCTAssertEqual(plate.fileName, "spin.onnx")
+        XCTAssertNil(plate.title, "nobody typed one, so nothing is written down as typed")
+    }
+
+    /// The manifest goes in the SAME call, which is what kills the silent drop:
+    /// the old second hop looked the entry back up by display name and returned
+    /// quietly when the name it was handed did not match the one on disk.
+    func testPersistWritesTheManifestWhenOneIsHandedOver() throws {
+        let container = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("duck-studio-tests-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: container) }
+        let data = try fixture("Fixtures/policies", "roulade.onnx")
+        let entry = PolicyLibrary.entry(for: data, name: "spin.onnx", origin: .imported)
+        let manifest = Data("""
+        {"schema_version":2,"model_api":1,"name":"happy-hop","obs_len":61,
+         "action_len":14,"action_scale":1.0}
+        """.utf8)
+        try PolicyLibrary.persist(data, entry: entry, into: container, manifest: manifest)
+        XCTAssertEqual(PolicyLibrary.declaredScale(for: entry, in: container), 1.0,
+                       "the number the bench would otherwise guess")
     }
 
     /// A library of twelve files where four load is not a library of twelve
@@ -166,7 +204,9 @@ final class PolicyLibraryTests: XCTestCase {
     /// a search on this phone and deleting it is deleting the only copy.
     func testRemovingATunedPolicyWarnsThatItIsTheOnlyCopy() {
         let entry = PolicyLibrary.Entry(
-            displayName: "tuned-abc123.onnx",
+            fileName: "tuned-abc123.onnx",
+            title: "tuned-abc123",
+            titleSource: .fileName,
             origin: .tuned(base: "alpha_walking.onnx"),
             identity: .parameters("abc123"), byteCount: 791_584,
             report: PolicyReport.of(Data(), name: "tuned-abc123.onnx"))

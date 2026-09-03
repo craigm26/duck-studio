@@ -462,16 +462,124 @@ final class JointHandlesSentenceTests: XCTestCase {
         XCTAssertEqual(edge, .edgeOn)
     }
 
-    /// A target whose box would cross the viewport's edge is dropped.
-    func testPlacementDropsTargetsAtTheViewportEdge() {
+    /// A target whose box would cross the viewport's edge is dropped — AND IT
+    /// IS NAMED ON THE WAY OUT.
+    ///
+    /// THE OLD ASSERTION WAS `kept == [4]` AND NOTHING ELSE, which is precisely
+    /// the shape of the bug: two joints left the picture and the test agreed
+    /// with the code that they had simply ceased to exist. Every joint that goes
+    /// in comes out drawn, folded, or counted.
+    func testEveryJointIsDrawnClusteredOrNamedOffPicture() {
         let projected: [(joint: Int, at: JointHandles.ScreenPoint, depth: Double)] = [
             (joint: 3, at: .init(x: 10, y: 150), depth: 1),
             (joint: 4, at: .init(x: 180, y: 150), depth: 1),
             (joint: 13, at: .init(x: 350, y: 295), depth: 1),
         ]
-        let kept = JointHandles.place(projected, trunkDepth: 1, minimumSeparation: 44,
+        let out = JointHandles.placed(projected, trunkDepth: 1, minimumSeparation: 44,
                                       within: 360, 300, inset: 22)
-        XCTAssertEqual(kept.map(\.joint), [4])
+        XCTAssertEqual(out.kept.map(\.joint), [4])
+        XCTAssertEqual(out.offPicture, [3, 13])
+        // The single-return overload is the same answer, so nothing that reads
+        // it can disagree with what this one counted.
+        XCTAssertEqual(JointHandles.place(projected, trunkDepth: 1, minimumSeparation: 44,
+                                          within: 360, 300, inset: 22).map(\.joint),
+                       out.kept.map(\.joint))
+        assertAccountedFor(projected, out)
+    }
+
+    /// The accounting, over a set with real clustering in it — including an
+    /// anchor that folds two joints and is THEN dropped off the picture, which
+    /// is the case that lost three joints at once and said nothing.
+    func testAFoldedJointGoesOffThePictureWithTheAnchorItFoldedInto() {
+        let projected: [(joint: Int, at: JointHandles.ScreenPoint, depth: Double)] = [
+            (joint: 0, at: .init(x: 352, y: 150), depth: 1),
+            (joint: 1, at: .init(x: 356, y: 152), depth: 1),
+            (joint: 2, at: .init(x: 180, y: 150), depth: 1),
+        ]
+        let out = JointHandles.placed(projected, trunkDepth: 1, minimumSeparation: 44,
+                                      within: 360, 300, inset: 22)
+        XCTAssertEqual(out.kept.map(\.joint), [2])
+        XCTAssertEqual(out.offPicture, [0, 1])
+        assertAccountedFor(projected, out)
+    }
+
+    /// A BIGGER PICTURE BUYS HANDLE REACH, MEASURED. The same fourteen
+    /// projections against the shipped inline stage and against the grown one:
+    /// strictly fewer are dropped, and nothing that was reachable on the small
+    /// stage stops being reachable on the large one.
+    func testABiggerPictureDropsFewerJoints() {
+        var projected: [(joint: Int, at: JointHandles.ScreenPoint, depth: Double)] = []
+        // Spread across a 351 × 300 glass, with four of them out past its
+        // edges and inside the larger one.
+        let spots: [(Double, Double)] = [
+            (60, 60), (120, 90), (180, 120), (240, 150), (300, 180),
+            (90, 200), (150, 230), (210, 260), (60, 140), (120, 170),
+            (330, 120), (170, 292), (250, 295), (360, 200),
+        ]
+        for (index, spot) in spots.enumerated() {
+            projected.append((joint: index, at: .init(x: spot.0, y: spot.1), depth: 1))
+        }
+        let small = JointHandles.placed(projected, trunkDepth: 1, minimumSeparation: 44,
+                                        within: 351, 300, inset: 22)
+        let large = JointHandles.placed(projected, trunkDepth: 1, minimumSeparation: 44,
+                                        within: 393, 534, inset: 22)
+        assertAccountedFor(projected, small)
+        assertAccountedFor(projected, large)
+        XCTAssertGreaterThan(small.offPicture.count, 0, "nothing was dropped on the small stage")
+        XCTAssertLessThan(large.offPicture.count, small.offPicture.count)
+        for joint in small.kept.map(\.joint) {
+            XCTAssertTrue(large.kept.contains { $0.joint == joint },
+                          "joint \(joint) was reachable small and is not reachable large")
+        }
+    }
+
+    /// The band the camera column stands in drops the handles under it, because
+    /// a handle under a button is a handle nobody can press.
+    func testTheColumnsBandDropsTheHandlesUnderIt() {
+        let projected: [(joint: Int, at: JointHandles.ScreenPoint, depth: Double)] = [
+            (joint: 5, at: .init(x: 351 - 40, y: 150), depth: 1),
+        ]
+        let open = JointHandles.placed(projected, trunkDepth: 1, minimumSeparation: 44,
+                                       within: 351, 300, inset: 22, reservingTrailing: 0)
+        XCTAssertEqual(open.kept.map(\.joint), [5])
+        XCTAssertEqual(open.offPicture, [])
+        let column = JointHandles.placed(projected, trunkDepth: 1, minimumSeparation: 44,
+                                         within: 351, 300, inset: 22, reservingTrailing: 76)
+        XCTAssertEqual(column.kept, [])
+        XCTAssertEqual(column.offPicture, [5])
+    }
+
+    /// The sentence offers the two moves that bring a handle back, and gets its
+    /// grammar right at one.
+    func testTheOffPictureSentenceOffersTheTwoFixes() {
+        XCTAssertEqual(JointHandles.offPictureSaid(1),
+            "1 joint is off the edge of the picture, so it has no handle. Make the picture "
+          + "bigger, or orbit until it comes into view.")
+        XCTAssertEqual(JointHandles.offPictureSaid(3),
+            "3 joints are off the edge of the picture, so they have no handle. Make the "
+          + "picture bigger, or orbit until they come into view.")
+        for count in [1, 3] {
+            XCTAssertTrue(JointHandles.offPictureSaid(count).contains("bigger"))
+            XCTAssertTrue(JointHandles.offPictureSaid(count).contains("orbit"))
+        }
+    }
+
+    /// Every joint that went in is drawn, folded into a drawn one, or counted —
+    /// and none of them is in two of the three.
+    private func assertAccountedFor(
+        _ projected: [(joint: Int, at: JointHandles.ScreenPoint, depth: Double)],
+        _ out: (kept: [JointHandles.Placed], offPicture: [Int]),
+        file: StaticString = #filePath, line: UInt = #line) {
+        let drawn = Set(out.kept.map(\.joint))
+        let folded = Set(out.kept.flatMap(\.clustered))
+        let off = Set(out.offPicture)
+        XCTAssertEqual(drawn.union(folded).union(off), Set(projected.map(\.joint)),
+                       "a joint went in and came out of none of the three", file: file, line: line)
+        XCTAssertTrue(drawn.isDisjoint(with: folded), file: file, line: line)
+        XCTAssertTrue(drawn.isDisjoint(with: off), file: file, line: line)
+        XCTAssertTrue(folded.isDisjoint(with: off), file: file, line: line)
+        XCTAssertEqual(drawn.count + folded.count + off.count, projected.count,
+                       "a joint was counted twice", file: file, line: line)
     }
 
     /// A drag ends when its pivot moves further than a few points, and not

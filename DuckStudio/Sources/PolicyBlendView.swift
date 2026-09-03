@@ -140,8 +140,8 @@ struct PolicyBlendView: View {
                     if let recipe {
                         LabeledContent("Mixed from", value: String(
                             format: "%.0f%% %@ / %.0f%% %@",
-                            (1 - recipe.towardSecond) * 100, recipe.first.displayName,
-                            recipe.towardSecond * 100, recipe.second.displayName))
+                            (1 - recipe.towardSecond) * 100, recipe.first.title,
+                            recipe.towardSecond * 100, recipe.second.title))
                         .font(.caption)
                     }
                     // A SIZE THAT IS DIFFERENT FOR EVERY PAIR, IN FIGURES THAT
@@ -284,10 +284,14 @@ struct PolicyBlendView: View {
     /// the better key anyway, being the digest of the weights rather than a
     /// filename anybody can retype.
     private func picker(_ label: String, selection: Binding<String?>) -> some View {
-        Picker(label, selection: selection) {
+        let labels = PolicyLibrary.pickerLabels(candidates)
+        return Picker(label, selection: selection) {
             Text("None").tag(String?.none)
             ForEach(candidates) { entry in
-                Text(entry.displayName).tag(String?.some(entry.id))
+                // TITLES, WITH EIGHT HEX ONLY WHERE TWO OF THEM COLLIDE. A
+                // picker of 64-character digests is a picker nobody can read;
+                // a picker showing one word twice is one nobody can use.
+                Text(labels[entry.id] ?? entry.title).tag(String?.some(entry.id))
             }
         }
     }
@@ -307,9 +311,13 @@ struct PolicyBlendView: View {
 
     private func ingredients(_ pair: (PolicyLibrary.Entry, PolicyLibrary.Entry))
         -> [PolicyBlend.Ingredient] {
-        [.init(name: pair.0.displayName, fingerprint: pair.0.identity.value,
+        // THE TITLE IS SAFE HERE BECAUSE THE FINGERPRINT IS BESIDE IT.
+        // `PolicyBlend.Ingredient` carries both and `PolicyBlend.swift:55-57`
+        // says why: the recipe is a claim about which weights went in, and the
+        // digest is the half that can be checked.
+        [.init(name: pair.0.title, fingerprint: pair.0.identity.value,
                share: 1 - towardSecond),
-         .init(name: pair.1.displayName, fingerprint: pair.1.identity.value,
+         .init(name: pair.1.title, fingerprint: pair.1.identity.value,
                share: towardSecond)]
     }
 

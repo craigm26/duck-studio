@@ -67,9 +67,23 @@ public enum CommunityShare {
     /// check, and states the standing in the manifest's own vocabulary —
     /// released or unrecognised, never "trusted" or "safe", neither of which
     /// this app can establish about anything.
+    ///
+    /// A NICKNAME IS LABELLED AS ONE THE ONE TIME IT LEAVES THE PHONE. A title
+    /// somebody typed means something to them and nothing to a recipient, and a
+    /// message leading with it as if it were the file's name is this app
+    /// exporting a private label as a public fact. So a renamed policy says
+    /// both: what it is called here, and what the file actually is — and the
+    /// fingerprint below is still the only part anybody can check.
     public static func message(forPolicy entry: PolicyLibrary.Entry,
                                standing: DuckOfficialPolicies.Standing) -> String {
-        var lines = ["\(entry.displayName) — a Microduck policy."]
+        var lines: [String]
+        if entry.titleSource == .typed {
+            lines = ["\(entry.title) — a Microduck policy.",
+                     "That is what I call it here. The file is \(entry.exportFileName), and the "
+                   + "fingerprint below is the part anybody can check."]
+        } else {
+            lines = ["\(entry.exportFileName) — a Microduck policy."]
+        }
         switch entry.identity {
         case .parameters(let fingerprint):
             lines.append("Parameter fingerprint (SHA-256 over the trained numbers, in a fixed order): "
