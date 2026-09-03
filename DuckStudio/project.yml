@@ -222,6 +222,12 @@ targets:
         # for a bench. You type its address. Discovery would be the moment this
         # app started looking at a network it was not pointed at.
         NSLocalNetworkUsageDescription: "Microduck Studio contacts a physics bench on your own network — only the address you type in, and only when you ask it to run something. It never looks for machines by itself and nothing about your policies or motions leaves your network."
+        NSBonjourServices:
+          # WHAT THE BRIDGE ADVERTISES (bridge/microduck-bridge.avahi.xml), so
+          # this app can find the machine a robot's software runs on without
+          # anybody typing an address. Declared here because iOS refuses a
+          # browse for a type that is not listed, silently.
+          - _robotd._tcp
         # ATS BLOCKS PLAIN HTTP, AND A PI ON A DESK HAS NO CERTIFICATE. This
         # exception covers local addresses only; everything else in the app is
         # still held to HTTPS, which is what `ModelEndpoint`'s
