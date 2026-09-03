@@ -436,6 +436,14 @@ struct StairsMoveView: View {
 
         var draft = move.toDraft(hash: row.hash, rank: row.rank)
         draft.sceneID = scene.id
+        // AND THE FILE COMES WITH IT, VERBATIM. `toDraft` keeps the keyframes
+        // and drops `event`, `servo`, `bounds`, `params`, `robust`, `ceiling`
+        // and `duplicateBehaviourOf` — every one of which the leaderboard hash
+        // folds in. Keeping the bytes is what lets a run of this draft go back
+        // out as `Move.applying(draft:)`, one key replaced, rather than as a
+        // fresh intent that silently drops the rest. Nil is for a draft
+        // written here, which has none of those to keep.
+        draft.challengeIntent = move.encoded()
         drafts.save(draft)
         editedDraftID = draft.id
         editing = draft
@@ -624,7 +632,7 @@ struct StairsMoveView: View {
         Section {
             if case .success(let move) = loaded {
                 Button {
-                    Task { await run.perform(move, benches: benches) }
+                    Task { await run.playOneCell(move, rise: rise, benches: benches) }
                 } label: {
                     HStack(spacing: Theme.spacing(.tight)) {
                         Text("Run it in physics on \(benches.selected?.name ?? "this bench")")
@@ -639,10 +647,47 @@ struct StairsMoveView: View {
                 .buttonStyle(.primaryActionMoves)
                 .disabled(run.performing)
             }
-            if let told = run.performed {
-                Text(told)
+            // FOUR ROWS AND NOT ONE `told` STRING. What the cell did, that the
+            // route it did it on is the scored one, that one cell is not a
+            // score, and a way to watch it — each of those is a separate claim
+            // and each is a tested kit sentence.
+            if let cell = run.playedCell {
+                if cell.invalid {
+                    // AN UNSCORED CELL PRINTS THE BENCH'S OWN REASON AND
+                    // NOTHING ELSE. A verdict beside "not scored" would be a
+                    // verdict about an episode the bench declined to run.
+                    Text(cell.why ?? StairsChallenge.oneCellSaid(cell))
+                        .font(.footnote)
+                        .foregroundStyle(Theme.warning)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text(StairsChallenge.scoredWhereItIsScored)
+                        .font(.caption)
+                        .foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(StairsChallenge.oneCellSaid(cell))
+                        .font(.footnote)
+                        .foregroundStyle(Theme.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(StairsChallenge.oneCellIsNotAScore)
+                        .font(.caption)
+                        .foregroundStyle(Theme.textTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if let clip = run.playedClip {
+                    NavigationLink {
+                        IntentPlayerView(clip: clip, store: scenes, drafts: drafts,
+                                         models: models, run: .readback)
+                    } label: {
+                        Label("Watch this cell", systemImage: "play.rectangle")
+                    }
+                    .tint(Theme.actionSecondary)
+                }
+            }
+            if let playFailure = run.playFailure {
+                Text(playFailure)
                     .font(.footnote)
-                    .foregroundStyle(Theme.textSecondary)
+                    .foregroundStyle(Theme.refused)
                     .fixedSize(horizontal: false, vertical: true)
             }
             // THE CAVEAT IS BESIDE THE BUTTON AND NOT BEHIND IT. It is the
@@ -748,8 +793,20 @@ final class StairsRun: ObservableObject {
 
     @Published private(set) var progress: StairsChallenge.ScoreProgress?
     @Published private(set) var score: StairsChallenge.Score?
-    /// What `/perform` said, in `Pipeline.BenchOutcome`'s own words.
-    @Published private(set) var performed: String?
+
+    /// THE ONE CELL THIS SCREEN'S PLAY BUTTON RAN, AND NOT A `/perform`
+    /// OUTCOME. Playing a stairs move on `/perform` put it on a bare bench —
+    /// the standing policy, the drop sweep and no staircase in front of the
+    /// duck — and then printed "1 of 1 — stayed upright to the end, over drop
+    /// heights 0.120-0.130 m" under a screen about climbing stairs. Every
+    /// clause of that was true of the run and none of it was about the
+    /// challenge. It now runs one cell on the harness's own climb route, which
+    /// answers a verdict about the flight.
+    @Published private(set) var playedCell: Pipeline.CellOutcome?
+    /// The cell's own episode, when the bench sent one back.
+    @Published private(set) var playedClip: DuckIntentClip?
+    /// Whatever stopped the cell being played, in the refusal's own words.
+    @Published private(set) var playFailure: String?
 
     /// WHICH BENCH THESE CELLS CAME OFF, CAPTURED WHEN THEY WERE SCORED AND NOT
     /// READ BACK OFF THE STORE AT SUBMISSION TIME. The bench is chosen in
@@ -769,7 +826,9 @@ final class StairsRun: ObservableObject {
     func forget() {
         score = nil
         progress = nil
-        performed = nil
+        playedCell = nil
+        playedClip = nil
+        playFailure = nil
         scoredBenchName = nil
         scoredBenchAddress = nil
         // A SCORE PUT DOWN BECAUSE THE BENCH CHANGED IS NOT A BASELINE. Keeping
@@ -909,30 +968,42 @@ final class StairsRun: ObservableObject {
 
     // MARK: - playing it
 
-    /// Play the move through `/perform` — the app's one path for running an
-    /// authored motion, unchanged and not re-implemented here.
+    /// Play the move as ONE CELL on the harness's own climb route.
     ///
-    /// ONE ROLLOUT, NOT EIGHT. `/perform`'s default is a measurement — eight
-    /// runs, because one that stays up proves very little — and this button is
-    /// not a measurement. The score is the fourteen cells above; this is the
-    /// move being played once so somebody can watch it.
-    func perform(_ move: StairsChallenge.Move, benches: BenchStore) async {
+    /// WHERE IT IS SCORED, NOT WHERE IT IS CONVENIENT. This used to go to
+    /// `/perform`, which lays no staircase: the move played on a bare floor
+    /// with fourteen step blocks stacked a metre and a bit to the duck's left,
+    /// and the sentence under the button reported the drop sweep as if it were
+    /// a verdict about the flight. `/climb` runs the same flight
+    /// `climb_score.mjs` lays, the same north wall, the same step-step
+    /// isolation and the same fifty-tick tail the published score was measured
+    /// with — so the verdict is about the thing the screen is about.
+    ///
+    /// ONE CELL, NOT FOURTEEN, AND IT SAYS SO EVERY TIME. `Grid.nominal` is
+    /// the cell `climb/rig3.mjs` itself runs (dh 0, drop 0.120, fmul 1.0). A
+    /// score is fourteen of them, which is what the Score button above does;
+    /// `StairsChallenge.oneCellIsNotAScore` prints under every cell that was
+    /// scored. A cell the bench declined to score prints the bench's own
+    /// reason and nothing else, because a caveat about a score beside "not
+    /// scored" would be a caveat about a number that does not exist.
+    func playOneCell(_ move: StairsChallenge.Move, rise: Double,
+                     benches: BenchStore) async {
         performing = true
-        performed = nil
+        playedCell = nil
+        playedClip = nil
+        playFailure = nil
         defer { performing = false }
         do {
             let (address, token) = try Self.armed(benches)
-            let draft = move.toDraft()
-            let track = draft.benchTrack
-            guard track.count >= 2 else { throw DuckBench.Refusal.empty }
-            let call = try DuckBench.perform(address, keys: track,
-                                             seconds: draft.duration + Self.settleSeconds,
-                                             rollouts: 1)
+            let cell = StairsChallenge.Grid.nominal
+            let call = try DuckBench.climb(address, move: move, rise: rise, cell: cell,
+                                           clip: true)
             let data = try await Self.ask(call, token: token, seconds: Self.performSeconds)
-            performed = try DuckBench.readOutcome(data, when: Date()).told
+            playedCell = Pipeline.CellOutcome(try DuckBench.readClimbed(data), when: Date())
+            playedClip = try DuckBench.readClimbedClip(data, named: move.name)
             Haptic.behaviourStarted()
         } catch {
-            performed = StairsMoveView.message(error)
+            playFailure = StairsMoveView.message(error)
         }
     }
 

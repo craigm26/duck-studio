@@ -988,6 +988,58 @@ struct SectionHeading: View {
     }
 }
 
+// MARK: - the caption over a picture
+
+/// A sentence set ON a stage, over whatever the stage is drawing.
+///
+/// LIFTED OUT OF `DriveView.floorCaption`, WHICH HAD THE ONLY ONE. That screen
+/// is the one that already got this right — it draws the readback and captions
+/// the picture when there is no readback to draw — and the second screen that
+/// needed the same box was about to be a hand-copy of it, which is the drift
+/// this file exists to stop. Same font, same two-line ceiling, same backing,
+/// same card radius, same untappable.
+///
+/// TWO LINES, AND THE CEILING IS LOAD-BEARING. Build 41 shipped a legend that
+/// covered the duck: a caption over a 340-point viewport is a caption that can
+/// hide the thing it is captioning. Two lines of `.caption2` is what fits over
+/// a picture without becoming the picture.
+///
+/// NOT `.accessibilityHidden`, BECAUSE IT MAKES A CLAIM. Every sentence this
+/// box carries says which world is being drawn, which is exactly the fact a
+/// person who cannot see the picture most needs. It is not hit-testable, so
+/// the caller mirrors it as a row as well.
+///
+/// IT DOES NOT PLACE ITSELF. Where a caption goes depends on what else is on
+/// the picture — the drive stage keeps its bottom corner, the player's bottom
+/// 76 points belong to `StageLegend` — so the caller frames and pads it.
+struct StageCaptionBox: View {
+    let text: String
+
+    /// How opaque the card under the words is.
+    ///
+    /// 0.85 AND NOT 1: the picture goes on behind it, so the caption reads as
+    /// something laid on the stage rather than a panel bolted beside it, and
+    /// the words still clear their contrast because the backing is a surface
+    /// token rather than a tint.
+    static let backing = 0.85
+
+    var body: some View {
+        Text(text)
+            .font(.caption2)
+            .foregroundStyle(Theme.textSecondary)
+            .lineLimit(2)
+            .padding(Theme.spacing(.hairline))
+            .background(Theme.surfacePrimary.opacity(Self.backing),
+                        in: RoundedRectangle(cornerRadius: Theme.radius(Palette.Radius.card),
+                                             style: .continuous))
+            // A CAPTION IS NOT A CONTROL. The pictures this sits on are all
+            // draggable — the camera orbits under a finger — and a caption
+            // that swallowed the drag would make the stage feel broken in the
+            // one corner a person is most likely to touch first.
+            .allowsHitTesting(false)
+    }
+}
+
 // MARK: - a value that may not exist
 
 extension View {

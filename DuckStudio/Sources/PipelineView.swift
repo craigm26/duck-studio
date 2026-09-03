@@ -43,7 +43,67 @@ struct PipelineView: View {
     @State private var busy = false
     @State private var failure: String?
 
+    /// THE PICTURE OF THE RUN THAT JUST HAPPENED, AND IT IS NOT PERSISTED.
+    /// A `/perform` answer is 50 × 24 numbers and a `/climb` clip is 211 × 24;
+    /// writing either onto the draft on every run is unbounded growth on disk
+    /// for a picture nobody asks for twice. A relaunch keeps the numbers and
+    /// loses the picture — which `BenchOutcome.worldSentence` still describes
+    /// in words, because the world was narrow enough to keep.
+    @State private var lastRun: LastRun?
+
+    /// THE CLIP CARRIES ITS OWN ROUTE AND THE WORLD IT WAS READ BACK IN, so
+    /// the stage below can never pair a clip from one route with a world the
+    /// other route persisted, and the player's caption is a fact carried with
+    /// the clip rather than a claim assumed at the link.
+    private enum LastRun {
+        case performed(DuckIntentClip, laid: Pipeline.LaidWorld?)
+        case climbed(DuckIntentClip, laid: Pipeline.LaidWorld?)
+
+        var clip: DuckIntentClip {
+            switch self {
+            case .performed(let clip, _), .climbed(let clip, _): return clip
+            }
+        }
+        /// What the player may say about the picture. A /climb clip comes out
+        /// of the harness's own episode with the flight it ran on; a /perform
+        /// clip is a readback only when a `stood` block came with it, and a
+        /// bare floor otherwise, which claims nothing.
+        var caption: StageCaption.RunWorld {
+            switch self {
+            case .climbed: return .readback
+            case .performed(_, let laid): return laid == nil ? .bareFloor : .readback
+            }
+        }
+    }
+    /// The still picture's camera. One per screen, so a drag on the run card's
+    /// stage does not move any other stage in the app.
+    @State private var orbit = OrbitState()
+
     private var draft: IntentDraft? { drafts.drafts.first { $0.id == draftID } }
+
+    /// The scene this draft was authored against, resolved BY IDENTITY out of
+    /// the store this screen has held since day one and never read.
+    private func scene(for draft: IntentDraft) -> DuckScene? {
+        draft.sceneID.flatMap { id in scenes.scenes.first { $0.id == id } }
+    }
+
+    /// WHICH BENCH ROUTE THIS DRAFT GOES DOWN — ASKED, NEVER DECIDED HERE.
+    ///
+    /// Sending a stairs-challenge draft to `/perform` plays it on a bare bench
+    /// and reports "8 of 8 stayed upright" over a picture of a staircase that
+    /// was not in the physics. That decision is nine ordered rows in
+    /// `BenchRoute`, where a test reads every one of them; this screen asks and
+    /// draws the answer.
+    ///
+    /// NO GRASPABLES ARE PASSED, AND THAT IS A GAP AND NOT A CHOICE. The plan
+    /// asks for `benches.graspables(for:)`; `BenchStore` has no such reader and
+    /// is not this owner's file to grow one. `DriveView` gets its list from a
+    /// `/health` probe it runs itself, which this screen does not do. The kit's
+    /// default is the empty list, which plans the props by name without their
+    /// measured masses.
+    private func route(for draft: IntentDraft) -> BenchRoute {
+        BenchRoute.of(draft: draft, scene: scene(for: draft))
+    }
 
     private var pipeline: Pipeline? {
         draft.map {
@@ -125,6 +185,25 @@ struct PipelineView: View {
                         Text(bench.plantSentence)
                             .font(.caption).foregroundStyle(Theme.measured)
                             .fixedSize(horizontal: false, vertical: true)
+                        // WHICH WORLD THIS RAN IN, IN ONE OF FOUR SENTENCES.
+                        // Teal only when the bench read a world back out of
+                        // its own joints; the other three are a run whose
+                        // picture is the scene rather than the physics, and
+                        // that is a warning and not a measurement.
+                        Text(bench.worldSentence)
+                            .font(.caption)
+                            .foregroundStyle(worldTint(bench.worldStanding))
+                            .fixedSize(horizontal: false, vertical: true)
+                        if case .laid(let world) = bench.worldStanding {
+                            laidRows(world)
+                        }
+                        // WHY THIS RUN IS NOT THE SCORE, WHEN IT IS NOT. The
+                        // kit's sentence, set when the route was taken.
+                        if let routeNote = bench.routeNote {
+                            Text(routeNote)
+                                .font(.caption).foregroundStyle(Theme.warning)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     } header: {
                         SectionHeading(text: "The run")
                     } footer: {
@@ -135,6 +214,41 @@ struct PipelineView: View {
                         // StudioKit, where a test asserts it letter by letter.
                         Text(Pipeline.standingHeightSaid)
                             .foregroundStyle(Theme.textSecondary)
+                    }
+                    .listRowBackground(Theme.surfacePrimary)
+                }
+
+                // A SECOND ANSWER, BESIDE THE FIRST AND NEVER INSIDE IT. A
+                // draft whose scene is the scored room goes to the harness's
+                // own climb route, which answers one cell and no rollouts —
+                // and `BenchOutcome.summary` would have fabricated "1 of 1"
+                // out of it. Two answers, two types, two cards, and each says
+                // which run it is.
+                if let climbed = draft.climbed {
+                    Section {
+                        LabeledContent("Ran", value: climbed.when.formatted(
+                            date: .abbreviated, time: .shortened))
+                        cellRows(climbed)
+                    } header: {
+                        SectionHeading(text: "The cell")
+                    }
+                    .listRowBackground(Theme.surfacePrimary)
+                }
+
+                // ONE LINK FOR WHICHEVER ROUTE JUST RAN. Both answers can sit
+                // on one draft, and two "See this run" links pointing at the
+                // same clip would be two controls that do one thing.
+                if let run = lastRun {
+                    Section {
+                        NavigationLink {
+                            IntentPlayerView(clip: run.clip, store: scenes, drafts: drafts,
+                                             models: models, run: run.caption)
+                        } label: {
+                            Label("See this run", systemImage: "play.rectangle")
+                        }
+                        .tint(Theme.actionSecondary)
+                    } header: {
+                        SectionHeading(text: "The picture")
                     }
                     .listRowBackground(Theme.surfacePrimary)
                 }
@@ -229,6 +343,111 @@ struct PipelineView: View {
             .foregroundStyle(colour(for: stage.state))
     }
 
+    /// The world a run stood in, drawn and said.
+    ///
+    /// EVERY SENTENCE HERE IS THE KIT'S AND EVERY NUMBER IN THEM WAS READ OUT
+    /// OF THE PHYSICS. This method places them and gates them on facts the kit
+    /// computed — `aTreadFloats`, `wholeBankWasParked`, `noSpawnNote` — and
+    /// composes none of them.
+    @ViewBuilder
+    private func laidRows(_ world: Pipeline.LaidWorld) -> some View {
+        Text(DuckWorld.laidSaid(world))
+            .font(.caption).foregroundStyle(Theme.measured)
+            .fixedSize(horizontal: false, vertical: true)
+        // THE READBACK, NEVER `scene.environment`. Drawing the scene here
+        // would draw the staircase that was ASKED FOR over a run that may not
+        // have had it — the whole falsehood this build exists to delete.
+        // These steps are where the blocks were when the bench read its own
+        // joints, and the duck is where the physics put it.
+        //
+        // GATED ON THE CLIP, BECAUSE A STAGE NEEDS A POSE. The pose is the
+        // run's own first frame: where the duck was put down relative to the
+        // flight, which is the fact the spawn exists to fix. `lastRun` is not
+        // persisted, so a relaunch shows the sentences without the picture.
+        //
+        // `height:` AND NOT `maxHeight:`. A list row proposes no height, and a
+        // maximum alone collapses a stage with no intrinsic size to nothing.
+        // AND ONLY THE CLIP THAT WAS READ BACK IN THIS WORLD: a /climb clip
+        // on this card, or a /perform clip from an earlier world, would put a
+        // pose from one run inside the room of another.
+        if case .performed(let clip, let laid)? = lastRun, laid == world {
+            DuckStage(pose: .at(clip.pose(at: 0)),
+                      environment: world.asEnvironment,
+                      props: world.asProps,
+                      orbit: $orbit)
+                .frame(height: 220)
+                .listRowInsets(EdgeInsets())
+        }
+        if let spawn = world.spawn, spawn.y != 0 {
+            Text(DuckWorld.duckMovedToTheBank)
+                .font(.caption).foregroundStyle(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        if world.aTreadFloats {
+            Text(DuckWorld.blocksAreTwoHundredMillimetresTall)
+                .font(.caption).foregroundStyle(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        if world.wholeBankWasParked {
+            Text(DuckWorld.bankWasParkedForThisRun)
+                .font(.caption).foregroundStyle(Theme.warning)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        if world.noSpawnNote != nil {
+            Text(DuckWorld.noSpawnBesideAFlight)
+                .font(.caption).foregroundStyle(Theme.warning)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        // WHAT THE BENCH COULD NOT DO WITH WHAT IT WAS ASKED FOR, grouped by
+        // the kit so four identical notes are one line rather than four.
+        if let header = DuckWorld.couldNotExpress(world.unexpressed) {
+            Text(header)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            ForEach(DuckWorld.groupedSayings(world.unexpressed), id: \.self) { saying in
+                Text(saying)
+                    .font(.caption2).foregroundStyle(Theme.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    /// One scored cell, in the four rows the challenge screen prints.
+    ///
+    /// AN UNSCORED CELL PRINTS THE BENCH'S OWN REASON AND NOTHING ELSE. A
+    /// verdict beside "not scored" would be a verdict about an episode the
+    /// bench declined to run.
+    @ViewBuilder
+    private func cellRows(_ cell: Pipeline.CellOutcome) -> some View {
+        if cell.invalid {
+            Text(cell.why ?? StairsChallenge.oneCellSaid(cell))
+                .font(.footnote).foregroundStyle(Theme.warning)
+                .fixedSize(horizontal: false, vertical: true)
+        } else {
+            Text(StairsChallenge.scoredWhereItIsScored)
+                .font(.caption).foregroundStyle(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(StairsChallenge.oneCellSaid(cell))
+                .font(.footnote).foregroundStyle(Theme.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(StairsChallenge.oneCellIsNotAScore)
+                .font(.caption).foregroundStyle(Theme.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        Text(DuckBench.plantSaid(name: cell.plantName, digest: cell.plantDigest))
+            .font(.caption).foregroundStyle(Theme.measured)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// Teal for a world that was read back, and the warning ink for the three
+    /// states where the picture is the scene rather than the physics. Both
+    /// tokens are asserted at 4.5:1 on `surfacePrimary` by `PaletteTests`.
+    private func worldTint(_ standing: Pipeline.BenchOutcome.WorldStanding) -> Color {
+        if case .laid = standing { return Theme.measured }
+        return Theme.warning
+    }
+
     @ViewBuilder
     private func physicsControls(_ draft: IntentDraft) -> some View {
         if benches.selected == nil {
@@ -274,7 +493,12 @@ struct PipelineView: View {
                 Text(failure).font(.caption).foregroundStyle(Theme.refused)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Text("Eight rollouts at different drop heights, because one that stays up proves very little — the four authored stair motions in this app get up their flight 0 times in 16.")
+            // WHAT PRESSING THIS ACTUALLY DOES, WHICH IS NOW ROUTE-DEPENDENT.
+            // The literal that used to sit here promised eight rollouts on
+            // every draft, including the ones that go to the harness's own
+            // climb route and get one cell. The route says which it is, and
+            // the kit says it in words a test reads.
+            Text(route(for: draft).footnote)
                 .font(.caption2).foregroundStyle(Theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
             // WHICH BENCH THIS IS ABOUT, AND A WAY TO CHANGE IT. This screen
@@ -293,7 +517,7 @@ struct PipelineView: View {
     }
 
     @MainActor private func run(_ draft: IntentDraft) async {
-        busy = true; failure = nil
+        busy = true; failure = nil; lastRun = nil
         defer { busy = false }
         do {
             guard let chosen = benches.selected else {
@@ -302,29 +526,63 @@ struct PipelineView: View {
             }
             let armed = benches.armed(chosen)
             let address = try armed.resolved()
-            let track = draft.benchTrack
-            guard track.count >= 2 else {
-                failure = "A motion needs at least two keyframes to run."
-                return
+
+            switch route(for: draft) {
+            case .climb(let rise, let cell, let intent, _):
+                // THE SCORED ROOM GOES TO THE ROUTE THE SCORE IS SCORED ON.
+                // Same flight, same north wall, same isolation, same tail —
+                // and `clip: true`, so the picture comes out of the harness's
+                // own episode instead of being drawn from the request.
+                let call = try DuckBench.climb(address, intent: intent, rise: rise,
+                                               cell: cell, clip: true)
+                let data = try await ask(call, armed)
+                var updated = draft
+                updated.climbed = Pipeline.CellOutcome(try DuckBench.readClimbed(data),
+                                                       when: Date())
+                drafts.save(updated)
+                // A /climb answer without a clip is an older bench: the
+                // numbers stand and there is simply no picture.
+                if let clip = try DuckBench.readClimbedClip(data, named: draft.name) {
+                    lastRun = .climbed(clip, laid: updated.climbed?.laid)
+                }
+
+            case .perform(let standing, let because):
+                let call = try DuckBench.perform(address, keys: draft.benchTrack,
+                                                 seconds: draft.duration + 0.5, rollouts: 8,
+                                                 world: standing?.plan,
+                                                 spawn: standing?.spawn)
+                let data = try await ask(call, armed)
+                // THE PLANT IS READ, NEVER SUPPLIED. This used to hand
+                // `readOutcome` a plant of its own — `readHealth` on a
+                // /perform body, which cannot succeed because that body has no
+                // `bench` key, falling back to the literal "the bench's own
+                // plant". Every stored result in every install carries that
+                // string, and the screen printed it in the same voice as the
+                // measured numbers beside it. The bench now names its own
+                // world in the answer; if it does not, the outcome says so
+                // instead of borrowing a name from here.
+                //
+                // `askedForWorld` IS THE CALLER'S TO RECORD. A no-world
+                // /perform answer is byte-identical to the one this route has
+                // always given, deliberately, so there is no field on the wire
+                // that tells "nothing was asked for" from "a bench too old to
+                // answer". Only this line knows.
+                var updated = draft
+                updated.bench = try DuckBench.readOutcome(data, when: Date(),
+                                                          askedForWorld: standing?.plan != nil)
+                // THE CAVEAT IS STORED WITH THE NUMBERS IT QUALIFIES, not
+                // held in a state that a relaunch forgets while the numbers
+                // it was qualifying survive.
+                updated.bench?.routeNote = because
+                drafts.save(updated)
+                if let clip = try? DuckBench.readPerformedClip(data, named: draft.name,
+                                                               laid: updated.bench?.laid) {
+                    lastRun = .performed(clip, laid: updated.bench?.laid)
+                }
+
+            case .notYet(let blocked):
+                failure = blocked.message
             }
-            let call = try DuckBench.perform(address, keys: track,
-                                             seconds: draft.duration + 0.5, rollouts: 8)
-            var request = DuckBench.urlRequest(for: call, token: armed.token)
-            // Eight rollouts of physics on a small board is not quick.
-            request.timeoutInterval = 900
-            let (data, _) = try await URLSession.shared.data(for: request)
-            // THE PLANT IS READ, NEVER SUPPLIED. This used to hand
-            // `readOutcome` a plant of its own — `readHealth` on a /perform
-            // body, which cannot succeed because that body has no `bench` key,
-            // falling back to the literal "the bench's own plant". Every stored
-            // result in every install carries that string, and the screen
-            // printed it in the same voice as the measured numbers beside it.
-            // The bench now names its own world in the answer; if it does not,
-            // the outcome says so instead of borrowing a name from here.
-            let outcome = try DuckBench.readOutcome(data, when: Date())
-            var updated = draft
-            updated.bench = outcome
-            drafts.save(updated)
         } catch let refusal as DuckBench.Refusal {
             failure = refusal.message
         } catch let error as DuckBench.ReadError {
@@ -332,6 +590,16 @@ struct PipelineView: View {
         } catch {
             failure = error.localizedDescription
         }
+    }
+
+    /// One request to the bench, with the deadline eight rollouts of physics
+    /// on a small board actually need. Both routes take it, so neither can
+    /// quietly get a shorter one.
+    private func ask(_ call: DuckBench.Call, _ armed: BenchEndpoint) async throws -> Data {
+        var request = DuckBench.urlRequest(for: call, token: armed.token)
+        request.timeoutInterval = 900
+        let (data, _) = try await URLSession.shared.data(for: request)
+        return data
     }
 
     private func symbol(for state: Pipeline.State) -> String {

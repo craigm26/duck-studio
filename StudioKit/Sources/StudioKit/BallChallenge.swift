@@ -538,3 +538,24 @@ public enum BallChallenge {
         }
     }
 }
+
+// MARK: - what a ball entrant's run actually contained
+
+extension BallChallenge {
+
+    public static let ballWasAtItsCompiledMark =
+        "The ball WAS in this run, at (0.55, 0.10, 0.05) where scene_physics.xml compiles it "
+      + "— not where the chase grid puts it. Nothing added a ball and nothing could take one "
+      + "away."
+
+    public static let chaseRouteNotYet =
+        "There is no way yet to play one entrant through the ball challenge's own route. "
+      + "/chase places the ball itself, on a bearing off the duck's settled heading, and it "
+      + "answers no clip — so this button runs the entrant on the perform route and says "
+      + "where the ball actually was."
+
+    public static let measureTakesNoWorldYet =
+        "A policy entrant goes through /measure, which does not take a room in this build. "
+      + "This ran in the plant as it booted: the ball on its compiled mark and fourteen step "
+      + "blocks stacked beside the duck."
+}

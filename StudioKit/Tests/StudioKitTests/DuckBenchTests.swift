@@ -493,4 +493,253 @@ final class DuckBenchTests: XCTestCase {
         XCTAssertTrue(DuckBench.routes.contains("/world"))
         XCTAssertEqual(DuckBench.routes.count, 16)
     }
+
+    // MARK: - a run that carries the world it ran in
+
+    /// A bench on the desk, and a pose the harness's fourteen slots accept.
+    private var address: DuckBench.Address { DuckBench.Address(host: "127.0.0.1", port: 8770) }
+    private var pose14: [Double] { Array(repeating: 0.0, count: DuckModel.policyJointCount) }
+
+
+    /// CANONICAL JSON, SO TWO BODIES CAN BE COMPARED AT ALL. A dictionary has
+    /// no key order; sorting the keys is the only way to ask whether two
+    /// requests say the same thing.
+    private func canonical(_ any: Any) throws -> String {
+        String(decoding: try JSONSerialization.data(withJSONObject: any,
+                                                    options: [.sortedKeys]), as: UTF8.self)
+    }
+
+    private func decoded(_ call: DuckBench.Call) throws -> [String: Any] {
+        try XCTUnwrap(try JSONSerialization.jsonObject(with: try XCTUnwrap(call.body))
+                        as? [String: Any])
+    }
+
+    /// A REQUEST WITH NO WORLD IS THE REQUEST THIS ROUTE HAS ALWAYS MADE. Not
+    /// `world: null`, not `spawn: null` — absent, so a bench that predates the
+    /// field answers exactly what it always answered.
+    func testAPerformWithNoWorldSendsExactlyTheBodyItAlwaysSent() throws {
+        let call = try DuckBench.perform(address, keys: [(at: 0.4, pose: pose14)], seconds: 1)
+        let body = try decoded(call)
+        XCTAssertEqual(body.keys.sorted(), ["blend", "rollouts", "seconds", "track"])
+        XCTAssertNil(body["world"])
+        XCTAssertNil(body["spawn"])
+    }
+
+    /// ONE SPELLER FOR BOTH ROUTES. The bench validates a `/perform` world
+    /// with the same function it validates a `POST /world` with, so a client
+    /// that spelled them differently would be obeyed on one and refused on the
+    /// other for the same drawing.
+    func testAPerformWithAWorldSendsTheWorldSetWorldWouldHaveSent() throws {
+        let scene = DuckScene(name: "Ball and a block",
+                              props: [DuckScene.ball(x: 0.40, y: 0),
+                                      DuckScene.block(x: 0.45, y: -0.30)])
+        let plan = DuckWorld.plan(for: scene, on: .pinned)
+        let performed = try decoded(try DuckBench.perform(address,
+                                                          keys: [(at: 0.4, pose: pose14)],
+                                                          seconds: 1, world: plan))
+        let set = try decoded(try DuckBench.setWorld(address, plan))
+        XCTAssertEqual(try canonical(try XCTUnwrap(performed["world"])), try canonical(set))
+    }
+
+    /// REFUSED BEFORE A REQUEST EXISTS: the bench would answer with the same
+    /// reason, and a round trip to be told what was already known is a round
+    /// trip that makes somebody wait to be refused.
+    func testAPerformWithARefusingPlanIsNeverSent() {
+        let plan = DuckWorld.plan(for: DuckScene.staircase(count: 15), on: .pinned)
+        XCTAssertThrowsError(try DuckBench.perform(address, keys: [(at: 0.4, pose: pose14)],
+                                                   seconds: 1, world: plan)) {
+            XCTAssertEqual($0 as? DuckWorld.Refusal, .tooManySteps(asked: 15, bank: 14))
+        }
+    }
+
+    func testASpawnGoesOnTheWireAsThreeNumbers() throws {
+        let call = try DuckBench.perform(address, keys: [(at: 0.4, pose: pose14)], seconds: 1,
+                                         spawn: DuckWorld.Point(x: 0.05, y: 1.305))
+        let spawn = try XCTUnwrap(try decoded(call)["spawn"] as? [String: Double])
+        XCTAssertEqual(spawn.keys.sorted(), ["x", "y", "z"])
+        XCTAssertEqual(spawn["x"], 0.05)
+        XCTAssertEqual(spawn["y"], 1.305)
+        // A FLOOR POINT HAS NO HEIGHT AND A SPAWN DOES: the harness's own
+        // 0.120, which is where /perform has always started its first rollout.
+        XCTAssertEqual(spawn["z"], 0.120)
+    }
+
+    /// A move at blend 2.1153 would be PLAYED at 1.0 and REPORTED as 2.1153.
+    func testABlendAboveOneIsRefusedRatherThanClamped() {
+        XCTAssertThrowsError(try DuckBench.perform(address, keys: [(at: 0.4, pose: pose14)],
+                                                   seconds: 1, blend: 2.1153)) {
+            guard case DuckBench.Refusal.blendWouldBeClamped(let blend) = $0 else {
+                return XCTFail("a clamped blend is its own refusal, got \($0)")
+            }
+            XCTAssertEqual(blend, 2.1153)
+            XCTAssertTrue(DuckBench.blendWouldBeClamped(blend).contains("2.1153"))
+        }
+    }
+
+    func testAPerformAnswerCarriesTheWorldThatActuallyStood() throws {
+        let outcome = try DuckBench.readOutcome(captured("perform-stood"),
+                                                when: Date(timeIntervalSince1970: 0),
+                                                askedForWorld: true)
+        let laid = try XCTUnwrap(outcome.laid)
+        XCTAssertEqual(laid.steps.count, 4)
+        let first = try XCTUnwrap(laid.steps.first)
+        XCTAssertEqual(first.x, 0.29, accuracy: 1e-9)
+        XCTAssertEqual(first.y, 1.305, accuracy: 1e-9)
+        XCTAssertEqual(first.top, 0.06, accuracy: 1e-9)
+        XCTAssertEqual(first.halfDepth, 0.17, accuracy: 1e-9)
+        XCTAssertEqual(first.halfWidth, 0.17, accuracy: 1e-9)
+        XCTAssertEqual(first.halfHeight, 0.10, accuracy: 1e-9)
+        XCTAssertEqual(laid.parked, 10)
+        XCTAssertEqual(laid.bankCount, 14)
+        XCTAssertEqual(laid.spawn?.x, 0.05)
+        XCTAssertEqual(laid.spawn?.y, 1.305)
+        XCTAssertEqual(laid.spawn?.z, 0.12)
+        let sag = try XCTUnwrap(laid.sagMillimetres)
+        XCTAssertGreaterThan(sag, 0)
+        XCTAssertLessThan(sag, 3, "a once-per-run lay sags past 3 mm inside fifty ticks")
+        if case .laid = outcome.worldStanding {} else {
+            XCTFail("a world came back, so the standing is laid")
+        }
+    }
+
+    /// ONE READER FOR BOTH ROUTES. A `/perform` answer nests the whole `/world`
+    /// readback under `stood` precisely so this is true; a second reader is a
+    /// second thing to keep in step, and the day it drifts is the day the
+    /// picture stops being the run.
+    func testTheStoodBlockIsParsedByTheSameReaderAsTheWorldRoute() throws {
+        let fromWorldRoute = try DuckBench.readWorld(captured("world"))
+        let top = try XCTUnwrap(try JSONSerialization.jsonObject(with: captured("perform-stood"))
+                                  as? [String: Any])
+        let stood = try DuckBench.readWorld(try XCTUnwrap(top["stood"] as? [String: Any]))
+        XCTAssertEqual(stood.bank, fromWorldRoute.bank)
+        XCTAssertEqual(stood.arena, fromWorldRoute.arena)
+        XCTAssertEqual(stood.parked, fromWorldRoute.parked)
+    }
+
+    /// A DRAFT WRITTEN BEFORE THIS BUILD MUST DECODE, not vanish. `DraftStore`
+    /// decodes inside `compactMap { try? … }`, so a throw here is a draft list
+    /// that silently shortens.
+    func testAnOutcomeWithNoStoodKeyDecodesRatherThanVanishing() throws {
+        let build46 = Data(#"""
+        {"when": 0, "bench": "duck-bench/3", "plantName": "scene.mjb",
+         "policy": "alpha_stand.onnx", "achieves": 8, "rollouts": 8,
+         "criterion": "stayed upright to the end, over drop heights 0.120-0.130 m"}
+        """#.utf8)
+        let outcome = try JSONDecoder().decode(Pipeline.BenchOutcome.self, from: build46)
+        XCTAssertEqual(outcome.rollouts, 8)
+        XCTAssertNil(outcome.laid)
+        XCTAssertNil(outcome.askedForWorld)
+        XCTAssertEqual(outcome.worldStanding, .notRecorded)
+    }
+
+    /// "NOTHING WAS ASKED" AND "THE BENCH COULD NOT SAY" ARE THE SAME BYTES ON
+    /// THE WIRE, and only the caller knows which happened.
+    func testAskingForAWorldAndGettingNoneIsItsOwnState() throws {
+        let noStood = try captured("perform")
+        let asked = try DuckBench.readOutcome(noStood, when: Date(timeIntervalSince1970: 0),
+                                              askedForWorld: true)
+        XCTAssertEqual(asked.worldStanding, .askedAndTheBenchDidNotSay)
+        let didNotAsk = try DuckBench.readOutcome(noStood, when: Date(timeIntervalSince1970: 0),
+                                                  askedForWorld: false)
+        XCTAssertEqual(didNotAsk.worldStanding, .benchsOwn)
+        XCTAssertNotEqual(asked.worldSentence, didNotAsk.worldSentence)
+    }
+
+    /// THE FIRST READER OF `/perform`'s FRAMES. It has answered with them
+    /// since it existed and this kit has thrown them away every time.
+    func testAPerformAnswerBecomesAPictureInTheWorldThatStood() throws {
+        let data = try captured("perform-stood")
+        let outcome = try DuckBench.readOutcome(data, when: Date(timeIntervalSince1970: 0),
+                                                askedForWorld: true)
+        let laid = try XCTUnwrap(outcome.laid)
+        let clip = try DuckBench.readPerformedClip(data, named: "lever_up", laid: laid)
+        XCTAssertEqual(clip.hz, DuckModel.tickHz)
+        XCTAssertEqual(clip.frames.count, 50, "fifty recorded ticks of a one-second track")
+        XCTAssertEqual(clip.roots.count, clip.frames.count)
+        XCTAssertEqual(clip.telemetry.commands.count, clip.frames.count)
+        for frame in clip.frames { XCTAssertEqual(frame.count, 14) }
+        // THE READBACK, NOT A HARDCODED BARE FLOOR.
+        XCTAssertEqual(clip.environment, laid.asEnvironment)
+        XCTAssertNotEqual(clip.environment, .bareFloor)
+        XCTAssertEqual(clip.environment.steps.count, 4)
+    }
+
+    /// The harness's blocks are 200 mm and a tread above that really does
+    /// float. Said out loud rather than drawn thicker.
+    func testATreadAboveTwoHundredMillimetresIsFlagged() throws {
+        let outcome = try DuckBench.readOutcome(captured("perform-stood"),
+                                                when: Date(timeIntervalSince1970: 0),
+                                                askedForWorld: true)
+        XCTAssertTrue(try XCTUnwrap(outcome.laid).aTreadFloats,
+                      "the 240 mm tread on a 200 mm block floats")
+
+        let shallow = Pipeline.LaidWorld(
+            name: "4 × 40 mm", steps: (1...4).map {
+                .init(x: 0.29, y: 1.305, top: Double($0) * 0.04,
+                      halfDepth: 0.17, halfWidth: 0.17, halfHeight: 0.1)
+            }, ball: nil, props: [], notes: [], bankCount: 14, parked: 10,
+            spawn: nil, sagMillimetres: nil, plantName: nil, plantDigest: nil)
+        XCTAssertFalse(shallow.aTreadFloats)
+    }
+
+
+    /// WORKED EXAMPLE B — a drawn bare floor with a ball and a block.
+    ///
+    /// TWO THINGS THE APP HAS TO BE ABLE TO SAY OUT LOUD ARE IN HERE: the
+    /// whole bank was parked, which is a real change to the plant every other
+    /// number on this bench was measured in; and nothing said where the duck
+    /// should stand, so it is on its compiled mark and anything laid on the
+    /// bank's row would be 1.305 m to its left.
+    func testAWorldLaidWithNoSpawnAndAParkedBankSaysBoth() throws {
+        let answer = Data(#"""
+        {"format":"duck-intent-clips/3","hz":50,"policy":"alpha_stand.onnx","authored":true,
+         "plantName":"scene.mjb","plantDigest":"3f8c9ab9b409","blend":1,
+         "frames":[[0,0,0,0,0,0,0,0,0,0,0,0,0,0]],"roots":[[0,0,0.12,1,0,0,0]],
+         "commands":[[0,0,0]],"rollouts":8,"achieves":8,"criterion":"stayed upright",
+         "stood":{"world":{"set":true,"name":"Ball and a block"},"steps":[],
+                  "ball":{"x":0.4,"y":0.0,"z":0.05},"ballRadius":0.05,
+                  "props":[{"name":"block_a","mass":0.03,"at":[0.45,-0.3,0.021]}],
+                  "bank":{"count":14,"present":14,"parked":14,"y":1.305},
+                  "unexpressed":[{"what":"spawn","field":"spawn","asked":null,
+                                  "got":{"x":0,"y":0},
+                                  "why":"nothing asked where the duck should stand"}],
+                  "spawn":{"x":0,"y":0,"z":0.12},"sag_mm":0}}
+        """#.utf8)
+        let laid = try XCTUnwrap(try DuckBench.readOutcome(answer,
+                                                           when: Date(timeIntervalSince1970: 0),
+                                                           askedForWorld: true).laid)
+        XCTAssertEqual(laid.parked, 14)
+        XCTAssertEqual(laid.bankCount, 14)
+        XCTAssertTrue(laid.wholeBankWasParked)
+        XCTAssertNil(laid.noSpawnNote, "no flight stood, so there is nothing to be beside")
+        XCTAssertEqual(laid.spawn?.x, 0)
+        XCTAssertEqual(laid.spawn?.y, 0)
+        XCTAssertFalse(laid.aTreadFloats, "nothing stood, so nothing floats")
+        XCTAssertTrue(DuckWorld.laidSaid(laid).hasPrefix("No blocks stood: fourteen of the "
+                                                       + "bank's fourteen are parked"),
+                      DuckWorld.laidSaid(laid))
+        // The ball is drawn where the readback found it, not where the scene
+        // asked for it.
+        XCTAssertEqual(laid.asProps.first?.x, 0.4)
+        XCTAssertEqual(laid.asEnvironment.steps.count, 0)
+    }
+
+
+    /// A spawn-only /perform answers with a `stood` block whose world was
+    /// never set: every block where it booted, nothing pinned. That is not a
+    /// laid world, and reading it as one captioned the bench's own scattered
+    /// blocks as a flight it re-pinned every tick.
+    func testAStoodBlockThatSaysNoWorldStoodIsNotALaidWorld() throws {
+        func block(set: Bool) -> [String: Any] {
+            ["stood": ["world": ["set": set, "name": NSNull()],
+                       "steps": [["x": 0.29, "y": 1.305, "top": 0.06, "halfDepth": 0.17,
+                                  "halfWidth": 0.17, "halfHeight": 0.1]],
+                       "ball": NSNull(), "props": [],
+                       "bank": ["count": 14, "present": 14, "parked": 13, "y": 1.305],
+                       "unexpressed": [],
+                       "spawn": ["x": 0.05, "y": 1.305, "z": 0.12], "sag_mm": NSNull()]]
+        }
+        XCTAssertNil(try DuckBench.readStood(block(set: false)))
+        XCTAssertNotNil(try DuckBench.readStood(block(set: true)))
+    }
 }

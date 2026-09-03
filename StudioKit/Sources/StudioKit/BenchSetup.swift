@@ -187,6 +187,12 @@ public enum BenchSetup {
             case .empty: return .nothingTyped
             case .notLocal(let host): return .notReachableAddress(host)
             case .malformed(let text): return .malformed(text)
+            // UNREACHABLE, AND NAMED RATHER THAN SWEPT INTO A `default`.
+            // `DuckBench.address` parses an address and cannot refuse a
+            // blend; this arm exists because the two refusals share one enum,
+            // and it answers exactly what the generic `catch` below answers so
+            // the shape of this function does not depend on an impossibility.
+            case .blendWouldBeClamped: return .malformed(typed)
             }
         } catch {
             return .malformed(typed)

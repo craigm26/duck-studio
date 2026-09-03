@@ -252,4 +252,93 @@ final class ChallengeSceneTests: XCTestCase {
     func testABareFloorHasNoAuthoringFraming() {
         XCTAssertNil(DuckScene.bareFloor().authoringFraming)
     }
+
+    // MARK: - recognising the room, by the id AND the geometry
+
+    /// EVERY ROOM THE APP CAN OPEN, RECOVERED FROM ITS OWN GEOMETRY.
+    func testAChallengeSceneNamesItsOwnRiseAndSpawn() throws {
+        for rise in StairsChallenge.rises {
+            for gap in [0.0, 0.02] {
+                for side in [0.0, 0.05] {
+                    for count in [1, 4, 14] {
+                        let scene = RoomFixture.scene(rise: rise, count: count,
+                                                      gap: gap, side: side)
+                        guard case .theScoredRoom(let room) = scene.roomReading else {
+                            return XCTFail("\(rise)/\(gap)/\(side)/\(count) is the scored room")
+                        }
+                        XCTAssertEqual(room.rise, rise, accuracy: 1e-9)
+                        XCTAssertEqual(room.gap, gap, accuracy: 1e-9)
+                        XCTAssertEqual(room.side, side, accuracy: 1e-9)
+                        XCTAssertEqual(room.stepCount, count)
+                        XCTAssertEqual(room.spawn.x, 0.12 - 0.07 - gap, accuracy: 1e-9)
+                        XCTAssertEqual(room.spawn.y, 1.305 + side, accuracy: 1e-9)
+                        XCTAssertFalse(room.spawnWasPlaced)
+                        XCTAssertEqual(room.challenge, .stairs)
+                    }
+                }
+            }
+        }
+    }
+
+    /// THE TWO SPELLINGS HASH DIFFERENTLY and a recogniser has to try both.
+    func testAPlacedSpawnRoomIsRecoveredAsPlaced() throws {
+        let scene = RoomFixture.scene(rise: 0.060, spawn: (x: 0.25, y: 1.3050000000000002))
+        guard case .theScoredRoom(let room) = scene.roomReading else {
+            return XCTFail("a placed-spawn room is still the scored room")
+        }
+        XCTAssertTrue(room.spawnWasPlaced)
+        XCTAssertEqual(room.spawn.x, 0.25, accuracy: 1e-9)
+        XCTAssertEqual(room.spawn.y, 1.305, accuracy: 1e-9)
+    }
+
+    /// A HAND-DRAWN LOOK-ALIKE IS NOT THE SCORED ROOM. Same geometry, an id
+    /// nothing minted: a score against it would be a number keyed to a room
+    /// nobody published.
+    func testAHandDrawnLookalikeIsNotMistakenForTheScoredRoom() {
+        var scene = RoomFixture.scene()
+        scene.id = UUID()
+        XCTAssertEqual(scene.roomReading, .notAChallengeRoom)
+        XCTAssertNil(scene.challengeRoom)
+    }
+
+    /// MOVING A STEP CHANGES THE GEOMETRY AND NOT THE ID, so recognition has
+    /// to check both and disagree loudly.
+    func testARoomEditedAfterItWasOpenedSaysSoRatherThanScoring() throws {
+        var scene = RoomFixture.scene()
+        scene.steps[2].x += 0.030
+        guard case .editedSinceItWasOpened(let room) = scene.roomReading else {
+            return XCTFail("a moved step is an edited room, not a scored one")
+        }
+        XCTAssertEqual(room.rise, 0.060, accuracy: 1e-9)
+        XCTAssertNil(scene.challengeRoom, "it can be played and it cannot be scored")
+    }
+
+    /// THE QUANTISATION TEST. The id is built at a tenth of a millimetre
+    /// explicitly so a scene survives being written to disk and read back.
+    func testTheRoomSurvivesAJSONRoundTrip() throws {
+        let scene = RoomFixture.scene(rise: 0.180, gap: 0.02, side: 0.05)
+        let back = try JSONDecoder().decode(DuckScene.self,
+                                            from: try JSONEncoder().encode(scene))
+        guard case .theScoredRoom(let room) = back.roomReading else {
+            return XCTFail("a round trip does not edit a room")
+        }
+        XCTAssertEqual(room.rise, 0.180, accuracy: 1e-9)
+        XCTAssertEqual(room.stepCount, 4)
+    }
+
+    /// The duck moves and everything in the room moves with it.
+    func testTranslatingASceneMovesEveryPieceOfIt() {
+        let scene = DuckScene(name: "one of each",
+                              steps: [.init(x: 0.4, y: 0, top: 0.06)],
+                              walls: [.init(x: 0, y: 0.2)],
+                              props: [DuckScene.block(x: 0.45, y: -0.3)])
+        let moved = scene.translated(by: DuckWorld.Point(x: 0.05, y: 1.305))
+        XCTAssertEqual(moved.steps[0].x, 0.45, accuracy: 1e-9)
+        XCTAssertEqual(moved.steps[0].y, 1.305, accuracy: 1e-9)
+        XCTAssertEqual(moved.walls[0].y, 1.505, accuracy: 1e-9)
+        XCTAssertEqual(moved.props[0].y, 1.005, accuracy: 1e-9)
+        XCTAssertEqual(moved.id, scene.id, "the same room, somewhere else")
+        XCTAssertEqual(moved.steps[0].id, scene.steps[0].id)
+    }
+
 }

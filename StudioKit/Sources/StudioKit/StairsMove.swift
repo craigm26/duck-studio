@@ -66,7 +66,15 @@ extension StairsChallenge {
         public var gap: Double { json["gap"]?.doubleValue ?? 0 }
         public var side: Double { json["side"]?.doubleValue ?? 0 }
         public var approach: Double { json["approach"]?.doubleValue ?? 0 }
-        public var isolate: Bool { json["isolate"]?.boolValue ?? false }
+        /// THE HARNESS DEFAULT IS `true` AND THIS USED TO SAY `false`.
+        /// `climb_score.mjs`'s `isoOf` reads `intent.isolate !== false`, so a
+        /// file that does not mention isolation is scored WITH the step-step
+        /// isolation on. The wrong default was display-only while nothing
+        /// wrote this key; `Move.authored` is the first writer that puts it on
+        /// the wire, and a fresh intent minted with `isolate: false` would be
+        /// scored in a different plant from the one every published row was
+        /// measured in.
+        public var isolate: Bool { json["isolate"]?.boolValue ?? true }
         public var stepCount: Int { Int(json["stepCount"]?.doubleValue ?? 4) }
 
         /// The fields that make a move something other than keyframes, named
@@ -168,7 +176,14 @@ extension StairsChallenge {
         /// DROPPED — see the note on this type — and `movedMouth(in:)` says
         /// when that lost something.
         public func applying(draft: IntentDraft) throws -> Move {
-            let frames: [HarnessJSON] = draft.keys
+            try Move(json: json.setting("keyframes", to: .array(Self.keyframeArray(draft))))
+        }
+
+        /// THE ONE 15 -> 14 NARROWING, factored out so there is exactly one of
+        /// it. A second copy is how the mouth ends up shifting every joint
+        /// after it by one in half the writers and not the other half.
+        static func keyframeArray(_ draft: IntentDraft) -> [HarnessJSON] {
+            draft.keys
                 .sorted { $0.time < $1.time }
                 .map { key in
                     let pose = (0..<DuckModel.policyJointCount).map { slot -> HarnessJSON in
@@ -180,7 +195,58 @@ extension StairsChallenge {
                         .init(key: "pose", value: .array(pose)),
                     ])
                 }
-            return try Move(json: json.setting("keyframes", to: .array(frames)))
+        }
+
+        /// A harness intent minted from a draft with no published file behind
+        /// it.
+        ///
+        /// NOT A SUBSTITUTE FOR `applying(draft:)`. That one replaces one key
+        /// of a REAL file and keeps `event`, `servo`, `bounds`, `params`,
+        /// `robust`, `ceiling` and `duplicateBehaviourOf` — fields the
+        /// leaderboard hash folds in when a file has them. Use this ONLY when
+        /// `draft.challengeIntent` is nil, which is exactly "there is no file
+        /// to keep".
+        ///
+        /// KEY ORDER IS THE HARNESS'S, because the bench hashes the object it
+        /// receives: name, authoredIn, blend, gap, side, approach, isolate,
+        /// stepCount, spawn?, keyframes. NO `family`, NO `hash`, NO `rank` — a
+        /// fresh intent is not a published one and must never be able to
+        /// arrive looking like one.
+        public static func authored(draft: IntentDraft,
+                                    room: DuckScene.ChallengeRoom,
+                                    blend: Double = 1,
+                                    approach: Double = 0) throws -> Move {
+            var members: [HarnessJSON.Member] = [
+                .init(key: "name", value: .string(draft.name)),
+                .init(key: "authoredIn", value: .string(StairsChallenge.authoredIn)),
+                .init(key: "blend", value: .number(blend)),
+                .init(key: "gap", value: .number(room.gap)),
+                .init(key: "side", value: .number(room.side)),
+                .init(key: "approach", value: .number(approach)),
+                .init(key: "isolate", value: .bool(true)),
+                .init(key: "stepCount", value: .number(Double(room.stepCount))),
+            ]
+            // ONLY WHEN THE ROOM PLACED ONE. The harness ignores gap and side
+            // for a move that carries a spawn, so writing one onto a room that
+            // was scored from gap and side would move the duck.
+            if room.spawnWasPlaced {
+                members.append(.init(key: "spawn", value: .object([
+                    .init(key: "x", value: .number(room.spawn.x)),
+                    .init(key: "y", value: .number(room.spawn.y)),
+                    // A HEIGHT THAT WAS NOT GIVEN IS DERIVED, NOT INVENTED: the
+                    // tread under the point plus the harness's own drop, which
+                    // reproduces the published files (0.18 at 60 mm, 0.21 at
+                    // 90 mm) and is 0.120 over the floor.
+                    .init(key: "z", value: .number(
+                        room.spawn.z == 0
+                            ? StairsChallenge.Harness.treadTop(atX: room.spawn.x, rise: room.rise,
+                                                               stepCount: room.stepCount)
+                              + DuckWorld.spawnHeight
+                            : room.spawn.z)),
+                ])))
+            }
+            members.append(.init(key: "keyframes", value: .array(keyframeArray(draft))))
+            return try Move(json: .object(members))
         }
 
         /// Whether a draft moved the one joint the harness format cannot

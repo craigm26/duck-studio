@@ -50,7 +50,8 @@ final class PipelineTests: XCTestCase {
         XCTAssertEqual(physics?.state, .done)
         XCTAssertTrue(physics!.detail.contains("16 of 16"))
         XCTAssertEqual(physics!.detail,
-                       "16 of 16 — stayed upright. On scene.mjb, sha256 3f8c9ab9b409.",
+                       "16 of 16 — stayed upright. On scene.mjb, sha256 3f8c9ab9b409. "
+                     + DuckWorld.worldSaid(.notRecorded),
                        "the plant is part of the result, and it is the plant that ran")
         let attested = pipeline.stages.first { $0.name == "Attested" }
         XCTAssertEqual(attested?.state, .waiting)
@@ -281,9 +282,13 @@ extension PipelineTests {
     func testTheResultAndTheWorldAreOneSentenceEach() {
         var crouched = goodRun
         crouched.medianHeight = 0.0908
+        // AND WHICH WORLD IT RAN IN, which is the third claim on the line.
+        // This outcome was stored before the app kept one, and says so rather
+        // than leaving the reader to assume the drawn steps were in the run.
         XCTAssertEqual(crouched.told,
                        "16 of 16 — stayed upright. It ends 25 mm below standing height. "
-                     + "On scene.mjb, sha256 3f8c9ab9b409.")
+                     + "On scene.mjb, sha256 3f8c9ab9b409. "
+                     + DuckWorld.worldSaid(.notRecorded))
     }
 
     /// The baseline every crouch is measured against names the world it was
@@ -356,4 +361,106 @@ extension PipelineTests {
             XCTAssertFalse(state.spoken.isEmpty)
         }
     }
+
+    // MARK: - the world a result was measured in, stored beside it
+
+    private var laidFlight: Pipeline.LaidWorld {
+        Pipeline.LaidWorld(
+            name: "Stairs challenge, 60 mm",
+            steps: (1...4).map {
+                .init(x: 0.29 + Double($0 - 1) * 0.28, y: 1.305, top: Double($0) * 0.06,
+                      halfDepth: 0.17, halfWidth: 0.17, halfHeight: 0.1)
+            },
+            ball: .init(x: 0.55, y: 0.1, z: 0.05),
+            props: [.init(name: "block_a", x: 0.30, y: 0.40, kilograms: 0.03)],
+            notes: [.init(what: "wall", index: 0, field: "walls",
+                          asked: "a wall at (0.00, 1.50) m", got: "wall_e, wall_n",
+                          why: "the four arena walls are static geoms with no joints")],
+            bankCount: 14, parked: 10,
+            spawn: .init(x: 0.05, y: 1.305, z: 0.12), sagMillimetres: 2.4525,
+            plantName: "scene.mjb", plantDigest: "3f8c9ab9b409")
+    }
+
+    func testTheStoredOutcomeSurvivesARoundTripWithAWorldInIt() throws {
+        var outcome = goodRun
+        outcome.laid = laidFlight
+        outcome.askedForWorld = true
+        let data = try JSONEncoder().encode(outcome)
+        let back = try JSONDecoder().decode(Pipeline.BenchOutcome.self, from: data)
+        XCTAssertEqual(back, outcome)
+        XCTAssertEqual(back.laid, laidFlight)
+        XCTAssertEqual(back.worldStanding, .laid(laidFlight))
+    }
+
+    /// THE STORED SHAPE IS NARROWER THAN THE READBACK, ON PURPOSE. Every key
+    /// here is a migration surface forever; `Bank`, `Arena`, `Wall` and
+    /// `Unexpressed` are not, because they are not on disk. This test is what
+    /// catches anybody quietly making `DuckWorld` Codable.
+    func testTheStoredWorldIsNarrowerThanTheReadback() {
+        XCTAssertEqual(Pipeline.LaidWorld.CodingKeys.allCases.map(\.rawValue),
+                       ["name", "steps", "ball", "props", "notes", "bankCount", "parked",
+                        "spawn", "sagMillimetres", "plantName", "plantDigest"])
+    }
+
+    /// TWO ANSWERS, TWO TYPES, AND NEITHER PRETENDS TO BE THE OTHER. Coercing
+    /// a one-cell climb into `BenchOutcome` fabricates "1 of 1", which reads
+    /// like a score and is not one.
+    func testACellOutcomeIsNeverMistakenForABenchOutcome() {
+        var draft = IntentDraft.blank()
+        draft.bench = goodRun
+        draft.climbed = Pipeline.CellOutcome(
+            when: Date(timeIntervalSince1970: 0), hash: "a56d459fb649", rise: 0.06,
+            cell: StairsChallenge.Grid.nominal, honest: true, stable: true,
+            reachedFlight: true, invalid: false, uprightTailTicks: 48, tailTicks: 50,
+            aboveMillimetres: 116.17, peakAboveTreadMillimetres: 121.71,
+            criterion: "honest: …", plantName: "scene.mjb", plantDigest: "3f8c9ab9b409")
+
+        // THE PLANT SENTENCE IS SHARED ON PURPOSE — both answers name the world
+        // they ran in, and `plantSaid` is the one place that sentence lives.
+        // What must never overlap is the RESULT: a climb cell has no rollouts,
+        // and any clause of a rollout count appearing over one cell would be
+        // the fabrication these two types exist to keep apart.
+        let plant = draft.bench!.plantSentence
+        let bench = draft.bench!.told.replacingOccurrences(of: plant, with: "")
+        let cell = draft.climbed!.told.replacingOccurrences(of: plant, with: "")
+        XCTAssertFalse(bench.isEmpty)
+        XCTAssertFalse(cell.isEmpty)
+        for sentence in bench.split(separator: ".") where sentence.count > 12 {
+            XCTAssertFalse(cell.contains(sentence), "\(sentence) is in both")
+        }
+        XCTAssertFalse(cell.contains("of 9"))
+        XCTAssertFalse(cell.contains(" of 1 "))
+        XCTAssertTrue(cell.contains("60/.120/x1.0"))
+    }
+
+    /// FOUR STATES, FOUR SENTENCES, AND NO HEDGING. Collapsing any two prints
+    /// something true of one and false of another.
+    func testTheFourWorldStatesEachSayADifferentThing() {
+        let said = [
+            DuckWorld.worldSaid(.laid(laidFlight)),
+            DuckWorld.worldSaid(.benchsOwn),
+            DuckWorld.worldSaid(.askedAndTheBenchDidNotSay),
+            DuckWorld.worldSaid(.notRecorded),
+        ]
+        XCTAssertEqual(Set(said).count, 4)
+        for line in said {
+            XCTAssertFalse(line.isEmpty)
+            XCTAssertFalse(line.contains("may "), line)
+            XCTAssertFalse(line.contains("probably"), line)
+            for other in said where other != line {
+                XCTAssertFalse(other.contains(line), "one sentence is inside another")
+            }
+        }
+    }
+
+    /// What stood, in numbers this read out of the answer — no clause without
+    /// a number behind it.
+    func testTheLaidWorldIsSaidInTheNumbersItRead() {
+        let said = DuckWorld.laidSaid(laidFlight)
+        XCTAssertTrue(said.hasPrefix("Four blocks stood, tops 60 to 240 mm, and ten stayed "
+                                   + "parked."), said)
+        XCTAssertTrue(said.contains("2.5 mm"), said)
+        XCTAssertTrue(said.contains("One movable body was read back where it lies."), said)
+    }
+
 }

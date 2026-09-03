@@ -68,6 +68,19 @@ extension StairsChallenge {
             return cells
         }()
 
+        /// THE CELL `rig3` ITSELF RUNS: no rise offset, the nominal drop, no
+        /// friction change. It is `fallback[3]`, not `[4]` — the grid iterates
+        /// `for dh { for plant }`, so 0, 1 and 2 are the three plants at
+        /// dh −0.010 — and `StairsChallengeTests` counts it out rather than
+        /// trusting the arithmetic in this comment.
+        ///
+        /// It is what the quick run on the challenge screen plays, because a
+        /// person waiting for a picture should wait seconds rather than the
+        /// minute fourteen cells take. One cell is one perturbation, which
+        /// `oneCellIsNotAScore` says under it every single time.
+        public static let nominal = DuckBench.Cell(dh: 0.000, drop: 0.120, fmul: 1.0,
+                                                   tier: .core)
+
         /// Said when the app is drawing the pinned grid because the bench has
         /// not answered yet — not a warning, a statement of which grid is on
         /// screen.

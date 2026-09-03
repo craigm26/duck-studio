@@ -812,6 +812,22 @@ struct IntentPlayerView: View {
     /// without doing the same.
     @ObservedObject var models: EndpointStore
 
+    /// WHERE THIS PICTURE CAME FROM, WHEN THE PRESENTER KNOWS AND THE CLIP
+    /// CANNOT SAY.
+    ///
+    /// A clip carries no record of whether anything measured its environment.
+    /// `/perform` and `/climb` answers that this app has just read back DO
+    /// have one — the screen that read them knows — and a bundled corpus clip
+    /// does not. Nil for every existing call site, which is the honest default:
+    /// nothing measured it here.
+    ///
+    /// LAST IN THE LIST SO THE FIVE EXISTING CALL SITES DO NOT MOVE. The
+    /// contract writes it second; a struct's memberwise initialiser takes its
+    /// properties in declaration order, and putting it second would have
+    /// required a hand-written init that constructs three `@ObservedObject`
+    /// wrappers by hand for no gain.
+    var run: StageCaption.RunWorld?
+
     /// The one sheet this screen can have up, and which one it is.
     ///
     /// ONE OPTIONAL, BECAUSE TWO CANNOT BOTH BE NIL BY ACCIDENT. This screen had
@@ -881,6 +897,26 @@ struct IntentPlayerView: View {
         return showProps ? clip.environment : .bareFloor
     }
 
+    /// WHAT THE PICTURE IS CLAIMING, IN THE FOUR STATES THERE ACTUALLY ARE.
+    ///
+    /// NEVER KEYED ON `clip.authored`. `/perform` sets `authored: true` on
+    /// every answer it gives and the bundled corpus clips are `authored: true`
+    /// too — the flag says the MOTION was authored, not that the ENVIRONMENT
+    /// was measured, so a caption keyed on it is backwards on both halves of
+    /// the corpus at once.
+    ///
+    /// The three inputs this screen actually has are: is a scene overlaid; did
+    /// this clip come out of a run the presenter just measured; does the
+    /// stored clip carry an environment at all. The order matters — an
+    /// overlaid scene wins over everything, because whatever else was true,
+    /// what is on the glass now is a scene that was not in the recording.
+    private var runWorld: StageCaption.RunWorld {
+        if let elsewhere { return .overlaid(sceneName: elsewhere.name) }
+        if let run { return run }
+        if showProps && clip.environment.hasProps { return .fileSaysSo(clipName: clip.name) }
+        return .bareFloor
+    }
+
     /// Computed once. The first version recomputed this — including a JSON
     /// decode of the success corpus — on every body evaluation, which with the
     /// playhead advancing at 50 Hz meant fifty decodes a second while the
@@ -933,6 +969,22 @@ struct IntentPlayerView: View {
                             orbit: $orbit)
             }
             .frame(maxHeight: 340)
+            // THE TOP, BECAUSE THE BOTTOM IS SPOKEN FOR. `StageLegend` sits in
+            // the bottom corner at a documented 76 points collapsed over a
+            // 340-point viewport, and build 41 shipped a legend that covered
+            // the duck. A caption in the same corner would be the same bug in
+            // a second voice.
+            //
+            // NOT HIT-TESTABLE, SO IT IS MIRRORED AS A ROW. The sentence makes
+            // a claim about which world is on screen; a claim VoiceOver cannot
+            // reach is a claim only sighted users get. `story`'s first section
+            // carries the same string.
+            .overlay(alignment: .topLeading) {
+                if let caption = StageCaption.runWorld(runWorld) {
+                    StageCaptionBox(text: caption)
+                        .padding(Theme.spacing(.tight))
+                }
+            }
 
             TransportBar(duration: clip.duration, playhead: $playhead, isRunning: $isRunning)
                 .padding(.horizontal, Theme.spacing(.standard))
@@ -946,12 +998,15 @@ struct IntentPlayerView: View {
             .padding(.bottom, Theme.spacing(.tight))
 
             List {
-                if let elsewhere {
+                if elsewhere != nil {
+                    // THE BANNER'S SENTENCE MOVED ONTO THE PICTURE. It was the
+                    // one string on this screen not written in the kit, and it
+                    // was a claim — "not where it was recorded" — sitting in a
+                    // list while the stage above it went on drawing the other
+                    // world with nothing on it. `StageCaption.runWorld(
+                    // .overlaid(sceneName:))` says it where the picture is,
+                    // and this section keeps the way back.
                     Section {
-                        Label("Playing in \(elsewhere.name), not where it was recorded.",
-                              systemImage: "arrow.triangle.branch")
-                            .font(.footnote)
-                            .foregroundStyle(Theme.warning)
                         Button("Back to the recorded world") { elsewhereID = nil }
                             .tint(Theme.actionSecondary)
                     }
@@ -1099,6 +1154,24 @@ struct IntentPlayerView: View {
     // MARK: - what happened
 
     @ViewBuilder private var story: some View {
+        // THE CAPTION, AGAIN, WHERE A SCREEN READER CAN REACH IT. The overlay
+        // over the stage is `.allowsHitTesting(false)` so it cannot swallow a
+        // drag on the camera, which also puts it out of VoiceOver's reach —
+        // and it is the sentence that says whether the world on screen was
+        // measured or drawn. It is first because it is about everything below
+        // it.
+        if let caption = StageCaption.runWorld(runWorld) {
+            Section {
+                Text(caption)
+                    .font(.footnote)
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } header: {
+                SectionHeading(text: "What you are looking at")
+            }
+            .listRowBackground(Theme.surfacePrimary)
+        }
+
         Section {
             posture("Starts", clip.startsFrom.rawValue)
             posture("Ends", clip.endsIn.rawValue)
@@ -1153,7 +1226,18 @@ struct IntentPlayerView: View {
                 Toggle("Show what it was recorded against", isOn: $showProps)
                     .foregroundStyle(Theme.textPrimary)
             } footer: {
-                sectionFootnote("Hiding the props is how you see the motion alone; showing them is how you see whether it worked. \(clip.name) was performed against \(clip.environment.steps.isEmpty ? "a wall" : "a four-step flight"), and without it on screen a duck that falls over looks like it fell over for no reason.")
+                // WHO IS CLAIMING THE FLIGHT. The line this replaces read
+                // "\(clip.name) was performed against a four-step flight" —
+                // true of a bundled clip whose file says so, false of a bench
+                // recording that arrived with a hardcoded bare floor, and
+                // written in a view where nothing could assert it. It also
+                // counted the steps by hand: "a wall" or "a four-step flight",
+                // whatever the file actually held. The kit counts them and
+                // says whose line it is.
+                sectionFootnote(StageCaption.performedAgainst(
+                    clipName: clip.name,
+                    stepCount: clip.environment.steps.count,
+                    wallCount: clip.environment.walls.count))
             }
             .listRowBackground(Theme.surfacePrimary)
         }

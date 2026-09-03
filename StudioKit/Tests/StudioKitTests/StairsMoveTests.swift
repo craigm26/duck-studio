@@ -45,11 +45,17 @@ final class StairsMoveTests: XCTestCase {
         XCTAssertTrue(try StairsChallenge.move(named: "r4_ctrl_on_tread_60mm").hasSpawn)
     }
 
-    func testTheHarnessDefaultsAreTheHarnessDefaults() throws {
+    /// THE HARNESS DEFAULTS `isolate` TO TRUE AND THIS USED TO READ FALSE.
+    /// `climb_score.mjs`'s `isoOf` is `intent.isolate !== false`, so a file
+    /// that says nothing is scored WITH the step-step isolation on. It was
+    /// display-only until `Move.authored` became the first writer to put the
+    /// key on the wire; a fresh intent minted with `isolate: false` would be
+    /// scored in a different plant from every published row.
+    func testAFileThatDoesNotMentionIsolateIsScoredWithItOn() throws {
         // ctrl_do_nothing has no `isolate` and no `stepCount`; the harness
         // defaults them, and so does this.
         let move = try StairsChallenge.move(named: "ctrl_do_nothing")
-        XCTAssertFalse(move.isolate)
+        XCTAssertTrue(move.isolate)
         XCTAssertEqual(move.stepCount, 4)
         XCTAssertEqual(move.blend, 1)
         XCTAssertEqual(move.gap, 0.05)
@@ -251,4 +257,85 @@ final class StairsMoveTests: XCTestCase {
             """.utf8)))
         XCTAssertNil(broken.spawn)
     }
+
+    // MARK: - a draft with no published file behind it
+
+    private func scoredRoom() throws -> DuckScene.ChallengeRoom {
+        try XCTUnwrap(RoomFixture.scene().challengeRoom)
+    }
+
+    func testADraftWithNoSourceMoveBecomesAScorableIntent() throws {
+        let draft = RoomFixture.draft(named: "lever_up")
+        let move = try StairsChallenge.Move.authored(draft: draft, room: try scoredRoom())
+        let back = try StairsChallenge.Move.decode(move.encoded())
+        XCTAssertEqual(back.name, "lever_up")
+        XCTAssertEqual(back.blend, 1)
+        XCTAssertTrue(back.isolate)
+        XCTAssertEqual(back.stepCount, 4)
+        XCTAssertEqual(back.gap, 0, accuracy: 1e-12)
+        XCTAssertEqual(back.side, 0, accuracy: 1e-12)
+        XCTAssertEqual(back.keyframes.count, draft.benchTrack.count)
+        for (frame, key) in zip(back.keyframes, draft.benchTrack) {
+            XCTAssertEqual(frame.pose.count, DuckModel.policyJointCount)
+            XCTAssertEqual(frame.t, key.at, accuracy: 1e-12)
+            for (a, b) in zip(frame.pose, key.pose) {
+                XCTAssertEqual(a, b, accuracy: 1e-12)
+            }
+        }
+    }
+
+    /// A FRESH INTENT IS NEVER PASSED OFF AS A PUBLISHED ONE.
+    func testAFreshIntentIsNeverPassedOffAsAPublishedOne() throws {
+        let move = try StairsChallenge.Move.authored(draft: RoomFixture.draft(),
+                                                     room: try scoredRoom())
+        XCTAssertNil(move.json["family"])
+        XCTAssertNil(move.json["hash"])
+        XCTAssertNil(move.json["rank"])
+        XCTAssertEqual(move.json["authoredIn"]?.stringValue, "Microduck Studio")
+        XCTAssertEqual(move.json.members?.map(\.key),
+                       ["name", "authoredIn", "blend", "gap", "side", "approach",
+                        "isolate", "stepCount", "keyframes"])
+    }
+
+    /// A ROOM THAT PLACED ITS SPAWN CARRIES IT, because the harness ignores
+    /// gap and side for a move that has one.
+    func testAPlacedSpawnRoomMintsAnIntentThatCarriesTheSpawn() throws {
+        let scene = RoomFixture.scene(spawn: (x: 0.25, y: 1.3050000000000002))
+        let room = try XCTUnwrap(scene.challengeRoom)
+        let move = try StairsChallenge.Move.authored(draft: RoomFixture.draft(), room: room)
+        XCTAssertEqual(move.json.members?.map(\.key),
+                       ["name", "authoredIn", "blend", "gap", "side", "approach",
+                        "isolate", "stepCount", "spawn", "keyframes"])
+        XCTAssertEqual(move.spawn?.x ?? 0, 0.25, accuracy: 1e-9)
+        // THE HEIGHT IS THE TREAD'S, NOT A LITERAL. x 0.25 is over the first
+        // block (0.12 to 0.46) of a 60 mm flight, so the duck is put down at
+        // the harness's drop above that tread, as the published placed-spawn
+        // files are (0.18 at 60 mm). A fixed 0.120 here would spawn it inside
+        // the block.
+        XCTAssertEqual(try XCTUnwrap(move.json["spawn"]?["z"]?.doubleValue),
+                       0.06 + DuckWorld.spawnHeight, accuracy: 1e-9)
+    }
+
+    /// A SOURCE FILE IS ALWAYS PREFERRED TO A FRESH ONE: `applying(draft:)`
+    /// keeps `event`, `servo`, `bounds` and `params`, every one of which the
+    /// leaderboard hash folds in.
+    func testASourceMoveIsAlwaysPreferredToAFreshOne() throws {
+        let source = try StairsChallenge.move(named: "best_r4_famA_60mm")
+        let scene = RoomFixture.scene()
+        var draft = source.toDraft()
+        draft.sceneID = scene.id
+        draft.challengeIntent = source.encoded()
+
+        guard case .climb(_, _, let intent, _) = BenchRoute.of(draft: draft, scene: scene,
+                                                               blend: source.blend) else {
+            return XCTFail("a scored room with a source file still goes to /climb")
+        }
+        let sent = try StairsChallenge.Move.decode(intent)
+        XCTAssertTrue(sent.hasEvent, "the landing law survived")
+        for member in source.json.members ?? [] where member.key != "keyframes" {
+            XCTAssertEqual(sent.json[member.key], member.value,
+                           "\(member.key) is the source file's, byte for byte")
+        }
+    }
+
 }

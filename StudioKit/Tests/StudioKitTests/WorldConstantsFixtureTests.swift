@@ -1,4 +1,5 @@
 import XCTest
+import Crypto
 @testable import StudioKit
 
 /// `DuckWorld.Bank` AGAINST THE FILES IT WAS TRANSCRIBED FROM, when
@@ -193,4 +194,34 @@ final class WorldConstantsFixtureTests: XCTestCase {
         XCTAssertEqual(drawn.grams, 30, accuracy: 1e-9)
         XCTAssertEqual(drawn.length, 0.1, accuracy: 1e-9)
     }
+
+    // MARK: - the bench fixtures are the ones the bench published
+
+    /// EVERY CAPTURED BENCH BODY, BY SHA-256.
+    ///
+    /// A fixture is evidence only while nobody edits it to agree with the
+    /// reader it feeds — that is exactly how a placeholder shipped here once.
+    /// So the bytes are pinned, and swapping a hand-written fixture for a
+    /// captured one is a reviewable act rather than a quiet edit.
+    ///
+    /// All three came off a bench: `world.json` is a `POST /world` readback,
+    /// and `perform-stood.json` / `climb-clip.json` are the build-47 captures
+    /// the bench publishes as `sim/parity/perform-stood-v1.json` and
+    /// `sim/parity/climb-clip-v1.json`, copied in without a byte changed.
+    func testTheBenchFixturesAreTheOnesTheBenchPublished() throws {
+        let digests = [
+            "world": "112115ff0839022b83b32ac1d45a8079c81330c3ac9e2ed5fe2dd8b8e4a4dd99",
+            "perform-stood": "f43c1d9d23df5e0e6f4bfc5113f1f28b38b7f47f05377c36085e65c0217c539a",
+            "climb-clip": "4f8f4a3a7cdc1f7f89458b90f270af93e757ad59efbda1c0c9eaf6f9578dae62",
+        ]
+        for (name, wanted) in digests.sorted(by: { $0.key < $1.key }) {
+            let url = try XCTUnwrap(Bundle.module.url(forResource: "Fixtures/bench/\(name)",
+                                                      withExtension: "json"),
+                                    "the \(name) fixture is missing")
+            let got = SHA256.hash(data: try Data(contentsOf: url))
+                .map { String(format: "%02x", $0) }.joined()
+            XCTAssertEqual(got, wanted, "\(name).json is not the bytes this build pinned")
+        }
+    }
+
 }

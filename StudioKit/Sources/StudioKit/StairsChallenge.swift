@@ -127,6 +127,23 @@ public enum StairsChallenge {
         /// `climb_score.mjs` spawns it at `0.12 − 0.07 − gap`.
         public static let spawnStandoff = 0.07
 
+        /// The top of the tread under a point on the harness's x axis, in
+        /// metres; 0 over the floor. Blocks overlap along x (a 0.17 half-depth
+        /// against a 0.28 run), and where two overlap the higher tread is the
+        /// one a foot lands on. A placed spawn's height is this plus
+        /// `DuckWorld.spawnHeight`: the published 60 mm placed spawn at
+        /// x 0.212 stands at 0.18, the 90 mm one at 0.21.
+        public static func treadTop(atX x: Double, rise: Double, stepCount: Int) -> Double {
+            var top = 0.0
+            for i in 0..<max(stepCount, 0) {
+                let front = stairStart + Double(i) * stairRun
+                if x >= front && x <= front + 2 * stepHalfDepth {
+                    top = max(top, Double(i + 1) * rise)
+                }
+            }
+            return top
+        }
+
         /// THE CORRECTION `stairs.js` RECORDS AT ITS OWN TOP. `wall_n` is
         /// 50 mm half-thick and centred at y = 1.50, so its inner face is at
         /// 1.45 — and `stairY + stairHalfWidth` is 1.475, which puts the outer
@@ -535,4 +552,85 @@ public enum StairsChallenge {
     public static func draft(for row: Row) throws -> IntentDraft {
         try move(for: row).toDraft(hash: row.hash, rank: row.rank)
     }
+}
+
+// MARK: - one cell, said as one cell
+
+extension StairsChallenge {
+
+    /// What this app writes into a fresh intent's `authoredIn`, so a bench log
+    /// and a leaderboard both name where a move came from.
+    public static let authoredIn = "Microduck Studio"
+
+    public static let scoredWhereItIsScored =
+        "This runs on the harness climb route: the same flight climb_score.mjs lays, the same "
+      + "north wall, the same step-step isolation and the same fifty-tick tail the published "
+      + "score was measured with."
+
+    public static let oneCellIsNotAScore =
+        "One cell is one perturbation. A score is fourteen of them at one rise, and the number "
+      + "anybody quotes is how many of the core nine came back stable — so nothing on this "
+      + "line can be compared with a leaderboard row."
+
+    /// One scored cell in a sentence, with the cell's own harness label.
+    ///
+    /// THE VERDICT CLAUSE IS THE BENCH'S OWN LADDER, in its own order. An
+    /// invalid cell says only that and why: it is a file outside its declared
+    /// bounds, not a move that failed, and printing tread heights beside it
+    /// would be reporting an episode that never ran.
+    public static func oneCellSaid(_ cell: Pipeline.CellOutcome) -> String {
+        let label = "\(cell.cell.said(rise: cell.rise)) at \(riseSaid(cell.rise))"
+        if cell.invalid {
+            return "\(label): not scored: \(cell.why ?? "outside its own declared bounds")."
+        }
+        let verdict: String
+        if cell.stable {
+            verdict = "cleared and still standing at the end of the tail"
+        } else if cell.honest {
+            verdict = "cleared, then did not hold it for the tail"
+        } else if cell.reachedFlight {
+            verdict = "reached the flight and did not clear it"
+        } else {
+            verdict = "never reached the flight"
+        }
+        return String(format: "%@: it %@, the trunk peaked %.0f mm above the tread against a "
+                            + "%.0f mm bar, and it was upright for %d of the last %d ticks.",
+                      label, verdict, cell.peakAboveTreadMillimetres, barMillimetres,
+                      cell.uprightTailTicks, cell.tailTicks)
+    }
+
+    public static let performIsNotTheScore =
+        "That played the move on a bare bench: the standing policy, the drop sweep, and no "
+      + "staircase in front of the duck. The score is the fourteen climb cells, and this is "
+      + "not one of them."
+
+    public static let authoredIntentDefaults =
+        "This draft carries no search parameters, so it is scored at blend 1, gap 0, side 0, "
+      + "approach 0 and the harness's four steps. A move opened from the leaderboard keeps "
+      + "its own; a move written here has none to keep."
+
+    public static let roomWasEdited =
+        "This scene started as the stairs challenge room and has been edited since. It can be "
+      + "played, but it cannot be scored: a score is a score against the flight "
+      + "climb_score.mjs lays out, and these steps are no longer that flight."
+
+    /// A parameter outside the box the challenge scores in.
+    ///
+    /// THE BENCH ANSWERS SUCH A CELL AS UNSCORED RATHER THAN FAILED, which is
+    /// why this is a not-yet beside a button and not a failure message: there
+    /// would be nothing to show, and a person who pressed it would get an
+    /// empty row they would read as a bad result.
+    public static func outsideTheScoredBox(param: String, value: Double,
+                                           low: Double, high: Double) -> String {
+        String(format: "This move's %@ is %.4f and the challenge scores %@ between %.2f and "
+                     + "%.2f. The bench answers a cell outside that box as unscored rather "
+                     + "than failed, so there would be nothing to show. Change it, or play it "
+                     + "in the room without scoring it.", param, value, param, low, high)
+    }
+
+    /// The box the bench scores in (`climb_score.mjs`: `blend ∈ [0.7, 2.4]`,
+    /// `side ∈ [-0.02, 0.09]`). A cell outside it returns `invalid: true`
+    /// WITHOUT running the episode.
+    public static let blendBox = (low: 0.7, high: 2.4)
+    public static let sideBox = (low: -0.02, high: 0.09)
 }

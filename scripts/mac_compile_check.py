@@ -186,7 +186,13 @@ xcodebuild -project DuckStudio.xcodeproj -scheme DuckStudio \
     -skipPackagePluginValidation -skipMacroValidation \
     CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build 2>&1 \
   | sed -e 's|/Volumes/Macintosh_HD||g' -e 's|{REMOTE_SRC}/||g' \
+  | grep -v 'Stale file' \\
   | grep -E 'error:|warning: [A-Z]|\\*\\* BUILD' | tail -60
+# `Stale file` FIRST. Xcode prints one "warning: Stale file …" per leftover
+# DerivedData artefact — fifty-nine of them on 2026-09-02 — and every one
+# matches `warning: [A-Z]`. With `tail -60` after them, the one real
+# `error:` line scrolled off the end and a BUILD FAILED came back with no
+# reason on it, which is the second worst thing a gate can do.
 # THE EXIT STATUS HAS TO COME FROM xcodebuild, NOT FROM grep. Without
 # `pipefail` the pipeline reports grep's status, so a BUILD FAILED whose
 # errors grep matched successfully came back as exit 0 — a red build read as

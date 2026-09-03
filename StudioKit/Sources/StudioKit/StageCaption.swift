@@ -205,3 +205,70 @@ public enum StageCaption {
         }
     }
 }
+
+// MARK: - which world the picture is of
+
+extension StageCaption {
+
+    /// Where the world in a picture came from — the ONE question a caption
+    /// over a player has to answer.
+    ///
+    /// NEVER KEY THIS ON `clip.authored`. `/perform` sets `authored: true` on
+    /// every answer it gives and the bundled corpus clips are `authored: true`
+    /// too: the flag means the MOTION was authored, not that the ENVIRONMENT
+    /// was measured. A caption keyed on it is backwards on both halves of the
+    /// corpus at once.
+    ///
+    /// The three inputs the player actually has are: is a scene overlaid; did
+    /// this clip come out of a run this app just measured; does the stored clip
+    /// carry an environment. Those are exactly the four cases below.
+    public enum RunWorld: Equatable, Sendable {
+        /// A scene is being drawn over a recording.
+        case overlaid(sceneName: String)
+        /// This picture came out of a run this app just measured.
+        case readback
+        /// The clip carries an environment and nothing here measured it.
+        case fileSaysSo(clipName: String)
+        /// Nothing is drawn and nothing is claimed.
+        case bareFloor
+    }
+
+    /// Nil for `.bareFloor` — a bare floor makes no claim, and a caption
+    /// saying "this is a bare floor" over a run that had fourteen blocks
+    /// stacked off to one side would be making one.
+    public static func runWorld(_ state: RunWorld) -> String? {
+        switch state {
+        case .overlaid(let name):
+            return "Playing in \(name). Those steps and props were not in the recording — "
+                 + "nothing here touches them."
+        case .readback:
+            return DuckWorld.stoodIsTheReadback
+        case .fileSaysSo(let name):
+            return "This flight is what \(name)'s file says it was performed against. It is a "
+                 + "line the file carries, not a readback: nothing in this app measured it."
+        case .bareFloor:
+            return nil
+        }
+    }
+
+    /// The footer under a clip whose FILE names the world it was performed
+    /// against.
+    ///
+    /// IT SAYS WHO IS CLAIMING IT. The line this replaces read
+    /// "\(clip.name) was performed against a four-step flight" — true of a
+    /// bundled clip whose file says so, and false of a bench recording that
+    /// arrived with a hardcoded bare floor and had a scene drawn over it.
+    public static func performedAgainst(clipName: String, stepCount: Int,
+                                        wallCount: Int) -> String {
+        var parts: [String] = []
+        if stepCount > 0 {
+            parts.append("a \(stepCount)-step flight")
+        }
+        if wallCount > 0 {
+            parts.append("\(wallCount) wall\(wallCount == 1 ? "" : "s")")
+        }
+        let what = parts.isEmpty ? "an empty floor" : parts.joined(separator: " and ")
+        return "\(clipName)'s file says it was performed against \(what). That is the file's "
+             + "own line, not a measurement this app made."
+    }
+}

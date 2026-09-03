@@ -4,9 +4,9 @@
   "files": [
     { "path": "assets/chase_score.mjs", "bytes": 42404, "sha256": "9555e948d2380b00f6120ce853dc071391efab0f0e1cb6ebc2c3dc7f2b0f4c6d" },
     { "path": "assets/climb_event.mjs", "bytes": 5975, "sha256": "7fa04e72e5221d3b70fa988fe964a59d27b50b2991b36e25e812fdb9b7481336" },
-    { "path": "assets/climb_score.mjs", "bytes": 40386, "sha256": "bc26a19f53019a937b43b82165f3c69dca8b82759217779ca58a7603829b0cc0" },
+    { "path": "assets/climb_score.mjs", "bytes": 43882, "sha256": "7ced2ba129953307692ec7e7b46db899cfc74f8f1eb718d350bedbb7045583d7" },
     { "path": "assets/climb_servo.mjs", "bytes": 11170, "sha256": "d8a67cf74554beec75584e8cd8edecbb14a38766773e21879a7d1227881b38cd" },
-    { "path": "assets/duckbench-core.mjs", "bytes": 162677, "sha256": "73e4490d6d2521e1dd3acd10b595d19576c2f51cc7b1891959342876b6fbfcef" },
+    { "path": "assets/duckbench-core.mjs", "bytes": 188475, "sha256": "df9f67c3ec9bb9ca5f24571dc25e5d2a676cf7d99ce364fc93c696ab4995abaf" },
     { "path": "assets/duckbench-web.mjs", "bytes": 7608, "sha256": "4c15c00bdf5ef4fdc4913042d5dbb113a8c56075b0f8e7c79a211b20b1425a81" },
     { "path": "assets/duckkit-constants.json", "bytes": 1037, "sha256": "a2ba37dda4db836ade8dd6125708179fc903f96fa0f7dd7815f5cf66fa5cb987" },
     { "path": "assets/duckloop.mjs", "bytes": 4678, "sha256": "5789ee825ed7774e47c8e197a0d06af2a5adf90a6434ace6a55fa97ec918dbf5" },
@@ -15,7 +15,7 @@
     { "path": "assets/policyforward.mjs", "bytes": 9430, "sha256": "142311db55d59770f6b5ee41996b1b9e62c11a8ac7909ac06a1cbe9ec49d5368" },
     { "path": "assets/reward_math.mjs", "bytes": 3253, "sha256": "104fea431a4d3748460d929a46a8f54f5f85d5cf5a118e51c25aa3491bcfac13" },
     { "path": "assets/scene.mjb", "bytes": 7170061, "sha256": "3f8c9ab9b409ba74c73c30179d5f7c12b025f631693f9eec78d80dca242547be" },
-    { "path": "assets/stairs.js", "bytes": 8739, "sha256": "b114e2973ffeaea5a76ef081ba80f69710b39b00813853c1895fa3beff791d06" },
+    { "path": "assets/stairs.js", "bytes": 9673, "sha256": "d63e65fa30dc91b2b43dc0718451457934d96cd4302d4aaf8eb370c2f135dc56" },
     { "path": "index.html", "bytes": 10924, "sha256": "1689b193b3b3c40b60ded2b5896548335785b1473878cd01df1ea73cdb03baa2" }
   ]
 }

@@ -306,4 +306,80 @@ final class StairsChallengeTests: XCTestCase {
         XCTAssertEqual(StairsChallenge.defaultRise, 0.060)
         XCTAssertEqual(StairsChallenge.riseSaid(0.060), "60 mm")
     }
+
+    // MARK: - one cell, said as one cell
+
+    /// THE CELL `rig3` ITSELF RUNS is `fallback[3]`, not `[4]`: the grid
+    /// iterates `for dh { for plant }`, so 0, 1 and 2 are dh −0.010.
+    func testTheNominalCellIsTheOneRig3Runs() {
+        let nominal = StairsChallenge.Grid.nominal
+        XCTAssertEqual(nominal, StairsChallenge.Grid.fallback[3])
+        XCTAssertEqual(nominal.dh, 0)
+        XCTAssertEqual(nominal.drop, 0.120)
+        XCTAssertEqual(nominal.fmul, 1.0)
+        XCTAssertEqual(nominal.tier, .core)
+        XCTAssertEqual(StairsChallenge.Grid.fallback.filter { $0 == nominal }.count, 1)
+    }
+
+    func testOneCellIsNeverSaidAsAScore() {
+        XCTAssertTrue(StairsChallenge.oneCellIsNotAScore.contains("fourteen"))
+        let cell = Pipeline.CellOutcome(
+            when: Date(timeIntervalSince1970: 0), hash: "a56d459fb649", rise: 0.06,
+            cell: StairsChallenge.Grid.nominal, honest: true, stable: true,
+            reachedFlight: true, invalid: false, uprightTailTicks: 48, tailTicks: 50,
+            aboveMillimetres: 116.17, peakAboveTreadMillimetres: 41.4,
+            criterion: "honest: …")
+        let said = StairsChallenge.oneCellSaid(cell)
+        XCTAssertFalse(said.contains("of 9"))
+        XCTAssertFalse(said.contains("Cleared"))
+        XCTAssertTrue(said.contains("60/.120/x1.0 at 60 mm"), said)
+        XCTAssertTrue(said.contains("41 mm above the tread against a 95 mm bar"), said)
+        XCTAssertTrue(said.contains("48 of the last 50 ticks"), said)
+    }
+
+    /// AN UNSCORED CELL SAYS ONLY THAT AND WHY. Printing tread heights beside
+    /// it would report an episode that never ran.
+    func testACellOutsideItsOwnBoundsIsSaidAsUnscored() {
+        let cell = Pipeline.CellOutcome(
+            when: Date(timeIntervalSince1970: 0), rise: 0.06,
+            cell: StairsChallenge.Grid.nominal, honest: false, stable: false,
+            reachedFlight: false, invalid: true, uprightTailTicks: 0, tailTicks: 50,
+            aboveMillimetres: 0, peakAboveTreadMillimetres: 0,
+            why: "blend 2.6000 is outside [0.7, 2.4]", criterion: "honest: …")
+        let said = StairsChallenge.oneCellSaid(cell)
+        XCTAssertEqual(said, "60/.120/x1.0 at 60 mm: not scored: blend 2.6000 is outside "
+                           + "[0.7, 2.4].")
+        XCTAssertFalse(said.contains("bar"))
+    }
+
+    func testTheScoredRouteAndThePlayedRouteAreSaidApart() {
+        let scored = StairsChallenge.scoredWhereItIsScored
+        let played = StairsChallenge.performIsNotTheScore
+        XCTAssertNotEqual(scored, played)
+        XCTAssertFalse(scored.contains(played))
+        XCTAssertFalse(played.contains(scored))
+        XCTAssertTrue(scored.contains("climb_score.mjs"))
+        XCTAssertTrue(played.contains("bare bench"))
+        XCTAssertTrue(StairsChallenge.roomWasEdited.contains("cannot be scored"))
+        XCTAssertTrue(StairsChallenge.authoredIntentDefaults.contains("blend 1, gap 0, side 0"))
+        XCTAssertTrue(StairsChallenge.outsideTheScoredBox(param: "blend", value: 0.5,
+                                                          low: 0.7, high: 2.4)
+                        .contains("0.70"))
+    }
+
+
+    /// The tread under a point, by the harness's own geometry: the published
+    /// placed spawn at x 0.212 is on the first tread, the floor is the floor,
+    /// and in the overlap of two blocks the higher tread wins.
+    func testTheTreadUnderAPointIsTheHarnessGeometry() {
+        let h = StairsChallenge.Harness.self
+        XCTAssertEqual(h.treadTop(atX: 0.212, rise: 0.06, stepCount: 4), 0.06, accuracy: 1e-12)
+        XCTAssertEqual(h.treadTop(atX: 0.212, rise: 0.09, stepCount: 4), 0.09, accuracy: 1e-12)
+        XCTAssertEqual(h.treadTop(atX: 0.05, rise: 0.06, stepCount: 4), 0)
+        XCTAssertEqual(h.treadTop(atX: 0.42, rise: 0.06, stepCount: 4), 0.12, accuracy: 1e-12,
+                       "0.42 is under both the first block (0.12-0.46) and the second (0.40-0.74)")
+        XCTAssertEqual(h.treadTop(atX: 0.212, rise: 0.06, stepCount: 0), 0)
+        XCTAssertEqual(h.treadTop(atX: 0.212, rise: 0.06, stepCount: 1) + DuckWorld.spawnHeight,
+                       0.18, accuracy: 1e-12)
+    }
 }

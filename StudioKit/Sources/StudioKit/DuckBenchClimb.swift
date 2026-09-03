@@ -1,4 +1,5 @@
 import Foundation
+import DuckKit
 
 /// The two calls the stairs challenge adds to a bench, and what comes back.
 ///
@@ -92,25 +93,39 @@ extension DuckBench {
     /// through `HarnessJSON` rather than `JSONSerialization` for the reason
     /// that type exists: the bench hashes the object it receives, key order
     /// included, and a dictionary has no key order.
+    ///
+    /// `clip` IS A REQUEST FIELD AND NEVER GOES INSIDE `intent`. `intent` is
+    /// the object the bench takes `intentHash` over, key order and all, so a
+    /// render flag put in there would change the identity of the move — the
+    /// leaderboard would be keyed by whether somebody asked for a picture. It
+    /// rides beside `rise`, `cell` and `tail`, where the bench passes it into
+    /// the per-cell plant bag and never through `optsOf`.
     public static func climb(_ address: Address, intent: Data, rise: Double,
-                             cell: Cell, tail: String = "policy") throws -> Call {
+                             cell: Cell, tail: String = "policy",
+                             clip: Bool = false) throws -> Call {
         let parsed = try HarnessJSON.parse(intent)
         guard case .object = parsed else {
             throw Refusal.malformed("that file is not a harness intent object")
         }
-        let body = HarnessJSON.object([
+        var fields: [HarnessJSON.Member] = [
             .init(key: "intent", value: parsed),
             .init(key: "rise", value: .number(rise)),
             .init(key: "cell", value: cell.wire),
             .init(key: "tail", value: .string(tail)),
-        ])
+        ]
+        // ABSENT, NOT FALSE, WHEN NOBODY ASKED. A cell scored without a clip
+        // has to be the same request it has always been.
+        if clip { fields.append(.init(key: "clip", value: .bool(true))) }
+        let body = HarnessJSON.object(fields)
         return Call(method: "POST", url: URL(string: "\(address.base)/climb")!,
                     body: body.encoded(.compact))
     }
 
     public static func climb(_ address: Address, move: StairsChallenge.Move, rise: Double,
-                             cell: Cell, tail: String = "policy") throws -> Call {
-        try climb(address, intent: move.encoded(), rise: rise, cell: cell, tail: tail)
+                             cell: Cell, tail: String = "policy",
+                             clip: Bool = false) throws -> Call {
+        try climb(address, intent: move.encoded(), rise: rise, cell: cell, tail: tail,
+                  clip: clip)
     }
 
     /// The cell list itself, so a client never retypes the grid.
@@ -181,6 +196,17 @@ extension DuckBench {
         /// claim quietly becomes false in the last place. Nil for a row this
         /// app built rather than received.
         public let raw: HarnessJSON?
+        /// The world the episode actually stood in, when a clip was asked for.
+        ///
+        /// READ INSIDE THE EPISODE, before the harness's own `finally` parks
+        /// the bank: a post-hoc read would report fourteen blocks at
+        /// (i·1.5, −5) and draw an empty room over a run that climbed a
+        /// staircase. Nil when no clip was asked for, because then the bench
+        /// sends none — an invented flight here would be exactly the
+        /// fabrication this build removes.
+        public let stood: DuckWorld?
+        /// How many ticks the clip holds. Nil when none was asked for.
+        public let clipTicks: Int?
 
         public init(hash: String, rise: Double, cell: Cell, honest: Bool, stable: Bool,
                     uprightTailTicks: Int, tailTicks: Int = 50, feetOnTreadMax: Int = 0,
@@ -193,7 +219,8 @@ extension DuckBench {
                     invalid: Bool = false, why: String? = nil,
                     plantName: String? = nil, plantDigest: String? = nil,
                     criterion: String = "unstated", seconds: Double = 0,
-                    raw: HarnessJSON? = nil) {
+                    raw: HarnessJSON? = nil,
+                    stood: DuckWorld? = nil, clipTicks: Int? = nil) {
             self.hash = hash; self.rise = rise; self.cell = cell
             self.honest = honest; self.stable = stable
             self.uprightTailTicks = uprightTailTicks
@@ -210,6 +237,7 @@ extension DuckBench {
             self.plantName = plantName; self.plantDigest = plantDigest
             self.criterion = criterion; self.seconds = seconds
             self.raw = raw
+            self.stood = stood; self.clipTicks = clipTicks
         }
 
         /// A number exactly as the bench wrote it, when it wrote one.
@@ -286,7 +314,26 @@ extension DuckBench {
             plantDigest: top["plantDigest"]?.stringValue,
             criterion: top["criterion"]?.stringValue ?? "unstated",
             seconds: top["seconds"]?.doubleValue ?? 0,
-            raw: top)
+            raw: top,
+            stood: try readStood(top),
+            clipTicks: (top["clip"]?["ticks"]?.doubleValue).map { Int($0) })
+    }
+
+    /// The `stood` block of a `/climb` answer, through the SAME reader the
+    /// `/world` route uses.
+    ///
+    /// IT GOES THROUGH `JSONSerialization` AND NOT `HarnessJSON`, and that is
+    /// not an inconsistency. `HarnessJSON` exists because the twenty-six
+    /// SCORED numbers are compared against the harness at full float precision
+    /// and Foundation's parser moves the last digit; a readback's positions
+    /// are already rounded to 1e-4 by the bench and are drawn on a stage, so
+    /// the one reader both world routes share is the right one and a second
+    /// transcription of it would be the thing that drifts.
+    static func readStood(_ top: HarnessJSON) throws -> DuckWorld? {
+        guard let block = top["stood"], case .object = block else { return nil }
+        guard let object = try? JSONSerialization.jsonObject(with: block.encoded(.compact)),
+              let dictionary = object as? [String: Any] else { return nil }
+        return try readWorld(dictionary)
     }
 
     /// What a bench says about the stairs challenge before anything is scored.
@@ -364,5 +411,57 @@ extension DuckBench {
         if let value = any as? Int { return Double(value) }
         if let value = any as? NSNumber { return value.doubleValue }
         return nil
+    }
+}
+
+// MARK: - the cell's own picture
+
+extension DuckBench {
+
+    /// The cell's picture, with its environment taken from the answer's own
+    /// `stood` block.
+    ///
+    /// THE FIRST BENCH RECORDING IN THIS APP THAT ARRIVES WITH A REAL WORLD.
+    /// `readClip` hardcodes `.bareFloor` for every `/record` recording and
+    /// still does in this build — `/record` grows no `stood` block, and a
+    /// `GET /world` taken beside a recording is not the world DURING it. This
+    /// one has a world that was read out of the climb rig's own `mjData`
+    /// inside the episode, so the flight in the picture is the flight the duck
+    /// was on.
+    ///
+    /// NIL, NOT A THROW, WHEN NO CLIP WAS ASKED FOR. A scored cell without
+    /// `clip: true` is a complete answer and not a failure.
+    public static func readClimbedClip(_ data: Data, named name: String) throws
+        -> DuckIntentClip? {
+        guard let top = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw ReadError.notJSON
+        }
+        if let error = top["error"] as? String { throw ReadError.bench(error) }
+        guard let block = top["clip"] as? [String: Any] else { return nil }
+
+        let hz = block["hz"] as? Double ?? DuckModel.tickHz
+        guard hz == DuckModel.tickHz else { throw ReadError.wrongRate(hz) }
+        let frames = block["frames"] as? [[Double]] ?? []
+        guard !frames.isEmpty else { throw ReadError.empty }
+        let roots = (block["roots"] as? [[Double]] ?? []).compactMap { row -> DuckIntentClip.Root? in
+            guard row.count >= 7 else { return nil }
+            return DuckIntentClip.Root(x: row[0], y: row[1], z: row[2],
+                                       quaternion: (row[3], row[4], row[5], row[6]))
+        }
+        let commands = block["commands"] as? [[Double]] ?? []
+        let ends = (block["endsUpright"] as? Bool ?? true) ? DuckIntentClip.Posture.standing
+                                                           : .fallen
+        let laid = try readStood(top)
+        return DuckIntentClip(
+            name: name, hz: hz, frames: frames, roots: roots,
+            netYaw: 0, loops: false, startsFrom: .standing, endsIn: ends,
+            policy: block["policy"] as? String ?? "unknown",
+            authored: true,
+            environment: laid?.asEnvironment ?? .bareFloor,
+            credit: recordedCredit(plantName: block["plantName"] as? String
+                                            ?? top["plantName"] as? String,
+                                   plantDigest: block["plantDigest"] as? String
+                                            ?? top["plantDigest"] as? String),
+            telemetry: .init(actions: [], commands: commands, twists: []))
     }
 }

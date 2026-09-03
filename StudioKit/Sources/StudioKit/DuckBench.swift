@@ -30,13 +30,20 @@ public enum DuckBench {
         public init(host: String, port: Int) { self.host = host; self.port = port }
     }
 
-    public enum Refusal: Error, Equatable {
+    public enum Refusal: Error, Equatable, Sendable {
         case empty
         case notLocal(String)
         case malformed(String)
+        /// `/perform` clamps a track's blend into [0, 1]. A move authored at
+        /// 2.1153 would be PLAYED at 1.0 and REPORTED as 2.1153, so it is not
+        /// sent: a result carrying a blend the bench never ran is worse than
+        /// no result.
+        case blendWouldBeClamped(Double)
 
         public var message: String {
             switch self {
+            case .blendWouldBeClamped(let blend):
+                return DuckBench.blendWouldBeClamped(blend)
             case .empty:
                 return "Give the bench's address — something like 192.168.1.20:8770, or duckbench.local."
             case .notLocal(let host):
@@ -135,16 +142,76 @@ public enum DuckBench {
     /// It runs more than once on purpose. A single rollout that stays up proves
     /// very little — the four authored stair motions in this app's corpus get
     /// up their flight 0 times in 16.
+    ///
+    /// IT CAN NOW CARRY A WORLD, AND THE TWO NEW KEYS ARE ABSENT RATHER THAN
+    /// NULL WHEN IT DOES NOT. A request with neither is byte-identical to the
+    /// one this call has always made — four keys and an optional policy — so
+    /// an older bench receives exactly what it has always received and the
+    /// bench's own parity fixture does not move. `world` is the `POST /world`
+    /// body verbatim, spelled by the one function both routes call; `spawn` is
+    /// where the duck is put down, because THE BANK CANNOT MOVE TO THE DUCK.
     public static func perform(_ address: Address, keys: [(at: Double, pose: [Double])],
                                seconds: Double, rollouts: Int = 8,
-                               policy: String? = nil, blend: Double = 1) throws -> Call {
+                               policy: String? = nil, blend: Double = 1,
+                               world: DuckWorld.Plan? = nil,
+                               spawn: DuckWorld.Point? = nil) throws -> Call {
+        // REFUSED BEFORE A `URLRequest` EXISTS, the gate `setWorld` already
+        // has: the bench would answer with the same reason, and a round trip
+        // to be told what was already known is a round trip that makes a
+        // person wait to be refused.
+        if let refusal = world?.refusals.first { throw refusal }
+        if blend > 1 || blend < 0 { throw Refusal.blendWouldBeClamped(blend) }
         var body: [String: Any] = [
             "track": keys.map { ["at": $0.at, "pose": $0.pose] },
             "seconds": seconds, "rollouts": rollouts, "blend": blend,
         ]
         if let policy { body["policy"] = policy }
+        if let world { body["world"] = worldBody(world) }
+        if let spawn { body["spawn"] = spawnBody(spawn) }
         return Call(method: "POST", url: URL(string: "\(address.base)/perform")!,
                     body: try JSONSerialization.data(withJSONObject: body))
+    }
+
+    /// Where the duck is put down, as the three numbers the wire takes.
+    ///
+    /// A FLOOR POINT'S `z` IS ZERO AND A SPAWN'S IS A HEIGHT, so a point built
+    /// without one is sent at the harness's own 0.120 m — the same default the
+    /// bench applies to an absent `spawn.z`, and the height `/perform` has
+    /// always started its first rollout at. Sending a literal 0 would put the
+    /// trunk on the floor with the legs through it, which is not what "no
+    /// height was given" means.
+    static func spawnBody(_ point: DuckWorld.Point) -> [String: Any] {
+        ["x": point.x, "y": point.y,
+         "z": point.z == 0 ? DuckWorld.spawnHeight : point.z]
+    }
+
+    /// THE ONE SPELLER OF A WORLD BODY. `setWorld` and `perform` both call it,
+    /// so the two routes can never drift apart — and they must not, because
+    /// the bench validates both with the same function and a client that
+    /// spelled them differently would be refused on one route and obeyed on
+    /// the other for the same drawing.
+    static func worldBody(_ plan: DuckWorld.Plan) -> [String: Any] {
+        var body: [String: Any] = [
+            "props": plan.props.map { ["name": $0.name, "x": $0.x, "y": $0.y] },
+        ]
+        if plan.clear {
+            body["clear"] = true
+        } else if let steps = plan.steps {
+            body["steps"] = steps.map { ["x": $0.x, "top": $0.top] }
+        }
+        if !plan.walls.isEmpty {
+            body["walls"] = plan.walls.map { ["name": $0] }
+        }
+        if let name = plan.name { body["name"] = name }
+        if let ball = plan.ball { body["ball"] = ["x": ball.x, "y": ball.y] }
+        return body
+    }
+
+    /// What a blend outside the box costs, said with both numbers.
+    public static func blendWouldBeClamped(_ blend: Double) -> String {
+        String(format: "This move's blend is %.4f, and the perform route runs a track at a "
+                     + "blend between 0 and 1 — it would clamp it to 1.0 and report it as "
+                     + "%.4f. It is not sent.", blend, blend)
     }
 
     /// Put a policy this phone made ONTO the bench.
@@ -340,21 +407,8 @@ public enum DuckBench {
     /// wants.
     public static func setWorld(_ address: Address, _ plan: DuckWorld.Plan) throws -> Call {
         if let refusal = plan.refusals.first { throw refusal }
-        var body: [String: Any] = [
-            "props": plan.props.map { ["name": $0.name, "x": $0.x, "y": $0.y] },
-        ]
-        if plan.clear {
-            body["clear"] = true
-        } else if let steps = plan.steps {
-            body["steps"] = steps.map { ["x": $0.x, "top": $0.top] }
-        }
-        if !plan.walls.isEmpty {
-            body["walls"] = plan.walls.map { ["name": $0] }
-        }
-        if let name = plan.name { body["name"] = name }
-        if let ball = plan.ball { body["ball"] = ["x": ball.x, "y": ball.y] }
         return Call(method: "POST", url: URL(string: "\(address.base)/world")!,
-                    body: try JSONSerialization.data(withJSONObject: body))
+                    body: try JSONSerialization.data(withJSONObject: worldBody(plan)))
     }
 
     /// What world the bench says it is standing in. `GET /world` and the answer
@@ -371,6 +425,18 @@ public enum DuckBench {
         guard let top = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw ReadError.notJSON
         }
+        return try readWorld(top)
+    }
+
+    /// THE ONE READER, over a dictionary rather than bytes.
+    ///
+    /// `/perform` NESTS THE WHOLE READBACK UNDER `stood`, and it has to: this
+    /// reader takes `top["world"]` as the `{set, name}` pair, so a `/perform`
+    /// answer that spelled its world at the top level would collide with that.
+    /// Nesting the block whole means both routes are parsed by this function
+    /// and there is no second reader to keep in step — which is what
+    /// `testTheStoodBlockIsParsedByTheSameReaderAsTheWorldRoute` holds.
+    static func readWorld(_ top: [String: Any]) throws -> DuckWorld {
         if let error = top["error"] as? String { throw ReadError.bench(error) }
 
         let block = top["world"] as? [String: Any] ?? [:]
@@ -445,6 +511,10 @@ public enum DuckBench {
                                              why: row["why"] as? String ?? "")
             },
             bank: bank, arena: arena,
+            // HOW MANY BLOCKS THIS RUN LEFT BELOW THE FLOOR is a fact about
+            // the run, not about the transcription, which is why it is here
+            // and not on `Bank`.
+            parked: bankBlock["parked"] as? Int,
             plantName: top["plantName"] as? String,
             plantDigest: top["plantDigest"] as? String)
     }
@@ -710,7 +780,15 @@ public enum DuckBench {
     /// as a fact about a world nobody had read. A reader is the wrong place to
     /// invent a value; a reader that cannot find a fact must return its
     /// absence, which is what the Optionals below are for.
-    public static func readOutcome(_ data: Data, when: Date) throws
+    /// `askedForWorld` RECORDS WHAT THE CALLER SENT, and there is no field on
+    /// the wire for it. `stood` is deliberately absent from a no-world answer
+    /// — that is what keeps the bench's own parity fixture frozen — so "no
+    /// world was sent" and "a world was sent to a bench too old to answer with
+    /// one" arrive as the same bytes. Only the caller can tell them apart, and
+    /// `BenchOutcome.worldStanding` is where the difference becomes a
+    /// sentence.
+    public static func readOutcome(_ data: Data, when: Date,
+                                   askedForWorld: Bool = false) throws
         -> Pipeline.BenchOutcome {
         guard let top = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw ReadError.notJSON
@@ -728,7 +806,75 @@ public enum DuckBench {
             achieves: achieves, rollouts: rollouts,
             criterion: top["criterion"] as? String ?? "stayed upright",
             medianHeight: top["medianHeight"] as? Double,
-            peakJointRate: top["peakJointRate"] as? Double)
+            peakJointRate: top["peakJointRate"] as? Double,
+            laid: try readStood(top),
+            askedForWorld: askedForWorld)
+    }
+
+    /// The `stood` block, narrowed to the shape a draft can hold, or nil when
+    /// the answer carried none.
+    ///
+    /// THE FOUR KEYS ONLY THIS ROUTE HAS live beside the readback rather than
+    /// inside it: `spawn` is where the duck was put down, `sag_mm` is how far
+    /// the lowest-sitting block had fallen by the end of the same tick the
+    /// positions were read on. Both are facts about a run, and neither exists
+    /// on `GET /world`.
+    static func readStood(_ top: [String: Any]) throws -> Pipeline.LaidWorld? {
+        guard let block = top["stood"] as? [String: Any] else { return nil }
+        let world = try readWorld(block)
+        // A BLOCK THAT SAYS NO WORLD STOOD IS NOT A LAID WORLD. A spawn-only
+        // /perform answers with a `stood` whose world.set is false, every
+        // block listed where it booted and nothing pinned; reading that as
+        // "laid" captioned the bench's own scattered blocks as a flight the
+        // bench re-pinned every tick. Nothing stood, so nothing is returned,
+        // and the outcome says the bench's own world in its own words.
+        guard world.isSet else { return nil }
+        let spawn = readPoint(block["spawn"]).map {
+            Pipeline.LaidWorld.Point(x: $0.x, y: $0.y, z: $0.z)
+        }
+        return world.laid(spawn: spawn, sagMillimetres: block["sag_mm"] as? Double)
+    }
+
+    /// A `/perform` answer as a picture, IN THE WORLD IT WAS READ BACK IN.
+    ///
+    /// `/perform` has always answered with frames, roots and commands, and
+    /// this kit has always thrown them away: nothing in the app had ever drawn
+    /// an authored run. This is the first reader of them, and the environment
+    /// it hands the stage is the READBACK's — not the scene that was sent, and
+    /// not a hardcoded bare floor. A run with no world read back gets the bare
+    /// floor, which is what a bench with no `stood` block actually ran on
+    /// except for the fourteen blocks stacked off to one side that
+    /// `DuckWorld.worldSaid(.benchsOwn)` names.
+    public static func readPerformedClip(_ data: Data, named name: String,
+                                         laid: Pipeline.LaidWorld?) throws -> DuckIntentClip {
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw ReadError.notJSON
+        }
+        if let error = root["error"] as? String { throw ReadError.bench(error) }
+        let hz = root["hz"] as? Double ?? DuckModel.tickHz
+        guard hz == DuckModel.tickHz else { throw ReadError.wrongRate(hz) }
+        let frames = root["frames"] as? [[Double]] ?? []
+        guard !frames.isEmpty else { throw ReadError.empty }
+        let roots = (root["roots"] as? [[Double]] ?? []).compactMap { row -> DuckIntentClip.Root? in
+            guard row.count >= 7 else { return nil }
+            return DuckIntentClip.Root(x: row[0], y: row[1], z: row[2],
+                                       quaternion: (row[3], row[4], row[5], row[6]))
+        }
+        let commands = root["commands"] as? [[Double]] ?? []
+        let ends = (root["endsUpright"] as? Bool ?? true) ? DuckIntentClip.Posture.standing
+                                                          : .fallen
+        return DuckIntentClip(
+            name: name, hz: hz, frames: frames, roots: roots,
+            netYaw: 0, loops: false, startsFrom: .standing, endsIn: ends,
+            policy: root["policy"] as? String ?? "unknown",
+            // THE MOTION WAS AUTHORED AND THAT IS ALL THIS FLAG MEANS. It says
+            // nothing about where the environment came from, which is why no
+            // caption in this app is keyed on it — see `StageCaption.RunWorld`.
+            authored: root["authored"] as? Bool ?? true,
+            environment: laid?.asEnvironment ?? .bareFloor,
+            credit: recordedCredit(plantName: root["plantName"] as? String,
+                                   plantDigest: root["plantDigest"] as? String),
+            telemetry: .init(actions: [], commands: commands, twists: []))
     }
 
     /// How long a plant digest is shown. Twelve hex characters — enough that

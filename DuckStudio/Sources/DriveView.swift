@@ -517,17 +517,14 @@ struct DriveView: View {
     /// own, and the caption says so on the picture, held to two lines so the
     /// duck stays in view.
     private var floorCaption: some View {
-        Text(DuckWorld.floorIsNotAReadback)
-            .font(.caption2)
-            .foregroundStyle(Theme.textSecondary)
-            .lineLimit(2)
-            .padding(Theme.spacing(.hairline))
-            .background(Theme.surfacePrimary.opacity(DriveMetric.captionBacking),
-                        in: RoundedRectangle(cornerRadius: Theme.radius(Palette.Radius.card),
-                                             style: .continuous))
+        // THE BOX MOVED TO `DesignComponents`, THE PLACEMENT STAYED HERE. A
+        // second screen needed the same caption and was about to hand-copy
+        // this one. Where it sits is this screen's business — the drive stage
+        // keeps its bottom corner — and what it looks like is the design
+        // system's.
+        StageCaptionBox(text: DuckWorld.floorIsNotAReadback)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
             .padding(Theme.spacing(.tight))
-            .allowsHitTesting(false)
     }
 
     /// The same drive, drawn on the floor you are standing on.
@@ -2222,8 +2219,11 @@ struct DriveView: View {
 /// can run the formula over it. How tall to let a viewport get is not a fact
 /// about anything, it is a judgement about a phone.
 private enum DriveMetric {
-    /// How solid the caption's card is over the stage.
-    static let captionBacking = 0.85
+    // `captionBacking` MOVED WITH THE BOX IT BELONGED TO. It had exactly one
+    // reader, `floorCaption`, and that body is now `StageCaptionBox` in
+    // `DesignComponents` — where `StageCaptionBox.backing` is the same 0.85 in
+    // the one place a second screen can reach it. Two copies of a backing
+    // opacity is the drift the design system exists to prevent.
     /// The viewport card. Its readout takes `viewport.inner`, which is how the
     /// concentric rule is expressed rather than asserted — pick a different
     /// outer radius and the inner one follows.

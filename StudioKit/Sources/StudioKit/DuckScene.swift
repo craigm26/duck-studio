@@ -665,3 +665,158 @@ extension DuckScene {
                        distance: distance, elevation: DuckScene.authoringElevation)
     }
 }
+
+// MARK: - recognising the room a score is scored in
+
+extension DuckScene {
+
+    /// A scene that IS the stairs challenge's room, with the harness numbers
+    /// recovered from its geometry.
+    ///
+    /// WHY RECOVERY RATHER THAN A STORED FIELD. A scene is a drawing somebody
+    /// can move. Storing "this is the 60 mm challenge room" on it would keep
+    /// saying so after a step had been dragged 30 mm, and the whole value of
+    /// this type is that it cannot: the numbers come out of the geometry, and
+    /// the id has to agree with them.
+    public struct ChallengeRoom: Equatable, Sendable {
+        public let challenge: Challenge
+        /// One riser, metres. `steps[0].top`.
+        public let rise: Double
+        public let stepCount: Int
+        /// Where the duck stands, in the HARNESS'S ROOM coordinates.
+        public let spawn: DuckWorld.Point
+        public let gap: Double
+        public let side: Double
+        /// True when the id was built from an explicit `spawn:` rather than
+        /// from gap/side. The two spellings hash differently, so a recogniser
+        /// has to try both and remember which one answered.
+        public let spawnWasPlaced: Bool
+
+        public init(challenge: Challenge, rise: Double, stepCount: Int,
+                    spawn: DuckWorld.Point, gap: Double, side: Double,
+                    spawnWasPlaced: Bool) {
+            self.challenge = challenge; self.rise = rise; self.stepCount = stepCount
+            self.spawn = spawn; self.gap = gap; self.side = side
+            self.spawnWasPlaced = spawnWasPlaced
+        }
+    }
+
+    public enum RoomReading: Equatable, Sendable {
+        case theScoredRoom(ChallengeRoom)
+        /// The id says challenge and the geometry has moved. Playable, not
+        /// scorable: a score is a score against the flight `climb_score.mjs`
+        /// lays out, and these steps are no longer that flight.
+        case editedSinceItWasOpened(ChallengeRoom)
+        case notAChallengeRoom
+    }
+
+    /// Whether this scene is the room the stairs challenge is scored in, and
+    /// whether it still is.
+    ///
+    /// THE ID AND THE GEOMETRY, BOTH, AND THEY DISAGREE LOUDLY. Moving a step
+    /// in the editor changes the geometry and NOT the id, so an id-only test
+    /// would send an edited room to the scoring route and publish a number
+    /// against a flight nobody laid. A geometry-only test would call a
+    /// hand-drawn look-alike the scored room, which is the same lie from the
+    /// other side.
+    public var roomReading: RoomReading {
+        // 1. THE SHAPE GATE. The harness's room is a flight and one wall.
+        guard (1...DuckWorld.Bank.pinned.count).contains(steps.count),
+              walls.count == 1, props.isEmpty else { return .notAChallengeRoom }
+
+        // 2. INVERT. Every one of these is exact affine arithmetic on
+        //    `stairsChallenge`'s own construction.
+        let harness = StairsChallenge.Harness.self
+        let rise = steps[0].top
+        guard rise > 0 else { return .notAChallengeRoom }
+        for (i, step) in steps.enumerated() where
+            abs(step.top - Double(i + 1) * rise) > 1e-9 {
+            return .notAChallengeRoom
+        }
+        let spawnX = (harness.stairStart + harness.stepHalfDepth) - steps[0].x
+        let spawnY = harness.stairY - steps[0].y
+        let gap = (harness.riserX - harness.spawnStandoff) - spawnX
+        let side = spawnY - harness.stairY
+        let count = steps.count
+        let riseMillimetres = Int((rise * 1000).rounded())
+
+        // 3. REBUILD THE ID IN BOTH SPELLINGS. A room scored from an explicit
+        //    spawn hashes differently from one scored from gap and side, and
+        //    a recogniser that knew only one would call half the rooms
+        //    hand-drawn.
+        let fromGap = DuckScene.challengeSceneID(.stairs, riseMillimetres: riseMillimetres,
+                                                 gap: gap, side: side, stepCount: count)
+        let fromSpawn = DuckScene.challengeSceneID(.stairs, riseMillimetres: riseMillimetres,
+                                                   spawn: (spawnX, spawnY), stepCount: count)
+        let placed: Bool
+        if id == fromSpawn { placed = true }
+        else if id == fromGap { placed = false }
+        else { return .notAChallengeRoom }
+
+        let room = ChallengeRoom(challenge: .stairs, rise: rise, stepCount: count,
+                                 spawn: DuckWorld.Point(x: spawnX, y: spawnY),
+                                 gap: gap, side: side, spawnWasPlaced: placed)
+
+        // 4. REBUILD THE ROOM AND COMPARE IT, at the tenth of a millimetre the
+        //    id itself is quantised to — which is the tolerance a JSON round
+        //    trip already survives.
+        let rebuilt = placed
+            ? DuckScene.stairsChallenge(rise: rise, count: count, spawn: (spawnX, spawnY))
+            : DuckScene.stairsChallenge(rise: rise, count: count, gap: gap, side: side)
+        guard rebuilt.steps.count == steps.count, rebuilt.walls.count == walls.count else {
+            return .editedSinceItWasOpened(room)
+        }
+        for (drawn, wanted) in zip(steps, rebuilt.steps) {
+            let same = DuckScene.sameToATenthOfAMillimetre
+            guard same(drawn.x, wanted.x), same(drawn.y, wanted.y),
+                  same(drawn.top, wanted.top),
+                  same(drawn.halfDepth, wanted.halfDepth),
+                  same(drawn.halfWidth, wanted.halfWidth),
+                  same(drawn.halfHeight, wanted.halfHeight) else {
+                return .editedSinceItWasOpened(room)
+            }
+        }
+        for (drawn, wanted) in zip(walls, rebuilt.walls) {
+            let same = DuckScene.sameToATenthOfAMillimetre
+            guard same(drawn.x, wanted.x), same(drawn.y, wanted.y),
+                  same(drawn.halfThickness, wanted.halfThickness),
+                  same(drawn.height, wanted.height),
+                  same(drawn.halfLength, wanted.halfLength) else {
+                return .editedSinceItWasOpened(room)
+            }
+        }
+        return .theScoredRoom(room)
+    }
+
+    /// The quantum the scene id is built on — a tenth of a millimetre, chosen
+    /// there so an id survives a JSON round trip, and used here so the
+    /// geometry check has exactly the same tolerance the id does.
+    static let sameToATenthOfAMillimetre: (Double, Double) -> Bool = { a, b in
+        Int((a * 10_000).rounded()) == Int((b * 10_000).rounded())
+    }
+
+    public var challengeRoom: ChallengeRoom? {
+        if case .theScoredRoom(let room) = roomReading { return room }
+        return nil
+    }
+
+    /// Every step, wall, prop and ball moved by (dx, dy).
+    ///
+    /// THE DUCK MOVES TO THE BANK, BECAUSE THE BANK CANNOT MOVE TO THE DUCK,
+    /// and this is that move written down: a scene drawn in the duck's frame
+    /// becomes the same scene in the room's. Ids are kept — these are the same
+    /// objects somewhere else, not new ones.
+    public func translated(by point: DuckWorld.Point) -> DuckScene {
+        var moved = self
+        moved.steps = steps.map {
+            var step = $0; step.x += point.x; step.y += point.y; return step
+        }
+        moved.walls = walls.map {
+            var wall = $0; wall.x += point.x; wall.y += point.y; return wall
+        }
+        moved.props = props.map {
+            var prop = $0; prop.x += point.x; prop.y += point.y; return prop
+        }
+        return moved
+    }
+}

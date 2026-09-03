@@ -663,4 +663,132 @@ final class DuckWorldTests: XCTestCase {
         XCTAssertEqual(DuckWorld.groupedSayings([]), [])
         XCTAssertEqual(DuckWorld.groupedSayings([notes[0]]), [notes[0].says])
     }
+
+    // MARK: - the duck moves to the bank, because the bank cannot move
+
+    /// THE DRIVE SCREEN'S PATH IS UNTOUCHED. `/world` cannot move a duck, so
+    /// the live lane's frame is the room's frame already and the old
+    /// signature has to send the bytes it always sent.
+    func testTheOldPlanSignatureStillSendsTheSameBytes() throws {
+        let scene = DuckScene(name: "One step and a ball",
+                              steps: [.init(x: 0.40, y: 0, top: 0.06)],
+                              props: [DuckScene.ball(x: 0.55, y: 0.10)])
+        let plan = DuckWorld.plan(for: scene, on: bank)
+        XCTAssertEqual(plan.steps?.map(\.x), [0.40])
+        XCTAssertEqual(plan.ball?.y, 0.10)
+        XCTAssertFalse(plan.clear)
+        let call = try DuckBench.setWorld(DuckBench.Address(host: "127.0.0.1", port: 8770), plan)
+        let body = try XCTUnwrap(try JSONSerialization.jsonObject(with: try XCTUnwrap(call.body))
+                                   as? [String: Any])
+        XCTAssertEqual(body.keys.sorted(), ["ball", "name", "props", "steps"])
+    }
+
+    /// THE FLIGHT LANDS WHERE THE HARNESS LAYS IT. A challenge scene is drawn
+    /// in the SPAWN's frame; the room's frame is the one the bench sees.
+    func testAPlanFromASpawnFramedSceneLandsTheFlightWhereTheHarnessLaysIt() {
+        let standing = DuckWorld.standing(for: RoomFixture.scene(rise: 0.060), on: bank)
+        let spawn = standing.spawn
+        XCTAssertEqual(spawn?.x ?? 0, 0.05, accuracy: 1e-12)
+        XCTAssertEqual(spawn?.y ?? 0, 1.305, accuracy: 1e-12)
+        let steps = standing.plan.steps ?? []
+        XCTAssertEqual(steps.count, 4)
+        for (step, wanted) in zip(steps, [(0.29, 0.06), (0.57, 0.12), (0.85, 0.18), (1.13, 0.24)]) {
+            XCTAssertEqual(step.x, wanted.0, accuracy: 1e-12)
+            XCTAssertEqual(step.top, wanted.1, accuracy: 1e-12)
+        }
+        XCTAssertNil(standing.refusal)
+    }
+
+    /// TWO THINGS THE NOTES WILL AND WILL NOT SAY, AND BOTH ARE CORRECT. No
+    /// `step y` note, because the frame is right. Four `halfHeight` notes,
+    /// because `stairsChallenge` deepens its blocks on purpose so the drawing
+    /// reaches the floor and the bank's blocks are 200 mm.
+    func testATranslatedSceneEmitsNoStepYNoteAndFourHalfHeightNotes() {
+        let standing = DuckWorld.standing(for: RoomFixture.scene(rise: 0.060), on: bank)
+        let notes = standing.plan.predicted
+        XCTAssertEqual(notes.filter { $0.field == "y" }.count, 0,
+                       "every step is already at the bank's own row")
+        XCTAssertEqual(notes.filter { $0.field == "halfHeight" }.count, 4)
+        XCTAssertEqual(notes.filter { $0.what == "gap between steps" }.count, 0,
+                       "a 0.28 m run inside a 0.34 m block is a solid flight")
+    }
+
+    func testTheDuckMovesBecauseTheBankCannot() {
+        let drawn = DuckScene.staircase(count: 3, rise: 0.04)
+        XCTAssertEqual(DuckWorld.spawn(for: drawn, on: bank)?.y, 1.305)
+        XCTAssertEqual(DuckWorld.spawn(for: drawn, on: bank)?.x, 0)
+        XCTAssertEqual(DuckWorld.spawn(for: RoomFixture.scene(), on: bank)?.y ?? 0, 1.305,
+                       accuracy: 1e-12)
+        XCTAssertNil(DuckWorld.spawn(for: DuckScene.broomCupboard(), on: bank),
+                     "no steps is nothing to line up with")
+    }
+
+    /// A drawn bare floor is asked for OUT LOUD, because parking the bank is a
+    /// change to the plant and `bankWasParkedForThisRun` says so.
+    func testASceneWithNoStepsButAPropAsksForABareFloor() {
+        let scene = DuckScene(name: "Ball and a block",
+                              props: [DuckScene.ball(x: 0.40, y: 0),
+                                      DuckScene.block(x: 0.45, y: -0.30)])
+        let standing = DuckWorld.standing(for: scene, on: bank)
+        XCTAssertTrue(standing.plan.clear)
+        XCTAssertNil(standing.plan.steps)
+        XCTAssertNil(standing.spawn, "nothing to line up with, so nothing moves")
+        XCTAssertEqual(standing.plan.ball?.x, 0.40)
+    }
+
+    /// MOVING THE DUCK MOVES EVERYTHING ELSE WITH IT, and the refusal is
+    /// evaluated where the bench will see it.
+    func testTheArenaRefusalFiresInRoomCoordinatesNotSceneCoordinates() throws {
+        let scene = DuckScene(name: "A step and a ball to the left",
+                              steps: [.init(x: 0.40, y: 0, top: 0.06)],
+                              props: [DuckScene.ball(x: 0.40, y: 0.20)])
+        XCTAssertTrue(DuckWorld.plan(for: scene, on: bank).refusals.isEmpty,
+                      "at scene y = 0.20 the ball is well inside the arena")
+        let standing = DuckWorld.standing(for: scene, on: bank)
+        guard case .ballOutsideTheArena = try XCTUnwrap(standing.refusal) else {
+            return XCTFail("a ball at room y = 1.505 is past the inner face")
+        }
+        let said = try XCTUnwrap(standing.refusalSaid)
+        XCTAssertTrue(said.hasPrefix("Moving the duck to the step bank"), said)
+        XCTAssertTrue(said.contains("outside the arena"), said)
+    }
+
+    /// A scene that was already illegal where it was drawn is refused in its
+    /// own words: blaming the translation would send somebody after the wrong
+    /// fault.
+    func testASceneAlreadyIllegalWhereItWasDrawnIsNotBlamedOnTheMove() throws {
+        let scene = DuckScene(name: "Fifteen",
+                              steps: (0..<15).map { .init(x: 0.2 + Double($0) * 0.01, y: 0,
+                                                          top: 0.06) },
+                              walls: [], props: [])
+        let standing = DuckWorld.standing(for: scene, on: bank)
+        XCTAssertNotNil(standing.refusal)
+        XCTAssertNil(standing.refusalSaid)
+    }
+
+    // MARK: - the sentences a run's world is described with
+
+    func testEveryWorldThatStoodSentenceSaysItsOwnThing() {
+        XCTAssertTrue(DuckWorld.stoodIsTheReadback.contains("read back out of its own joints"))
+        XCTAssertTrue(DuckWorld.duckMovedToTheBank.contains("1.305"))
+        XCTAssertTrue(DuckWorld.duckMovedToTheBank.contains("wall_n"))
+        XCTAssertTrue(DuckWorld.blocksAreTwoHundredMillimetresTall.contains("200 mm"))
+        XCTAssertTrue(DuckWorld.noSpawnBesideAFlight.contains("(0, 0)"))
+        XCTAssertTrue(DuckWorld.bankWasParkedForThisRun.contains("fourteen"))
+        XCTAssertTrue(DuckWorld.theBallIsAlwaysThere.contains("(0.55, 0.10) m"))
+        XCTAssertTrue(DuckWorld.movedThenRefused(.tooManySteps(asked: 15, bank: 14))
+                        .contains("Moving the duck to the step bank"))
+        XCTAssertTrue(DuckBench.blendWouldBeClamped(2.1153).contains("2.1153"))
+        // None of them hedges, and none of them is another one.
+        let all = [DuckWorld.stoodIsTheReadback, DuckWorld.duckMovedToTheBank,
+                   DuckWorld.blocksAreTwoHundredMillimetresTall,
+                   DuckWorld.noSpawnBesideAFlight, DuckWorld.bankWasParkedForThisRun,
+                   DuckWorld.theBallIsAlwaysThere]
+        XCTAssertEqual(Set(all).count, all.count)
+        for line in all {
+            XCTAssertFalse(line.contains("probably"), line)
+            for other in all where other != line { XCTAssertFalse(other.contains(line)) }
+        }
+    }
+
 }

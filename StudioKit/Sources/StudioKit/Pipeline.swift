@@ -65,16 +65,72 @@ public struct Pipeline: Equatable, Sendable {
         /// The fastest any joint was actually driven, rad/s.
         public var peakJointRate: Double?
 
+        /// The world the bench READ BACK OUT OF ITS OWN JOINTS for this run,
+        /// narrowed to the shape a draft can hold. Nil when the answer carried
+        /// no `stood` block.
+        ///
+        /// OPTIONAL WITH NO DEFAULT, for the reason `plantName` states above:
+        /// a non-Optional stored property with a default throws `keyNotFound`
+        /// on every older draft, and `DraftStore.reload` decodes inside
+        /// `compactMap { try? … }`, so a throw is not a message — it is every
+        /// draft written before this build silently vanishing from the list.
+        public var laid: Pipeline.LaidWorld?
+        /// Whether this app ASKED for a world. Set by the caller.
+        ///
+        /// THERE IS NO FIELD ON THE WIRE FOR THIS, DELIBERATELY. A `/perform`
+        /// answer with no world in the request is byte-identical to the one
+        /// that route has always given — that is what keeps the bench's parity
+        /// fixture frozen — so "nothing was asked" and "a bench too old to
+        /// answer" arrive here as the same bytes. Only the caller knows which,
+        /// and `worldStanding` is where the two are kept apart.
+        public var askedForWorld: Bool?
+        /// Why this run is not a score, when it is not: the route's own kit
+        /// sentence, stored with the numbers it qualifies rather than derived
+        /// at draw time. Optional with no default, like the two above, so a
+        /// build-46 outcome decodes with nothing to say.
+        public var routeNote: String?
+
         public init(when: Date, bench: String, plantName: String? = nil,
                     plantDigest: String? = nil, policy: String,
                     achieves: Int, rollouts: Int, criterion: String,
-                    medianHeight: Double? = nil, peakJointRate: Double? = nil) {
+                    medianHeight: Double? = nil, peakJointRate: Double? = nil,
+                    laid: Pipeline.LaidWorld? = nil, askedForWorld: Bool? = nil,
+                    routeNote: String? = nil) {
             self.when = when; self.bench = bench
             self.plantName = plantName; self.plantDigest = plantDigest
             self.policy = policy; self.achieves = achieves; self.rollouts = rollouts
             self.criterion = criterion; self.medianHeight = medianHeight
             self.peakJointRate = peakJointRate
+            self.laid = laid; self.askedForWorld = askedForWorld
+            self.routeNote = routeNote
         }
+
+        /// FOUR STATES, BECAUSE THERE ARE FOUR. Collapsing any two prints a
+        /// sentence that is true of one and false of another: "the bench ran
+        /// its own world" is a fact about a run nobody sent a world with, and
+        /// a lie about one whose world the bench was too old to answer.
+        public enum WorldStanding: Equatable, Sendable {
+            /// Asked, and the bench read one back.
+            case laid(Pipeline.LaidWorld)
+            /// Did not ask: the plant as it booted.
+            case benchsOwn
+            /// Asked, and the answer carried no `stood`.
+            case askedAndTheBenchDidNotSay
+            /// Stored before the app kept this.
+            case notRecorded
+        }
+
+        public var worldStanding: WorldStanding {
+            switch (askedForWorld, laid) {
+            case (_, .some(let world)):  return .laid(world)
+            case (.some(true), .none):   return .askedAndTheBenchDidNotSay
+            case (.some(false), .none):  return .benchsOwn
+            case (.none, .none):         return .notRecorded
+            }
+        }
+
+        /// Which world this ran in, in one sentence. See `DuckWorld.worldSaid`.
+        public var worldSentence: String { DuckWorld.worldSaid(worldStanding) }
 
         /// Every rollout stood up.
         public var isClean: Bool { rollouts > 0 && achieves == rollouts }
@@ -108,12 +164,13 @@ public struct Pipeline: Equatable, Sendable {
         }
 
         /// The whole result in words: what happened, then which world it
-        /// happened in. Composed here rather than in the view because both
-        /// halves make a claim, and the join between them is where a screen
-        /// would otherwise stitch a measured number to an unmeasured world.
+        /// happened in. Composed here rather than in the view because all
+        /// three halves make a claim, and the join between them is where a
+        /// screen would otherwise stitch a measured number to an unmeasured
+        /// world.
         public var told: String {
             let head = summary.hasSuffix(".") ? summary : summary + "."
-            return head + " " + plantSentence
+            return head + " " + plantSentence + " " + worldSentence
         }
     }
 
@@ -173,6 +230,15 @@ public struct Pipeline: Equatable, Sendable {
                      + "that ends much below that stayed up without standing up.",
                standingHeight)
     }
+
+    /// Why the editor's Run asks for eight rollouts rather than one.
+    ///
+    /// LIFTED OUT OF A `Text(...)` LITERAL so a test can read it. It was the
+    /// footnote under the Run button, which is exactly where a claim goes
+    /// unasserted — and it carries a measured number.
+    public static let eightRolloutsSaid =
+        "Eight rollouts at different drop heights, because one that stays up proves very "
+      + "little — the four authored stair motions in this app get up their flight 0 times in 16."
 
     public let stages: [Stage]
 
@@ -281,6 +347,221 @@ extension IntentDraft {
             var pose = key.pose
             pose.remove(at: DuckModel.mouthIndex)
             return (at: key.time, pose: pose)
+        }
+    }
+}
+
+// MARK: - the world a run actually stood in, as something a draft can hold
+
+/// `DuckWorld` NEVER BECOMES `Codable`, and this is why there is a second type
+/// at all.
+///
+/// A readback is a rich value: `Bank`, `Arena`, `Wall`, `Seated`, `Point` and
+/// `Unexpressed`, every one of them a description of a bench that is free to
+/// change. Dragging those into the on-disk draft format makes all six a
+/// migration surface forever — a renamed field in a wall is a draft that no
+/// longer decodes, and `DraftStore.reload` decodes inside
+/// `compactMap { try? … }`, so that is a draft list that silently shortens.
+/// So the stored shape is a NARROW PROJECTION whose nested types are all its
+/// own, and `PipelineTests.testTheStoredWorldIsNarrowerThanTheReadback` pins
+/// its coding keys against anybody quietly widening it back.
+extension Pipeline {
+
+    public struct LaidWorld: Codable, Equatable, Sendable {
+
+        public struct Step: Codable, Equatable, Sendable {
+            public var x, y, top, halfDepth, halfWidth, halfHeight: Double
+            public init(x: Double, y: Double, top: Double,
+                        halfDepth: Double, halfWidth: Double, halfHeight: Double) {
+                self.x = x; self.y = y; self.top = top
+                self.halfDepth = halfDepth; self.halfWidth = halfWidth
+                self.halfHeight = halfHeight
+            }
+        }
+
+        public struct Point: Codable, Equatable, Sendable {
+            public var x, y, z: Double
+            public init(x: Double, y: Double, z: Double) { self.x = x; self.y = y; self.z = z }
+        }
+
+        public struct Seated: Codable, Equatable, Sendable {
+            public var name: String
+            public var x, y: Double
+            public var kilograms: Double?
+            public init(name: String, x: Double, y: Double, kilograms: Double? = nil) {
+                self.name = name; self.x = x; self.y = y; self.kilograms = kilograms
+            }
+        }
+
+        /// One `unexpressed` row, flattened to strings — the shape the bench
+        /// sends and a person reads, not a re-parse of it.
+        public struct Note: Codable, Equatable, Sendable {
+            public var what: String
+            public var index: Int?
+            public var field: String?
+            public var asked: String?
+            public var got: String?
+            public var why: String
+            public init(what: String, index: Int? = nil, field: String? = nil,
+                        asked: String? = nil, got: String? = nil, why: String) {
+                self.what = what; self.index = index; self.field = field
+                self.asked = asked; self.got = got; self.why = why
+            }
+        }
+
+        public var name: String?
+        public var steps: [Step]
+        public var ball: Point?
+        public var props: [Seated]
+        public var notes: [Note]
+        public var bankCount: Int
+        public var parked: Int
+        public var spawn: Point?
+        public var sagMillimetres: Double?
+        public var plantName: String?
+        public var plantDigest: String?
+
+        /// EXACTLY THE ELEVEN STORED FIELDS. Everything below this line is
+        /// computed from them, so nothing derived is ever written to disk and
+        /// then trusted after the derivation changed.
+        enum CodingKeys: String, CodingKey, CaseIterable {
+            case name, steps, ball, props, notes, bankCount, parked, spawn
+            case sagMillimetres, plantName, plantDigest
+        }
+
+        public init(name: String?, steps: [Step], ball: Point?, props: [Seated],
+                    notes: [Note], bankCount: Int, parked: Int, spawn: Point?,
+                    sagMillimetres: Double?, plantName: String?, plantDigest: String?) {
+            self.name = name; self.steps = steps; self.ball = ball
+            self.props = props; self.notes = notes
+            self.bankCount = bankCount; self.parked = parked
+            self.spawn = spawn; self.sagMillimetres = sagMillimetres
+            self.plantName = plantName; self.plantDigest = plantDigest
+        }
+
+        /// What a stage draws. Walls are left out for the reason
+        /// `DuckWorld.asEnvironment` already states: the one stage that draws
+        /// walls runs them along x only, and a picture that is wrong is worse
+        /// than a picture that is absent.
+        public var asEnvironment: DuckIntentClip.Environment {
+            DuckIntentClip.Environment(
+                ground: true, yaw: 0,
+                steps: steps.map {
+                    .init(x: $0.x, y: $0.y, top: $0.top, halfDepth: $0.halfDepth,
+                          halfWidth: $0.halfWidth, halfHeight: $0.halfHeight)
+                },
+                walls: [])
+        }
+
+        /// The movable bodies, drawn by the one function that already knows
+        /// which shape a body's name means.
+        public var asProps: [DuckScene.Prop] {
+            var drawn: [DuckScene.Prop] = []
+            if let ball { drawn.append(DuckScene.ball(x: ball.x, y: ball.y)) }
+            for seated in props {
+                drawn.append(DuckWorld.drawn(DuckWorld.Seated(name: seated.name,
+                                                              x: seated.x, y: seated.y,
+                                                              kilograms: seated.kilograms)))
+            }
+            return drawn
+        }
+
+        /// The notes as `DuckWorld.Unexpressed`, so `couldNotExpress` and
+        /// `groupedSayings` are reused verbatim rather than reimplemented.
+        public var unexpressed: [DuckWorld.Unexpressed] {
+            notes.map {
+                DuckWorld.Unexpressed(what: $0.what, index: $0.index, field: $0.field,
+                                      asked: $0.asked, got: $0.got, why: $0.why)
+            }
+        }
+
+        /// The `what == "spawn"` row, when a FLIGHT was laid and nothing said
+        /// where the duck should stand. A cleared world with nothing standing
+        /// has nothing to be beside, so its spawn row is not this note.
+        public var noSpawnNote: DuckWorld.Unexpressed? {
+            steps.isEmpty ? nil : unexpressed.first { $0.what == "spawn" }
+        }
+
+        /// True when any drawn tread's top exceeds twice its halfHeight — the
+        /// harness's blocks are 200 mm and a higher tread really does float.
+        /// The same test `DuckScene.problems` calls BROKEN, which is why
+        /// `DuckWorld.blocksAreTwoHundredMillimetresTall` has to be printed
+        /// beside the picture rather than the picture quietly thickened.
+        public var aTreadFloats: Bool {
+            steps.contains { $0.top - $0.halfHeight * 2 > 0.0005 }
+        }
+
+        /// Every block in the bank is parked below the floor for this run.
+        public var wholeBankWasParked: Bool { bankCount > 0 && parked == bankCount }
+    }
+
+    /// A ONE-CELL `/climb` ANSWER, STORED BESIDE `bench` AND NEVER INSIDE IT.
+    ///
+    /// `BenchOutcome.summary` is "\(achieves) of \(rollouts) — \(criterion)".
+    /// A climb cell has no rollouts, and coercing one into that type fabricates
+    /// "1 of 1" — a number that reads like a score and is not one. Two answers,
+    /// two types, and `told` on each says which run it is.
+    public struct CellOutcome: Codable, Equatable, Sendable {
+        public var when: Date
+        /// `intentHash` — the identity the leaderboard is keyed by. Nil from a
+        /// row this app built rather than received.
+        public var hash: String?
+        public var rise: Double
+        public var cell: DuckBench.Cell
+        public var honest, stable, reachedFlight, invalid: Bool
+        public var uprightTailTicks, tailTicks: Int
+        public var aboveMillimetres, peakAboveTreadMillimetres: Double
+        public var why: String?
+        public var criterion: String
+        public var plantName: String?
+        public var plantDigest: String?
+        /// The world this cell's episode actually stood in, when a clip was
+        /// asked for. Nil when it was not: `/climb` answers no `stood` without
+        /// one, and inventing a flight from the request would be the whole bug
+        /// this build exists to fix.
+        public var laid: LaidWorld?
+
+        public init(when: Date, hash: String? = nil, rise: Double, cell: DuckBench.Cell,
+                    honest: Bool, stable: Bool, reachedFlight: Bool, invalid: Bool,
+                    uprightTailTicks: Int, tailTicks: Int,
+                    aboveMillimetres: Double, peakAboveTreadMillimetres: Double,
+                    why: String? = nil, criterion: String,
+                    plantName: String? = nil, plantDigest: String? = nil,
+                    laid: LaidWorld? = nil) {
+            self.when = when; self.hash = hash; self.rise = rise; self.cell = cell
+            self.honest = honest; self.stable = stable
+            self.reachedFlight = reachedFlight; self.invalid = invalid
+            self.uprightTailTicks = uprightTailTicks; self.tailTicks = tailTicks
+            self.aboveMillimetres = aboveMillimetres
+            self.peakAboveTreadMillimetres = peakAboveTreadMillimetres
+            self.why = why; self.criterion = criterion
+            self.plantName = plantName; self.plantDigest = plantDigest
+            self.laid = laid
+        }
+
+        /// One scored cell as the bench answered it, with the world its
+        /// episode stood in when it sent one.
+        public init(_ climbed: DuckBench.Climbed, when: Date) {
+            self.init(when: when,
+                      hash: climbed.hash.isEmpty ? nil : climbed.hash,
+                      rise: climbed.rise, cell: climbed.cell,
+                      honest: climbed.honest, stable: climbed.stable,
+                      reachedFlight: climbed.reachedFlight, invalid: climbed.invalid,
+                      uprightTailTicks: climbed.uprightTailTicks,
+                      tailTicks: climbed.tailTicks,
+                      aboveMillimetres: climbed.aboveMillimetres,
+                      peakAboveTreadMillimetres: climbed.peakAboveTreadMillimetres,
+                      why: climbed.why, criterion: climbed.criterion,
+                      plantName: climbed.plantName, plantDigest: climbed.plantDigest,
+                      laid: climbed.stood?.laid(spawn: nil, sagMillimetres: nil))
+        }
+
+        /// The whole cell in words: what it did, that one cell is not a score,
+        /// and which plant it happened on.
+        public var told: String {
+            StairsChallenge.oneCellSaid(self) + " "
+              + StairsChallenge.oneCellIsNotAScore + " "
+              + DuckBench.plantSaid(name: plantName, digest: plantDigest)
         }
     }
 }

@@ -27,6 +27,24 @@ import StudioKit
 /// would be a second scorer, and the whole value of a published table is that
 /// there is one.
 ///
+/// NO `DuckScene.ballChallenge` IN BUILD 47, AND THE REASON IS THE BUG NEXT
+/// DOOR. The stairs screen shipped a drawn staircase over a run that had none:
+/// a scene the editor could draw, a preview that showed it, and a `/perform`
+/// call that laid nothing. A drawn ball room here would reproduce that exactly
+/// — `/chase` places the ball itself, on a bearing off the duck's settled
+/// heading, and it answers no clip, so there is nothing a scene could be
+/// checked against. The ball's real position is stated instead, by
+/// `BallChallenge.ballWasAtItsCompiledMark`, and the missing route is stated by
+/// `BallChallenge.chaseRouteNotYet`. A drawn room comes when the route can
+/// answer what it stood in.
+///
+/// THE WIRE ON THIS SCREEN IS UNCHANGED IN BUILD 47, AND THAT IS A CHOICE.
+/// Parking the fourteen step blocks would take fourteen stacked 200 kg bodies
+/// and their per-tick contacts out of the plant every previously stored ball
+/// number was measured in — a real change to the physics, for a reason
+/// unrelated to the bug being fixed. So this screen says where the ball was and
+/// which plant it ran on, and moves nothing.
+///
 /// AND EVERY CLAIM IS THE KIT'S SENTENCE. The criterion, the ball caveat, the
 /// bearing convention, the not-yet for a bench with no `/chase`, the verdict,
 /// the change sentence, the real-duck caveat and every submission sentence are
@@ -727,11 +745,47 @@ struct BallEntrantView: View {
             // action with a body attached to it.
             .buttonStyle(.primaryActionMoves)
             .disabled(run.performing)
-            if let told = run.performed {
+            if let refused = run.refused {
+                Label(refused, systemImage: "exclamationmark.triangle")
+                    .font(.footnote)
+                    .foregroundStyle(Theme.warning)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if let told = run.played {
                 Text(told)
                     .font(.footnote)
                     .foregroundStyle(Theme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
+                // WHERE THE BALL ACTUALLY WAS. It is in every run on this
+                // bench whether or not anything asked for one — a permanent
+                // 30 g body compiled at (0.55, 0.10) — and this button does
+                // not move it. Saying so is the difference between a run
+                // somebody can read and a run they will read as the chase.
+                Label(BallChallenge.ballWasAtItsCompiledMark, systemImage: "circle.dashed")
+                    .font(.caption)
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                // AN EXPLICIT NOT-YET BESIDE A BUTTON THAT STILL DOES
+                // SOMETHING. There is no way yet to play one entrant through
+                // the challenge's own route; this plays it on `/perform` and
+                // says which route that was, rather than being a control that
+                // is greyed out or one that quietly means something else.
+                // EXACTLY ONE ROUTE CLAIM PER RUN. A move entrant went through
+                // `/perform`; a policy entrant went through `/measure`, which
+                // takes no room in this build either. Printing the perform
+                // sentence under a measure run told a person a route ran that
+                // did not.
+                if entrant.policy == nil {
+                    Label(BallChallenge.chaseRouteNotYet, systemImage: "info.circle")
+                        .font(.caption)
+                        .foregroundStyle(Theme.warning)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Label(BallChallenge.measureTakesNoWorldYet, systemImage: "info.circle")
+                        .font(.caption)
+                        .foregroundStyle(Theme.warning)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             // THE CAVEAT IS BESIDE THE BUTTON AND NOT BEHIND IT. It is the
             // sentence that keeps "run it" from reading as a claim that any of
@@ -821,8 +875,12 @@ final class BallRun: ObservableObject {
 
     @Published private(set) var progress: BallChallenge.ScoreProgress?
     @Published private(set) var score: BallChallenge.Score?
-    /// What the play said, in `Pipeline.BenchOutcome`'s own words.
-    @Published private(set) var performed: String?
+    /// What the play said, in `Pipeline.BenchOutcome`'s own words. SUCCESS
+    /// ONLY: the three sentences about where the ball was and which route ran
+    /// hang off this, and none of them is true of a run that never happened.
+    @Published private(set) var played: String?
+    /// Why the play did not happen, in the failure's own words.
+    @Published private(set) var refused: String?
 
     /// WHICH BENCH THESE CELLS CAME OFF, CAPTURED WHEN THEY WERE SCORED AND NOT
     /// READ BACK OFF THE STORE AT SUBMISSION TIME. See `BallEntrantView.box`.
@@ -835,7 +893,8 @@ final class BallRun: ObservableObject {
     func forget() {
         score = nil
         progress = nil
-        performed = nil
+        played = nil
+        refused = nil
         scoredBenchName = nil
         scoredBenchAddress = nil
         // A SCORE PUT DOWN BECAUSE THE BENCH CHANGED IS NOT A BASELINE. Keeping
@@ -985,7 +1044,8 @@ final class BallRun: ObservableObject {
     /// entrant being played once so somebody can watch it.
     func play(_ entrant: BallChallenge.Entrant, benches: BenchStore) async {
         performing = true
-        performed = nil
+        played = nil
+        refused = nil
         defer { performing = false }
         do {
             let (address, token) = try Self.armed(benches)
@@ -1003,10 +1063,18 @@ final class BallRun: ObservableObject {
                                              rollouts: 1)
             }
             let data = try await Self.ask(call, token: token, seconds: Self.performSeconds)
-            performed = try DuckBench.readOutcome(data, when: Date()).told
+            // `askedForWorld: false`, WRITTEN OUT, BECAUSE IT IS A CLAIM. This
+            // screen sends no `world` and no `spawn` on either branch, so the
+            // run happened in the plant as it booted — fourteen step blocks
+            // stacked beside the duck and the ball on its compiled mark — and
+            // `told` now ends with `DuckWorld.worldSaid(.benchsOwn)`, which
+            // says exactly that. The default is the same value; spelling it
+            // keeps the line honest if the default ever moves.
+            played = try DuckBench.readOutcome(data, when: Date(),
+                                               askedForWorld: false).told
             Haptic.behaviourStarted()
         } catch {
-            performed = BallEntrantView.message(error)
+            refused = BallEntrantView.message(error)
         }
     }
 

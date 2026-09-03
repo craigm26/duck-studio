@@ -240,4 +240,42 @@ final class DraftEditingTests: XCTestCase {
         XCTAssertEqual(none, "no grid · bare floor")
         XCTAssertFalse(none.contains("0 mm"), none)
     }
+
+    // MARK: - which world the picture is of
+
+    func testEveryRunWorldStateHasItsOwnSentence() throws {
+        let overlaid = try XCTUnwrap(StageCaption.runWorld(.overlaid(sceneName: "Broom")))
+        let readback = try XCTUnwrap(StageCaption.runWorld(.readback))
+        let file = try XCTUnwrap(StageCaption.runWorld(.fileSaysSo(clipName: "step_up")))
+        XCTAssertNil(StageCaption.runWorld(.bareFloor),
+                     "nothing is drawn, so nothing is claimed")
+        XCTAssertEqual(Set([overlaid, readback, file]).count, 3)
+        XCTAssertEqual(readback, DuckWorld.stoodIsTheReadback)
+        XCTAssertTrue(file.contains("nothing in this app measured it"))
+    }
+
+    func testTheOverlaidSentenceNamesTheScene() throws {
+        let said = try XCTUnwrap(StageCaption.runWorld(.overlaid(sceneName: "Broom in the corner")))
+        XCTAssertTrue(said.contains("Broom in the corner"), said)
+        XCTAssertTrue(said.contains("were not in the recording"), said)
+    }
+
+    /// NEVER KEY A PROVENANCE CAPTION ON `authored`. `/perform` sets it on
+    /// every answer and the bundled corpus clips carry it too: it means the
+    /// MOTION was authored, not that the ENVIRONMENT was measured.
+    func testNoCaptionIsKeyedOnAuthored() throws {
+        let said = try XCTUnwrap(StageCaption.runWorld(.readback))
+        XCTAssertEqual(said, DuckWorld.stoodIsTheReadback)
+        XCTAssertFalse(said.lowercased().contains("authored"))
+        XCTAssertNotEqual(said, StageCaption.runWorld(.fileSaysSo(clipName: "x")))
+    }
+
+    /// The footer says WHO is claiming it.
+    func testThePerformedAgainstFooterSaysItIsTheFilesOwnLine() {
+        let said = StageCaption.performedAgainst(clipName: "step_up", stepCount: 4, wallCount: 1)
+        XCTAssertTrue(said.contains("step_up's file says"), said)
+        XCTAssertTrue(said.contains("a 4-step flight and 1 wall"), said)
+        XCTAssertTrue(said.contains("not a measurement this app made"), said)
+    }
+
 }

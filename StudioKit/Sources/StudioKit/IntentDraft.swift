@@ -55,6 +55,28 @@ public struct IntentDraft: Codable, Equatable, Identifiable, Sendable {
     /// Optional, so every draft saved before this decodes with nil.
     public var bench: Pipeline.BenchOutcome?
 
+    /// The one-cell climb answer, when this draft's room is the scored room.
+    ///
+    /// BESIDE `bench`, NEVER INSTEAD OF IT: neither answer pretends to be the
+    /// other. A `/perform` outcome is "k of n rollouts stayed upright"; a
+    /// `/climb` cell is one perturbation of fourteen, with no rollouts at all,
+    /// and coercing it into `BenchOutcome` fabricates "1 of 1".
+    ///
+    /// Optional with no default, for the reason `Pipeline.BenchOutcome`'s
+    /// header gives: a missing key must decode, not throw.
+    public var climbed: Pipeline.CellOutcome?
+
+    /// The harness file this draft was opened from, verbatim, or nil when it
+    /// was written here.
+    ///
+    /// NOT A PROVENANCE STRING. Routing on a prose line is the substring trap,
+    /// and these bytes are what `StairsChallenge.Move.applying(draft:)` needs
+    /// in order to keep `event`, `servo`, `bounds` and `params` — every one of
+    /// which the leaderboard hash folds in. A draft that lost them and was
+    /// re-minted from scratch would be scored under a different identity than
+    /// the row it came from.
+    public var challengeIntent: Data?
+
     public init(id: UUID = UUID(), name: String, keys: [Key] = [],
                 sceneID: UUID? = nil, provenance: String = "Written here") {
         self.id = id; self.name = name; self.keys = keys

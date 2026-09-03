@@ -118,6 +118,15 @@ public struct DuckWorld: Equatable, Sendable {
     /// avoid.
     public static let ballRadius = 0.05
 
+    /// How high the duck is put down when nothing says otherwise, metres.
+    ///
+    /// THE HARNESS'S OWN NUMBER, and the one `/perform` has always used for
+    /// its first rollout: `climb_score.mjs` writes the free joint at
+    /// `spawn.z + (drop − 0.120)`, and the bench defaults an absent `spawn.z`
+    /// to 0.120. `sim/scene_physics.xml` compiles `trunk_base` at the same
+    /// height, so this is where the duck stands rather than a choice.
+    public static let spawnHeight = 0.120
+
     // MARK: - the four walls, which are not drawn
 
     /// One of the arena's four static walls, as the bench reports it.
@@ -321,6 +330,16 @@ public struct DuckWorld: Equatable, Sendable {
     public let unexpressed: [Unexpressed]
     public let bank: Bank
     public let arena: Arena
+    /// How many of the bank's blocks are at the park mark, as the bench
+    /// counted them. Nil when it did not say.
+    ///
+    /// IT IS ON THE WORLD AND NOT ON THE BANK, and the difference is what the
+    /// two types are for. `Bank` is the transcription of the plant — fourteen
+    /// blocks, this deep, at that y — and `WorldConstantsFixtureTests` holds
+    /// it against `site/stairs.js`. How many of them a PARTICULAR run left
+    /// below the floor is a fact about the run, and putting it in the
+    /// transcription would make a captured readback stop equalling `.pinned`.
+    public let parked: Int?
     public let plantName: String?
     public let plantDigest: String?
 
@@ -329,11 +348,12 @@ public struct DuckWorld: Equatable, Sendable {
                 ball: Point?, ballRadius: Double? = nil,
                 props: [Seated] = [], unexpressed: [Unexpressed] = [],
                 bank: Bank = .pinned, arena: Arena = .pinned,
+                parked: Int? = nil,
                 plantName: String? = nil, plantDigest: String? = nil) {
         self.isSet = isSet; self.name = name; self.steps = steps
         self.ball = ball; self.ballRadius = ballRadius
         self.props = props; self.unexpressed = unexpressed
-        self.bank = bank; self.arena = arena
+        self.bank = bank; self.arena = arena; self.parked = parked
         self.plantName = plantName; self.plantDigest = plantDigest
     }
 
@@ -831,4 +851,255 @@ public struct DuckWorld: Equatable, Sendable {
     public static let ballNeedsAWorld =
         "Pick a floor or a flight first. The bench refuses a first world that says nothing about "
       + "its step bank, so the ball can be moved once a world is standing and not before."
+}
+
+// MARK: - a scene into a plan the duck can reach
+
+extension DuckWorld {
+
+    /// A plan and where the duck must stand for it, TOGETHER — because a
+    /// staircase 1.305 m to the duck's left is a true picture of a useless run,
+    /// and a plan that can travel without its spawn is that bug waiting to
+    /// happen.
+    public struct Standing: Equatable, Sendable {
+        public let plan: Plan
+        /// Nil only when the scene has no steps: there is nothing to line up
+        /// with, so nothing has to move.
+        public let spawn: Point?
+        /// Nil when the plan is sendable.
+        public let refusal: Refusal?
+        /// The composed sentence for a refusal that only exists because the
+        /// scene was translated. Nil otherwise — a scene that was already
+        /// illegal where it was drawn is refused in its own words.
+        public let refusalSaid: String?
+
+        public init(plan: Plan, spawn: Point?, refusal: Refusal? = nil,
+                    refusalSaid: String? = nil) {
+            self.plan = plan; self.spawn = spawn
+            self.refusal = refusal; self.refusalSaid = refusalSaid
+        }
+
+        public var isSendable: Bool { refusal == nil }
+    }
+
+    /// Where the duck has to stand for this scene's drawing to be the room it
+    /// runs in.
+    ///
+    /// THE BANK CANNOT MOVE — the blocks have an x slide and a z slide and no
+    /// y joint — SO THE DUCK DOES. A world laid without a spawn is a room the
+    /// duck stands beside, which is a true picture of a useless run.
+    ///
+    ///   a stairs-challenge room    -> the harness's own spawn, in room coordinates
+    ///   any other scene WITH steps -> (0, bank.y): the duck moves to the bank's row
+    ///   a scene with NO steps      -> nil: nothing to line up with
+    public static func spawn(for scene: DuckScene, on bank: Bank) -> Point? {
+        guard let first = scene.steps.first else { return nil }
+        switch scene.roomReading {
+        case .theScoredRoom(let room), .editedSinceItWasOpened(let room):
+            // THE HARNESS'S OWN SPAWN, WITH ITS `y` SPELLED AS THE BANK
+            // SPELLS IT. `StairsChallenge.Harness.stairY` is written as
+            // `1.5 - 0.025 - 0.17` and comes out 1.3050000000000002; the
+            // transcription reads the same row as the literal 1.305. They are
+            // the same physical row two ulps apart, and taking the offset that
+            // lands the drawn flight exactly ON the row is what makes "no step
+            // y note fired" mean the frame is right rather than mean nothing.
+            return Point(x: room.spawn.x, y: bank.y - first.y)
+        case .notAChallengeRoom:
+            return Point(x: 0, y: bank.y)
+        }
+    }
+
+    /// The scene translated into the room's frame, planned there, with its
+    /// spawn.
+    ///
+    /// REFUSALS ARE EVALUATED IN ROOM COORDINATES, WHICH IS WHERE THE BENCH
+    /// WILL SEE THEM. Moving the duck to the bank moves everything else in the
+    /// scene with it, and a ball drawn 200 mm to the duck's left ends up
+    /// 1.505 m out — past the arena's inner face. Planning the untranslated
+    /// scene would call that legal and let the bench refuse it a round trip
+    /// later.
+    public static func standing(for scene: DuckScene, on bank: Bank,
+                                graspables: [DuckBench.Health.Graspable] = []) -> Standing {
+        let point = spawn(for: scene, on: bank)
+        let moved = point.map { scene.translated(by: $0) } ?? scene
+        var made = plan(for: moved, on: bank, graspables: graspables)
+
+        // THE HONEST BANK CLAUSE. A translated scene with steps lays them; one
+        // with none but something else to place asks for a bare floor out
+        // loud, which parks the bank — a real change to the plant, said by
+        // `bankWasParkedForThisRun`.
+        if moved.steps.isEmpty {
+            made = Plan(name: made.name, clear: true, steps: nil,
+                        ball: made.ball, props: made.props, walls: made.walls,
+                        predicted: made.predicted, refusals: made.refusals)
+        }
+
+        guard let refusal = made.refusals.first else {
+            return Standing(plan: made, spawn: point)
+        }
+        // A REFUSAL THAT ONLY EXISTS BECAUSE THE SCENE MOVED GETS THE EXTRA
+        // SENTENCE. One that was already there does not: the drawing was
+        // illegal where it was drawn, and blaming the translation for it would
+        // send somebody looking for the wrong fault.
+        let drawnWhereItWas = plan(for: scene, on: bank, graspables: graspables)
+        let said = drawnWhereItWas.refusals.isEmpty ? movedThenRefused(refusal) : nil
+        return Standing(plan: made, spawn: point, refusal: refusal, refusalSaid: said)
+    }
+
+    /// The readback, narrowed to the shape a draft can hold.
+    ///
+    /// THE NARROWING IS THE POINT. `DuckWorld` never becomes `Codable` —
+    /// `Pipeline.LaidWorld`'s header says why — so this is the one place the
+    /// rich value becomes the stored one, and every field it drops is a field
+    /// nothing on disk has to be migrated through later.
+    public func laid(spawn: Pipeline.LaidWorld.Point?,
+                     sagMillimetres: Double?) -> Pipeline.LaidWorld {
+        Pipeline.LaidWorld(
+            name: name,
+            steps: steps.map {
+                Pipeline.LaidWorld.Step(x: $0.x, y: $0.y, top: $0.top,
+                                        halfDepth: $0.halfDepth,
+                                        halfWidth: $0.halfWidth,
+                                        halfHeight: $0.halfHeight)
+            },
+            ball: ball.map { Pipeline.LaidWorld.Point(x: $0.x, y: $0.y, z: $0.z) },
+            props: props.map {
+                Pipeline.LaidWorld.Seated(name: $0.name, x: $0.x, y: $0.y,
+                                          kilograms: $0.kilograms)
+            },
+            notes: unexpressed.map {
+                Pipeline.LaidWorld.Note(what: $0.what, index: $0.index, field: $0.field,
+                                        asked: $0.asked, got: $0.got, why: $0.why)
+            },
+            bankCount: bank.count,
+            // A BENCH THAT DID NOT COUNT IS NOT A BENCH THAT PARKED NOTHING.
+            // The readback names `parked` and this reads it; the fallback is
+            // the arithmetic the contract itself states — every block the
+            // flight did not use is at the park mark.
+            parked: parked ?? max(bank.count - steps.count, 0),
+            spawn: spawn,
+            sagMillimetres: sagMillimetres,
+            plantName: plantName, plantDigest: plantDigest)
+    }
+}
+
+// MARK: - the sentences about a world that stood
+
+extension DuckWorld {
+
+    /// Which world a `/perform` run actually happened in, in one sentence.
+    ///
+    /// FOUR CASES AND NO FALLBACK. Each of the four is a different fact and
+    /// the app can tell them apart; a shared sentence covering two of them
+    /// would be true of one and false of the other, which is the class of
+    /// falsehood this whole build exists to remove.
+    public static func worldSaid(_ standing: Pipeline.BenchOutcome.WorldStanding) -> String {
+        switch standing {
+        case .laid:
+            return "This is the world that actually stood. The bench laid it, re-pinned every "
+                 + "block at the top of every control tick, and read these positions back out "
+                 + "of the physics — so what is drawn is where the blocks were, not where the "
+                 + "scene asked for them."
+        case .benchsOwn:
+            return "The steps and props drawn here were not in the physics. This run was sent "
+                 + "without a world, so the bench ran the plant as it booted: fourteen step "
+                 + "blocks stacked beside the duck at y = 1.305 m, and nothing in front of it. "
+                 + "The picture is the scene; the run was a bare floor with a heap of blocks "
+                 + "off to one side."
+        case .askedAndTheBenchDidNotSay:
+            return "A world was sent with this run and the bench answered without one. That "
+                 + "bench is older than the field, so the run happened in the plant as it "
+                 + "booted — fourteen blocks stacked beside the duck — and the picture is the "
+                 + "scene, not the run."
+        case .notRecorded:
+            return "Nothing recorded which world this ran in. This result was stored before the "
+                 + "app kept the world beside it, so whether the drawn steps were in the "
+                 + "physics cannot be answered from here. Only running it again can say."
+        }
+    }
+
+    /// What stood, in numbers this read out of the answer.
+    ///
+    /// COMPOSED HERE AND WITH NO FALLBACK STRING: every clause names a number
+    /// it read, so a clause with nothing behind it is simply not written.
+    public static func laidSaid(_ world: Pipeline.LaidWorld) -> String {
+        var lines: [String] = []
+        let stood = world.steps.count
+        if stood > 0 {
+            let tops = world.steps.map { $0.top * 1000 }
+            let low = Int((tops.min() ?? 0).rounded()), high = Int((tops.max() ?? 0).rounded())
+            let span = low == high ? "top \(low) mm" : "tops \(low) to \(high) mm"
+            lines.append("\(counted(stood).capitalisedFirst) block\(stood == 1 ? "" : "s") "
+                       + "stood, \(span), and \(counted(world.parked)) stayed parked.")
+        } else {
+            lines.append("No blocks stood: \(counted(world.parked)) of the bank's "
+                       + "\(counted(world.bankCount)) are parked below the floor.")
+        }
+        if !world.props.isEmpty {
+            let n = world.props.count
+            lines.append("\(counted(n).capitalisedFirst) movable "
+                       + "\(n == 1 ? "body was" : "bodies were") read back where "
+                       + "\(n == 1 ? "it lies" : "they lie").")
+        }
+        if let sag = world.sagMillimetres, stood > 0 {
+            // A REAL BENCH SAGS 0.0381 mm: wall friction carries a 200 kg
+            // block. One decimal printed that as "0.0 mm", a number that was
+            // not read; below a tenth of a millimetre the reading keeps three.
+            let mm = abs(sag) < 0.1 ? String(format: "%.3f", sag) : String(format: "%.1f", sag)
+            lines.append("The lowest-sitting block had fallen \(mm) mm by the end of the tick.")
+        }
+        return lines.joined(separator: " ")
+    }
+
+    /// Nought to fourteen in words, because the bank has fourteen blocks and a
+    /// sentence about it should read like one. Anything larger keeps its
+    /// digits rather than growing a spelling table nothing needs.
+    static func counted(_ n: Int) -> String {
+        let words = ["no", "one", "two", "three", "four", "five", "six", "seven",
+                     "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen"]
+        return n >= 0 && n < words.count ? words[n] : String(n)
+    }
+
+    public static let stoodIsTheReadback =
+        "This picture is the world the bench read back out of its own joints, not the scene "
+      + "that was sent to it. Where the two differ, this is the one the duck was in."
+
+    public static let duckMovedToTheBank =
+        "The duck was moved to y = 1.305 m for this run, not the steps. The fourteen blocks "
+      + "are compiled with an x and a z slide and no y joint, so a flight can only ever stand "
+      + "on that one row, and putting the duck in front of it is the only way a drawn "
+      + "staircase is the one it walks into. It also puts the duck 145 mm from wall_n, which "
+      + "is in the run and is not in this picture."
+
+    public static let blocksAreTwoHundredMillimetresTall =
+        "The bank's blocks are 200 mm thick, so a tread above 200 mm really does float over "
+      + "the floor here — the drawing you authored deepened them to reach it, and this is the "
+      + "readback, which does not. Nothing walks under one: the duck meets the tread."
+
+    public static let noSpawnBesideAFlight =
+        "This world was laid without saying where the duck should stand, so the duck is on "
+      + "its compiled mark at (0, 0) and the flight is 1.305 m to its left. It is a room the "
+      + "duck is beside, not one it is in."
+
+    public static let bankWasParkedForThisRun =
+        "The fourteen step blocks were parked below the floor for this run. They boot stacked "
+      + "beside the duck and collide on every tick, so parking them is a change to the plant "
+      + "every other number on this bench was measured in: this run is honest and it is not "
+      + "comparable with one that left them."
+
+    public static let theBallIsAlwaysThere =
+        "There is a ball in every run on this bench whether or not anything asked for one: a "
+      + "permanent 30 g body compiled at (0.55, 0.10) m. A world can move it and nothing can "
+      + "take it out, so a run that says nothing about the ball ran with the ball there."
+
+    public static func movedThenRefused(_ refusal: Refusal) -> String {
+        "Moving the duck to the step bank moves everything else in the scene with it, and "
+      + "that put something outside the arena. " + refusal.message
+    }
+}
+
+extension String {
+    /// The first letter in upper case and nothing else touched — for a word
+    /// that has to start a sentence and also appear inside one.
+    var capitalisedFirst: String { prefix(1).uppercased() + dropFirst() }
 }
