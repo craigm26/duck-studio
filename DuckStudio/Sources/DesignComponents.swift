@@ -348,11 +348,18 @@ struct PrimaryActionStyle: ButtonStyle {
         case standard
         /// Everything that changes the ROBOT.
         case moves
+        /// A PAD BUTTON: one or two characters on a square target, with no
+        /// horizontal padding at all. `.moves` puts 32 points down each side,
+        /// so a button is 78 points wide before its label and two of them need
+        /// 164 in the 129-point column between the thumb pads — the layout
+        /// then compressed the LABEL rather than the padding and the letters
+        /// were clipped to slivers. Measured on a 393-point glass.
+        case pad
 
         var minimum: CGFloat {
             switch self {
             case .standard: return DesignMetric.minimumTarget
-            case .moves: return DesignMetric.movingTarget
+            case .moves, .pad: return DesignMetric.movingTarget
             }
         }
 
@@ -360,6 +367,7 @@ struct PrimaryActionStyle: ButtonStyle {
             switch self {
             case .standard: return .loose
             case .moves: return .section
+            case .pad: return .hairline
             }
         }
 
@@ -367,6 +375,7 @@ struct PrimaryActionStyle: ButtonStyle {
             switch self {
             case .standard: return .snug
             case .moves: return .standard
+            case .pad: return .hairline
             }
         }
     }
@@ -444,6 +453,12 @@ extension ButtonStyle where Self == PrimaryActionStyle {
     /// The action colour at 60pt, for a control that moves the robot.
     static var primaryActionMoves: PrimaryActionStyle {
         PrimaryActionStyle(reach: .moves)
+    }
+
+    /// The same colour and the same 60-point target on a square, for a pad
+    /// button whose label is a face rather than a sentence.
+    static var primaryActionPad: PrimaryActionStyle {
+        PrimaryActionStyle(reach: .pad)
     }
 }
 

@@ -669,7 +669,17 @@ struct DriveView: View {
         else { return }
         runningMotion = id.uuidString
         motionOutcome = nil
-        defer { runningMotion = nil }
+        // AND THE STICKS COME BACK, because that is what the screen promised
+        // before the press. Driving stops for the batch call — there is no
+        // arrangement in which a track of joint angles and a velocity twist
+        // share the wire — and it starts again afterwards if it was on, which
+        // is the half that was missing and read as the Drive button resetting
+        // itself.
+        let wasDriving = running
+        defer {
+            runningMotion = nil
+            if wasDriving { engageLoop() }
+        }
         flight?.cancel()
         if running { await halt() }
         do {
@@ -1361,7 +1371,7 @@ struct DriveView: View {
         let isLive = shown.isLive
         return Group {
             if isLive {
-                padPress(control).buttonStyle(.primaryActionMoves)
+                padPress(control).buttonStyle(.primaryActionPad)
             } else {
                 padPress(control).buttonStyle(DeadControlStyle())
             }
@@ -1389,7 +1399,12 @@ struct DriveView: View {
 
     private func padPress(_ control: DuckPad.Control) -> some View {
         Button { Task { await press(control) } } label: {
-            Text(control.face).lineLimit(1)
+            // `fixedSize` IS THE GUARANTEE, not the padding. A label that a
+            // layout may compress is a label that can be clipped to a stroke,
+            // which is what "LB" and then "Y" both came out as; this makes the
+            // text refuse to shrink, so a column too narrow for the buttons
+            // folds them instead of gutting them.
+            Text(control.face).lineLimit(1).fixedSize()
         }
     }
 
@@ -2175,6 +2190,12 @@ struct DriveView: View {
             // followed by a network landing on the servos.
             flight = Task { await swap(to: policy) }
             lastAction = "\(control.face) → \(slot.title): \(policy)"
+            // AND IT DRIVES. A network loaded while the loop is stopped is a
+            // policy on the servos that nothing is stepping: the duck stands
+            // there and the button reads as broken, which is the difference
+            // this tab had against the lab. Stop is one press away and is
+            // never disabled.
+            engageLoop()
         case .drive:
             break
         case .stop:
@@ -2890,8 +2911,8 @@ private struct DeadControlStyle: ButtonStyle {
         configuration.label
             .font(.footnote.weight(.medium))
             .foregroundStyle(Theme.textSecondary)
-            .padding(.horizontal, Theme.spacing(.loose))
-            .padding(.vertical, Theme.spacing(.standard))
+            .padding(Theme.spacing(.hairline))
+            .frame(minWidth: DesignMetric.movingTarget, minHeight: DesignMetric.movingTarget)
             // PRESSED IS A STEP UP THE PALETTE, NOT AN OPACITY. `separator` is
             // the one token between the surfaces and the type, which is exactly
             // the size of step a press needs to be seen and no larger; it still
