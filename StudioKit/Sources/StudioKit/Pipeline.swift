@@ -455,13 +455,24 @@ extension Pipeline {
 
         /// The movable bodies, drawn by the one function that already knows
         /// which shape a body's name means.
+        ///
+        /// STABLE IDS, FOR THE REASON `DuckWorld.asProps` GIVES AT LENGTH. This
+        /// is a reading of a world that was laid, not a set of objects anybody
+        /// owns: laid twice, it has to come out the same, or a renderer that
+        /// rebuilds only what changed rebuilds all of it on every frame. The
+        /// seed is distinct from `DuckWorld`'s so a laid world and a read-back
+        /// world are never mistaken for each other.
         public var asProps: [DuckScene.Prop] {
             var drawn: [DuckScene.Prop] = []
-            if let ball { drawn.append(DuckScene.ball(x: ball.x, y: ball.y)) }
-            for seated in props {
+            if let ball {
+                drawn.append(DuckScene.ball(x: ball.x, y: ball.y,
+                                            id: DuckScene.Prop.derivedID("laid.ball")))
+            }
+            for (index, seated) in props.enumerated() {
                 drawn.append(DuckWorld.drawn(DuckWorld.Seated(name: seated.name,
                                                               x: seated.x, y: seated.y,
-                                                              kilograms: seated.kilograms)))
+                                                              kilograms: seated.kilograms),
+                                             at: index, seed: "laid"))
             }
             return drawn
         }

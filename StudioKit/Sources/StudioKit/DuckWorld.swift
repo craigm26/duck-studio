@@ -403,23 +403,40 @@ public struct DuckWorld: Equatable, Sendable {
         return scene.authoringFraming
     }
 
+    /// The world's bodies, as things a stage can draw.
+    ///
+    /// EVERY PROP HERE IS A READING, NOT A POSSESSION, and its id says so.
+    /// These stand for bodies the BENCH owns; reading the same world twice has
+    /// to give the same props, or a renderer that rebuilds only what changed
+    /// rebuilds everything, every frame. It did: `Prop`'s id defaulted to a
+    /// fresh `UUID()`, the synthesised `==` compares it, and the stage's memo
+    /// guard could therefore never once short-circuit. Invisible on a still
+    /// picture; on a clip playing at fifty frames a second it is most of the
+    /// frames, and the motion arrives as a handful of lurches.
     public var asProps: [DuckScene.Prop] {
         var drawn: [DuckScene.Prop] = []
         if let ball {
-            drawn.append(DuckScene.ball(x: ball.x, y: ball.y))
+            drawn.append(DuckScene.ball(x: ball.x, y: ball.y,
+                                        id: DuckScene.Prop.derivedID("world.ball")))
         }
-        for seated in props {
-            drawn.append(DuckWorld.drawn(seated))
+        for (index, seated) in props.enumerated() {
+            drawn.append(DuckWorld.drawn(seated, at: index))
         }
         return drawn
     }
 
     /// One seated body, as something to draw.
-    static func drawn(_ seated: Seated) -> DuckScene.Prop {
+    ///
+    /// THE INDEX IS PART OF THE IDENTITY because a name is not unique: a bench
+    /// world can seat two bodies called `block`, and two props sharing an id
+    /// is the same rebuild-every-frame bug wearing a different hat.
+    static func drawn(_ seated: Seated, at index: Int = 0,
+                      seed: String = "world") -> DuckScene.Prop {
+        let id = DuckScene.Prop.derivedID("\(seed).\(index).\(seated.name)")
         let grams = (seated.kilograms ?? 0) * 1000
         let lower = seated.name.lowercased()
         if lower.hasPrefix("ball") {
-            return DuckScene.Prop(name: seated.name, shape: .ball,
+            return DuckScene.Prop(id: id, name: seated.name, shape: .ball,
                                   x: seated.x, y: seated.y, grams: grams,
                                   thicknessMillimetres: 100, length: 0.1,
                                   floorFriction: 0.4)
@@ -427,12 +444,12 @@ public struct DuckWorld: Equatable, Sendable {
         if lower.hasPrefix("cone") {
             // A capsule in the plant. There is no capsule in the drawing
             // vocabulary, and a rod is the nearer of the two shapes there are.
-            return DuckScene.Prop(name: seated.name, shape: .rod,
+            return DuckScene.Prop(id: id, name: seated.name, shape: .rod,
                                   x: seated.x, y: seated.y, grams: grams,
                                   thicknessMillimetres: 32, length: 0.076,
                                   floorFriction: 0.8)
         }
-        return DuckScene.Prop(name: seated.name, shape: .block,
+        return DuckScene.Prop(id: id, name: seated.name, shape: .block,
                               x: seated.x, y: seated.y, grams: grams,
                               thicknessMillimetres: 40, length: 0.04,
                               floorFriction: 0.9)

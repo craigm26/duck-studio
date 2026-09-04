@@ -174,3 +174,98 @@ public enum StageCamera {
       + "stage opened on if that was further. This does not say the whole scene is in the "
       + "picture at that distance — only that the camera stops here."
 }
+
+// MARK: - framing a run that has already happened
+
+public extension StageCamera {
+
+    /// Where a camera has to LOOK and how far back it has to STAND for a
+    /// recorded run to be visible in full.
+    struct RunFraming: Equatable, Sendable {
+        /// The point the camera aims at: the middle of the travel, never below
+        /// the middle of a standing robot, so the shot is of the duck rather
+        /// than of the floor under it.
+        public let x, y, z: Double
+        /// Far enough back that the whole path plus the robot on it is inside
+        /// the glass — unless the range says no, which `reaches` records.
+        public let distance: Double
+        /// Whether `distance` actually fits the run. False when the travel
+        /// needs more room than `Limits.farthest` allows: the caller has a
+        /// framing that is as good as this stage gets and is NOT the whole run.
+        public let reaches: Bool
+
+        public init(x: Double, y: Double, z: Double, distance: Double, reaches: Bool) {
+            self.x = x; self.y = y; self.z = z
+            self.distance = distance; self.reaches = reaches
+        }
+    }
+
+    /// A STILL CAMERA IS WHAT MAKES TRAVEL VISIBLE, and a run is mostly travel.
+    ///
+    /// This is the arithmetic behind a bug that survived three fixes. The
+    /// Control tab drives with the camera ON the trunk, which is right while
+    /// somebody is steering: the duck stays in the middle of a world fifteen
+    /// times its size. Play a recorded motion under that same camera and the
+    /// camera subtracts the motion — a roll that carries the body half a metre
+    /// is drawn as a body rolling on the spot, and the honest report is "it
+    /// barely moves". The editor never had the bug because its player opens a
+    /// fresh, fixed camera every time.
+    ///
+    /// SO THE PLAYBACK BRINGS ITS OWN AIM POINT. Not by turning `follows` off
+    /// — that is the person's setting and it has to come back — but by naming
+    /// the one point worth looking at for as long as the clip is on screen.
+    ///
+    /// BOTH AXES, BECAUSE THE CAMERA CAN BE ANYWHERE ON THE ORBIT. A run one
+    /// metre along x is one metre wide seen from z and one metre DEEP seen from
+    /// x, and the caller does not know which way round the person has dragged
+    /// the stage to. Taking the larger of the two is what makes the answer
+    /// independent of the azimuth, which is the only way it can be computed
+    /// here at all.
+    ///
+    /// - Parameter roots: the run's own trunk positions, IN THE FRAME THE
+    ///   CAMERA WORKS IN. This is arithmetic over a set of points and has no
+    ///   opinion about which axis is up; the caller converts, because the
+    ///   caller is the one that knows what its renderer calls y. `y` here is
+    ///   the axis the glass measures its field of view along.
+    /// - Parameter duckHeightMetres: the robot's own size, added to the travel
+    ///   so the duck at each end of the path is inside the picture rather than
+    ///   half off it.
+    /// - Returns: nil for an empty run, which has nothing to look at.
+    static func framing(forRun roots: [(x: Double, y: Double, z: Double)],
+                        on glass: StageViewport.Glass,
+                        within limits: Limits = .stage,
+                        duckHeightMetres: Double = DuckScene.duckStandingHeight)
+        -> RunFraming? {
+        guard let first = roots.first else { return nil }
+        var low = first, high = first
+        for point in roots {
+            low = (x: Swift.min(low.x, point.x), y: Swift.min(low.y, point.y),
+                   z: Swift.min(low.z, point.z))
+            high = (x: Swift.max(high.x, point.x), y: Swift.max(high.y, point.y),
+                    z: Swift.max(high.z, point.z))
+        }
+        // THE ROBOT HAS A SIZE. Framing the PATH alone puts the duck's head and
+        // feet off the glass at both ends of it, which is a picture of a line
+        // with a duck-shaped hole moving along it.
+        let across = Swift.max(high.x - low.x, high.z - low.z) + duckHeightMetres
+        let up = (high.y - low.y) + duckHeightMetres
+        let half = tan(glass.fieldOfView / 2)
+        guard half > 0 else { return nil }
+        let forHeight = up / (2 * half)
+        // THE HORIZONTAL FIELD IS THE VERTICAL ONE TIMES THE ASPECT, so a tall
+        // narrow glass — which is what a phone held upright is — needs the
+        // camera FURTHER back for the same sideways travel, not nearer.
+        let aspect = glass.aspect > 0 ? glass.aspect : 1
+        let forWidth = across / (2 * half * aspect)
+        let wanted = Swift.max(defaultDistance, Swift.max(forHeight, forWidth))
+        let distance = clamped(wanted, to: limits)
+        return RunFraming(x: (low.x + high.x) / 2,
+                          // NEVER THE FLOOR. A run that never leaves the ground
+                          // has a midpoint at ankle height; aiming there points
+                          // the camera under the duck.
+                          y: Swift.max((low.y + high.y) / 2, duckHeightMetres / 2),
+                          z: (low.z + high.z) / 2,
+                          distance: distance,
+                          reaches: distance >= wanted - 1e-9)
+    }
+}

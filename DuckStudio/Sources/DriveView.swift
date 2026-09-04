@@ -698,6 +698,12 @@ struct DriveView: View {
         return DuckStance(jointAngles: posed, root: pose.root)
     }
 
+    /// How far through the clip the picture is, for the trail's reveal.
+    private var playbackProgress: Double {
+        guard let playback, playback.duration > 0 else { return 0 }
+        return playhead / playback.duration
+    }
+
     /// The console's address, when what was typed can be one.
     private var consoleURL: URL? {
         let host = consoleHost.trimmingCharacters(in: .whitespaces)
@@ -799,6 +805,13 @@ struct DriveView: View {
         } catch {
             motionOutcome = error.localizedDescription
         }
+        // AND SOMEBODY CAN READ IT. `motionOutcome` is drawn in ONE place, the
+        // Motions sheet — so every one of these sentences written for a press
+        // on a pad button went into a variable nothing renders. A refusal, a
+        // route that answered not-yet, a clip that would not read: all silent,
+        // on a screen whose whole contract is that a control that does nothing
+        // says why. The HUD line is where the buttons already report themselves.
+        if let motionOutcome { lastAction = motionOutcome }
         // AND THE STICKS COME BACK, after the run has been watched rather than
         // before it: resuming the loop mid-playback would put the live duck's
         // answers underneath a clip of the other one.
@@ -812,6 +825,47 @@ struct DriveView: View {
         playback = clip
         playhead = 0
         lastAction = ControlShelf.watching(clip.name)
+        // THE CAMERA STANDS STILL FOR A RUN, AND THIS IS THE WHOLE BUG.
+        //
+        // This tab drives with the camera ON the trunk, which is right while
+        // somebody is steering — `OrbitState.following` says why, and it is the
+        // default here. Play a recorded clip under that same camera and the
+        // camera moves exactly as far as the duck does, so it SUBTRACTS the
+        // travel: a roll that carries the body half a metre is drawn as a body
+        // rolling on the spot. The bench was answering the same seventy-five
+        // frames to both tabs the whole time; the editor's player looked right
+        // because it opens a fresh, FIXED camera every time it appears.
+        //
+        // `focus` IS THE SEAM, NOT `follows`. Following is the person's
+        // setting and it has to come back exactly as they left it. `DuckStage`
+        // already lets an explicit focus beat both — "the one that was worked
+        // out for a purpose rather than derived from whatever happens to be in
+        // the scene" — so naming the middle of THIS run for as long as it is on
+        // screen changes the picture without touching the preference.
+        let cameraWas = (focus: orbit.focus, distance: orbit.distance)
+        //
+        // IN THE CAMERA'S FRAME, NOT THE BENCH'S. The bench is z-up and
+        // RealityKit is y-up, and `StagePose.position` — the very thing the
+        // following camera aims at — is the one place that conversion is
+        // written down. Handing the kit raw bench roots would frame the run
+        // with its height and its depth swapped, which on a walk is a camera
+        // that stands back for the wrong axis and on a climb is one that does
+        // not stand back at all.
+        if let framed = StageCamera.framing(forRun: clip.roots.map {
+                                                (x: $0.x, y: $0.z, z: -$0.y) },
+                                            on: stageGlass,
+                                            within: orbit.limits) {
+            orbit.focus = SIMD3(Float(framed.x), Float(framed.y), Float(framed.z))
+            orbit.distance = Float(framed.distance)
+        }
+        defer {
+            orbit.focus = cameraWas.focus
+            orbit.distance = cameraWas.distance
+            // AND THE RANGE IS WORKED OUT AGAIN, because `refitCamera` stood
+            // down for the whole clip and the readout may have changed height
+            // under it while it did.
+            refitCamera()
+        }
         // THE WALL CLOCK, NOT A COUNT OF SLEEPS. Adding a step per iteration
         // makes the playback as slow as the sleeps actually are — every one
         // overshoots a little, and fifty of them a second turn a two-second
@@ -830,9 +884,30 @@ struct DriveView: View {
         // on a motion that ends standing is the difference between "it worked"
         // and "it nearly worked".
         playhead = clip.duration
-        try? await Task.sleep(nanoseconds: 120_000_000)
+        // LONG ENOUGH TO READ THE POSE IT FINISHED IN. 120 ms was a blink: the
+        // last frame appeared and the picture was already back on the live
+        // duck, which stands where it did before the press because the motion
+        // ran beside it. Unannounced, that jump reads as the run being undone.
+        try? await Task.sleep(nanoseconds: UInt64(DriveMetric.holdLastFrameSeconds * 1e9))
+        // AND NO `/state` READ HERE, DELIBERATELY. The obvious reading of the
+        // jump back is that `live` is stale — it was last written before the
+        // batch call — so the obvious fix is to read the bench again on the way
+        // out. It would change nothing and cost a round trip: `/perform` builds
+        // its OWN `MjData` (duckbench-core.mjs, `const data = new mj.MjData`),
+        // so the duck you drive genuinely did not move and a fresh read returns
+        // the same stance. The picture is not wrong when it goes back; it is
+        // going back to the other duck, which is the one this tab drives. What
+        // was missing was the hold above and a sentence saying so, and the run's
+        // own report — which ends on `ControlShelf.thisIsTheRun` — now reaches
+        // the screen instead of a variable nothing renders.
         playback = nil
         playhead = 0
+        // AND NOTHING IS SAID HERE. Every caller of this already ends on a
+        // sentence containing `ControlShelf.thisIsTheRun` — "a motion runs
+        // beside the duck you drive rather than on it, so the live duck stayed
+        // where it was" — which is the same fact said better and said last. A
+        // line written here would be overwritten by that one in the same actor
+        // hop and never reach the glass anyway.
     }
 
     /// One batch call, with the deadline a bench running physics needs. The
@@ -873,6 +948,16 @@ struct DriveView: View {
     /// has measured — so the stage keeps the plain range instead of a fitted one
     /// derived from a guess.
     @MainActor private func refitCamera() {
+        // NOT WHILE A RUN IS ON THE PICTURE. `watch` works out where the camera
+        // has to stand for the whole clip to be visible and then holds it there
+        // — and `orbit.fit` does not merely read the range, it REASSIGNS it and
+        // re-clamps `distance` to the new one. The trigger is live rather than
+        // theoretical: `watch`'s own first line writes `lastAction`, which
+        // changes the readout's height, which fires the `notesHeight` change
+        // below, which lands here in the middle of the clip and pulls the
+        // camera back in. The framing is restored to the person's own when the
+        // clip ends, and this runs again then.
+        guard playback == nil else { return }
         guard glass.width > 0, glass.height > 0 else { return }
         guard orbit.follows else {
             orbit.limits = .stage
@@ -1202,8 +1287,16 @@ struct DriveView: View {
         // stay in the stack they boot in. Drawing the request instead
         // would draw a staircase that is not there.
         DuckStage(pose: posedStance,
-                  environment: world?.asEnvironment ?? .bareFloor,
+                  environment: drawnEnvironment,
                   props: drawnProps,
+                  // THE PATH THE RUN TOOK, WHILE IT IS TAKING IT. The editor's
+                  // player has always drawn this and this tab never did, which
+                  // is half of why the same clip read as a smaller motion here:
+                  // without the line there is nothing on the picture that
+                  // survives a frame, so a duck that has travelled looks like a
+                  // duck that is back where it started.
+                  trail: playback?.roots ?? [],
+                  progress: playbackProgress,
                   orbit: $orbit,
                   handles: poseHandles,
                   onProject: { poseProjections = $0 },
@@ -1230,7 +1323,28 @@ struct DriveView: View {
     /// trip and rebuild every step and wall with it. A bench without a world
     /// route still reports its ball on every round trip; that ball is drawn
     /// at the floor's origin and then moved by `rollingBall` like any other.
+    /// The room the picture is of.
+    ///
+    /// THE RUN'S OWN ROOM WHILE THE RUN IS ON SCREEN, for the same reason
+    /// `posedStance` draws the run's own duck: a clip that laid a staircase and
+    /// is then drawn against whatever the bench happened to be standing in when
+    /// the tab last read `/world` is a picture of a duck climbing nothing.
+    ///
+    /// AND ONLY WHEN IT ACTUALLY LAID ONE. A motion with no scene does not lay
+    /// a world — it runs in whatever the bench already has — and its clip
+    /// records that as a bare floor. Drawing the bare floor there would DELETE
+    /// a room that is really standing, so the live reading stays in that case,
+    /// which is the honest half of the same rule.
+    private var drawnEnvironment: DuckIntentClip.Environment {
+        if let playback, playback.environment != .bareFloor { return playback.environment }
+        return world?.asEnvironment ?? .bareFloor
+    }
+
     private var drawnProps: [DuckScene.Prop] {
+        // A CLIP CARRIES NO STUDIO PROPS, so a run drawn in its own laid room
+        // is drawn without the live scene's furniture rather than with somebody
+        // else's ball parked in it.
+        if playback != nil, drawnEnvironment != world?.asEnvironment { return [] }
         if let world { return world.asProps }
         guard live?.ball != nil else { return [] }
         return [DuckScene.ball(x: 0, y: 0)]
@@ -1273,7 +1387,12 @@ struct DriveView: View {
     /// overlay drawn from `live`, and none of those stops being true because the
     /// floor is a camera feed.
     private var arStage: some View {
-        ARDriveStage(pose: pose, world: world, ball: live?.ball,
+        // `posedStance`, NOT `pose` — THE SAME DUCK THE SIM VENUE DRAWS. This
+        // read the live stance, so a motion pressed while the venue switch was
+        // on Floor ran on the bench, played into `playback`, and was drawn by
+        // nothing at all: a total no-show rather than a partial one. A person
+        // posing a joint here had the same experience.
+        ARDriveStage(pose: posedStance, world: world, ball: live?.ball,
                      benchIsThisPhone: bench?.isThisPhone == true,
                      trips: trips, tickMillis: health?.host?.tickMillis,
                      // UNDER THE TOP STRIP, NOT BENEATH IT: the AR panel and
@@ -2467,7 +2586,16 @@ struct DriveView: View {
         // THE MAP IS THE ONE DOOR, AND IT IS NEVER NIL. An unmapped control
         // lifts the shipped `DuckPad.binding(for:)` row unchanged, so the table
         // padd's own order is built from stays the thing a remap departs FROM.
-        switch desk.map.effect(for: control) {
+        // THE SAME DOOR THE BUTTON WAS DRAWN THROUGH. This asked the BARE
+        // `effect(for:)`, and the drawing side asks the resolving one — so a
+        // binding whose motion or sequence has since been deleted in Studio was
+        // drawn as a named not-yet and then, on the press, fell into
+        // `runMotion`'s `guard let draft` and returned in silence. A control
+        // that says nothing when pressed is the one thing this screen is not
+        // allowed to have; the not-yet has a sentence and this is where it gets
+        // said.
+        switch desk.map.effect(for: control, naming: desk.name(ofSequence:),
+                               namingMotion: desk.name(ofMotion:)) {
         case .loadSlot(let slot):
             // THE SLOT NAMES A ROLE, NOT A FILE. Which policy fills `roulade`
             // is the bench's business; this asks for the role and lets the
@@ -3123,6 +3251,9 @@ private enum DriveMetric {
     /// on a small board is minutes; one rollout of a two-second motion is
     /// seconds, and this is the ceiling either way.
     static let motionSeconds: TimeInterval = 900
+    /// How long the run's last frame stays on the picture before the live duck
+    /// gets it back. Long enough to see what the motion ended in.
+    static let holdLastFrameSeconds: TimeInterval = 0.7
     // `captionBacking` MOVED WITH THE BOX IT BELONGED TO. It had exactly one
     // reader, `floorCaption`, and that body is now `StageCaptionBox` in
     // `DesignComponents` — where `StageCaptionBox.backing` is the same 0.85 in

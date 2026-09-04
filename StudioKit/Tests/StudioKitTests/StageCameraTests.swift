@@ -169,3 +169,110 @@ final class StageCameraTests: XCTestCase {
         XCTAssertEqual(StageCamera.clamped(home, to: fitted), home, accuracy: 1e-12)
     }
 }
+
+/// Framing a run that has already happened.
+///
+/// THE BUG THESE EXIST FOR. The Control tab plays a clip under the camera it
+/// drives with, which follows the trunk — so the travel, which is most of what
+/// a motion IS, is subtracted from the picture before it is drawn. Three
+/// separate fixes went looking for it in the bench, in the request and in the
+/// playback loop; the bench was answering the same bytes to both tabs the whole
+/// time. Each of these must be able to FAIL: a framing that ignores the travel
+/// passes none of them.
+final class StageCameraRunFramingTests: XCTestCase {
+
+    private let phone = StageViewport.Glass(393, 740)
+
+    private func run(_ points: [(Double, Double, Double)])
+        -> [(x: Double, y: Double, z: Double)] {
+        points.map { (x: $0.0, y: $0.1, z: $0.2) }
+    }
+
+    func testAnEmptyRunHasNothingToLookAt() {
+        XCTAssertNil(StageCamera.framing(forRun: [], on: phone))
+    }
+
+    func testAStillRunIsFramedAtTheDefaultDistance() {
+        let framing = StageCamera.framing(forRun: run([(0, 0.09, 0), (0, 0.09, 0)]),
+                                          on: phone)
+        XCTAssertEqual(framing?.distance, StageCamera.defaultDistance)
+        XCTAssertEqual(framing?.reaches, true)
+    }
+
+    /// THE ONE THAT WOULD HAVE CAUGHT IT. Travel has to move the answer.
+    func testTravelStandsTheCameraFurtherBack() {
+        let near = StageCamera.framing(forRun: run([(0, 0.09, 0), (0.1, 0.09, 0)]), on: phone)
+        let far  = StageCamera.framing(forRun: run([(0, 0.09, 0), (1.2, 0.09, 0)]), on: phone)
+        XCTAssertNotNil(near); XCTAssertNotNil(far)
+        XCTAssertGreaterThan(far!.distance, near!.distance)
+    }
+
+    /// AND THE WHOLE RUN IS ACTUALLY ON THE GLASS at the distance it answers,
+    /// robot included — not merely "further back than before".
+    func testTheWholeTravelFitsTheGlass() {
+        let travel = 0.9
+        let framing = StageCamera.framing(forRun: run([(0, 0.09, 0), (travel, 0.09, 0)]),
+                                          on: phone,
+                                          within: StageCamera.Limits(nearest: 0.2,
+                                                                     farthest: 40))
+        let framed = try! XCTUnwrap(framing)
+        XCTAssertTrue(framed.reaches)
+        XCTAssertGreaterThanOrEqual(phone.visibleWidthMetres(at: framed.distance),
+                                    travel + DuckScene.duckStandingHeight - 1e-9)
+    }
+
+    /// A RUN ALONG z IS THE SAME RUN. The person may have orbited the stage to
+    /// any azimuth, so the answer cannot depend on which axis the duck walked.
+    func testTheAxisTheDuckWalkedDoesNotChangeTheAnswer() {
+        let alongX = StageCamera.framing(forRun: run([(0, 0.09, 0), (0.8, 0.09, 0)]), on: phone)
+        let alongZ = StageCamera.framing(forRun: run([(0, 0.09, 0), (0, 0.09, 0.8)]), on: phone)
+        XCTAssertEqual(alongX?.distance, alongZ?.distance)
+    }
+
+    /// THE AIM POINT IS THE MIDDLE OF THE TRAVEL, which is the half a following
+    /// camera gets wrong even when the distance is right.
+    func testTheCameraLooksAtTheMiddleOfTheRun() {
+        let framing = StageCamera.framing(forRun: run([(0, 0.09, 0), (1.0, 0.09, 0.4)]),
+                                          on: phone)
+        XCTAssertEqual(framing?.x ?? .nan, 0.5, accuracy: 1e-12)
+        XCTAssertEqual(framing?.z ?? .nan, 0.2, accuracy: 1e-12)
+    }
+
+    /// NEVER THE FLOOR. A run that never leaves the ground has a midpoint at
+    /// ankle height, and a camera aimed there is aimed under the duck.
+    func testTheAimPointIsNeverBelowTheRobotsMiddle() {
+        let framing = StageCamera.framing(forRun: run([(0, 0, 0), (0.3, 0.01, 0)]), on: phone)
+        XCTAssertEqual(framing?.y ?? .nan,
+                       DuckScene.duckStandingHeight / 2, accuracy: 1e-12)
+    }
+
+    /// A CLIMB IS TRAVEL TOO. Height has to count, or a duck going up a
+    /// staircase is framed as though it stood still.
+    func testRisingCountsAsTravel() {
+        let flat    = StageCamera.framing(forRun: run([(0, 0.09, 0), (0.05, 0.09, 0)]), on: phone)
+        let climbed = StageCamera.framing(forRun: run([(0, 0.09, 0), (0.05, 1.10, 0)]), on: phone)
+        XCTAssertGreaterThan(climbed!.distance, flat!.distance)
+    }
+
+    /// AND WHEN THE STAGE CANNOT REACH, IT SAYS SO rather than answering a
+    /// distance that quietly does not contain the run.
+    func testARunTooBigForTheStageSaysItDoesNotReach() {
+        let framing = StageCamera.framing(forRun: run([(0, 0.09, 0), (60, 0.09, 0)]),
+                                          on: phone, within: .stage)
+        XCTAssertEqual(framing?.distance, StageCamera.farStopFloor)
+        XCTAssertEqual(framing?.reaches, false)
+    }
+
+    /// A TALLER, NARROWER GLASS NEEDS MORE ROOM for the same sideways travel,
+    /// because the horizontal field is the vertical one times the aspect.
+    func testANarrowerGlassStandsFurtherBackForTheSameTravel() {
+        let wide = StageViewport.Glass(900, 600)
+        let tall = StageViewport.Glass(400, 900)
+        let path = run([(0, 0.09, 0), (1.0, 0.09, 0)])
+        let a = StageCamera.framing(forRun: path, on: wide,
+                                    within: StageCamera.Limits(nearest: 0.2, farthest: 40))
+        let b = StageCamera.framing(forRun: path, on: tall,
+                                    within: StageCamera.Limits(nearest: 0.2, farthest: 40))
+        XCTAssertGreaterThan(b!.distance, a!.distance)
+    }
+}

@@ -288,8 +288,9 @@ public struct DuckScene: Codable, Hashable, Identifiable, Sendable {
     }
 
     /// Pollen's own ball, as the physics scene has it: 50 mm radius, 30 g.
-    public static func ball(x: Double = 0.55, y: Double = 0.10) -> Prop {
-        Prop(name: "Ball", shape: .ball, x: x, y: y,
+    public static func ball(x: Double = 0.55, y: Double = 0.10,
+                           id: UUID = UUID()) -> Prop {
+        Prop(id: id, name: "Ball", shape: .ball, x: x, y: y,
              grams: 30, thicknessMillimetres: 100, length: 0.1,
              floorFriction: 0.4)
     }
@@ -840,5 +841,75 @@ extension DuckScene {
             var prop = $0; prop.x += point.x; prop.y += point.y; return prop
         }
         return moved
+    }
+}
+
+// MARK: - a prop's identity, and the frame cost of getting it wrong
+
+public extension DuckScene.Prop {
+
+    /// What a prop looks like on a stage, with its identity left out.
+    ///
+    /// WHY THIS EXISTS, AND IT IS A SHIPPED BUG. A renderer that rebuilds its
+    /// props only when they have changed has to ask "are these the same props?"
+    /// every frame. Asking with `==` asks about the `id` too — and a prop that
+    /// merely STANDS FOR a body the bench owns was minted fresh on every world
+    /// read, so the answer was always "different" and the entire prop scene was
+    /// torn down and regenerated on every pass. At rest that is invisible. With
+    /// a clip playing at fifty frames a second on top of it, it starves the
+    /// main thread, the playback skips the frames it cannot draw in time, and
+    /// the motion arrives as a few lurches — which reads exactly like a robot
+    /// that did not finish it, on a tab whose editor plays the same clip
+    /// smoothly because its props list is empty.
+    ///
+    /// TWO LOCKS, DELIBERATELY. `DuckWorld.asProps` now derives stable ids, so
+    /// the props genuinely ARE equal; this is the second, so the next caller to
+    /// mint a prop by hand cannot quietly bring the frame cost back.
+    struct Drawing: Hashable, Sendable {
+        public let name: String
+        public let shape: Shape
+        public let x, y, length, thicknessMillimetres: Double
+        public let graspHeightMillimetres: Double?
+    }
+
+    /// This prop's drawing, for a renderer's "has anything changed?" question.
+    var drawing: Drawing {
+        Drawing(name: name, shape: shape, x: x, y: y, length: length,
+                thicknessMillimetres: thicknessMillimetres,
+                graspHeightMillimetres: graspHeightMillimetres)
+    }
+
+    /// AN ID THAT IS A FUNCTION OF THE THING, not of when it was asked for.
+    ///
+    /// A prop the app OWNS gets a random id and keeps it, which is right: a
+    /// person made it and can rename it without it becoming a different prop.
+    /// A prop that stands for a body the BENCH holds has no life of its own —
+    /// read the same world twice and it is the same block — so its id has to
+    /// come out of the block.
+    static func derivedID(_ seed: String) -> UUID {
+        // FNV-1a, TWICE OVER THE SAME BYTES with different offsets. No security
+        // claim is made or needed. What IS needed is stability across two calls
+        // in one process, which is precisely what `Hasher` — seeded per launch,
+        // deliberately — does not give.
+        func fnv(_ offset: UInt64) -> UInt64 {
+            var hash = offset
+            for byte in seed.utf8 {
+                hash ^= UInt64(byte)
+                hash = hash &* 0x100_0000_01b3
+            }
+            return hash
+        }
+        let high = fnv(0xcbf2_9ce4_8422_2325), low = fnv(0x9e37_79b9_7f4a_7c15)
+        var bytes: [UInt8] = []
+        for shift in stride(from: 56, through: 0, by: -8) {
+            bytes.append(UInt8(truncatingIfNeeded: high >> UInt64(shift)))
+        }
+        for shift in stride(from: 56, through: 0, by: -8) {
+            bytes.append(UInt8(truncatingIfNeeded: low >> UInt64(shift)))
+        }
+        return UUID(uuid: (bytes[0], bytes[1], bytes[2], bytes[3],
+                           bytes[4], bytes[5], bytes[6], bytes[7],
+                           bytes[8], bytes[9], bytes[10], bytes[11],
+                           bytes[12], bytes[13], bytes[14], bytes[15]))
     }
 }

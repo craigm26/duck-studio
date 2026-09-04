@@ -571,7 +571,15 @@ struct StageSurface: UIViewRepresentable {
         var duck: DuckGhostEntity?
         var camera: PerspectiveCamera?
         var world: AnchorEntity?
-        var shownGraspables: [DuckScene.Prop] = []
+        /// THE DRAWINGS, NOT THE PROPS. Holding the props compared their ids,
+        /// and a prop that stands for a body the bench owns was minted fresh on
+        /// every read — so this guard could never once short-circuit and the
+        /// whole prop scene was rebuilt on every body pass. `DuckWorld.asProps`
+        /// derives stable ids now and that is the real fix; this is the lock
+        /// that stops the next hand-minted prop bringing the cost back, and it
+        /// is also the more honest question: what this cares about is whether
+        /// anything LOOKS different.
+        var shownGraspables: [DuckScene.Prop.Drawing] = []
         var props: Entity?
         var path: Entity?
         var shadow: Entity?
@@ -708,10 +716,11 @@ struct StageSurface: UIViewRepresentable {
             // The graspables are part of the comparison: a broom that moved,
             // or grew heavier, has to redraw, and an environment that did not
             // change would otherwise hold the old one on screen.
-            guard let props, shownEnvironment != environment || shownGraspables != graspables
+            let drawings = graspables.map(\.drawing)
+            guard let props, shownEnvironment != environment || shownGraspables != drawings
             else { return }
             shownEnvironment = environment
-            shownGraspables = graspables
+            shownGraspables = drawings
             ballEntity = nil
             props.children.removeAll()
             addGraspables(graspables, to: props)
