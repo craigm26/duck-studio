@@ -398,6 +398,20 @@ public struct EvalTask: Equatable, Sendable, Identifiable {
       + "and in the control ticks those seconds resolve to, and how many ticks were actually "
       + "reported is a separate number."
 
+    /// Written into `policy_config` whenever `max_seconds` and `max_steps` are
+    /// both null, which is every grid task.
+    ///
+    /// A CELL'S LENGTH IS THE HARNESS'S AND NOT THIS APP'S. `/climb` and
+    /// `/chase` run an entrant against one cell and decide for themselves when
+    /// that cell is over; there is no number here to declare. Their own
+    /// `Task.resolve_envelope` insists on one of the two, so a reader who knows
+    /// the schema finds a pair of nulls their runner could not have written,
+    /// and this is the sentence that meets them there.
+    public static let noHorizonSaid =
+        "This task declares no horizon, so both max seconds and max steps are null. The harness "
+      + "that scores a grid cell decides how long the cell runs, and a number written here would "
+      + "name a budget nothing enforced."
+
     public static let whyNotMeasure =
         "The measure route runs the rollouts and answers how many of them ended standing, "
       + "without saying which. An evaluation writes one score per episode, and there is no "

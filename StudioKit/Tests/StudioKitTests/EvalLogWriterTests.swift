@@ -180,6 +180,27 @@ final class EvalLogWriterTests: XCTestCase {
         XCTAssertTrue(log.eval.policyConfig["temperature"]?.isNull ?? false)
     }
 
+    /// A GRID DECLARES NO HORIZON AND THE LOG SAYS WHOSE IT WAS INSTEAD.
+    ///
+    /// `/climb` and `/chase` decide for themselves how long a cell runs, so
+    /// this app has no honest number for `max_seconds` and writes null for both
+    /// it and `max_steps`. Upstream's `Task.resolve_envelope` requires one of
+    /// the two, which means a reader who knows their schema meets a pair their
+    /// runner could not have produced, so the note goes into the one block
+    /// their viewer renders. A walk task has a horizon and must not carry it.
+    func testAGridSaysWhyItHasNoHorizonAndAWalkDoesNot() throws {
+        let grid = try EvalFixtures.stairsMixed().log
+        XCTAssertNil(grid.eval.maxSeconds)
+        XCTAssertNil(grid.eval.maxSteps)
+        XCTAssertEqual(grid.eval.policyConfig[EvalMeta.horizonNote]?.stringValue,
+                       EvalTask.noHorizonSaid)
+
+        let walk = try EvalFixtures.workedExample().log
+        XCTAssertEqual(walk.eval.maxSeconds, EvalTask.walkSeconds)
+        XCTAssertNotNil(walk.eval.maxSteps)
+        XCTAssertNil(walk.eval.policyConfig[EvalMeta.horizonNote])
+    }
+
     /// E6: the axis is written as numbers as well as prose, so an archived log
     /// goes on meaning what it meant if the tuner's held-out list ever changes.
     func testTheEpochAxisIsWrittenAsNumbersAndNotOnlyAsProse() throws {

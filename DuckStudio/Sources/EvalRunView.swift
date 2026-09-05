@@ -79,9 +79,9 @@ struct EvalRunView: View {
             .tint(Theme.measured)
             .accessibilityValue(Text(scenesCounted))
 
-            TelemetryRow(label: "Scenes", value: scenesCounted)
+            TelemetryRow(label: EvalScreen.scenesSaid, value: scenesCounted)
         } header: {
-            SectionHeading(text: "Running")
+            SectionHeading(text: EvalScreen.runningHeading)
         } footer: {
             Text(EvalEpochs.wholeSceneAtOnceSaid)
                 .font(.caption)
@@ -212,7 +212,7 @@ struct EvalRunView: View {
     private var theBench: some View {
         Section {
             if let name = runner.ranOnBench {
-                TelemetryRow(label: "Bench", value: name)
+                TelemetryRow(label: EvalScreen.benchSaid, value: name)
             }
             if let address = runner.ranOnAddress {
                 Text(EvalText.foreign(address))
@@ -230,7 +230,7 @@ struct EvalRunView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         } header: {
-            SectionHeading(text: "Where it ran")
+            SectionHeading(text: EvalScreen.whereItRanHeading)
         }
         .listRowBackground(Theme.surfacePrimary)
     }
@@ -247,7 +247,7 @@ struct EvalRunView: View {
             Button(role: .destructive) {
                 runner.stop()
             } label: {
-                Text("Stop").frame(maxWidth: .infinity)
+                Text(EvalScreen.stopSaid).frame(maxWidth: .infinity)
             }
         } footer: {
             Text(EvalTask.stopIsNotAFailure)
@@ -269,12 +269,12 @@ struct EvalRunView: View {
             NavigationLink {
                 EvalLogDetailView(file: file, evals: evals)
             } label: {
-                Label("Open the log", systemImage: "doc.text.magnifyingglass")
+                Label(EvalScreen.openTheLogSaid, systemImage: "doc.text.magnifyingglass")
             }
             Button {
                 share(file)
             } label: {
-                Label("Share the log and the report", systemImage: "square.and.arrow.up")
+                Label(EvalScreen.shareTheLogAndTheReportSaid, systemImage: "square.and.arrow.up")
             }
             if let shareFailure {
                 Text(shareFailure)
@@ -283,7 +283,7 @@ struct EvalRunView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         } header: {
-            SectionHeading(text: "What it wrote")
+            SectionHeading(text: EvalScreen.whatItWroteHeading)
         } footer: {
             Text(EvalLogFile.aLogIsFinished)
                 .font(.caption)
@@ -413,7 +413,7 @@ struct EvalVerdictSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Stop watching") { onStopWatching() }
+                    Button(EvalScreen.stopWatchingSaid) { onStopWatching() }
                 }
             }
             // A SWIPE IS NOT AN ANSWER. Both ways out of this sheet are
@@ -456,8 +456,17 @@ struct EvalVerdictSheet: View {
                     .foregroundStyle(Theme.warning)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            // THE BENCH'S OWN CAPTION, WHEN IT SENT ONE. Drawn through
+            // `EvalText.foreign` because nobody here wrote it and it has no
+            // length bound of its own.
+            if let why = EvalText.foreign(clip.why) {
+                Text(why)
+                    .font(.caption)
+                    .foregroundStyle(Theme.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         } header: {
-            SectionHeading(text: "Watch it")
+            SectionHeading(text: EvalScreen.watchItHeading)
         }
         .listRowBackground(Theme.surfacePrimary)
     }
@@ -481,7 +490,7 @@ struct EvalVerdictSheet: View {
                 }
             }
         } header: {
-            SectionHeading(text: "What it was asked to do")
+            SectionHeading(text: EvalScreen.whatItWasAskedToDoHeading)
         }
         .listRowBackground(Theme.surfacePrimary)
     }
@@ -495,9 +504,9 @@ struct EvalVerdictSheet: View {
                 // WHOLE. It is drawn back through `EvalText.foreign` everywhere
                 // it is read, which is what caps it on a row without touching
                 // what was written down.
-                TextField("Note", text: $note, axis: .vertical)
+                TextField(EvalScreen.noteSaid, text: $note, axis: .vertical)
                     .lineLimit(1...4)
-                    .accessibilityLabel(Text("Note"))
+                    .accessibilityLabel(Text(EvalScreen.noteSaid))
                 ForEach(EvalVerdict.Answer.allCases, id: \.rawValue) { answer in
                     Button {
                         onAnswer(EvalVerdict(answer: answer, note: trimmedNote))
@@ -506,7 +515,7 @@ struct EvalVerdictSheet: View {
                     }
                     .accessibilityLabel(Text(answer.said))
                 }
-                Button("Skip this one") { onSkipOne() }
+                Button(EvalScreen.skipThisOneSaid) { onSkipOne() }
             } else {
                 Text(EvalVerdict.watchBeforeYouJudge)
                     .font(.footnote)
@@ -514,7 +523,7 @@ struct EvalVerdictSheet: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         } header: {
-            SectionHeading(text: "Your verdict")
+            SectionHeading(text: EvalScreen.yourVerdictHeading)
         } footer: {
             VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
                 Text(EvalVerdict.recordedNotScoredSaid)

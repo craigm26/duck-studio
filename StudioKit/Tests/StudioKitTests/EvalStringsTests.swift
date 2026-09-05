@@ -28,7 +28,15 @@ final class EvalStringsTests: XCTestCase {
 
     /// Every constant this feature ships so far, by name so a failure says
     /// which one.
-    static let everyString: [(String, String)] = [
+    ///
+    /// The screens' own chrome is swept with them, off `EvalScreen.everyWord`,
+    /// so a heading cannot pick up an em dash or a second wording just because
+    /// it is one word long. `EvalScreenTests` is what pins each of those to its
+    /// exact text; this is the sweep they join.
+    static let everyString: [(String, String)] =
+        authoredSentences + EvalScreen.everyWord.map { ("EvalScreen \"\($0)\"", $0) }
+
+    static let authoredSentences: [(String, String)] = [
         ("EvalScorer.notEmittedHere", EvalScorer.notEmittedHere),
         ("EvalScorer.termsAreNotScoresSaid", EvalScorer.termsAreNotScoresSaid),
         ("EvalScorerSet.Refusal.empty", EvalScorerSet.Refusal.empty.message),
@@ -59,6 +67,7 @@ final class EvalStringsTests: XCTestCase {
         ("EvalTask.nothingRunYet", EvalTask.nothingRunYet),
         ("EvalTask.stopIsNotAFailure", EvalTask.stopIsNotAFailure),
         ("EvalTask.maxStepsSaid", EvalTask.maxStepsSaid),
+        ("EvalTask.noHorizonSaid", EvalTask.noHorizonSaid),
         ("EvalTask.whyNotMeasure", EvalTask.whyNotMeasure),
         ("EvalTask.whyNotPerform", EvalTask.whyNotPerform),
         ("EvalTask.Refusal.noScenes", EvalTask.Refusal.noScenes.message),
@@ -219,6 +228,7 @@ final class EvalStringsTests: XCTestCase {
             ("EvalPolicy.foldedResidualSaid", EvalPolicy.foldedResidualSaid),
             ("EvalPolicy.fileOnlySaid", EvalPolicy.fileOnlySaid),
             ("EvalRun.producerSaid", EvalRun.producerSaid(version: "1.1", build: "58")),
+            ("EvalTask.noHorizonSaid", EvalTask.noHorizonSaid),
         ]
         for (name, note) in notes {
             XCTAssertLessThanOrEqual(Self.sentences(in: note), 2, "\(name): \(note)")

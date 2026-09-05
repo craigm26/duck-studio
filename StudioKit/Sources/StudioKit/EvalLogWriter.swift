@@ -54,6 +54,7 @@ public enum EvalMeta {
     // in policy_config
     public static let criterion = "criterion"
     public static let epochAxis = "epoch_axis"
+    public static let horizonNote = "horizon_note"
 }
 
 /// Turning a finished run into the file, and giving the file its name.
@@ -182,14 +183,26 @@ public enum EvalLogWriter {
                            refusedTerms: [(name: String, why: String)] = [],
                            appVersion: String, build: String) -> EvalLog {
         let traced = run.anyTrialTraced
+        var policyConfig = run.policy.config(embodiment: run.embodiment, epochs: run.task.epochs,
+                                             criterion: criterion, refusedTerms: refusedTerms)
+        // A TASK WITH NO HORIZON SAYS SO, IN THE BLOCK THEIR VIEWER RENDERS.
+        // `max_seconds` and `max_steps` are both null for a grid, because a
+        // cell's length belongs to the harness that scores it and this app has
+        // no single number for it. Upstream's own `Task.resolve_envelope`
+        // requires one of the two, so a reader who knows their schema meets a
+        // pair of nulls here that their runner could not have produced. Writing
+        // a number to make the shape familiar would be the lie: the note goes
+        // where the numbers are missing and says whose budget it was.
+        if run.task.maxSeconds == nil {
+            policyConfig[EvalMeta.horizonNote] = .string(EvalTask.noHorizonSaid)
+        }
         let spec = EvalLog.Spec(
             task: run.task.name,
             policy: run.policy.logName,
             embodiment: run.embodiment.identity,
             created: timestamp(run.startedAt),
             producer: EvalRun.producerSaid(version: appVersion, build: build),
-            policyConfig: run.policy.config(embodiment: run.embodiment, epochs: run.task.epochs,
-                                            criterion: criterion, refusedTerms: refusedTerms),
+            policyConfig: policyConfig,
             embodimentInfo: run.embodiment.info(traced: traced),
             maxSteps: run.task.maxSteps,
             maxSeconds: run.task.maxSeconds)

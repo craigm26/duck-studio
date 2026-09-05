@@ -75,10 +75,10 @@ struct EvalListView: View {
             NavigationLink {
                 EvalSetupView(model: model, benches: benches, evals: evals)
             } label: {
-                Label("New evaluation", systemImage: "checklist")
+                Label(EvalScreen.newEvaluationSaid, systemImage: "checklist")
             }
         } header: {
-            SectionHeading(text: "Run one")
+            SectionHeading(text: EvalScreen.runOneHeading)
         }
         .listRowBackground(Theme.surfacePrimary)
     }
@@ -103,7 +103,7 @@ struct EvalListView: View {
                     Button(role: .destructive) {
                         evals.delete(file)
                     } label: {
-                        Label("Delete", systemImage: "trash")
+                        Label(EvalScreen.deleteSaid, systemImage: "trash")
                     }
                 }
             }
@@ -131,7 +131,7 @@ struct EvalListView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         } header: {
-            SectionHeading(text: "Saved")
+            SectionHeading(text: EvalScreen.savedHeading)
         } footer: {
             Text(EvalLogFile.oneLogAtATimeSaid)
                 .font(.caption)
@@ -219,7 +219,7 @@ struct EvalListView: View {
             NavigationLink {
                 EvalCompareView(evals: evals)
             } label: {
-                Label("Put two side by side", systemImage: "arrow.left.arrow.right")
+                Label(EvalScreen.putTwoSideBySideSaid, systemImage: "arrow.left.arrow.right")
             }
             .disabled(evals.comparable.count < 2)
 
@@ -232,7 +232,7 @@ struct EvalListView: View {
                 .foregroundStyle(Theme.textTertiary)
                 .fixedSize(horizontal: false, vertical: true)
         } header: {
-            SectionHeading(text: "Compare")
+            SectionHeading(text: EvalScreen.compareHeading)
         }
         .listRowBackground(Theme.surfacePrimary)
     }
@@ -244,7 +244,7 @@ struct EvalListView: View {
             Button {
                 importing = true
             } label: {
-                Label("Open a log from elsewhere", systemImage: "square.and.arrow.down")
+                Label(EvalScreen.openALogFromElsewhereSaid, systemImage: "square.and.arrow.down")
             }
             Text(EvalLogFile.whatAnImportedLogMustBe)
                 .font(.caption)
@@ -255,7 +255,7 @@ struct EvalListView: View {
                 .foregroundStyle(Theme.textTertiary)
                 .fixedSize(horizontal: false, vertical: true)
         } header: {
-            SectionHeading(text: "Open one from elsewhere")
+            SectionHeading(text: EvalScreen.openOneFromElsewhereHeading)
         } footer: {
             Text(EvalLogFile.howToRead)
                 .font(.caption)

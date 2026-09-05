@@ -32,6 +32,15 @@
 # "in the corpus on disk and not in the list"). The real corpus was untouched
 # and the gate stayed green over it.
 #
+# The horizon check added on 2026-09-05 was proved the same way: horizon_note
+# was deleted out of a copy of stairs_mixed.json, which still round trips
+# because their own dump reproduces whatever the file says, and the run went
+# red with "neither max_steps nor max_seconds is set and nothing in
+# policy_config says whose horizon it was". That is the one check here a
+# schema-shaped reader could not make for itself: a grid log carries a pair of
+# nulls upstream's Task.resolve_envelope would never have written, and the only
+# thing that makes it honest rather than broken is the sentence beside it.
+#
 # WHICH VENV. Set INSPECT_ROBOTS_VENV to reuse one that already exists, which
 # is the fast path on a machine that has run this before. Otherwise one is
 # built at StudioKit/.build/evallog-parity/venv and inspect-robots is pinned

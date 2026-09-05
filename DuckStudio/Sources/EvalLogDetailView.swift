@@ -195,7 +195,7 @@ struct EvalLogDetailView: View {
             foreignBlock(EvalLog.Key.policyConfig, log.eval.policyConfig)
             foreignBlock(EvalLog.Key.embodimentInfo, log.eval.embodimentInfo)
         } header: {
-            SectionHeading(text: "What ran")
+            SectionHeading(text: EvalScreen.whatRanHeading)
         } footer: {
             Text(EvalLogFile.fromTheFile)
                 .font(.caption)
@@ -280,7 +280,7 @@ struct EvalLogDetailView: View {
             TelemetryRow(label: EvalLog.Key.erroredTrials,
                          value: String(log.results.erroredTrials))
         } header: {
-            SectionHeading(text: "Metrics")
+            SectionHeading(text: EvalScreen.metricsHeading)
         } footer: {
             VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
                 Text(EvalReport.meanOverScenesSaid)
@@ -505,7 +505,7 @@ struct EvalLogDetailView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             } header: {
-                SectionHeading(text: "Errors")
+                SectionHeading(text: EvalScreen.errorsHeading)
             } footer: {
                 Text(EvalLogFile.fromTheFile)
                     .font(.caption)
@@ -527,7 +527,7 @@ struct EvalLogDetailView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         } header: {
-            SectionHeading(text: "What this is not")
+            SectionHeading(text: EvalScreen.whatThisIsNotHeading)
         }
         .listRowBackground(Theme.surfacePrimary)
     }
@@ -568,12 +568,12 @@ struct EvalLogDetailView: View {
             Button {
                 share()
             } label: {
-                Label("Share the log and the report", systemImage: "square.and.arrow.up")
+                Label(EvalScreen.shareTheLogAndTheReportSaid, systemImage: "square.and.arrow.up")
             }
             Button {
                 sendSomewhere()
             } label: {
-                Label("Send it somewhere", systemImage: "paperplane")
+                Label(EvalScreen.sendItSomewhereSaid, systemImage: "paperplane")
             }
             if let shareFailure {
                 Text(shareFailure)
@@ -586,7 +586,7 @@ struct EvalLogDetailView: View {
                 .foregroundStyle(Theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         } header: {
-            SectionHeading(text: "Share")
+            SectionHeading(text: EvalScreen.shareHeading)
         } footer: {
             VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
                 Text(EvalLogFile.howToRead)
@@ -638,7 +638,7 @@ struct EvalLogDetailView: View {
                 Button("Check this token") { Task { await check() } }
                     .disabled(token.trimmingCharacters(in: .whitespaces).isEmpty || busy)
                 if let account {
-                    Label("Publishing as \(account)",
+                    Label(HuggingFacePublish.publishingAs(account),
                           systemImage: "person.crop.circle.badge.checkmark")
                         .font(.footnote)
                         .foregroundStyle(Theme.success)
@@ -659,7 +659,8 @@ struct EvalLogDetailView: View {
                 .disabled(busy || account == nil || published != nil)
                 if let published, let url = URL(string: published) {
                     Link(destination: url) {
-                        Label("Open it on Hugging Face", systemImage: "arrow.up.right.square")
+                        Label(HuggingFacePublish.openItOnHuggingFace,
+                              systemImage: "arrow.up.right.square")
                     }
                 }
                 if let publishFailure {
@@ -669,7 +670,7 @@ struct EvalLogDetailView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             } header: {
-                SectionHeading(text: "Publish it")
+                SectionHeading(text: EvalScreen.publishItHeading)
             } footer: {
                 // PUBLIC IS A CAVEAT AND PRIVATE IS NOT, the distinction
                 // `StairsSubmitView` draws: one of these is reversible and the
@@ -690,7 +691,7 @@ struct EvalLogDetailView: View {
                     .foregroundStyle(Theme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             } header: {
-                SectionHeading(text: "Publish it")
+                SectionHeading(text: EvalScreen.publishItHeading)
             }
             .listRowBackground(Theme.surfacePrimary)
         }

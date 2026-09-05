@@ -241,35 +241,14 @@ final class EvalStore: ObservableObject {
     var comparable: [EvalLogFile] { files }
 }
 
-// THE ONE THING THIS FILE NEEDS FROM THE KIT AND CANNOT WRITE ITSELF.
+// WHY `reload()` READS THROUGH A THIRD CONSTRUCTOR.
 //
-// `EvalLogFile` has exactly two public constructors: `written(_ run:)`, which
-// builds a file FROM A RUN, and `imported(_:named:)`, which stamps
-// `origin == .imported`. Coming back after a launch there is no run any more,
-// only bytes and a filename, and reading a log this app wrote back through
-// `imported` would put the Imported badge on it and turn `canPublish` off,
-// which is the kit's own gate answering the wrong question about this phone's
-// own measurements. Its memberwise initialiser is internal to StudioKit, so
-// nothing in the app target can spell the third case.
-//
-// So `reload()` above calls `EvalLogFile.onDisk(_:named:)`, which is this, and
-// which belongs in `StudioKit/Sources/StudioKit/EvalLogWriter.swift` beside the
-// two constructors it joins:
-//
-//     /// A log this app wrote, read back off the disk it was written to.
-//     ///
-//     /// `wroteIt` COMES OUT OF THE LOG AND NOT OFF THE RUNNING BUILD.
-//     /// `eval.inspect_robots_version` is `EvalRun.producerSaid`, which was
-//     /// written by whichever build made the run, and stamping today's version
-//     /// on an archived file would make every old log claim to be new.
-//     public static func onDisk(_ data: Data, named name: String) throws -> EvalLogFile {
-//         let log = try EvalLogReader.read(data)
-//         return EvalLogFile(log: log, bytes: data, origin: .written, name: name,
-//                            importedName: nil,
-//                            wroteIt: EvalRun.wroteItSaid(from: log.eval.inspectRobotsVersion))
-//     }
-//
-// with `EvalRun.wroteItSaid(from:)` returning the `Microduck Studio 1.1 (58)`
-// clause `producerSaid` built, or nil for a producer sentence this app did not
-// write. Nil is what `EvalReport.shareSentence` already turns into
-// `passedOnSaid`.
+// `EvalLogFile` has three: `written(_ run:)` builds a file from a run,
+// `imported(_:named:)` stamps `origin == .imported`, and `onDisk(_:named:)`
+// is the one this file needs. Coming back after a launch there is no run any
+// more, only bytes and a filename, and reading this phone's own measurements
+// back through `imported` would put the Imported badge on them and turn
+// `canPublish` off, which is the kit's own gate answering the wrong question.
+// The third one keeps the origin the directory already decided, takes the
+// producer clause out of the log rather than off the running build, and never
+// re-encodes the bytes.

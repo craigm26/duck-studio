@@ -397,6 +397,17 @@ final class BenchTuneParityTests: XCTestCase {
         XCTAssertEqual(first.command.count, 3)
         XCTAssertEqual(first.command, [0, 0, 0])
 
+        // THE CAPTION COMES OFF THE WIRE TOO. The bench sends `traceWhy` beside
+        // the ticks, saying which drop they are and where the cap falls. A
+        // screen that offered these hundred ticks to watch under a sentence
+        // this app wrote would be captioning somebody else's measurement, so
+        // the reader carries the bench's own and `EvalTrace.why` is what
+        // reaches the sheet.
+        let why = try XCTUnwrap(tuned.traceWhy, "the bench sent a trace with no traceWhy; "
+                                              + "re-capture the fixture")
+        XCTAssertTrue(why.contains("first drop"), why)
+        XCTAssertTrue(why.contains("500"), why)
+
         // `endHeight`, which the bench has always sent and nothing here read.
         XCTAssertEqual(tuned.perDrop.count, 2)
         XCTAssertEqual(tuned.perDrop.first?.drop, 0.12)

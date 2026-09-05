@@ -24,11 +24,11 @@ import StudioKit
 /// `View` property initialiser cannot be the thing that fails. Every number is
 /// the kit's and every sentence is a `static let` in it.
 ///
-/// THE STRUCTURAL LABELS ARE THE ONE THING HERE NOT YET IN THE KIT. The six
-/// section headings and the Start button are the words this screen needs that
-/// `StudioKit` has no constant for. They are listed in the build report so they
-/// can move into the kit beside a test, which is where every other word on this
-/// screen already is.
+/// THE STRUCTURAL LABELS ARE IN THE KIT TOO. The section headings, the toggle
+/// and the Start button are `EvalScreen` constants, pinned character for
+/// character by `EvalScreenTests`, so this file draws no word of its own and
+/// `scripts/check_stage_sentences.sh` holds it to that with nothing in the
+/// allow-list.
 struct EvalSetupView: View {
     @ObservedObject var model: LibraryModel
     @ObservedObject var benches: BenchStore
@@ -92,7 +92,7 @@ struct EvalSetupView: View {
             paragraph(EvalTask.whyNotPerform, tone: Theme.textTertiary, size: .caption)
             paragraph(EvalScorer.notEmittedHere, tone: Theme.textTertiary, size: .caption)
         } header: {
-            SectionHeading(text: "What to evaluate")
+            SectionHeading(text: EvalScreen.whatToEvaluateHeading)
         }
         .listRowBackground(Theme.surfacePrimary)
     }
@@ -150,7 +150,7 @@ struct EvalSetupView: View {
                     paragraph(EvalPolicy.fileOnlySaid, tone: Theme.textTertiary, size: .caption)
                 }
             } header: {
-                SectionHeading(text: "What is being evaluated")
+                SectionHeading(text: EvalScreen.whatIsBeingEvaluatedHeading)
             }
             .listRowBackground(Theme.surfacePrimary)
         } else {
@@ -178,7 +178,7 @@ struct EvalSetupView: View {
                               tone: Theme.warning, size: .caption)
                 }
             } header: {
-                SectionHeading(text: "What is being evaluated")
+                SectionHeading(text: EvalScreen.whatIsBeingEvaluatedHeading)
             }
             .listRowBackground(Theme.surfacePrimary)
         }
@@ -239,7 +239,7 @@ struct EvalSetupView: View {
             .padding(.vertical, Theme.spacing(.hairline))
             .accessibilityElement(children: .combine)
         } header: {
-            SectionHeading(text: "Where it runs")
+            SectionHeading(text: EvalScreen.whereItRunsHeading)
         } footer: {
             Text(EvalEmbodiment.notSeedable)
                 .font(.caption)
@@ -260,7 +260,7 @@ struct EvalSetupView: View {
             paragraph(EvalEpochs.noSeedSaid, tone: Theme.textSecondary, size: .caption)
             paragraph(EvalEpochs.noPassAtK, tone: Theme.textTertiary, size: .caption)
         } header: {
-            SectionHeading(text: "What varies, and how it is collapsed")
+            SectionHeading(text: EvalScreen.whatVariesHeading)
         }
         .listRowBackground(Theme.surfacePrimary)
     }
@@ -290,7 +290,7 @@ struct EvalSetupView: View {
             }
             paragraph(EvalScorer.termsAreNotScoresSaid, tone: Theme.textTertiary, size: .caption)
         } header: {
-            SectionHeading(text: "How it is scored")
+            SectionHeading(text: EvalScreen.howItIsScoredHeading)
         }
         .listRowBackground(Theme.surfacePrimary)
     }
@@ -305,7 +305,7 @@ struct EvalSetupView: View {
     private var watchAndJudge: some View {
         Section {
             Toggle(isOn: $runner.wantsVerdicts) {
-                Text("Ask me about the trial it recorded")
+                Text(EvalScreen.askMeAboutTheTrialSaid)
             }
             .disabled(runner.task?.wantsTrace != true || runner.running)
 
@@ -314,7 +314,7 @@ struct EvalSetupView: View {
                       size: .caption)
             paragraph(EvalVerdict.vocabularySaid, tone: Theme.textTertiary, size: .caption)
         } header: {
-            SectionHeading(text: "Watch and judge it")
+            SectionHeading(text: EvalScreen.watchAndJudgeHeading)
         }
         .listRowBackground(Theme.surfacePrimary)
     }
@@ -332,7 +332,7 @@ struct EvalSetupView: View {
                 // VoiceOver reads as nothing at all.
                 HStack(spacing: Theme.spacing(.tight)) {
                     ProgressView()
-                    Text("Asking this bench what it can do")
+                    Text(EvalScreen.askingThisBenchSaid)
                         .font(.caption)
                         .foregroundStyle(Theme.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -344,7 +344,7 @@ struct EvalSetupView: View {
                 Button {
                     start()
                 } label: {
-                    Text("Start").frame(maxWidth: .infinity)
+                    Text(EvalScreen.startSaid).frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.primaryAction)
                 .disabled(startRefusal != nil || policy == nil || runner.task == nil)

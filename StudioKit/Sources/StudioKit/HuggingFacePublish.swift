@@ -164,6 +164,15 @@ public enum HuggingFacePublish {
     public static let publicWarning =
         "PUBLIC: anyone can find and download it, and anything already fetched stays fetched "
       + "even if you delete it later."
+    /// WHOSE ACCOUNT IS ABOUT TO BE WRITTEN TO, said before the commit and not
+    /// after it. A token names an account, and the person holding it may have
+    /// more than one. Five screens in this app publish; this is the one
+    /// spelling of the sentence they share.
+    public static func publishingAs(_ account: String) -> String { "Publishing as \(account)" }
+
+    /// The door to what was just written, in the Hub's own name for itself.
+    public static let openItOnHuggingFace = "Open it on Hugging Face"
+
     /// The failure ladder a publish sheet climbs, as sentences rather than
     /// string literals in a view.
     public static let tokenRefused = "Hugging Face did not accept that token."

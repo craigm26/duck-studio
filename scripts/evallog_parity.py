@@ -68,6 +68,7 @@ HONESTY_NOTES = {
     "bench_host",
     "bench_world",
     "epoch_axis",
+    "horizon_note",
     "identity_note",
     "refused_terms",
     "residual",
@@ -340,6 +341,20 @@ def check_one(name: str, path: Path, log, roles: dict[str, str], ours: bool) -> 
     strayed = sorted(set(info) & HONESTY_NOTES)
     want(not strayed, f"an honesty note is in embodiment_info rather than policy_config: {strayed}")
     config = data["eval"]["policy_config"]
+
+    # A PAIR OF NULLS WHERE THEIR OWN RUNNER COULD NOT HAVE WRITTEN ONE.
+    # `Task.resolve_envelope` requires max_steps or max_seconds, so a log with
+    # neither is a log a reader who knows this schema will stop at. That is
+    # honest for a grid, where the harness owns how long a cell runs and this
+    # app has no number of its own, and it is only honest while the file says
+    # so in the block their viewer renders.
+    spec = data["eval"]
+    if spec["max_steps"] is None and spec["max_seconds"] is None:
+        want(
+            "horizon_note" in config,
+            "neither max_steps nor max_seconds is set and nothing in policy_config says whose "
+            "horizon it was",
+        )
     want(
         "criterion" in config,
         "the bench's own criterion is not in policy_config, so the file does not say "

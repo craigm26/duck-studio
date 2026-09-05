@@ -686,6 +686,16 @@ public enum DuckBench {
         /// spelling that is additive.
         public var trace: [Tick]? = nil
 
+        /// The bench's own sentence about what the trace is and is not.
+        ///
+        /// It arrives beside the ticks and it says which drop they came from
+        /// and where the cap falls, in the words of the thing that produced
+        /// them. A screen that offered a recorded episode to watch under a
+        /// caption this app wrote would be describing somebody else's
+        /// measurement, so the caption is read off the wire and drawn through
+        /// `EvalText.foreign`, like every other string nobody here authored.
+        public var traceWhy: String? = nil
+
         public static func == (a: Tuned, b: Tuned) -> Bool {
             a.policy == b.policy && a.episodes == b.episodes && a.standing == b.standing
                 && a.criterion == b.criterion && a.travelled == b.travelled
@@ -699,7 +709,7 @@ public enum DuckBench {
                 // forty-seven numbers is a quarter of a megabyte, and an
                 // equality operator that walked all of it would be paid for on
                 // every comparison a list makes.
-                && a.trace?.count == b.trace?.count
+                && a.trace?.count == b.trace?.count && a.traceWhy == b.traceWhy
         }
     }
 
@@ -753,7 +763,8 @@ public enum DuckBench {
             // A bench that was not asked for a trace sends none, and a bench
             // too old to know the word sends none either. Both are silence
             // rather than a fault, so this is nil and nothing above it changes.
-            trace: readTicks(top["trace"]))
+            trace: readTicks(top["trace"]),
+            traceWhy: top["traceWhy"] as? String)
     }
 
     /// The trace, tick by tick, or nil.

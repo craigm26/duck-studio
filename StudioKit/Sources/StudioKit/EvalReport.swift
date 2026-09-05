@@ -598,6 +598,13 @@ public struct EvalStageClip: Equatable, Sendable {
     /// True when the recording ran into the bench's cap, which is what a person
     /// has to know before judging the ending.
     public let wasCapped: Bool
+    /// The bench's own caption for this recording, when it sent one.
+    ///
+    /// `/tune` answers a traced call with `traceWhy`, which says which drop the
+    /// ticks are and where the cap falls. It is carried rather than reworded
+    /// because it describes somebody else's measurement, and it is drawn
+    /// through `EvalText.foreign` like every other string nobody here wrote.
+    public let why: String?
 
     public var isEmpty: Bool { poses.isEmpty }
     public var ticks: Int { poses.count }
@@ -637,7 +644,8 @@ public struct EvalStageClip: Equatable, Sendable {
         return EvalStageClip(poses: poses, trail: trail,
                              environment: .bareFloor,
                              dropHeight: trace.dropHeight,
-                             wasCapped: trace.wasCapped)
+                             wasCapped: trace.wasCapped,
+                             why: trace.why)
     }
 
     /// x, y, z, qw, qx, qy, qz, in the order the bench sends them. A short

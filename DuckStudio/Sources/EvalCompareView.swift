@@ -39,7 +39,7 @@ struct EvalCompareView: View {
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .background(Theme.backgroundSecondary)
-        .navigationTitle("Side by side")
+        .navigationTitle(EvalScreen.sideBySideTitle)
         .navigationBarTitleDisplayMode(.inline)
         .onAppear(perform: settle)
     }
@@ -59,17 +59,17 @@ struct EvalCompareView: View {
                     Text(name(file)).tag(String?.some(file.name))
                 }
             } label: {
-                Text("Left")
+                Text(EvalScreen.leftSaid)
             }
             Picker(selection: $rightName) {
                 ForEach(evals.comparable) { file in
                     Text(name(file)).tag(String?.some(file.name))
                 }
             } label: {
-                Text("Right")
+                Text(EvalScreen.rightSaid)
             }
         } header: {
-            SectionHeading(text: "Which two")
+            SectionHeading(text: EvalScreen.whichTwoHeading)
         } footer: {
             Text(EvalCompare.whatCanBeComparedSaid)
                 .font(.caption)
@@ -94,7 +94,7 @@ struct EvalCompareView: View {
                 .foregroundStyle(Theme.refused)
                 .fixedSize(horizontal: false, vertical: true)
         } header: {
-            SectionHeading(text: "Not side by side")
+            SectionHeading(text: EvalScreen.notSideBySideHeading)
         }
         .listRowBackground(Theme.surfacePrimary)
     }
@@ -139,7 +139,7 @@ struct EvalCompareView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         } header: {
-            SectionHeading(text: "Both, scorer by scorer")
+            SectionHeading(text: EvalScreen.bothScorerByScorerHeading)
         } footer: {
             Text(EvalCompare.differenceIsNotAScoreSaid)
                 .font(.caption)

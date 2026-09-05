@@ -359,11 +359,21 @@ final class EvalReportTests: XCTestCase {
         let tuned = try DuckBench.readTuned(try Data(contentsOf: url))
         let ticks = try XCTUnwrap(tuned.trace)
         let first = try XCTUnwrap(tuned.perDrop.first)
-        let clip = EvalStageClip.of(EvalTrace(ticks: ticks, dropHeight: first.drop, why: nil))
+        let clip = EvalStageClip.of(EvalTrace(ticks: ticks, dropHeight: first.drop,
+                                              why: tuned.traceWhy))
         XCTAssertEqual(clip.ticks, ticks.count)
         XCTAssertEqual(clip.poses.first?.jointAngles.count, DuckModel.jointCount)
         XCTAssertEqual(clip.environment, DuckIntentClip.Environment.bareFloor)
         XCTAssertNotEqual(clip.trail.first?.x, clip.trail.last?.x,
                           "a duck that walked went somewhere")
+
+        // THE CAPTION IS THE BENCH'S AND IT REACHES THE SCREEN CAPPED. The
+        // sentence the Pi actually sent is longer than a row can hold, which is
+        // what `EvalText.foreign` is for; what must never happen is this app
+        // writing its own caption over somebody else's recording.
+        let why = try XCTUnwrap(clip.why)
+        XCTAssertEqual(why, tuned.traceWhy)
+        XCTAssertGreaterThan(why.count, EvalText.cap)
+        XCTAssertEqual(EvalText.foreign(clip.why)?.count, EvalText.cap)
     }
 }

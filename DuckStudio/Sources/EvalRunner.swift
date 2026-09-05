@@ -610,8 +610,12 @@ final class EvalRunner: ObservableObject {
             // episode per call, which is why `EvalTrace.dropHeight` exists at
             // all: a recording shown against the wrong trial is worse than no
             // recording.
+            // THE CAPTION COMES OFF THE WIRE WITH THE TICKS. `traceWhy` is the
+            // bench's own sentence about what it recorded and where the cap
+            // falls; a caption this app wrote over somebody else's recording
+            // would be this app describing a measurement it did not take.
             let trace: EvalTrace? = epoch == 0 ? answer.trace.map {
-                EvalTrace(ticks: $0, dropHeight: episode.drop, why: nil)
+                EvalTrace(ticks: $0, dropHeight: episode.drop, why: answer.traceWhy)
             } : nil
             metadata[EvalMeta.ranToHorizon] = .bool(episode.standing)
             var scores: [String: Double] = [
