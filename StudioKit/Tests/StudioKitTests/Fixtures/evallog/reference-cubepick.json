@@ -1,0 +1,298 @@
+{
+  "error": null,
+  "eval": {
+    "created": "2026-09-05T15:58:49.372020+00:00",
+    "embodiment": "cubepick",
+    "embodiment_info": {
+      "capabilities": [
+        "auto_reset",
+        "privileged_success",
+        "renderable",
+        "resettable",
+        "seedable"
+      ],
+      "control_hz": 10.0,
+      "is_simulated": true
+    },
+    "git_commit": null,
+    "inspect_robots_version": "0.58.0",
+    "max_seconds": null,
+    "max_steps": 80,
+    "policy": "scripted",
+    "policy_config": {
+      "action_horizon": 4,
+      "replan_interval": null,
+      "temperature": null
+    },
+    "seed": 7,
+    "task": "cubepick-reach"
+  },
+  "results": {
+    "errored_trials": 0,
+    "metrics": {
+      "success_at_end": 1.0
+    },
+    "total_scenes": 4,
+    "total_trials": 12
+  },
+  "samples": [
+    {
+      "epochs": [
+        {
+          "success_at_end": 1.0
+        },
+        {
+          "success_at_end": 1.0
+        },
+        {
+          "success_at_end": 1.0
+        }
+      ],
+      "error": null,
+      "instruction": "reach the cube",
+      "judgement_sources": [
+        null,
+        null,
+        null
+      ],
+      "operator_judgements": [
+        null,
+        null,
+        null
+      ],
+      "operator_messages": [
+        [],
+        [],
+        []
+      ],
+      "operator_notes": [
+        null,
+        null,
+        null
+      ],
+      "policy_transcripts": [
+        null,
+        null,
+        null
+      ],
+      "reduced": {
+        "success_at_end": 1.0
+      },
+      "scene_id": "scene-0",
+      "scene_metadata": {},
+      "status": "success",
+      "termination_reasons": [
+        "success",
+        "success",
+        "success"
+      ],
+      "trial_metadata": [
+        {
+          "actions": "actions/20260905_155849_e0ca7558/scene-0-e0.jsonl"
+        },
+        {
+          "actions": "actions/20260905_155849_e0ca7558/scene-0-e1.jsonl"
+        },
+        {
+          "actions": "actions/20260905_155849_e0ca7558/scene-0-e2.jsonl"
+        }
+      ]
+    },
+    {
+      "epochs": [
+        {
+          "success_at_end": 1.0
+        },
+        {
+          "success_at_end": 1.0
+        },
+        {
+          "success_at_end": 1.0
+        }
+      ],
+      "error": null,
+      "instruction": "reach the cube",
+      "judgement_sources": [
+        null,
+        null,
+        null
+      ],
+      "operator_judgements": [
+        null,
+        null,
+        null
+      ],
+      "operator_messages": [
+        [],
+        [],
+        []
+      ],
+      "operator_notes": [
+        null,
+        null,
+        null
+      ],
+      "policy_transcripts": [
+        null,
+        null,
+        null
+      ],
+      "reduced": {
+        "success_at_end": 1.0
+      },
+      "scene_id": "scene-1",
+      "scene_metadata": {},
+      "status": "success",
+      "termination_reasons": [
+        "success",
+        "success",
+        "success"
+      ],
+      "trial_metadata": [
+        {
+          "actions": "actions/20260905_155849_e0ca7558/scene-1-e0.jsonl"
+        },
+        {
+          "actions": "actions/20260905_155849_e0ca7558/scene-1-e1.jsonl"
+        },
+        {
+          "actions": "actions/20260905_155849_e0ca7558/scene-1-e2.jsonl"
+        }
+      ]
+    },
+    {
+      "epochs": [
+        {
+          "success_at_end": 1.0
+        },
+        {
+          "success_at_end": 1.0
+        },
+        {
+          "success_at_end": 1.0
+        }
+      ],
+      "error": null,
+      "instruction": "reach the cube",
+      "judgement_sources": [
+        null,
+        null,
+        null
+      ],
+      "operator_judgements": [
+        null,
+        null,
+        null
+      ],
+      "operator_messages": [
+        [],
+        [],
+        []
+      ],
+      "operator_notes": [
+        null,
+        null,
+        null
+      ],
+      "policy_transcripts": [
+        null,
+        null,
+        null
+      ],
+      "reduced": {
+        "success_at_end": 1.0
+      },
+      "scene_id": "scene-2",
+      "scene_metadata": {},
+      "status": "success",
+      "termination_reasons": [
+        "success",
+        "success",
+        "success"
+      ],
+      "trial_metadata": [
+        {
+          "actions": "actions/20260905_155849_e0ca7558/scene-2-e0.jsonl"
+        },
+        {
+          "actions": "actions/20260905_155849_e0ca7558/scene-2-e1.jsonl"
+        },
+        {
+          "actions": "actions/20260905_155849_e0ca7558/scene-2-e2.jsonl"
+        }
+      ]
+    },
+    {
+      "epochs": [
+        {
+          "success_at_end": 1.0
+        },
+        {
+          "success_at_end": 1.0
+        },
+        {
+          "success_at_end": 1.0
+        }
+      ],
+      "error": null,
+      "instruction": "reach the cube",
+      "judgement_sources": [
+        null,
+        null,
+        null
+      ],
+      "operator_judgements": [
+        null,
+        null,
+        null
+      ],
+      "operator_messages": [
+        [],
+        [],
+        []
+      ],
+      "operator_notes": [
+        null,
+        null,
+        null
+      ],
+      "policy_transcripts": [
+        null,
+        null,
+        null
+      ],
+      "reduced": {
+        "success_at_end": 1.0
+      },
+      "scene_id": "scene-3",
+      "scene_metadata": {},
+      "status": "success",
+      "termination_reasons": [
+        "success",
+        "success",
+        "success"
+      ],
+      "trial_metadata": [
+        {
+          "actions": "actions/20260905_155849_e0ca7558/scene-3-e0.jsonl"
+        },
+        {
+          "actions": "actions/20260905_155849_e0ca7558/scene-3-e1.jsonl"
+        },
+        {
+          "actions": "actions/20260905_155849_e0ca7558/scene-3-e2.jsonl"
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "completed_at": "2026-09-05T15:58:49.412955+00:00",
+    "duration_s": 0.03826616399601335,
+    "frames_dir": null,
+    "mean_inference_latency_s": null,
+    "started_at": "2026-09-05T15:58:49.374708+00:00",
+    "total_steps": 111
+  },
+  "status": "success",
+  "version": 1
+}

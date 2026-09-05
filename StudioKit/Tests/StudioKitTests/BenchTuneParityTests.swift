@@ -355,4 +355,129 @@ final class BenchTuneParityTests: XCTestCase {
         XCTAssertEqual(base.canonicalParameterBytes.count, folded.canonicalParameterBytes.count,
                        "a fold adds no parameters; it is the same file with a different last layer")
     }
+
+    // MARK: - the trace, against an answer a real bench actually sent
+
+    /// `DuckBench.readTuned` against a `/tune` answer asked for WITH a trace.
+    ///
+    /// WHY A SECOND CAPTURE. `tune-identity-probe.json` was taken on
+    /// 2026-09-02 without `"trace": true`, so its top level keys are
+    /// `criterion, duck, engine, episodes, perDrop, plantDigest, plantName,
+    /// policy, refused, seconds, standing, terms, termsWhy, travelled,
+    /// travelledWhy` and there is no `trace` in it at all. A reader that grew a
+    /// trace branch would then ship with nothing captured behind it, which is
+    /// the exact failure the comment above `testItReadsAnAnswerTheBenchActuallySent`
+    /// describes. This body came off 100.122.199.6:8770 on 2026-09-05, from the
+    /// request `Fixtures/bench/tune-trace-probe.md` writes out in full.
+    func testItReadsATraceTheBenchActuallySent() throws {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "tune-trace-probe",
+                                                  withExtension: "json",
+                                                  subdirectory: "Fixtures/bench"))
+        let tuned = try DuckBench.readTuned(try Data(contentsOf: url))
+        XCTAssertEqual(tuned.policy, "alpha_walking.onnx")
+        XCTAssertEqual(tuned.episodes, 2)
+        XCTAssertEqual(tuned.plantDigest?.prefix(12), "3f8c9ab9b409")
+
+        // Two seconds at 50 Hz, the FIRST drop only, well under the bench's own
+        // 500 tick cap. A trace that came back the length of both episodes
+        // would mean the bench had started tracing more than one, and every
+        // sentence this app writes about "the one episode anybody could watch"
+        // would be wrong.
+        let trace = try XCTUnwrap(tuned.trace, "the bench answered without the trace it was asked "
+                                             + "for; re-capture the fixture")
+        XCTAssertEqual(trace.count, 100)
+        let first = try XCTUnwrap(trace.first)
+        XCTAssertEqual(first.root.count, 7)
+        XCTAssertEqual(first.qvel.count, 6)
+        XCTAssertEqual(first.twist.count, 6)
+        XCTAssertEqual(first.joints.count, 14)
+        XCTAssertEqual(first.action.count, 14)
+        // Three, and it is a row of literal zeros in the first tick, which is
+        // the one row a lenient `as? [Double]` can silently drop.
+        XCTAssertEqual(first.command.count, 3)
+        XCTAssertEqual(first.command, [0, 0, 0])
+
+        // `endHeight`, which the bench has always sent and nothing here read.
+        XCTAssertEqual(tuned.perDrop.count, 2)
+        XCTAssertEqual(tuned.perDrop.first?.drop, 0.12)
+        XCTAssertEqual(tuned.perDrop.first?.endHeight, 0.1212)
+        XCTAssertEqual(tuned.perDrop.last?.endHeight, 0.1217)
+        for episode in tuned.perDrop { XCTAssertTrue(episode.standing) }
+    }
+
+    /// THE SECOND TRANSCRIPTION, PINNED TO THE FIRST. This file already carries
+    /// a private `Trace.Tick` with the same six fields, and
+    /// `Fixtures/tune/trace.json` pins it against `sim/tune_parity.mjs`. Adding
+    /// `DuckBench.Tuned.Tick` created a second Swift reader of the same wire
+    /// shape, and a swapped `qvel` and `twist` in it would be invisible to
+    /// every other gate. So the parity fixture goes through the PRODUCTION
+    /// reader as well and the two have to agree, field for field.
+    ///
+    /// WHY A TOLERANCE AND NOT EQUALITY, WHICH IS A MEASUREMENT AND NOT A
+    /// HEDGE. The two readers use two different JSON number parsers:
+    /// `JSONDecoder` here, `JSONSerialization` inside `DuckBench`. On this
+    /// toolchain they do not agree to the last bit on the same decimal text.
+    /// Measured over both fixtures on 2026-09-05: worst absolute difference
+    /// 5.6e-16, worst relative difference 6.8e-16, which is about three units
+    /// in the last place. The tolerance below is 1e-13 relative, ten thousand
+    /// times looser than the parsers and ten orders of magnitude tighter than
+    /// any transcription error this test exists to catch: `qvel` and `twist`
+    /// differ from each other in the fifth decimal place.
+    func testTheProductionTickReaderAgreesWithThisFilesOwnTranscription() throws {
+        func agree(_ read: [Double], _ wanted: [Double], _ what: String) {
+            guard read.count == wanted.count else {
+                return XCTFail("\(what): \(read.count) values where the fixture has "
+                             + "\(wanted.count)")
+            }
+            for index in read.indices {
+                let slack = 1e-13 * Swift.max(1, abs(wanted[index]))
+                XCTAssertEqual(read[index], wanted[index], accuracy: slack,
+                               "\(what) value \(index)")
+            }
+        }
+        for name in Self.fixtures {
+            let fixture = try trace(name)
+            let url = try XCTUnwrap(Bundle.module.url(forResource: name, withExtension: "json",
+                                                      subdirectory: "Fixtures/tune"))
+            let raw = try JSONSerialization.jsonObject(with: try Data(contentsOf: url))
+            let top = try XCTUnwrap(raw as? [String: Any])
+            let read = try XCTUnwrap(DuckBench.readTicks(top["ticks"]),
+                                     "the production reader saw no ticks in \(name).json")
+            XCTAssertEqual(read.count, fixture.ticks.count, name)
+            for (index, tick) in read.enumerated() {
+                agree(tick.root, fixture.ticks[index].root, "\(name) tick \(index) root")
+                agree(tick.qvel, fixture.ticks[index].qvel, "\(name) tick \(index) qvel")
+                agree(tick.twist, fixture.ticks[index].twist, "\(name) tick \(index) twist")
+                agree(tick.joints, fixture.ticks[index].joints, "\(name) tick \(index) joints")
+                agree(tick.action, fixture.ticks[index].action, "\(name) tick \(index) action")
+                agree(tick.command, fixture.ticks[index].command, "\(name) tick \(index) command")
+            }
+            // The two vectors that make the fixture worth having are not equal
+            // to each other, so a reader that filled both from one key would
+            // fail rather than pass twice. The gap is five decimal places wide,
+            // which is what makes the tolerance above safe.
+            let first = try XCTUnwrap(read.first)
+            XCTAssertGreaterThan(abs(first.qvel[0] - first.twist[0]), 1e-6, name)
+        }
+    }
+
+    /// The request body is unchanged unless a trace is asked for, which is what
+    /// lets every existing fixture and every existing call site stay pinned.
+    func testAskingForNoTraceLeavesTheBodyExactlyAsItWas() throws {
+        let address = DuckBench.Address(host: "bench.local", port: 8770)
+        let plain = try DuckBench.tune(address, policy: "alpha_walking.onnx",
+                                       gain: [1], offset: [0], seconds: 2, drops: [0.12],
+                                       schedule: DuckBench.walkingCommand, terms: ["upright"])
+        let asked = try DuckBench.tune(address, policy: "alpha_walking.onnx",
+                                       gain: [1], offset: [0], seconds: 2, drops: [0.12],
+                                       schedule: DuckBench.walkingCommand, terms: ["upright"],
+                                       trace: true)
+        let plainBody = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: try XCTUnwrap(plain.body)) as? [String: Any])
+        let askedBody = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: try XCTUnwrap(asked.body)) as? [String: Any])
+        XCTAssertNil(plainBody["trace"])
+        XCTAssertEqual(askedBody["trace"] as? Bool, true)
+        XCTAssertEqual(Set(askedBody.keys).subtracting(plainBody.keys), ["trace"])
+    }
 }

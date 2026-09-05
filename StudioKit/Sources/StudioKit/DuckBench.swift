@@ -352,15 +352,25 @@ public enum DuckBench {
     /// is what the browser shell already returns for an unknown path, and the
     /// screen reads that as "this bench cannot score a search" rather than as a
     /// failure.
+    /// `trace` ASKS FOR THE FIRST DROP'S TICKS AND IS ADDED TO THE BODY ONLY
+    /// WHEN IT IS TRUE. The bench has always been able to answer with the
+    /// trajectory it recorded, and until now nothing here asked. It is the one
+    /// episode of a call anybody could watch, which is what makes an operator's
+    /// verdict about something. Keeping the key out of the body when it is
+    /// false leaves every existing request byte identical, so the fixtures
+    /// behind `BenchTuneParityTests` and the phone bench keep pinning what they
+    /// were written to pin.
     public static func tune(_ address: Address, policy: String,
                             gain: [Double], offset: [Double],
                             seconds: Double, drops: [Double],
-                            schedule: [Step], terms: [String]) throws -> Call {
-        let body: [String: Any] = [
+                            schedule: [Step], terms: [String],
+                            trace: Bool = false) throws -> Call {
+        var body: [String: Any] = [
             "policy": policy, "gain": gain, "offset": offset,
             "seconds": seconds, "drops": drops,
             "schedule": schedule.map(\.wire), "terms": terms,
         ]
+        if trace { body["trace"] = true }
         return Call(method: "POST", url: URL(string: "\(address.base)/tune")!,
                     body: try JSONSerialization.data(withJSONObject: body))
     }
@@ -609,10 +619,47 @@ public enum DuckBench {
             /// far apart, the duck walked but not where it was told.
             public let netDisplacement: Double
             public let diverged: Bool
+            /// Metres of trunk above the floor at the last tick, which the
+            /// bench has always sent and nothing here read. A duck can pass a
+            /// standing test on its knees, so the height beside the verdict is
+            /// what tells the two apart. Nil from a diverged episode, which
+            /// sends no height at all.
+            public let endHeight: Double?
             public init(drop: Double, travelled: Double, standing: Bool, terms: [String: Double],
-                        netDisplacement: Double = 0, diverged: Bool = false) {
+                        netDisplacement: Double = 0, diverged: Bool = false,
+                        endHeight: Double? = nil) {
                 self.drop = drop; self.travelled = travelled; self.standing = standing
                 self.terms = terms; self.netDisplacement = netDisplacement; self.diverged = diverged
+                self.endHeight = endHeight
+            }
+        }
+
+        /// ONE CONTROL TICK OF A RECORDED EPISODE, and the only shape on this
+        /// wire that carries the twist and the action.
+        ///
+        /// The bench answers with these only when `/tune` was asked for a
+        /// trace, only for the FIRST drop of a call, and capped at 500 ticks,
+        /// which at 50 Hz is ten seconds. `BenchTuneParityTests` decodes the
+        /// captured `/tune` answer through this type and compares its ticks
+        /// with `Fixtures/tune/trace.json`, so a swapped `qvel` and `twist`
+        /// here goes red rather than being read as a different duck.
+        public struct Tick: Equatable, Sendable {
+            /// x, y, z, qw, qx, qy, qz.
+            public let root: [Double]
+            /// MuJoCo's own free joint velocity: linear in the WORLD frame,
+            /// angular in the BODY's.
+            public let qvel: [Double]
+            /// The same velocity as a clip stores it, the trunk's twist in its
+            /// OWN frame, (vx, vy, vz, wx, wy, wz).
+            public let twist: [Double]
+            public let joints: [Double]
+            public let action: [Double]
+            /// vx, vy, vyaw.
+            public let command: [Double]
+            public init(root: [Double], qvel: [Double], twist: [Double],
+                        joints: [Double], action: [Double], command: [Double]) {
+                self.root = root; self.qvel = qvel; self.twist = twist
+                self.joints = joints; self.action = action; self.command = command
             }
         }
         public let plantName: String?
@@ -629,6 +676,16 @@ public enum DuckBench {
         /// The reward config the bench scored under, when it says.
         public let config: String?
 
+        /// The first drop's ticks, when a trace was asked for.
+        ///
+        /// `var` WITH A DEFAULT AND NOT `let`. Swift leaves a `let` that
+        /// already has a value OUT of the memberwise initialiser, so
+        /// `public let trace: [Tick]? = nil` would compile here and then make
+        /// `readTuned`'s own construction fail with an extra argument, and a
+        /// `let` with no default would make it a required one. This is the only
+        /// spelling that is additive.
+        public var trace: [Tick]? = nil
+
         public static func == (a: Tuned, b: Tuned) -> Bool {
             a.policy == b.policy && a.episodes == b.episodes && a.standing == b.standing
                 && a.criterion == b.criterion && a.travelled == b.travelled
@@ -638,6 +695,11 @@ public enum DuckBench {
                 && a.refused.map(\.why) == b.refused.map(\.why)
                 && a.scored == b.scored && a.diverged == b.diverged
                 && a.minTravelled == b.minTravelled && a.config == b.config
+                // THE COUNT AND NOT THE TICKS. Five hundred ticks of
+                // forty-seven numbers is a quarter of a megabyte, and an
+                // equality operator that walked all of it would be paid for on
+                // every comparison a list makes.
+                && a.trace?.count == b.trace?.count
         }
     }
 
@@ -672,7 +734,8 @@ public enum DuckBench {
                                      standing: $0["standing"] as? Bool ?? false,
                                      terms: each,
                                      netDisplacement: $0["netDisplacement"] as? Double ?? 0,
-                                     diverged: $0["diverged"] as? Bool ?? false)
+                                     diverged: $0["diverged"] as? Bool ?? false,
+                                     endHeight: $0["endHeight"] as? Double)
             },
             refused: (top["refused"] as? [[String: Any]] ?? []).compactMap {
                 guard let name = $0["name"] as? String else { return nil }
@@ -686,7 +749,50 @@ public enum DuckBench {
             // unknown and the median stands in, which is the looser guard
             // rather than a false one.
             minTravelled: top["minTravelled"] as? Double ?? (top["travelled"] as? Double ?? 0),
-            config: top["config"] as? String)
+            config: top["config"] as? String,
+            // A bench that was not asked for a trace sends none, and a bench
+            // too old to know the word sends none either. Both are silence
+            // rather than a fault, so this is nil and nothing above it changes.
+            trace: readTicks(top["trace"]))
+    }
+
+    /// The trace, tick by tick, or nil.
+    ///
+    /// A TICK WITH A MISSING FIELD IS DROPPED RATHER THAN FILLED. Every one of
+    /// the six is a vector the bench measured; a zero put in for a missing
+    /// `twist` would be a duck standing perfectly still for one frame, which is
+    /// exactly the kind of invented number the rest of this file exists to
+    /// refuse.
+    static func readTicks(_ raw: Any?) -> [Tuned.Tick]? {
+        guard let rows = raw as? [[String: Any]] else { return nil }
+        let ticks: [Tuned.Tick] = rows.compactMap {
+            guard let root = doubles($0["root"]), let qvel = doubles($0["qvel"]),
+                  let twist = doubles($0["twist"]), let joints = doubles($0["joints"]),
+                  let action = doubles($0["action"]), let command = doubles($0["command"]) else {
+                return nil
+            }
+            return Tuned.Tick(root: root, qvel: qvel, twist: twist,
+                              joints: joints, action: action, command: command)
+        }
+        return ticks.isEmpty ? nil : ticks
+    }
+
+    /// A row of numbers off the wire. ELEMENT BY ELEMENT, because a commanded
+    /// velocity of exactly zero is written `0` and a whole array of them is not
+    /// guaranteed to arrive as an array of Doubles on every platform this runs
+    /// on. A command row that failed to cast would drop a tick and the trace
+    /// would quietly get shorter.
+    static func doubles(_ raw: Any?) -> [Double]? {
+        guard let row = raw as? [Any] else { return nil }
+        var out: [Double] = []
+        out.reserveCapacity(row.count)
+        for value in row {
+            if let number = value as? Double { out.append(number) }
+            else if let number = value as? Int { out.append(Double(number)) }
+            else if let number = value as? NSNumber { out.append(number.doubleValue) }
+            else { return nil }
+        }
+        return out
     }
 
     /// What the bench called the file it just took.
