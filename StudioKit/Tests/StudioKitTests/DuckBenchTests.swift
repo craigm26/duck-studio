@@ -389,6 +389,50 @@ final class DuckBenchTests: XCTestCase {
         XCTAssertNoThrow(try DuckTuner.reward(tuned.terms))
     }
 
+    /// A TRACE ONE TICK SHORT IS NOT A SHORTER RECORDING.
+    ///
+    /// `readTicks` dropped any row that failed to decode, so a malformed tick
+    /// came back as a trace with a hole in it. The count is what an evaluation
+    /// writes as `ticks_reported`, sums into `total_steps`, tests against the
+    /// bench's 500 tick cap and divides by the tick rate to get a duration: all
+    /// four would have been about a different episode from the one the bench
+    /// ran, and none of them would have looked wrong. So a bad row is no trace,
+    /// the way `doubles` already refuses a bad number.
+    func testATraceWithABadTickIsNoTraceRatherThanAShortOne() throws {
+        func answer(_ ticks: String) -> Data {
+            Data(#"{"episodes":1,"terms":{"upright":0.9},"trace":[\#(ticks)]}"#.utf8)
+        }
+        let good = #"{"root":[0,0,0.12,1,0,0,0],"qvel":[0,0,0,0,0,0],"#
+                 + #""twist":[0,0,0,0,0,0],"joints":[0],"action":[0],"command":[0,0,0]}"#
+        // Two good ticks read as two.
+        XCTAssertEqual(try DuckBench.readTuned(answer("\(good),\(good)")).trace?.count, 2)
+        // One good and one missing its twist read as nothing at all.
+        let missing = good.replacingOccurrences(of: #""twist":[0,0,0,0,0,0],"#, with: "")
+        XCTAssertNil(try DuckBench.readTuned(answer("\(good),\(missing)")).trace)
+        // And a row whose command is not numbers is the same refusal, because
+        // that is the row a lenient cast drops most quietly.
+        let worded = good.replacingOccurrences(of: #""command":[0,0,0]"#,
+                                               with: #""command":["a","b","c"]"#)
+        XCTAssertNil(try DuckBench.readTuned(answer("\(good),\(worded)")).trace)
+    }
+
+    /// A CRITERION NOBODY SAID IS NOT A CRITERION. Three readers defaulted the
+    /// bench's own sentence to the word "unstated", and an evaluation log
+    /// quotes that field under "in the bench's own words", so a bench that said
+    /// nothing had this app's placeholder published as its own sentence. The
+    /// word is spelled once now and there is one way to ask whether it was
+    /// really said.
+    func testAnUnstatedCriterionIsReadableAsNothingHavingBeenSaid() throws {
+        let json = #"{"episodes":1,"terms":{"upright":0.9}}"#
+        let tuned = try DuckBench.readTuned(Data(json.utf8))
+        XCTAssertEqual(tuned.criterion, DuckBench.criterionUnstated)
+        XCTAssertNil(DuckBench.statedCriterion(tuned.criterion))
+        XCTAssertNil(DuckBench.statedCriterion(nil))
+        XCTAssertNil(DuckBench.statedCriterion("   "))
+        let said = "ends standing, trunk at least 100 mm up"
+        XCTAssertEqual(DuckBench.statedCriterion(said), said)
+    }
+
     /// A BENCH WITHOUT `/tune` IS NOT A BROKEN BENCH. Every shell in this
     /// family answers an unknown path with the same error shape, and the screen
     /// has to be able to read it as "this one cannot score a search" rather

@@ -140,12 +140,19 @@ public struct EvalRun: Equatable, Sendable {
     /// carries it, and is absent where no scene carries it. That is
     /// `eval.py`'s rule exactly, mean of means over scenes rather than a mean
     /// over trials, so a scene with more epochs does not weigh more.
+    ///
+    /// AND IT IS THEIR MEAN, NOT A RUNNING SUM. `eval.py` aggregates with
+    /// `statistics.mean`, which adds exactly and rounds once; twelve scenes
+    /// that each measured 0.6405 average to 0.6405 there and to
+    /// 0.6405000000000001 in a Double running sum. The last digit only survives
+    /// in the JSON, which is the file that gets published and diffed, so
+    /// `ExactMean` does the addition their way.
     public var metrics: [String: Double] {
         var out: [String: Double] = [:]
         for scorer in task.scorers.scorers {
             let values = scenes.compactMap { $0.reduced[scorer.name] }
-            guard !values.isEmpty else { continue }
-            out[scorer.name] = values.reduce(0, +) / Double(values.count)
+            guard let mean = ExactMean.mean(values) else { continue }
+            out[scorer.name] = mean
         }
         return out
     }
@@ -232,6 +239,17 @@ public struct EvalRun: Equatable, Sendable {
         "total steps counts only control ticks a route actually reported. This bench reports "
       + "them for the one traced episode of each scene and for no other, so the number is the "
       + "traced episodes and nothing else, and every trial says whether it was one of them."
+
+    /// The same key on the route that reports no ticks at all.
+    ///
+    /// ZERO IS A NUMBER SOMEBODY WILL READ AS A FAULT. A grid run's
+    /// `total_steps` is 0 because `/climb` and `/chase` answer with a cell's
+    /// score and no per tick record, not because the duck stood there, and the
+    /// sentence that belongs beside the zero has to say which.
+    public static let noStepsOnAGridSaid =
+        "total steps is zero here because the grid routes report no control ticks. A cell is "
+      + "scored by the harness and answers with the cell's own numbers, so there is nothing per "
+      + "tick to count and nothing has been estimated in its place."
 
     public static let noLatencySaid =
         "Nothing here timed the policy. The phone times a round trip over Wi-Fi to another "

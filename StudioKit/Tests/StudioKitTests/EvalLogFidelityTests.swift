@@ -163,6 +163,18 @@ final class EvalLogFidelityTests: XCTestCase {
         XCTAssertEqual(Set(EvalLog.Key.all).count, 40)
     }
 
+    /// `Key.topLevel` IS THE WRITING SIDE'S LIST, so it is checked against what
+    /// the writer writes rather than against what the reader refuses. The
+    /// reader holds no log to it: `from_dict` reads the top level by name and
+    /// ignores a key it has no field for, and so does this.
+    func testTheTopLevelListIsWhatThisAppActuallyWrites() throws {
+        for entry in try EvalFixtures.corpus() {
+            let parsed = try EvalLogJSON.parse(entry.file.bytes)
+            let keys = Set(parsed.objectValue?.keys ?? [:].keys)
+            XCTAssertEqual(keys, EvalLog.Key.topLevel, entry.name)
+        }
+    }
+
     /// The union of the five objects in their own log IS the list. Two
     /// independent statements of the same fact, which is the point: the list is
     /// typed out in `EvalLog.swift` and this reads it off the file.

@@ -47,6 +47,7 @@ final class EvalStringsTests: XCTestCase {
         ("EvalScorerSet.Refusal.successWithoutMotionEvidence",
          EvalScorerSet.Refusal.successWithoutMotionEvidence("success_at_end").message),
         ("EvalEpochs.noSeedSaid", EvalEpochs.noSeedSaid),
+        ("EvalEpochs.noSeedOnAGridSaid", EvalEpochs.noSeedOnAGridSaid),
         ("EvalEpochs.wholeSceneAtOnceSaid", EvalEpochs.wholeSceneAtOnceSaid),
         ("EvalEpochs.noPassAtK", EvalEpochs.noPassAtK),
         ("EvalEpochs.Refusal.noDrops", EvalEpochs.Refusal.noDrops.message),
@@ -59,7 +60,9 @@ final class EvalStringsTests: XCTestCase {
         ("EvalEmbodiment.realMicroduckRefusal", EvalEmbodiment.realMicroduckRefusal),
         ("EvalEmbodiment.phoneBenchOnlyBundled", EvalEmbodiment.phoneBenchOnlyBundled),
         ("EvalPolicy.identityResidualSaid", EvalPolicy.identityResidualSaid),
+        ("EvalPolicy.identityOverACandidateSaid", EvalPolicy.identityOverACandidateSaid),
         ("EvalPolicy.foldedResidualSaid", EvalPolicy.foldedResidualSaid),
+        ("EvalPolicy.digestIsIdentitySaid", EvalPolicy.digestIsIdentitySaid),
         ("EvalPolicy.canonicalParametersSaid", EvalPolicy.canonicalParametersSaid),
         ("EvalPolicy.fileOnlySaid", EvalPolicy.fileOnlySaid),
         ("EvalTask.rowTitle", EvalTask.rowTitle),
@@ -80,11 +83,13 @@ final class EvalStringsTests: XCTestCase {
         ("EvalTask.Refusal.epochsOnARouteThatDoesNotVary",
          EvalTask.Refusal.epochsOnARouteThatDoesNotVary("/climb").message),
         ("EvalTrace.firstDropOnlySaid", EvalTrace.firstDropOnlySaid),
+        ("EvalTrace.noTraceOnAGridSaid", EvalTrace.noTraceOnAGridSaid),
         ("EvalVerdict.watchBeforeYouJudge", EvalVerdict.watchBeforeYouJudge),
         ("EvalVerdict.recordedNotScoredSaid", EvalVerdict.recordedNotScoredSaid),
         ("EvalVerdict.vocabularySaid", EvalVerdict.vocabularySaid),
         ("EvalRun.erroredNotScoredSaid", EvalRun.erroredNotScoredSaid),
         ("EvalRun.stepCountsSaid", EvalRun.stepCountsSaid),
+        ("EvalRun.noStepsOnAGridSaid", EvalRun.noStepsOnAGridSaid),
         ("EvalRun.noLatencySaid", EvalRun.noLatencySaid),
         ("EvalRun.noFramesSaid", EvalRun.noFramesSaid),
         ("EvalRun.allTrialsErrored", EvalRun.allTrialsErrored(24)),
@@ -103,6 +108,8 @@ final class EvalStringsTests: XCTestCase {
         ("EvalLogWriter.runIDSaid", EvalLogWriter.runIDSaid),
         ("EvalLogWriter.wroteIt", EvalLogWriter.wroteIt(version: "1.1", build: "58")),
         ("EvalLogReader.asStrictAsTheirs", EvalLogReader.asStrictAsTheirs),
+        ("EvalLogReader.unreadableSaid (one)", EvalLogReader.unreadableSaid(1)),
+        ("EvalLogReader.unreadableSaid (many)", EvalLogReader.unreadableSaid(3)),
         ("EvalLogFile.fromTheFile", EvalLogFile.fromTheFile),
         ("EvalLogFile.importedBadge", EvalLogFile.importedBadge),
         ("EvalLogFile.importedSaid", EvalLogFile.importedSaid),
@@ -123,10 +130,19 @@ final class EvalStringsTests: XCTestCase {
         ("EvalReport.meanOverScenesSaid", EvalReport.meanOverScenesSaid),
         ("EvalReport.cancelledLead", EvalReport.cancelledLead),
         ("EvalReport.passedOnSaid", EvalReport.passedOnSaid),
+        ("EvalReport.reproduceElsewhereSaid", EvalReport.reproduceElsewhereSaid),
+        ("EvalReport.erroredCell", EvalReport.erroredCell),
+        ("EvalReport.nothingScoredHere", EvalReport.nothingScoredHere),
+        ("EvalReport.latencyLabel", EvalReport.latencyLabel),
+        ("EvalReport.framesLabel", EvalReport.framesLabel),
         ("EvalReport.wroteItSaid", EvalReport.wroteItSaid("Microduck Studio 1.1 (58)")),
         ("EvalReport.horizonSaid", EvalReport.horizonSaid(seconds: 6.0, steps: 300)),
-        ("EvalReport.spreadSaid (flat)", EvalReport.spreadSaid([1.0, 1.0, 1.0])),
-        ("EvalReport.spreadSaid (spread)", EvalReport.spreadSaid([1.18, 1.22])),
+        ("EvalReport.spreadSaid (flat, drops)",
+         EvalReport.spreadSaid([1.0, 1.0, 1.0], hasDropAxis: true)),
+        ("EvalReport.spreadSaid (spread, drops)",
+         EvalReport.spreadSaid([1.18, 1.22], hasDropAxis: true)),
+        ("EvalReport.spreadSaid (flat, no axis)", EvalReport.spreadSaid([1.0, 1.0, 1.0])),
+        ("EvalReport.spreadSaid (spread, no axis)", EvalReport.spreadSaid([1.18, 1.22])),
         ("EvalReport.spreadSaid (none)", EvalReport.spreadSaid([])),
         ("EvalReport.statusShown", EvalReport.statusShown(.cancelled)),
         // comparing two
@@ -134,6 +150,12 @@ final class EvalStringsTests: XCTestCase {
         ("EvalCompare.differenceIsNotAScoreSaid", EvalCompare.differenceIsNotAScoreSaid),
         ("EvalCompare.oneSidedSaid", EvalCompare.oneSidedSaid),
         ("EvalCompare.whatCanBeComparedSaid", EvalCompare.whatCanBeComparedSaid),
+        ("EvalCompare.betterMark", EvalCompare.betterMark),
+        ("EvalCompare.blankSaid", EvalCompare.blankSaid),
+        ("EvalCompare.noDirectionSaid", EvalCompare.noDirectionSaid),
+        ("EvalCompare.noPreferenceSaid", EvalCompare.noPreferenceSaid),
+        ("EvalCompare.notEnoughLogsSaid (none)", EvalCompare.notEnoughLogsSaid(0)),
+        ("EvalCompare.notEnoughLogsSaid (one)", EvalCompare.notEnoughLogsSaid(1)),
         ("EvalCompare.Refusal.sameLog", EvalCompare.Refusal.sameLog("walk_4b1e77a2.json").message),
         ("EvalCompare.Refusal.differentEmbodiment",
          EvalCompare.Refusal.differentEmbodiment("a/one.mjb@aa", "a/two.mjb@bb").message),
@@ -220,11 +242,15 @@ final class EvalStringsTests: XCTestCase {
         let epochs = try EvalEpochs.drops(EvalTask.walkDrops, reducer: .median)
         let notes: [(String, String)] = [
             ("EvalEpochs.noSeedSaid", EvalEpochs.noSeedSaid),
+            ("EvalEpochs.noSeedOnAGridSaid", EvalEpochs.noSeedOnAGridSaid),
             ("EvalEpochs.said (drops)", epochs.said),
             ("EvalEpochs.said (single)", EvalEpochs.single(reducer: .mean).said),
             ("EvalRun.stepCountsSaid", EvalRun.stepCountsSaid),
+            ("EvalRun.noStepsOnAGridSaid", EvalRun.noStepsOnAGridSaid),
             ("EvalTrace.firstDropOnlySaid", EvalTrace.firstDropOnlySaid),
+            ("EvalTrace.noTraceOnAGridSaid", EvalTrace.noTraceOnAGridSaid),
             ("EvalPolicy.identityResidualSaid", EvalPolicy.identityResidualSaid),
+            ("EvalPolicy.identityOverACandidateSaid", EvalPolicy.identityOverACandidateSaid),
             ("EvalPolicy.foldedResidualSaid", EvalPolicy.foldedResidualSaid),
             ("EvalPolicy.fileOnlySaid", EvalPolicy.fileOnlySaid),
             ("EvalRun.producerSaid", EvalRun.producerSaid(version: "1.1", build: "58")),
@@ -285,8 +311,29 @@ final class EvalStringsTests: XCTestCase {
     /// A tab, a newline and a U+2028 in a row title are a layout nobody can
     /// predict, and a JavaScript authored `why` has no length bound at all.
     func testControlCharactersAreStripped() {
-        XCTAssertEqual(EvalText.foreign("a\tb\nc\u{2028}d\u{0}e"), "abcde")
+        // The NUL between d and e leaves no space behind it: it is not
+        // whitespace, and a word boundary is not what it was.
+        XCTAssertEqual(EvalText.foreign("a\tb\nc\u{2028}d\u{0}e"), "a b c de")
         XCTAssertEqual(EvalText.foreign("  padded  "), "padded")
+    }
+
+    /// A LINE BREAK IS A WORD BOUNDARY AND DELETING IT LOSES ONE. The bench
+    /// writes a `why` over two lines often enough, and dropping the newline
+    /// outright ran the last word of one line into the first word of the next.
+    func testALineBreakBecomesASpaceRatherThanNothing() {
+        XCTAssertEqual(EvalText.foreign("the cell is invalid\nthe tail was 60 ticks"),
+                       "the cell is invalid the tail was 60 ticks")
+        XCTAssertEqual(EvalText.foreign("one\r\ntwo"), "one two")
+        XCTAssertEqual(EvalText.foreign("one\u{2029}two"), "one two")
+    }
+
+    /// A run of whitespace is one space, so a paragraph of foreign text cannot
+    /// arrive with a doubled space in it, which is the one thing every sentence
+    /// in this app is swept for.
+    func testARunOfWhitespaceCollapsesToOneSpace() {
+        XCTAssertEqual(EvalText.foreign("a \n\t b"), "a b")
+        XCTAssertFalse(EvalText.foreign("a\n\nb").contains("  "))
+        XCTAssertEqual(EvalText.foreign("\n\nlead and trail\n\n"), "lead and trail")
     }
 
     func testNonAsciiThatIsNotAControlCharacterSurvives() {

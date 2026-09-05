@@ -170,6 +170,28 @@ final class EvalEmbodimentTests: XCTestCase {
                                               bundledPolicyNames: ["alpha_walking.onnx"]))
     }
 
+    /// AND THE BUNDLED TEST IS `/tune`'S AND NOBODY ELSE'S. A grid entrant is a
+    /// JSON move rather than a network, so testing its filename against the
+    /// bundled ONNX names could never pass: Start was dead on this phone's own
+    /// bench for both challenge presets, refused with a sentence about ONNX
+    /// files, on a bench whose own grid route had just said it could run them.
+    func testAGridOnThePhoneBenchIsNotRefusedForNotBeingABundledNetwork() throws {
+        let phone = try EvalEmbodiment.checked(body: .thisPhoneBench, health: try health(),
+                                               address: "127.0.0.1:8770",
+                                               answeredRoutes: ["/tune", "/climb", "/chase"])
+        for route in ["/climb", "/chase"] {
+            XCTAssertNil(phone.refusalBeforeStart(route: route, policyIsNetworkIdentity: true,
+                                                  policyName: "best_r6_ceilvaultC_60mm.json",
+                                                  bundledPolicyNames: ["alpha_walking.onnx"]),
+                         route)
+        }
+        // And the route that does fold parameters still refuses it.
+        XCTAssertEqual(phone.refusalBeforeStart(route: "/tune", policyIsNetworkIdentity: true,
+                                                policyName: "best_r6_ceilvaultC_60mm.json",
+                                                bundledPolicyNames: ["alpha_walking.onnx"]),
+                       EvalEmbodiment.phoneBenchOnlyBundled)
+    }
+
     // MARK: - the sentences this app already owns
 
     func testTheWorldSentenceIsTheOneThisAppAlreadyHas() throws {

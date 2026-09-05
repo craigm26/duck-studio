@@ -39,6 +39,7 @@ final class EvalScreenTests: XCTestCase {
         XCTAssertEqual(EvalScreen.benchSaid, "Bench")
         XCTAssertEqual(EvalScreen.whereItRanHeading, "Where it ran")
         XCTAssertEqual(EvalScreen.stopSaid, "Stop")
+        XCTAssertEqual(EvalScreen.stoppingAfterThisSceneSaid, "Stopping after this scene")
         XCTAssertEqual(EvalScreen.openTheLogSaid, "Open the log")
         XCTAssertEqual(EvalScreen.shareTheLogAndTheReportSaid, "Share the log and the report")
         XCTAssertEqual(EvalScreen.whatItWroteHeading, "What it wrote")
@@ -63,6 +64,29 @@ final class EvalScreenTests: XCTestCase {
         XCTAssertEqual(EvalScreen.publishItHeading, "Publish it")
     }
 
+    /// The publish form's own five words, which were literals typed into the
+    /// view: the guard's grep cannot see a `Button("...")` or a `Toggle("...")`
+    /// and no test read any of them.
+    func testThePublishFormSaysWhatItSays() {
+        XCTAssertEqual(EvalScreen.checkThisTokenSaid, "Check this token")
+        XCTAssertEqual(EvalScreen.tokenFieldSaid, "hf_\u{2026}")
+        XCTAssertEqual(EvalScreen.tokenLabelSaid, "Hugging Face token")
+        XCTAssertEqual(EvalScreen.privateRepositorySaid, "Private repository")
+        XCTAssertEqual(EvalScreen.commitPrivateSaid, "Commit to a private dataset")
+        XCTAssertEqual(EvalScreen.commitPublicSaid, "Commit to a public dataset")
+    }
+
+    /// THE PLACEHOLDER IS THE OTHER FOUR SCREENS'. `SettingsView`,
+    /// `PublishMotionView` and both challenge submit screens all write
+    /// "hf_" with an ellipsis; this one had "hf_" on its own, which reads as a
+    /// field somebody has already half filled in.
+    func testTheTokenPlaceholderIsTheOneEveryOtherPublishScreenUses() {
+        XCTAssertTrue(EvalScreen.tokenFieldSaid.hasPrefix("hf_"))
+        XCTAssertTrue(EvalScreen.tokenFieldSaid.hasSuffix("\u{2026}"))
+        XCTAssertNotEqual(EvalScreen.tokenFieldSaid, EvalScreen.tokenLabelSaid,
+                          "a placeholder is not a label and VoiceOver reads the label")
+    }
+
     func testComparingTwoSaysWhatItSays() {
         XCTAssertEqual(EvalScreen.sideBySideTitle, "Side by side")
         XCTAssertEqual(EvalScreen.leftSaid, "Left")
@@ -76,7 +100,7 @@ final class EvalScreenTests: XCTestCase {
     /// constant nothing checks. The count is written down so adding one without
     /// adding it here is a red test rather than a silent gap.
     func testEveryWordIsInTheList() {
-        XCTAssertEqual(EvalScreen.everyWord.count, 44)
+        XCTAssertEqual(EvalScreen.everyWord.count, 51)
         XCTAssertEqual(Set(EvalScreen.everyWord).count, EvalScreen.everyWord.count,
                        "two of these are the same word")
         for word in [EvalScreen.newEvaluationSaid, EvalScreen.savedHeading,

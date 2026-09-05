@@ -81,10 +81,18 @@ public enum EvalScreen {
     public static let benchSaid = "Bench"
     public static let whereItRanHeading = "Where it ran"
 
-    /// Never disabled, which is why the word never changes either: a Stop that
-    /// became "Stopping" while a request was still in flight would be a label
-    /// describing the app's state rather than the button's.
+    /// Never disabled, and the word changes for one reason only: the tap
+    /// landed. A Stop that said "Stopping" because a request happened to be in
+    /// flight would be a label describing the app's state rather than the
+    /// button's; a Stop that says nothing at all after somebody presses it
+    /// leaves the progress row claiming the run is going for up to a whole
+    /// scene, which is the fifty seconds a scene takes.
     public static let stopSaid = "Stop"
+
+    /// What the button says once it has been pressed, which is the promise
+    /// `EvalEpochs.wholeSceneAtOnceSaid` explains underneath it: a scene is
+    /// asked for in one request and stopping takes effect at the end of it.
+    public static let stoppingAfterThisSceneSaid = "Stopping after this scene"
 
     public static let openTheLogSaid = "Open the log"
 
@@ -119,6 +127,27 @@ public enum EvalScreen {
     public static let sendItSomewhereSaid = "Send it somewhere"
     public static let publishItHeading = "Publish it"
 
+    // MARK: - the publish form, EvalLogDetailView
+
+    /// The five words of the publish form, which are the same five words the
+    /// other four publish screens in this app use.
+    ///
+    /// THEY ARE HERE BECAUSE THEY ARE THE ONES THAT GO STALE FIRST. A verb on a
+    /// button that has started doing something else is the failure this file
+    /// exists to prevent, and a publish form is where a wrong verb costs the
+    /// most: "Commit to a public dataset" is the one control in this feature
+    /// that cannot be undone. The placeholder carries its ellipsis for the same
+    /// reason the other four do, which is that `hf_` on its own reads as a
+    /// field that has already been half filled in.
+    public static let checkThisTokenSaid = "Check this token"
+    public static let tokenFieldSaid = "hf_\u{2026}"
+    /// A `SecureField`'s placeholder is not its label: VoiceOver reads the
+    /// placeholder and a person hears "hf", which names nothing.
+    public static let tokenLabelSaid = "Hugging Face token"
+    public static let privateRepositorySaid = "Private repository"
+    public static let commitPrivateSaid = "Commit to a private dataset"
+    public static let commitPublicSaid = "Commit to a public dataset"
+
     // MARK: - two at once, EvalCompareView
 
     public static let sideBySideTitle = "Side by side"
@@ -144,11 +173,14 @@ public enum EvalScreen {
         whatVariesHeading, howItIsScoredHeading, askMeAboutTheTrialSaid,
         watchAndJudgeHeading, askingThisBenchSaid, startSaid,
         runningHeading, scenesSaid, benchSaid, whereItRanHeading, stopSaid,
+        stoppingAfterThisSceneSaid,
         openTheLogSaid, shareTheLogAndTheReportSaid, whatItWroteHeading,
         watchItHeading, whatItWasAskedToDoHeading, noteSaid, yourVerdictHeading,
         skipThisOneSaid, stopWatchingSaid,
         whatRanHeading, metricsHeading, errorsHeading, whatThisIsNotHeading,
         shareHeading, sendItSomewhereSaid, publishItHeading,
+        checkThisTokenSaid, tokenFieldSaid, tokenLabelSaid, privateRepositorySaid,
+        commitPrivateSaid, commitPublicSaid,
         sideBySideTitle, leftSaid, rightSaid, whichTwoHeading,
         notSideBySideHeading, bothScorerByScorerHeading,
     ]

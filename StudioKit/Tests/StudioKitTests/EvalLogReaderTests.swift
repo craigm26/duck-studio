@@ -3,12 +3,19 @@ import XCTest
 
 /// L20: a log this app displays is a log their own reader would open.
 ///
-/// WHY REFUSING IS THE FEATURE. `EvalLog.from_dict` builds frozen dataclasses
-/// by keyword, so an unknown key is a `TypeError` there, measured against
-/// 0.58.0 this session. A reader here that shrugged one off would let a person
-/// look at a file on a phone, believe it, hand it to somebody with the real
-/// library and watch it fail to open. Every refusal below is that failure
+/// WHY REFUSING IS THE FEATURE. `EvalLog.from_dict` builds `EvalSpec`,
+/// `EvalResults`, `EvalStats` and every `SceneResult` as frozen dataclasses BY
+/// KEYWORD, so an unknown key inside any of those four is a `TypeError` there,
+/// measured against 0.58.0. A reader here that shrugged one off would let a
+/// person look at a file on a phone, believe it, hand it to somebody with the
+/// real library and watch it fail to open. Every refusal below is that failure
 /// arriving early, with the key and the object it sat in named.
+///
+/// AND WHY REFUSING TOO MUCH IS ALSO A FAILURE. The top level is not one of the
+/// four: it is read by name, so a key they ignore was refused here in their
+/// name, and `samples`, which their reader requires, was optional here. Both
+/// were measured one key at a time in the gate's own venv and both are pinned
+/// below, because a parity claim with no test under it is a sentence.
 final class EvalLogReaderTests: XCTestCase {
 
     private func log(_ text: String) throws -> EvalLog {
@@ -56,9 +63,14 @@ final class EvalLogReaderTests: XCTestCase {
 
     /// The same key name in two objects is two different faults, so the message
     /// names both.
+    ///
+    /// THE THREE HERE ARE THE THREE `from_dict` SPLATS. `EvalSpec(**data["eval"])`,
+    /// `EvalResults(**data["results"])` and `EvalStats(**data["stats"])` each
+    /// build a frozen dataclass by keyword, so an unknown key inside any of
+    /// them is a TypeError there. The top level is NOT one of them and has a
+    /// test of its own below.
     func testAnUnknownKeyIsRefusedByNameAndByTheObjectItSatIn() throws {
         let cases: [(String, String, String)] = [
-            ("\"version\": 1", "\"version\": 1, \"extra\": 3", "the log"),
             ("\"task\": \"t\"", "\"task\": \"t\", \"extra\": 3", "eval"),
             ("\"total_scenes\": 1", "\"total_scenes\": 1, \"extra\": 3", "results"),
             ("\"started_at\": \"a\"", "\"started_at\": \"a\", \"extra\": 3", "stats"),
@@ -75,6 +87,82 @@ final class EvalLogReaderTests: XCTestCase {
                 XCTAssertTrue(EvalLogRefusal.unknownKey(key, in: inside).message.contains(object))
             }
         }
+    }
+
+    /// AND AN UNKNOWN KEY AT THE TOP LEVEL IS NOT REFUSED, because theirs is
+    /// not either.
+    ///
+    /// MEASURED, NOT ASSUMED. `EvalLog.from_dict` ends
+    /// `cls(version=data["version"], status=data["status"], eval=EvalSpec(...),
+    /// ...)`: the top level is read by name and never splatted, so a key it has
+    /// no field for is ignored. Run against inspect-robots 0.58.0 in the gate's
+    /// own venv on 2026-09-05, an extra top-level key opened cleanly and the
+    /// log's status came back "success". Refusing it here was refusing a file
+    /// their tools open, and the message said "their own reader refuses it as
+    /// well", which was an accusation as well as a mistake. It also matters
+    /// forward: one new top-level field in a 0.59 log, still schema version 1,
+    /// would have closed this app to every log they still read.
+    func testAnUnknownKeyAtTheTopLevelIsIgnoredTheWayTheirsIgnoresIt() throws {
+        let text = Self.valid.replacingOccurrences(of: "\"version\": 1",
+                                                   with: "\"version\": 1, \"notes\": \"hi\"")
+        let read = try log(text)
+        XCTAssertEqual(read.status, .success)
+        XCTAssertEqual(read.eval.task, "t")
+    }
+
+    /// `samples` IS REQUIRED, AND IT WAS THE ONE KEY THAT WAS NOT.
+    /// `read_eval_log` does `for raw in data["samples"]` with no `.get`, so a
+    /// log without it raises KeyError there. Opening one here was this app
+    /// displaying a file their own tools refuse, which is the failure the whole
+    /// reader is organised against.
+    func testALogWithNoSamplesIsRefusedTheWayTheirReaderRefusesIt() {
+        // The multiline literal strips its own indentation, so the line is one
+        // space in rather than five.
+        let text = Self.valid.replacingOccurrences(of: ",\n \"samples\": []", with: "")
+        XCTAssertThrowsError(try log(text)) { error in
+            guard case EvalLogRefusal.missing(let key, let inside) = error else {
+                return XCTFail("\(error)")
+            }
+            XCTAssertEqual(key, EvalLog.Key.samples)
+            XCTAssertEqual(inside, "the log")
+        }
+    }
+
+    func testSamplesThatAreNotAListAreRefused() {
+        let text = Self.valid.replacingOccurrences(of: "\"samples\": []",
+                                                   with: "\"samples\": {}")
+        XCTAssertThrowsError(try log(text)) { error in
+            guard case EvalLogRefusal.wrongType(let key, _, let wanted) = error else {
+                return XCTFail("\(error)")
+            }
+            XCTAssertEqual(key, EvalLog.Key.samples)
+            XCTAssertEqual(wanted, "a list")
+        }
+    }
+
+    /// A BARE NUMBER IS NOT A SENTENCE. The shelf drew the count of files it
+    /// could not read as "3", with the noun nowhere near it, on screen and to
+    /// VoiceOver. It says files rather than logs because a file that cannot be
+    /// read is exactly the file nobody can call a log yet.
+    func testTheUnreadableCountIsASentenceAndNotANumeral() {
+        XCTAssertEqual(EvalLogReader.unreadableSaid(1), "One file here could not be read.")
+        XCTAssertEqual(EvalLogReader.unreadableSaid(3), "3 files here could not be read.")
+        XCTAssertNotEqual(EvalLogReader.unreadableSaid(1), EvalLogReader.unreadableSaid(2))
+        for count in [1, 2, 9] {
+            XCTAssertTrue(EvalLogReader.unreadableSaid(count).contains("file"), "\(count)")
+            XCTAssertTrue(EvalLogReader.unreadableSaid(count).hasSuffix("."), "\(count)")
+        }
+    }
+
+    /// The sentence a person reads over a refusal says which half is theirs and
+    /// which half is this app's caution, because the first version of it
+    /// claimed a parity that did not hold in either direction.
+    func testTheStrictnessSentenceClaimsOnlyWhatHolds() {
+        let said = EvalLogReader.asStrictAsTheirs
+        XCTAssertTrue(said.contains("eval, results, stats or a sample"), said)
+        XCTAssertTrue(said.contains("no samples"), said)
+        XCTAssertTrue(said.contains("this app's own caution"), said)
+        XCTAssertFalse(said.contains("refuses the same files for the same reasons"), said)
     }
 
     func testAnUnknownKeyInASampleIsRefusedToo() {
@@ -185,6 +273,28 @@ final class EvalLogReaderTests: XCTestCase {
         XCTAssertThrowsError(try file.publishCalls(namespace: "craigm26", isPrivate: false)) {
             XCTAssertEqual($0 as? EvalLogFile.Refusal, .imported)
         }
+    }
+
+    /// AN IMPORTED LOG KEEPS ONE NAME FOR AS LONG AS IT IS ON THE SHELF. The
+    /// name is this type's `id` and the shelf rebuilds every received file
+    /// through `imported` on every reload, so a fresh uuid gave one file a new
+    /// identity every time the list was rebuilt: a `ForEach` identity that
+    /// changed under it, a stored compare selection that stopped matching, and
+    /// a shared copy that went out under a different name each time.
+    func testAnImportedLogIsNamedTheSameWayEveryTimeItIsRead() throws {
+        let bytes = try EvalFixtures.workedExample().bytes
+        let first = try EvalLogFile.imported(bytes, named: "landed.json")
+        let again = try EvalLogFile.imported(bytes, named: "landed.json")
+        XCTAssertEqual(first.name, again.name)
+        XCTAssertEqual(first.id, again.id)
+        // The same bytes under another landing name are another row, because
+        // the shelf holds them as two files.
+        let elsewhere = try EvalLogFile.imported(bytes, named: "landed-2.json")
+        XCTAssertNotEqual(first.name, elsewhere.name)
+        // And two different files never collide.
+        let other = try EvalLogFile.imported(try EvalFixtures.walkClean().bytes,
+                                             named: "landed.json")
+        XCTAssertNotEqual(first.name, other.name)
     }
 
     /// C6: the name a file arrived under is somebody else's string and is

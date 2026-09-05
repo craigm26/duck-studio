@@ -124,6 +124,65 @@ final class EvalReportTests: XCTestCase {
         }
     }
 
+    /// AND A GRID PAGE CARRIES THE SENTENCES ITS OWN ROUTE EARNS. `/climb` and
+    /// `/chase` answer with a cell's numbers and no ticks, so a page saying the
+    /// bench returned a trajectory for the first drop of each call, that one
+    /// trial in eight was watchable, and that total steps counts traced
+    /// episodes was describing a mechanism the run did not use, over fourteen
+    /// cells where `traced` is false on every trial and total steps is zero.
+    func testAGridPageSaysWhatAGridDid() throws {
+        let html = EvalReport.html(try EvalFixtures.stairsMixed())
+        for said in [EvalRun.noStepsOnAGridSaid, EvalTrace.noTraceOnAGridSaid,
+                     EvalEpochs.noSeedOnAGridSaid] {
+            XCTAssertTrue(html.contains(EvalReport.escaped(said)), said)
+        }
+        for said in [EvalRun.stepCountsSaid, EvalTrace.firstDropOnlySaid,
+                     EvalVerdict.recordedNotScoredSaid, EvalEpochs.noSeedSaid] {
+            XCTAssertFalse(html.contains(EvalReport.escaped(said)), said)
+        }
+    }
+
+    /// A LOG FROM SOMEWHERE ELSE GETS NONE OF THIS APP'S FIRST PERSON CLAIMS.
+    /// The page used to say "Nothing here timed the policy" and "No frames were
+    /// stored" about a file whose own stats can carry both, and to print the
+    /// bench's seed sentence over a run this app never made. What it says now
+    /// is what the file says.
+    func testAnImportedPageMakesNoClaimAboutHowItWasMeasured() throws {
+        let file = try EvalFixtures.importedForeign()
+        let html = EvalReport.html(file)
+        for said in [EvalRun.noLatencySaid, EvalRun.noFramesSaid, EvalEpochs.noSeedSaid,
+                     EvalRun.stepCountsSaid, EvalTrace.firstDropOnlySaid,
+                     EvalScorer.termsAreNotScoresSaid] {
+            XCTAssertFalse(html.contains(EvalReport.escaped(said)), said)
+        }
+        XCTAssertTrue(EvalReport.caveats(for: file).isEmpty)
+        XCTAssertFalse(EvalReport.caveats(for: try EvalFixtures.workedExample()).isEmpty)
+    }
+
+    /// And where a foreign log DOES carry the two fields this app never fills,
+    /// the page prints what the file says under the file's own name rather than
+    /// denying them.
+    func testAForeignLatencyAndFramesDirectoryAreShownAsTheFileHasThem() throws {
+        let original = try EvalFixtures.importedForeign().log
+        let stats = EvalLog.Stats(startedAt: original.stats.startedAt,
+                                  completedAt: original.stats.completedAt,
+                                  durationSeconds: original.stats.durationSeconds,
+                                  totalSteps: original.stats.totalSteps,
+                                  meanInferenceLatencySeconds: 0.004125,
+                                  framesDir: "frames/cubepick-reach_1f2e3d4c")
+        let log = EvalLog(status: original.status, eval: original.eval,
+                          results: original.results, stats: stats,
+                          samples: original.samples, error: nil)
+        let file = try EvalLogFile.imported(log.encoded(), named: "theirs.json")
+        let html = EvalReport.html(file)
+        XCTAssertTrue(html.contains(EvalReport.escaped(EvalReport.latencyLabel)))
+        XCTAssertTrue(html.contains("0.004125"))
+        XCTAssertTrue(html.contains(EvalReport.escaped(EvalReport.framesLabel)))
+        XCTAssertTrue(html.contains(EvalReport.escaped("frames/cubepick-reach_1f2e3d4c")))
+        XCTAssertTrue(html.contains(EvalReport.escaped(EvalLogFile.fromTheFile)))
+        XCTAssertFalse(html.contains(EvalReport.escaped(EvalRun.noFramesSaid)))
+    }
+
     /// L12: the last thing on the page says whose page it is.
     func testTheLastLineIsTheDenial() throws {
         let html = EvalReport.html(try EvalFixtures.workedExample())
@@ -181,19 +240,94 @@ final class EvalReportTests: XCTestCase {
                       "a foreign log that had a seed is shown as the file has it")
     }
 
+    /// THE PAGE CANNOT SAY BOTH THINGS ABOUT A SEED. It printed "No seed was
+    /// recorded, because no route on this bench reads one" for every log and
+    /// then, one line later, "This log records a seed" for the log that has
+    /// one. The detail screen has always chosen between them; the page that
+    /// leaves the phone did not.
+    func testThePageSaysOneThingAboutASeed() throws {
+        let foreign = EvalReport.html(try EvalFixtures.importedForeign())
+        XCTAssertTrue(foreign.contains(EvalReport.escaped(EvalLogFile.foreignSeedSaid)))
+        XCTAssertFalse(foreign.contains(EvalReport.escaped(EvalEpochs.noSeedSaid)))
+        let ours = EvalReport.html(try EvalFixtures.workedExample())
+        XCTAssertTrue(ours.contains(EvalReport.escaped(EvalEpochs.noSeedSaid)))
+        XCTAssertFalse(ours.contains(EvalReport.escaped(EvalLogFile.foreignSeedSaid)))
+        // And a log from somewhere else with no seed at all gets neither, since
+        // both sentences would be this app talking about somebody else's run.
+        let stripped = try EvalFixtures.importedForeign().log
+        let spec = EvalLog.Spec(task: stripped.eval.task, policy: stripped.eval.policy,
+                                embodiment: stripped.eval.embodiment,
+                                created: stripped.eval.created,
+                                inspectRobotsVersion: stripped.eval.inspectRobotsVersion,
+                                gitCommit: stripped.eval.gitCommit,
+                                policyConfig: stripped.eval.policyConfig,
+                                embodimentInfo: stripped.eval.embodimentInfo,
+                                seed: nil, maxSteps: stripped.eval.maxSteps,
+                                maxSeconds: stripped.eval.maxSeconds)
+        let log = EvalLog(status: stripped.status, eval: spec, results: stripped.results,
+                          stats: stripped.stats, samples: stripped.samples, error: nil)
+        XCTAssertNil(EvalReport.seedSaid(log))
+        let none = EvalReport.html(try EvalLogFile.imported(log.encoded(), named: "n.json"))
+        XCTAssertFalse(none.contains(EvalReport.escaped(EvalEpochs.noSeedSaid)))
+        XCTAssertFalse(none.contains(EvalReport.escaped(EvalLogFile.foreignSeedSaid)))
+    }
+
     // MARK: - spread
 
     func testSpreadSaysWhatVariedOrThatNothingDid() {
-        let flat = EvalReport.spreadSaid([1.0, 1.0, 1.0])
+        let flat = EvalReport.spreadSaid([1.0, 1.0, 1.0], hasDropAxis: true)
         XCTAssertTrue(flat.contains("deterministic"))
         XCTAssertFalse(flat.lowercased().contains("confidence interval is"),
                        "it denies one rather than reporting one")
         XCTAssertTrue(flat.contains("1.0"))
-        let spread = EvalReport.spreadSaid([1.1802, 1.2213, 1.1932])
+        let spread = EvalReport.spreadSaid([1.1802, 1.2213, 1.1932], hasDropAxis: true)
         XCTAssertTrue(spread.contains("1.1802"))
         XCTAssertTrue(spread.contains("1.2213"))
         XCTAssertTrue(spread.contains("three epochs"))
         XCTAssertFalse(EvalReport.spreadSaid([]).isEmpty)
+    }
+
+    /// THE DROP HEIGHT CLAUSE NEEDS A DROP HEIGHT. A grid cell is one episode
+    /// and an imported log may have varied anything at all between its epochs,
+    /// so "the drop height changed nothing here" was a sentence about a control
+    /// those runs never had. Without an axis the sentence says what it can see.
+    func testSpreadOnlyBlamesTheDropHeightWhenThereWasOne() {
+        let unaxed = EvalReport.spreadSaid([1.0, 1.0, 1.0])
+        XCTAssertFalse(unaxed.contains("drop height"), unaxed)
+        XCTAssertFalse(unaxed.contains("deterministic"), unaxed)
+        XCTAssertTrue(unaxed.contains("1.0"))
+        let spread = EvalReport.spreadSaid([1.18, 1.22])
+        XCTAssertFalse(spread.contains("drop height"), spread)
+        XCTAssertTrue(spread.contains("this run's own axis"), spread)
+    }
+
+    /// The sample-shaped call reads the axis off the scene itself, which is the
+    /// only place it is recorded, and says nothing at all about a scene with
+    /// one epoch.
+    func testTheSampleSpreadReadsTheAxisOffTheSceneAndSkipsAGridCell() throws {
+        let walk = try EvalFixtures.walkClean().log
+        let scene = try XCTUnwrap(walk.samples.first)
+        let said = try XCTUnwrap(EvalReport.spreadSaid(scene, scorer: EvalScorer.travelled.name))
+        XCTAssertTrue(said.contains("drop height"), said)
+        let grid = try EvalFixtures.stairsMixed().log
+        let cell = try XCTUnwrap(grid.samples.first)
+        XCTAssertNil(EvalReport.spreadSaid(cell, scorer: EvalScorer.successAtEnd.name),
+                     "one number agreeing with itself is not a spread")
+        let foreign = try EvalFixtures.importedForeign().log
+        XCTAssertNil(EvalReport.spreadSaid(try XCTUnwrap(foreign.samples.first),
+                                           scorer: "episode_length"))
+    }
+
+    /// A16: the epoch grid, out loud, with every cell paired to its own column
+    /// head rather than read as a run of bare numbers.
+    func testAnEpochRowIsSpokenWithItsColumnHeads() throws {
+        let walk = try EvalFixtures.walkDiverged().log
+        let scene = try XCTUnwrap(walk.samples.first)
+        let said = EvalReport.spokenEpochs(scene, scorer: EvalScorer.successAtEnd.name)
+        XCTAssertTrue(said.hasPrefix("Epoch 1, dropped from 0.12 m,"), said)
+        XCTAssertTrue(said.contains("Epoch 8"), said)
+        XCTAssertTrue(said.contains(EvalReport.erroredCell),
+                      "a trial that was recorded and not scored is not a silence")
     }
 
     // MARK: - the share paragraph
@@ -275,11 +409,40 @@ final class EvalReportTests: XCTestCase {
     }
 
     /// A log with no plant block still says something true rather than
-    /// inventing a world.
+    /// inventing a world. The log has to be one this app wrote for the
+    /// instruction to be said at all, so this is a written log with its
+    /// embodiment block emptied rather than a foreign one.
     func testReproduceFallsBackToTheIdentityWhenThereIsNoPlantBlock() throws {
-        let log = try EvalFixtures.importedForeign().log
+        let written = try EvalFixtures.workedExample().log
+        let spec = EvalLog.Spec(task: written.eval.task, policy: written.eval.policy,
+                                embodiment: "network-bench/duck-bench-5/no-world-stated",
+                                created: written.eval.created,
+                                producer: written.eval.inspectRobotsVersion,
+                                policyConfig: written.eval.policyConfig,
+                                embodimentInfo: [:],
+                                maxSteps: written.eval.maxSteps,
+                                maxSeconds: written.eval.maxSeconds)
+        let log = EvalLog(status: written.status, eval: spec, results: written.results,
+                          stats: written.stats, samples: written.samples, error: nil)
         XCTAssertNil(EvalReport.world(log))
-        XCTAssertTrue(EvalReport.reproduceSaid(log).contains("mock/cubepick-v0"))
+        XCTAssertTrue(EvalReport.reproduceSaid(log).contains("no-world-stated"))
+    }
+
+    /// A LOG FROM SOMEWHERE ELSE NAMES A PRESET THIS APP HAS NEVER HAD. The
+    /// shipped example is a mock arm reaching for a cube, and the page used to
+    /// tell its reader to pick "cubepick reach" in Microduck Studio and point
+    /// it at a bench: an instruction nobody can follow, printed on the file
+    /// that leaves the phone, over a log whose banner two lines up says nothing
+    /// here has been filled in.
+    func testReproduceIsNotSaidAboutARunThisAppCouldNotMake() throws {
+        let file = try EvalFixtures.importedForeign()
+        let said = EvalReport.reproduceSaid(file.log)
+        XCTAssertEqual(said, EvalReport.reproduceElsewhereSaid)
+        XCTAssertFalse(said.contains("Microduck Studio"), said)
+        XCTAssertFalse(said.contains("cubepick"), said)
+        XCTAssertTrue(EvalReport.html(file).contains(EvalReport.escaped(said)))
+        XCTAssertFalse(EvalReport.wroteHere(file.log))
+        XCTAssertTrue(EvalReport.wroteHere(try EvalFixtures.workedExample().log))
     }
 
     // MARK: - F3, the stage

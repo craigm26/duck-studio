@@ -1,4 +1,5 @@
 import Foundation
+import Crypto
 
 /// The keys this app puts INSIDE their four free-form maps, spelled once.
 ///
@@ -119,6 +120,24 @@ public enum EvalLogWriter {
         String(uuid.uuidString.replacingOccurrences(of: "-", with: "").lowercased().prefix(8))
     }
 
+    /// The same eight characters for a file that ARRIVED, taken off the bytes
+    /// and the name it arrived under rather than off a fresh uuid.
+    ///
+    /// AN IMPORTED LOG HAS TO KEEP ITS IDENTITY ACROSS A RELAUNCH. The shelf
+    /// rebuilds itself by re-reading every file in the received directory, so a
+    /// fresh uuid gave every imported row a new name and a new `id` on every
+    /// reload: the list's identity changed under it, a compare screen's stored
+    /// selection stopped matching, and sharing the same log twice handed over
+    /// two differently named files. A digest is stable, tells two different
+    /// files apart, and tells the same bytes under two different landing names
+    /// apart as well, which is what the shelf needs to keep one row per file.
+    public static func runID(forImported data: Data, named: String) -> String {
+        var seed = Data(named.utf8)
+        seed.append(data)
+        return String(SHA256.hash(data: seed).map { String(format: "%02x", $0) }
+            .joined().prefix(8))
+    }
+
     public static func filename(task: String, runID: String) -> String {
         "\(slug(task))_\(runID).json"
     }
@@ -184,7 +203,8 @@ public enum EvalLogWriter {
                            appVersion: String, build: String) -> EvalLog {
         let traced = run.anyTrialTraced
         var policyConfig = run.policy.config(embodiment: run.embodiment, epochs: run.task.epochs,
-                                             criterion: criterion, refusedTerms: refusedTerms)
+                                             criterion: criterion, tracing: run.task.wantsTrace,
+                                             refusedTerms: refusedTerms)
         // A TASK WITH NO HORIZON SAYS SO, IN THE BLOCK THEIR VIEWER RENDERS.
         // `max_seconds` and `max_steps` are both null for a grid, because a
         // cell's length belongs to the harness that scores it and this app has
@@ -273,10 +293,32 @@ public enum EvalLogReader {
 
     /// Said above a refusal, so a person who has been handed a file that will
     /// not open knows the refusal is the point.
+    ///
+    /// IT CLAIMS THE PARITY THAT WAS MEASURED AND NOT A WORD MORE. The first
+    /// wording said this app "refuses the same files for the same reasons",
+    /// which was false in two directions at once: a key their reader ignores at
+    /// the top level was refused here in their name, and a log with no
+    /// `samples` at all was opened here and raises there. Both are fixed, and
+    /// the sentence now says where the strictness is theirs and where the
+    /// caution is this app's.
     public static let asStrictAsTheirs =
-        "This app reads an evaluation log exactly as strictly as inspect-robots does, and "
-      + "refuses the same files for the same reasons. A log this app displayed and their own "
-      + "tools would not open is worse than one it declines."
+        "An unknown key inside eval, results, stats or a sample is refused here because "
+      + "inspect-robots refuses it too, and a log with no samples is refused here because their "
+      + "reader raises on one. Two things are this app's own caution rather than theirs: a "
+      + "status word neither project has defined, and a count written as a decimal. A log this "
+      + "app displayed and their own tools would not open is worse than one it declines."
+
+    /// How many files on the shelf could not be read, said as a sentence rather
+    /// than as a numeral on its own.
+    ///
+    /// A BARE NUMBER IS NOT A SENTENCE, on screen or to a screen reader: "3"
+    /// under a shelf is a count of something nobody has named. It says files
+    /// rather than logs on purpose, because a file that cannot be read is
+    /// exactly the file nobody can call a log yet.
+    public static func unreadableSaid(_ count: Int) -> String {
+        count == 1 ? "One file here could not be read."
+                   : "\(count) files here could not be read."
+    }
 }
 
 /// One log on the shelf: the bytes, where they came from, and what may be done
@@ -376,11 +418,20 @@ public struct EvalLogFile: Equatable, Sendable, Identifiable {
     /// A file somebody else wrote, read as strictly as their own reader reads
     /// it. Throws `EvalLogRefusal`, which names the key and the object it sat
     /// in.
+    ///
+    /// THE NAME IS DERIVED AND NOT MINTED. `name` is this type's `id`, the
+    /// shelf's `ForEach` identity and the name a shared copy goes out under,
+    /// and the shelf rebuilds every imported file through here on every reload.
+    /// A fresh uuid each time meant one file had a different identity every
+    /// time the list was rebuilt. `runID(forImported:named:)` reads the same
+    /// eight characters off the bytes and the landing name instead, so the same
+    /// file is the same row until it is deleted.
     public static func imported(_ data: Data, named: String,
-                                runID: String = EvalLogWriter.runID()) throws -> EvalLogFile {
+                                runID: String? = nil) throws -> EvalLogFile {
         let log = try EvalLogReader.read(data)
+        let stamp = runID ?? EvalLogWriter.runID(forImported: data, named: named)
         return EvalLogFile(log: log, bytes: data, origin: .imported,
-                           name: EvalLogWriter.filename(task: log.eval.task, runID: runID),
+                           name: EvalLogWriter.filename(task: log.eval.task, runID: stamp),
                            importedName: EvalText.foreign(named),
                            wroteIt: nil)
     }
@@ -418,10 +469,15 @@ public struct EvalLogFile: Equatable, Sendable, Identifiable {
         "A log is finished when the run is. Changing a verdict afterwards would make the file "
       + "disagree with the run it describes, so the way to a different answer is another run."
 
+    /// THE SECOND CLAUSE SAYS WHAT THIS APP DOES, NOT WHO WROTE THE FILE. It
+    /// used to open "This app wrote the file", and the page it sits at the foot
+    /// of is drawn for an imported log as well, where that is exactly what did
+    /// not happen. What is true of every log this sentence appears under is
+    /// that nothing here runs inspect-robots, so that is what it says.
     public static let howToRead =
         "To read this log with the tool that defines its format: pip install inspect-robots, "
-      + "then inspect-robots view the json file. This app wrote the file and does not run their "
-      + "tools."
+      + "then inspect-robots view the json file. Nothing here runs their tools, because an "
+      + "iPhone cannot run Python."
 
     /// A4. There is no zip of the shelf in this build, and a Share button that
     /// silently did one log at a time would be a person wondering where the
@@ -464,14 +520,66 @@ public struct EvalLogFile: Equatable, Sendable, Identifiable {
         try HuggingFacePublish.repository(namespace: namespace, name: name, kind: .dataset)
     }
 
-    /// The log, the report beside it, and the card that says what both are.
+    /// The folder this log's three files go in, which is its own name without
+    /// the extension.
+    public var folder: String {
+        name.hasSuffix(".json") ? String(name.dropLast(5)) : name
+    }
+
+    /// The log, the report beside it, the card that says what both are, and the
+    /// repository's own front page.
+    ///
+    /// EVERY RUN GETS A FOLDER, AND THE FRONT PAGE BELONGS TO NOBODY. All of
+    /// these logs publish into one dataset, and the card was committed at the
+    /// root: the second run's card replaced the first run's, so the repository
+    /// described its newest log and the older ones sat underneath it with
+    /// nothing saying what they were. A card is a claim about one measurement,
+    /// so it lives beside that measurement, and the root carries an index that
+    /// says the same thing after every commit.
     public func files() -> [HuggingFacePublish.File] {
         [
-            HuggingFacePublish.File(path: self.name, contents: bytes, isText: true),
-            HuggingFacePublish.File(path: htmlName,
+            HuggingFacePublish.File(path: "\(folder)/\(name)", contents: bytes, isText: true),
+            HuggingFacePublish.File(path: "\(folder)/\(htmlName)",
                                     contents: Data(EvalReport.html(self).utf8), isText: true),
-            HuggingFacePublish.File(path: "README.md", contents: Data(card().utf8), isText: true),
+            HuggingFacePublish.File(path: "\(folder)/README.md",
+                                    contents: Data(card().utf8), isText: true),
+            HuggingFacePublish.File(path: "README.md",
+                                    contents: Data(Self.repositoryCard().utf8), isText: true),
         ]
+    }
+
+    /// The dataset's front page, which is the same after every commit.
+    ///
+    /// IT IS A STABLE FILE AND THAT IS ITS WHOLE JOB. Committing identical
+    /// bytes over identical bytes cannot lose anything, so publishing a second
+    /// run leaves the first run's description exactly where it was, in its own
+    /// folder, and the front page goes on describing the repository rather than
+    /// whichever log went up last.
+    public static func repositoryCard() -> String {
+        """
+        ---
+        license: \(publishLicense)
+        tags:
+          - microduck
+          - robotics
+          - mujoco
+          - evaluation
+          - inspect-robots
+        ---
+
+        # Microduck Studio evaluations
+
+        One folder per run. Each folder holds the evaluation log as JSON, this app's own report \
+        of it as one self-contained HTML page, and a card describing that run and nothing else.
+
+        \(howToRead)
+
+        \(EvalEmbodiment.digestIsIdentitySaid)
+
+        \(Provenance.independence)
+
+        \(EvalText.notTheirRender)
+        """ + "\n"
     }
 
     /// THE STATUS LEADS, ALWAYS.
@@ -528,17 +636,24 @@ public struct EvalLogFile: Equatable, Sendable, Identifiable {
         // The bench's own criterion, whole. A card is the one place it is not
         // capped: `EvalText.foreign` is for a row on a phone, and a measurement
         // published under somebody's account is published as it was measured.
-        if let criterion = log.eval.policyConfig[EvalMeta.criterion]?.stringValue {
+        //
+        // AND ONLY WHEN A BENCH ACTUALLY SAID ONE. The readers default a
+        // missing criterion to a word of this app's own, and the label over
+        // this block says the paragraph under it is the bench's.
+        if let criterion = EvalReport.statedCriterion(log) {
             lines.append(Self.criterionLabel)
             lines.append("> \(criterion)")
         }
         if let digest = log.eval.embodimentInfo[EvalMeta.plantDigest]?.stringValue {
             lines.append("\(Self.plantDigestLabel) `\(digest)`")
         }
-        lines.append(EvalEpochs.noSeedSaid)
-        lines.append(EvalRun.stepCountsSaid)
-        lines.append(EvalTrace.firstDropOnlySaid)
-        lines.append(EvalVerdict.recordedNotScoredSaid)
+        // THE AXIS AND THE ROUTE DECIDE THESE, NOT THE HABIT OF LISTING THEM.
+        // A grid run has no drop height and records no episode, so the walk's
+        // seed sentence and its trace sentences describe a mechanism that card
+        // is not about. Both come back off the log itself, which is the only
+        // thing a published card is allowed to be built from.
+        if let seed = EvalReport.seedSaid(log) { lines.append(seed) }
+        lines.append(contentsOf: EvalReport.recordingCaveats(log))
         // The challenge caveat belongs to a challenge grid and to nothing else:
         // it is a sentence about playing a MOVE on hardware, and pasting it
         // under a walk evaluation would be a caveat about something that did

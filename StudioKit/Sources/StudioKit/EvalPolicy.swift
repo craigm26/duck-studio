@@ -90,8 +90,14 @@ public struct EvalPolicy: Equatable, Sendable {
     /// measurement quoted exactly is not this app's prose. `bench_host` is
     /// `PhoneBenchReport.ranOn`, which this app already owns and which is not
     /// going to be reworded here.
+    /// `tracing` IS THE TASK'S OWN ANSWER AND NOT A GUESS FROM THE EPOCHS.
+    /// Only `/tune` returns a trajectory, so on a grid the trace sentence and
+    /// the step count sentence both describe a mechanism the run never used:
+    /// a log that carried them would say an episode was recorded and a verdict
+    /// offered on it beside fourteen cells where `traced` is false on every
+    /// trial and `total_steps` is zero.
     public func config(embodiment: EvalEmbodiment, epochs: EvalEpochs,
-                       criterion: String,
+                       criterion: String, tracing: Bool,
                        refusedTerms: [(name: String, why: String)] = []) -> [String: EvalLogJSON] {
         var config: [String: EvalLogJSON] = [
             "action_horizon": .integer(1),
@@ -101,10 +107,12 @@ public struct EvalPolicy: Equatable, Sendable {
             "epoch_axis": .string(epochs.said),
             "replan_interval": .null,
             "residual": .string(residualSaid),
-            "seed_note": .string(EvalEpochs.noSeedSaid),
-            "step_counts": .string(EvalRun.stepCountsSaid),
+            "seed_note": .string(epochs.seedNote),
+            "step_counts": .string(tracing ? EvalRun.stepCountsSaid
+                                           : EvalRun.noStepsOnAGridSaid),
             "temperature": .null,
-            "trace_note": .string(EvalTrace.firstDropOnlySaid),
+            "trace_note": .string(tracing ? EvalTrace.firstDropOnlySaid
+                                          : EvalTrace.noTraceOnAGridSaid),
         ]
         if case .fileOnly = identity { config["identity_note"] = .string(Self.fileOnlySaid) }
         if !refusedTerms.isEmpty {
@@ -114,8 +122,19 @@ public struct EvalPolicy: Equatable, Sendable {
         return config
     }
 
+    /// What was folded in for THIS run, and what the file already was.
+    ///
+    /// A CANDIDATE'S FILE IS ALREADY A FOLD, which is the half the identity
+    /// sentence used to get wrong. The tuner and the weight search save their
+    /// winner by folding a per joint gain and trim into the last layer, so a
+    /// run of one of those with an identity residual has folded nothing in
+    /// today and is still not running the network as it was trained. Saying
+    /// otherwise put a claim about somebody else's training in a log about this
+    /// phone's arithmetic.
     public var residualSaid: String {
-        residualIsIdentity ? Self.identityResidualSaid : Self.foldedResidualSaid
+        guard residualIsIdentity else { return Self.foldedResidualSaid }
+        return kind == .tunedCandidate ? Self.identityOverACandidateSaid
+                                       : Self.identityResidualSaid
     }
 
     // MARK: - the sentences
@@ -123,6 +142,32 @@ public struct EvalPolicy: Equatable, Sendable {
     public static let identityResidualSaid =
         "Identity. The gains are all 1 and the trims are all 0, so the network the bench ran is "
       + "the network as it was trained."
+
+    public static let identityOverACandidateSaid =
+        "Identity. Nothing was folded in for this run, and the file itself is a candidate this "
+      + "phone folded a gain and a trim into earlier, so what the bench ran is not the network "
+      + "the base file was trained as."
+
+    /// A2: the policy's own digest, said where a person is looking at the
+    /// policy rather than at the world.
+    ///
+    /// IT IS NOT `EvalEmbodiment.digestIsIdentitySaid`. That one is about the
+    /// plant's sha256 being inside the embodiment's name; this one is about the
+    /// parameters' digest being inside the policy's. A row that borrowed the
+    /// other sentence would tell a person the hex they are looking at is the
+    /// world's.
+    public static let digestIsIdentitySaid =
+        "The characters after the file name are the digest of the network's parameters. Two "
+      + "files can carry one name and be two different networks, and the digest is what tells "
+      + "them apart."
+
+    /// `logName` for a screen reader: the name, the word digest, then the hex,
+    /// because a run of twelve characters read as a word is not a digest a
+    /// person can check.
+    public var spokenLogName: String {
+        guard let identity else { return benchPolicyName }
+        return "\(benchPolicyName), digest \(identity.value.prefix(DuckBench.digestShown))"
+    }
 
     public static let foldedResidualSaid =
         "A per joint gain and trim were folded into the last layer before the run, so the "

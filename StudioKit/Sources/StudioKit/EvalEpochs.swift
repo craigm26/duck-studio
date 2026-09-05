@@ -13,8 +13,12 @@ import Foundation
 /// bind to.
 ///
 /// The five reducers are theirs, arithmetic for arithmetic (`scorer.py`
-/// `_REDUCERS`). `pass_at_k` is theirs too and is implemented here for READING
-/// A LOG SOMEBODY ELSE WROTE and for nothing else: see `noPassAtK`.
+/// `_REDUCERS`), down to the last place: `mean` goes through `ExactMean`,
+/// which sums exactly and rounds once the way `statistics.mean` does rather
+/// than rounding after every addition, and `mode` breaks ties on the printed
+/// form the way theirs does. `pass_at_k` is theirs too and is implemented here
+/// for READING A LOG SOMEBODY ELSE WROTE and for nothing else: see
+/// `noPassAtK`.
 public struct EvalEpochs: Equatable, Sendable {
 
     /// What changes between the epochs of one scene.
@@ -159,6 +163,25 @@ public struct EvalEpochs: Equatable, Sendable {
       + "name a control nothing used. What varies between the epochs of a scene is the height "
       + "the duck is dropped from, and every height is listed."
 
+    /// The same fact on the axis that has no drop list.
+    ///
+    /// IT IS A SEPARATE CONSTANT BECAUSE THE SECOND HALF IS A DIFFERENT FACT.
+    /// A grid run has one episode per scene and no drop height anywhere in it,
+    /// so the sentence above would sit two keys away from an `epoch_axis`
+    /// saying the grid is the axis and contradict it in the same dictionary.
+    public static let noSeedOnAGridSaid =
+        "No seed was recorded, because no route on this bench reads one and a seed here would "
+      + "name a control nothing used. What varies here is the challenge's own grid, one episode "
+      + "per cell, and every cell is a scene of its own."
+
+    /// Which of the two the axis of this run is entitled to.
+    public var seedNote: String {
+        switch axis {
+        case .single: return Self.noSeedOnAGridSaid
+        case .dropHeights: return Self.noSeedSaid
+        }
+    }
+
     /// Under the progress bar on the run screen, because the bar moves in
     /// steps somebody would otherwise think were a stall.
     ///
@@ -191,7 +214,11 @@ public struct EvalEpochs: Equatable, Sendable {
         guard !values.isEmpty else { return nil }
         switch reducer {
         case .mean:
-            return values.reduce(0, +) / Double(values.count)
+            // `statistics.mean` and not a running sum: theirs adds exactly and
+            // rounds once, and a running sum rounds after every addition. See
+            // `ExactMean`, which is what makes "arithmetic for arithmetic" a
+            // statement rather than an aspiration.
+            return ExactMean.mean(values)
         case .median:
             // `statistics.median` averages the two middle values at even n
             // rather than picking one, which is the half a hand-rolled median

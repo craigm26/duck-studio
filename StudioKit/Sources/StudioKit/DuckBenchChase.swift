@@ -291,7 +291,7 @@ extension DuckBench {
                     shortHash: String? = nil, kind: String? = nil, policy: String? = nil,
                     invalid: Bool = false, why: String? = nil,
                     plantName: String? = nil, plantDigest: String? = nil,
-                    criterion: String = "unstated", elapsedSeconds: Double = 0,
+                    criterion: String = DuckBench.criterionUnstated, elapsedSeconds: Double = 0,
                     raw: HarnessJSON? = nil) {
             self.hash = hash; self.cell = cell; self.seconds = seconds
             self.ballTravelMillimetres = ballTravelMillimetres
@@ -423,7 +423,7 @@ extension DuckBench {
             why: top["why"]?.stringValue,
             plantName: top["plantName"]?.stringValue,
             plantDigest: top["plantDigest"]?.stringValue,
-            criterion: top["criterion"]?.stringValue ?? "unstated",
+            criterion: top["criterion"]?.stringValue ?? DuckBench.criterionUnstated,
             elapsedSeconds: top["elapsedSeconds"]?.doubleValue ?? 0,
             raw: top)
     }

@@ -194,7 +194,17 @@ public struct EvalEmbodiment: Equatable, Sendable {
         if !answeredRoutes.isEmpty, !answeredRoutes.contains(route) {
             return "This bench does not answer \(route), so it cannot run this task."
         }
-        if body == .thisPhoneBench, !bundledPolicyNames.contains(policyName) {
+        // THE BUNDLED TEST BELONGS TO THE ROUTE THAT FOLDS PARAMETERS AND TO NO
+        // OTHER. `/tune` holds a network's parameters to fold a gain into the
+        // last layer, and this phone's bench can only produce those for the
+        // networks it ships with. `/climb` and `/chase` score a challenge
+        // entrant's move, which is a JSON file and never a network, so testing
+        // an entrant's filename against the bundled ONNX names is a test that
+        // can never pass and a Start button that is dead for a run this bench
+        // has just said it can do. The route is the same distinction
+        // `policyIsNetworkIdentity` is already passed as true for on a grid.
+        if body == .thisPhoneBench, route == EvalTask.Route.tune.path,
+           !bundledPolicyNames.contains(policyName) {
             return Self.phoneBenchOnlyBundled
         }
         if !policyIsNetworkIdentity { return EvalPolicy.canonicalParametersSaid }

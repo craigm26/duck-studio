@@ -218,7 +218,7 @@ extension DuckBench {
                     maxAbsDYMillimetres: Double = 0, reachedFlight: Bool = false,
                     invalid: Bool = false, why: String? = nil,
                     plantName: String? = nil, plantDigest: String? = nil,
-                    criterion: String = "unstated", seconds: Double = 0,
+                    criterion: String = DuckBench.criterionUnstated, seconds: Double = 0,
                     raw: HarnessJSON? = nil,
                     stood: DuckWorld? = nil, clipTicks: Int? = nil) {
             self.hash = hash; self.rise = rise; self.cell = cell
@@ -312,7 +312,7 @@ extension DuckBench {
             why: top["why"]?.stringValue,
             plantName: top["plantName"]?.stringValue,
             plantDigest: top["plantDigest"]?.stringValue,
-            criterion: top["criterion"]?.stringValue ?? "unstated",
+            criterion: top["criterion"]?.stringValue ?? DuckBench.criterionUnstated,
             seconds: top["seconds"]?.doubleValue ?? 0,
             raw: top,
             stood: try readStood(top),

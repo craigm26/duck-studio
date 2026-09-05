@@ -39,12 +39,30 @@ public enum EvalText {
     /// particular are line breaks that survive being pasted into a report. Then
     /// the length, counted in Characters rather than scalars, because that is
     /// what a person sees.
+    ///
+    /// A LINE BREAK BECOMES A SPACE AND IS NOT DELETED. A bench writes a `why`
+    /// over two lines often enough, and dropping the newline outright ran the
+    /// last word of one line into the first word of the next: "the cell is
+    /// invalidthe tail was 60 ticks". The layout argument is against the raw
+    /// break, not against the word boundary, so every whitespace class control
+    /// character collapses to one space and the rest are still dropped.
     public static func foreign(_ value: String) -> String {
         var scalars = String.UnicodeScalarView()
+        var pendingSpace = false
         for scalar in value.unicodeScalars {
             switch scalar.value {
-            case 0x00...0x1F, 0x7F...0x9F, 0x2028, 0x2029: continue
-            default: scalars.append(scalar)
+            case 0x09...0x0D, 0x20, 0x2028, 0x2029:
+                // Leading whitespace never opens a space, and a run of it is
+                // one space, so a trailing run is simply never flushed.
+                pendingSpace = !scalars.isEmpty
+            case 0x00...0x1F, 0x7F...0x9F:
+                continue
+            default:
+                if pendingSpace {
+                    scalars.append(" ")
+                    pendingSpace = false
+                }
+                scalars.append(scalar)
             }
         }
         let cleaned = String(scalars).trimmingCharacters(in: .whitespaces)

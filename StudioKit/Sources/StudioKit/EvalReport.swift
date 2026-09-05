@@ -77,6 +77,33 @@ public enum EvalReport {
         (sample.sceneMetadata[EvalMeta.dropHeights]?.arrayValue ?? []).compactMap(\.doubleValue)
     }
 
+    /// Whether this app wrote the log, asked of the log alone.
+    ///
+    /// IT IS `eval.inspect_robots_version` AND NOT THE ORIGIN FLAG. A file read
+    /// back off this phone's own disk has no run behind it any more, and a file
+    /// somebody handed over may have been written by another copy of this app.
+    /// The producer sentence is the one thing that travels inside the file and
+    /// says which, and `EvalRun.wroteItSaid` is the reader of it that the shelf
+    /// already trusts. Everything this app says in the first person about how a
+    /// number was measured is gated on this.
+    public static func wroteHere(_ log: EvalLog) -> Bool {
+        EvalRun.wroteItSaid(from: log.eval.inspectRobotsVersion) != nil
+    }
+
+    /// The bench's own criterion out of a log, or nil where the file carries
+    /// the reader's placeholder instead of anything a bench said.
+    public static func statedCriterion(_ log: EvalLog) -> String? {
+        DuckBench.statedCriterion(log.eval.policyConfig[EvalMeta.criterion]?.stringValue)
+    }
+
+    /// Whether any trial in the log carries the bench's reward terms, which is
+    /// what makes the sentence about them a sentence about something.
+    static func anyTermsRecorded(_ log: EvalLog) -> Bool {
+        log.samples.contains { sample in
+            sample.trialMetadata.contains { $0[EvalMeta.terms] != nil }
+        }
+    }
+
     /// The scorer this app knows by that name, or nil for a name from
     /// somewhere else. Used only to decide what a column means; a column with
     /// no answer is still drawn, with its own name over it.
@@ -123,20 +150,76 @@ public enum EvalReport {
     /// number, and nothing more. A page that printed a standard deviation of
     /// zero beside a metric would be inviting exactly the reading this sentence
     /// exists to prevent.
-    public static func spreadSaid(_ values: [Double]) -> String {
+    ///
+    /// THE DROP HEIGHT CLAUSE NEEDS A DROP HEIGHT, which is what `hasDropAxis`
+    /// is for. A grid cell is one episode and an imported log may have varied
+    /// anything at all between its epochs, so telling either reader that "the
+    /// drop height changed nothing here" is a sentence about a control that run
+    /// never had. Without an axis this says what it can see and stops.
+    public static func spreadSaid(_ values: [Double], hasDropAxis: Bool = false) -> String {
         let finite = values.filter { $0.isFinite }
         guard let low = finite.min(), let high = finite.max() else {
             return "Nothing was scored here, so there is no spread to report."
         }
         if low == high {
+            guard hasDropAxis else {
+                return "Every epoch answered \(number(low)). What varied between them is whatever "
+                     + "this run's own axis was, and agreement is not a confidence interval."
+            }
             return "Every epoch answered \(number(low)). These episodes are deterministic, so "
                  + "epochs agreeing means the drop height changed nothing here, and it is not a "
                  + "confidence interval."
+        }
+        guard hasDropAxis else {
+            return "Lowest \(number(low)), highest \(number(high)), across "
+                 + "\(EvalEpochs.counted(finite.count).lowercased()) epochs. The spread is what "
+                 + "this run's own axis changed and it is not a margin of error."
         }
         return "Lowest \(number(low)), highest \(number(high)), across "
              + "\(EvalEpochs.counted(finite.count).lowercased()) epochs. The spread is what the "
              + "drop height changed and it is not a margin of error."
     }
+
+    /// The same sentence for a scene, which is where the axis can be read.
+    ///
+    /// Nil for a scene with one epoch: telling a reader that one number agrees
+    /// with itself is noise standing where a fact should be, and it is the
+    /// whole of a grid.
+    public static func spreadSaid(_ sample: EvalLog.Sample, scorer name: String) -> String? {
+        guard sample.epochs.count > 1 else { return nil }
+        let values = sample.epochs.compactMap { $0[name] }
+        guard !values.isEmpty else { return nil }
+        return spreadSaid(values, hasDropAxis: !drops(sample).isEmpty)
+    }
+
+    /// One scorer's row of a scene, for a screen reader.
+    ///
+    /// A GRID OF BARE NUMBERS IS UNREADABLE OUT LOUD. VoiceOver walks the cells
+    /// of the epoch table one at a time and reads "1.0, 0.0, 1.0" with nothing
+    /// saying which epoch or which drop each belongs to. This pairs every cell
+    /// with its own column head, names the empty cells rather than leaving a
+    /// silence a listener reads as a zero, and is one string so the row is one
+    /// element.
+    public static func spokenEpochs(_ sample: EvalLog.Sample, scorer name: String) -> String {
+        let heights = drops(sample)
+        var parts: [String] = []
+        for index in sample.epochs.indices {
+            var head = "Epoch \(index + 1)"
+            if index < heights.count { head += ", dropped from \(number(heights[index])) m" }
+            if let value = sample.epochs[index][name] {
+                parts.append("\(head), \(number(value))")
+            } else {
+                parts.append("\(head), \(erroredCell)")
+            }
+        }
+        return parts.isEmpty ? nothingScoredHere : parts.joined(separator: ". ") + "."
+    }
+
+    /// What an empty epoch is, in a word, because a blank cell read out loud is
+    /// silence and silence reads as a zero.
+    public static let erroredCell = "recorded and not scored"
+
+    public static let nothingScoredHere = "Nothing was scored in this scene."
 
     /// A3: the one sentence that makes a shared log reproducible instead of
     /// merely readable.
@@ -145,13 +228,91 @@ public enum EvalReport {
     /// one is another thing that can go stale. What a person actually needs to
     /// re-run this is the preset's name, the policy and the world, and all
     /// three are already in the log under names this sentence points at.
+    ///
+    /// AND IT IS ONLY SAID ABOUT A RUN THIS APP COULD MAKE AGAIN. A log written
+    /// somewhere else names a task and a policy this app has never had: the
+    /// shipped example is a mock arm reaching for a cube, and telling a reader
+    /// to pick "cubepick-reach" in Microduck Studio is an instruction that
+    /// cannot be followed. The gate is the producer sentence inside the file
+    /// (`wroteHere`), which is the same test the shelf uses to decide whether a
+    /// log has an author here at all.
     public static func reproduceSaid(_ log: EvalLog) -> String {
+        guard wroteHere(log) else { return reproduceElsewhereSaid }
         let world = world(log) ?? log.eval.embodiment
         return "To run this again: pick \(log.eval.task) in Microduck Studio, pick "
              + "\(log.eval.policy), and point it at a bench running \(world). The same preset "
              + "and the same policy on a bench with that plant digest is the same run; a "
              + "different digest is a different measurement whatever the numbers say."
     }
+
+    /// What is said instead, about a run that happened somewhere else.
+    public static let reproduceElsewhereSaid =
+        "This run was made somewhere else, so there is no preset here to pick and run again. The "
+      + "task, the policy and the body it ran on are named in the file as that run named them, "
+      + "and running it again is a question for the tools that wrote it."
+
+    /// What this log says about a seed, or nothing at all.
+    ///
+    /// THREE CASES, AND THE THIRD IS SILENCE. A log that records a seed says
+    /// so, in the sentence that admits the run it came from had one. A log this
+    /// app wrote says why there is none, in the words its own axis earns: the
+    /// walk presets vary a drop height and the grids vary nothing, and the two
+    /// sentences are not interchangeable. A log somebody else wrote that
+    /// carries no seed gets neither, because "no route on this bench reads one"
+    /// is a claim about this bench and nobody here ran that file.
+    ///
+    /// Printing the first-person sentence unconditionally and then adding the
+    /// foreign one after it was a page that said no seed was recorded and, one
+    /// line later, that this log records a seed.
+    public static func seedSaid(_ log: EvalLog) -> String? {
+        if log.eval.seed != nil { return EvalLogFile.foreignSeedSaid }
+        guard wroteHere(log) else { return nil }
+        let hasDrops = log.samples.contains { !drops($0).isEmpty }
+        return hasDrops ? EvalEpochs.noSeedSaid : EvalEpochs.noSeedOnAGridSaid
+    }
+
+    /// How the episodes of this run were recorded, chosen by the route it ran.
+    ///
+    /// A GRID RECORDS NOTHING AND REPORTS NO TICKS. `/climb` and `/chase`
+    /// answer with a cell's numbers, so the sentences about a traced first drop
+    /// and about a verdict offered on it describe a mechanism the run did not
+    /// use, beside `traced: false` on every trial and a `total_steps` of zero.
+    public static func recordingCaveats(_ log: EvalLog) -> [String] {
+        guard !isGrid(log) else {
+            return [EvalRun.noStepsOnAGridSaid, EvalTrace.noTraceOnAGridSaid]
+        }
+        return [EvalRun.stepCountsSaid, EvalTrace.firstDropOnlySaid,
+                EvalVerdict.recordedNotScoredSaid]
+    }
+
+    /// Everything a page says about how this run was measured and what it will
+    /// not claim, in one list, chosen by the route and by whether this app made
+    /// the measurement at all.
+    ///
+    /// AN IMPORTED LOG GETS NONE OF THEM. Every sentence in this list is a
+    /// first-person account of how this app's own bench works: nothing timed
+    /// the policy, no frames were stored, the terms under each trial are the
+    /// bench's. Printed over a file from somewhere else they are claims about
+    /// somebody else's run made by an app that was not there, and two of them
+    /// were flatly contradicted by the file's own stats. So a foreign log's
+    /// page carries what the file says and nothing this app made up for it.
+    public static func caveats(for file: EvalLogFile) -> [String] {
+        let log = file.log
+        guard wroteHere(log) else { return [] }
+        var said = recordingCaveats(log)
+        if anyTermsRecorded(log) { said.append(EvalScorer.termsAreNotScoresSaid) }
+        said.append(EvalRun.erroredNotScoredSaid)
+        said.append(EvalRun.noLatencySaid)
+        said.append(EvalRun.noFramesSaid)
+        said.append(EvalScorer.notEmittedHere)
+        said.append(EvalEmbodiment.digestIsIdentitySaid)
+        return said
+    }
+
+    /// The two stats fields this app never fills, when a foreign log does fill
+    /// them. Labels rather than sentences: the value is the file's.
+    public static let latencyLabel = "Mean inference latency, as the file records it"
+    public static let framesLabel = "Frames directory, as the file records it"
 
     /// A7: a log is a record and it is not an entry.
     public static let leaderboardIsTheChallengeScreen =
@@ -327,20 +488,27 @@ public enum EvalReport {
         body += note(reproduceSaid(log))
         body += "</header>"
 
-        // The two sentences a reader must have before the tiles.
-        body += "<section><h2>Before the numbers</h2>"
-        body += note(EvalEpochs.noSeedSaid)
-        if log.eval.seed != nil { body += note(EvalLogFile.foreignSeedSaid) }
+        // The sentences a reader must have before the tiles. Every one of them
+        // is either the file's own or one this app is entitled to say about
+        // this file, so a log that has none of them gets no empty block.
+        var before = ""
+        if let seed = seedSaid(log) { before += note(seed) }
         if let axis = log.eval.policyConfig[EvalMeta.epochAxis]?.stringValue {
-            body += note(axis)
+            before += note(axis)
         }
-        if let criterion = log.eval.policyConfig[EvalMeta.criterion]?.stringValue {
-            body += "<p class=\"quoted\">" + escaped(criterion) + "</p>"
+        // QUOTED MEANS SOMEBODY SAID IT. The three bench readers default a
+        // missing criterion to one word of this app's own, so a bench that
+        // said nothing would otherwise have that word set as a quotation under
+        // "what the bench said ending standing means".
+        if let criterion = statedCriterion(log) {
+            before += "<p class=\"quoted\">" + escaped(criterion) + "</p>"
         }
         if let seconds = log.eval.maxSeconds, let steps = log.eval.maxSteps {
-            body += note(horizonSaid(seconds: seconds, steps: steps))
+            before += note(horizonSaid(seconds: seconds, steps: steps))
         }
-        body += "</section>"
+        if !before.isEmpty {
+            body += "<section><h2>Before the numbers</h2>" + before + "</section>"
+        }
 
         // The tiles, success and evidence adjacent.
         body += "<section><h2>What it measured</h2>"
@@ -393,10 +561,9 @@ public enum EvalReport {
             // The spread belongs to a scene with an axis. A grid cell is one
             // episode, and telling a reader that one number agrees with itself
             // fourteen times is noise standing where a fact should be.
-            if sample.epochs.count > 1 {
-                for name in names where sample.epochs.contains(where: { $0[name] != nil }) {
-                    let values = sample.epochs.compactMap { $0[name] }
-                    body += note("\(name): " + spreadSaid(values))
+            for name in names {
+                if let spread = spreadSaid(sample, scorer: name) {
+                    body += note("\(name): " + spread)
                 }
             }
             body += "<div class=\"scroll\"><table><thead><tr><th>Epoch</th><th>Drop</th>"
@@ -443,22 +610,31 @@ public enum EvalReport {
         }
 
         // What the file will not claim, which is the half their page has no
-        // field for.
-        body += "<section><h2>What this does not claim</h2>"
-        body += note(EvalRun.stepCountsSaid)
-        body += note(EvalTrace.firstDropOnlySaid)
-        body += note(EvalVerdict.recordedNotScoredSaid)
-        body += note(EvalScorer.termsAreNotScoresSaid)
-        body += note(EvalRun.erroredNotScoredSaid)
-        body += note(EvalRun.noLatencySaid)
-        body += note(EvalRun.noFramesSaid)
-        body += note(EvalScorer.notEmittedHere)
-        body += note(EvalEmbodiment.digestIsIdentitySaid)
-        if isGrid(log) { body += note(leaderboardIsTheChallengeScreen) }
-        if let error = log.error {
-            body += "<p class=\"refused\">" + escaped(error) + "</p>"
+        // field for. For a log from somewhere else the list is empty and the
+        // block carries the two fields this app never fills and that file
+        // sometimes does, under the file's own name.
+        var closing = ""
+        for said in caveats(for: file) { closing += note(said) }
+        if !wroteHere(log) {
+            var stated = ""
+            if let latency = log.stats.meanInferenceLatencySeconds {
+                stated += row(latencyLabel, number(latency, places: 6) + " s")
+            }
+            if let frames = log.stats.framesDir {
+                stated += row(framesLabel, frames)
+            }
+            if !stated.isEmpty {
+                closing += note(EvalLogFile.fromTheFile)
+                closing += "<dl class=\"identity\">" + stated + "</dl>"
+            }
         }
-        body += "</section>"
+        if isGrid(log) { closing += note(leaderboardIsTheChallengeScreen) }
+        if let error = log.error {
+            closing += "<p class=\"refused\">" + escaped(error) + "</p>"
+        }
+        if !closing.isEmpty {
+            body += "<section><h2>What this does not claim</h2>" + closing + "</section>"
+        }
 
         body += "<footer>"
         body += note(Provenance.independenceShort)

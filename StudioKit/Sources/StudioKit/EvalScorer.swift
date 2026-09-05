@@ -113,18 +113,26 @@ public struct EvalScorer: Equatable, Sendable, Identifiable {
     ///
     /// THE RISK IS A NAME THAT MEANS SOMETHING ELSE. `min_distance_to_goal` and
     /// `reached_goal_state` read a distance to a goal, and no route on this
-    /// bench reports one; `vlm` is a grader with a rubric and a wire protocol.
-    /// A column with their name and this app's arithmetic under it would be
-    /// worse than an empty column, because a reader comparing two logs would
-    /// have no way to know.
+    /// bench reports one; `vlm` is a grader with a rubric and a wire protocol;
+    /// `operator` is their scorer that turns a person's verdict into a number,
+    /// and one watched trial in eight scored as a scene would weigh a glance
+    /// like a measurement. A column with their name and this app's arithmetic
+    /// under it would be worse than an empty column, because a reader comparing
+    /// two logs would have no way to know.
+    ///
+    /// `notEmittedHere` NAMES ALL FOUR, and `EvalScorerSetTests` walks this
+    /// array rather than a list of its own, so the sentence and the set cannot
+    /// drift apart the way they did when the sentence said three.
     public static let reservedNames = ["min_distance_to_goal", "reached_goal_state", "vlm",
                                        "operator"]
 
     public static let notEmittedHere =
-        "Three of their scorers are not emitted here. min_distance_to_goal and "
-      + "reached_goal_state read a distance to a goal that no route on this bench reports, and "
-      + "vlm is a grader this app does not run. A scorer of theirs that this app filled with a "
-      + "number of its own would be the same name meaning something else."
+        "Four of their scorers are not emitted here. min_distance_to_goal and "
+      + "reached_goal_state read a distance to a goal that no route on this bench reports, vlm "
+      + "is a grader this app does not run, and operator is a person's verdict, which is "
+      + "recorded beside the trial it was given on and never turned into a number. A scorer of "
+      + "theirs that this app filled with a number of its own would be the same name meaning "
+      + "something else."
 
     /// Said beside the six per-trial term values on the detail screen.
     ///

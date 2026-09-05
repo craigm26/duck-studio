@@ -161,4 +161,105 @@ final class EvalCompareTests: XCTestCase {
         XCTAssertEqual(compare.rows.count, 4)
         XCTAssertEqual(asImported.origin, .imported)
     }
+
+    // MARK: - how much of each run there is
+
+    /// A CANCELLED RUN IS COMPARABLE AND THE SCREEN HAS TO SAY SO. A run
+    /// somebody stopped is filed with the scenes that finished and none of the
+    /// ones that never started, so one column can be a mean over one scene and
+    /// the other a mean over three, with a coloured winner between them and the
+    /// word "cancelled" nowhere on the screen. The status is not refused here,
+    /// because a partial run is real data; it is named.
+    func testAPartialRunIsNamedRatherThanQuietlyCompared() throws {
+        let task = try EvalTask.walkThreeCommands()
+        let whole = EvalFixtures.file(
+            try EvalFixtures.run(task: task, scenes: [
+                EvalFixtures.walkScene("cmd-forward", task: task, travelled: [1.19]),
+                EvalFixtures.walkScene("cmd-sideways", task: task, travelled: [0.42]),
+                EvalFixtures.walkScene("cmd-turning", task: task, travelled: [0.11]),
+            ]), runID: "cccc0001")
+        let stopped = EvalFixtures.file(
+            try EvalFixtures.run(task: task, scenes: [
+                EvalFixtures.walkScene("cmd-forward", task: task, travelled: [1.30]),
+            ], cancelled: true), runID: "cccc0002")
+        let compare = try EvalCompare.checked(whole, stopped)
+        XCTAssertTrue(compare.eitherIsPartial)
+        let said = try XCTUnwrap(compare.partialSideSaid())
+        XCTAssertTrue(said.hasPrefix("The log on the right is not a finished run"), said)
+        XCTAssertTrue(EvalCompare.statusSaid(stopped.log).hasPrefix("Cancelled."),
+                      EvalCompare.statusSaid(stopped.log))
+        XCTAssertTrue(EvalCompare.statusSaid(whole.log).contains("3 scenes"))
+        XCTAssertTrue(EvalCompare.statusSaid(stopped.log).contains("1 scene,"))
+    }
+
+    func testTwoFinishedRunsSayNothingAboutBeingPartial() throws {
+        let (left, right) = try pair()
+        let compare = try EvalCompare.checked(left, right)
+        XCTAssertFalse(compare.eitherIsPartial)
+        XCTAssertNil(compare.partialSideSaid())
+        XCTAssertEqual(compare.statusSaid(compare.left), EvalCompare.statusSaid(left.log))
+    }
+
+    func testBothSidesBeingPartialNamesBothOfThem() throws {
+        let task = try EvalTask.walkForwardOnly()
+        let one = EvalFixtures.file(
+            try EvalFixtures.run(task: task,
+                                 scenes: [EvalFixtures.walkScene("cmd-forward", task: task,
+                                                                 travelled: [1.1])],
+                                 cancelled: true), runID: "dddd0001")
+        let two = EvalFixtures.file(
+            try EvalFixtures.run(task: task,
+                                 scenes: [EvalFixtures.walkScene("cmd-forward", task: task,
+                                                                 travelled: [1.2])],
+                                 cancelled: true), runID: "dddd0002")
+        let said = try XCTUnwrap(try EvalCompare.checked(one, two).partialSideSaid())
+        XCTAssertTrue(said.hasPrefix("Neither of these two is a finished run"), said)
+    }
+
+    // MARK: - one row, out loud
+
+    /// A11: which side a scorer prefers is carried on screen by colour and by
+    /// nothing else, so the finding of the whole screen is unavailable to a
+    /// screen reader and to anybody who cannot separate teal from ink.
+    func testARowIsSpokenWithBothNumbersAndThePreference() throws {
+        let (left, right) = try pair()
+        let compare = try EvalCompare.checked(left, right)
+        let travelled = try XCTUnwrap(compare.rows.first { $0.name == EvalScorer.travelled.name })
+        let said = compare.spoken(travelled)
+        XCTAssertTrue(said.hasPrefix("Left "), said)
+        XCTAssertTrue(said.contains("Right "), said)
+        XCTAssertTrue(said.contains("difference"), said)
+        XCTAssertTrue(said.hasSuffix("Right is the better of the two here."), said)
+
+        // Less is better on torque, so the preference is the other way round.
+        let quieter = EvalCompare.Row(name: EvalScorer.maxTorque.name, said: nil,
+                                      left: 0.5, right: 0.9, higherIsBetter: false, unit: "N m")
+        XCTAssertTrue(compare.spoken(quieter).hasSuffix("Left is the better of the two here."))
+    }
+
+    /// A scorer this app does not know gets no opinion about direction, and a
+    /// blank is a blank rather than a zero.
+    func testARowThisAppCannotJudgeSaysSoOutLoud() throws {
+        let (left, right) = try pair()
+        let compare = try EvalCompare.checked(left, right)
+        let unknown = EvalCompare.Row(name: "episode_length", said: nil,
+                                      left: 44, right: nil, higherIsBetter: nil, unit: "")
+        let said = compare.spoken(unknown)
+        XCTAssertTrue(said.contains(EvalCompare.blankSaid), said)
+        XCTAssertTrue(said.hasSuffix(EvalCompare.noDirectionSaid), said)
+        let level = EvalCompare.Row(name: EvalScorer.travelled.name, said: nil,
+                                    left: 1.0, right: 1.0, higherIsBetter: true, unit: "m")
+        XCTAssertTrue(compare.spoken(level).hasSuffix(EvalCompare.noPreferenceSaid))
+    }
+
+    /// A13: the Compare row is disabled with fewer than two logs on the shelf,
+    /// and the sentence under it has to answer that question rather than the
+    /// one about which two may be compared.
+    func testTheRowSaysWhyItCannotOpenYet() {
+        XCTAssertTrue(EvalCompare.notEnoughLogsSaid(0).contains("no log here yet"),
+                      EvalCompare.notEnoughLogsSaid(0))
+        XCTAssertTrue(EvalCompare.notEnoughLogsSaid(1).contains("one log here"),
+                      EvalCompare.notEnoughLogsSaid(1))
+        XCTAssertNotEqual(EvalCompare.notEnoughLogsSaid(0), EvalCompare.notEnoughLogsSaid(1))
+    }
 }

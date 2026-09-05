@@ -116,10 +116,28 @@ final class EvalScorerSetTests: XCTestCase {
         XCTAssertTrue(EvalScorer.travelled.higherIsBetter)
     }
 
-    func testTheirThreeNamesAreNamedOnScreenWithTheReason() {
-        for name in ["min_distance_to_goal", "reached_goal_state", "vlm"] {
+    /// THE SENTENCE WALKS THE RESERVED SET AND NOT A LIST OF ITS OWN. It said
+    /// three and named three while the set reserved four, and the missing one
+    /// was `operator`, which is the one most relevant to what this app does: it
+    /// records a person's verdict per trial and deliberately keeps it out of
+    /// `metrics`, and the copy that explains the omissions did not mention it.
+    /// A second list here would let the same thing happen again.
+    func testEveryReservedNameIsNamedOnScreenWithTheReason() {
+        for name in EvalScorer.reservedNames {
             XCTAssertTrue(EvalScorer.notEmittedHere.contains(name), name)
         }
+        XCTAssertEqual(EvalScorer.reservedNames.count, 4)
+        XCTAssertTrue(EvalScorer.notEmittedHere.hasPrefix("Four of their scorers"),
+                      EvalScorer.notEmittedHere)
         XCTAssertTrue(EvalScorer.notEmittedHere.contains("the same name meaning something else"))
+    }
+
+    /// And the count in the sentence is the count of the set, in words, so the
+    /// two cannot say different numbers.
+    func testTheCountInTheSentenceIsTheCountOfTheSet() {
+        let spelled = ["", "One", "Two", "Three", "Four", "Five", "Six"]
+        XCTAssertTrue(
+            EvalScorer.notEmittedHere.hasPrefix("\(spelled[EvalScorer.reservedNames.count]) of "),
+            EvalScorer.notEmittedHere)
     }
 }

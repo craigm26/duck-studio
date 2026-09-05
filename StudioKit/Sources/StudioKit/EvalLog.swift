@@ -320,6 +320,12 @@ public struct EvalLog: Equatable, Sendable {
 
         /// Which keys each object may carry, so the reader can name the object
         /// an unknown key sat in rather than just the key.
+        ///
+        /// `topLevel` IS THE WRITING SIDE'S LIST AND NOT A REFUSAL. The reader
+        /// does not hold a log to it, because `from_dict` does not: it reads
+        /// the top level by name and ignores anything else. It is here as the
+        /// seven this app writes, and `EvalLogFidelityTests` walks it against
+        /// what the writer actually emits.
         static let topLevel: Set<String> = [error, eval, results, samples, stats, status, version]
         static let spec: Set<String> = [created, embodiment, embodimentInfo, gitCommit,
                                         inspectRobotsVersion, maxSeconds, maxSteps, policy,
@@ -425,12 +431,28 @@ extension EvalLog.Sample {
 
 /// Why a file is not an evaluation log, in the file's own vocabulary.
 ///
-/// AS STRICT AS `EvalLog.from_dict`, ON PURPOSE. Their reader raises on an
-/// unknown key because it builds a frozen dataclass by keyword; a reader here
-/// that shrugged one off would let this app display a log their own tools
-/// refuse to open, which is worse than refusing it. So an unknown key is named,
-/// and so is the object it sat in, because `status` in the wrong object is a
-/// different fault from `status` missing.
+/// AS STRICT AS `EvalLog.from_dict`, WHERE `EvalLog.from_dict` IS STRICT, AND
+/// THAT IS NOT EVERYWHERE. Their reader builds `EvalSpec`, `EvalResults`,
+/// `EvalStats` and each `SceneResult` by splatting the object into a frozen
+/// dataclass, so an unknown key inside any of those four raises: this reader
+/// raises there too, names the key and names the object it sat in, because
+/// `status` in the wrong object is a different fault from `status` missing.
+///
+/// THE TOP LEVEL IS NOT ONE OF THEM. `from_dict` reads the top level BY NAME
+/// (`cls(version=data["version"], status=data["status"], eval=..., ...)`), so
+/// an unknown key beside `samples` is ignored there and is ignored here.
+/// Measured against inspect-robots 0.58.0 in a venv, one key at a time, on
+/// 2026-09-05: an extra top-level key opens, and so does a log whose `status`
+/// is a word neither project has defined. Refusing the first while telling a
+/// person "their own reader refuses it as well" was a refusal of a file their
+/// tools open and an accusation against the library, and one new top-level
+/// field in a future 0.59 would have closed this app to every log they still
+/// read.
+///
+/// Where this reader is stricter than theirs it says so in its own name rather
+/// than in theirs: `wrongType` is this app's caution over a `status` word no
+/// screen here has a row for and over a count written as a decimal, and its
+/// sentence blames nobody. See `EvalLogReader.asStrictAsTheirs`.
 public enum EvalLogRefusal: Error, Equatable {
     case notJSON(String)
     case notAnObject(String)
@@ -471,10 +493,23 @@ extension EvalLog {
 
     public static func decoded(from json: EvalLogJSON) throws -> EvalLog {
         let top = try object(json, "the log")
-        try refuseUnknown(top, allowed: Key.topLevel, object: "the log")
+        // NO `refuseUnknown` HERE, AND THAT IS THE POINT. `from_dict` reads the
+        // top level by name, so a key it has no field for is a key it ignores.
+        // The four nested objects below splat, and every one of them refuses.
         let version = try integer(top, Key.version, in: "the log")
         guard version == schemaVersion else {
             throw EvalLogRefusal.unsupportedVersion(String(version))
+        }
+        // `samples` IS REQUIRED, AND IT IS THE ONE KEY THAT WAS OPTIONAL HERE.
+        // `read_eval_log` does `for raw in data["samples"]` with no `.get`, so a
+        // log without the key raises KeyError there. Shrugging it off here was
+        // this app displaying a file their own tools will not open, which is
+        // the exact failure the strictness above exists to prevent.
+        guard let rawSamples = top[Key.samples] else {
+            throw EvalLogRefusal.missing(Key.samples, in: "the log")
+        }
+        guard let listed = rawSamples.arrayValue else {
+            throw EvalLogRefusal.wrongType(Key.samples, in: "the log", wanted: "a list")
         }
         return EvalLog(
             version: version,
@@ -482,7 +517,7 @@ extension EvalLog {
             eval: try Spec(top[Key.eval] ?? .null),
             results: try Results(top[Key.results] ?? .null),
             stats: try Stats(top[Key.stats] ?? .null),
-            samples: try (top[Key.samples]?.arrayValue ?? []).map { try Sample($0) },
+            samples: try listed.map { try Sample($0) },
             error: optionalString(top, Key.error))
     }
 

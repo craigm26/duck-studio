@@ -52,7 +52,8 @@ final class EvalPolicyTests: XCTestCase {
         let config = policy().config(embodiment: try embodiment(),
                                      epochs: try EvalEpochs.drops(EvalTask.walkDrops,
                                                                   reducer: .median),
-                                     criterion: "ends standing: something the bench said")
+                                     criterion: "ends standing: something the bench said",
+                                     tracing: true)
         XCTAssertEqual(Set(config.keys),
                        ["action_horizon", "bench_host", "bench_world", "criterion",
                         "epoch_axis", "replan_interval", "residual", "seed_note",
@@ -64,7 +65,8 @@ final class EvalPolicyTests: XCTestCase {
     /// literally true: the bench asks the network for an action every tick.
     func testTheirThreeOwnFieldsAreTheirThreeOwnFields() throws {
         let config = policy().config(embodiment: try embodiment(),
-                                     epochs: .single(reducer: .mean), criterion: "x")
+                                     epochs: .single(reducer: .mean), criterion: "x",
+                                     tracing: false)
         XCTAssertEqual(config["action_horizon"], .integer(1))
         XCTAssertEqual(config["replan_interval"], .null)
         XCTAssertEqual(config["temperature"], .null)
@@ -72,17 +74,48 @@ final class EvalPolicyTests: XCTestCase {
 
     /// L4. `eval.seed` is invisible in their report when it is null, so the
     /// explanation goes where their report does render it.
-    func testTheSeedExplanationIsInTheBlockTheirViewerRenders() throws {
-        let config = policy().config(embodiment: try embodiment(),
-                                     epochs: .single(reducer: .mean), criterion: "x")
-        XCTAssertEqual(config["seed_note"], .string(EvalEpochs.noSeedSaid))
+    ///
+    /// AND IT IS THE AXIS'S OWN SENTENCE. The note used to be the walk's
+    /// wording whatever the run was, so a grid log carried "what varies between
+    /// the epochs of a scene is the height the duck is dropped from" two keys
+    /// away from an `epoch_axis` saying the grid is the axis and no drop height
+    /// anywhere in the file.
+    func testTheSeedExplanationIsTheOneThisAxisEarns() throws {
+        let bench = try embodiment()
+        let grid = policy().config(embodiment: bench, epochs: .single(reducer: .mean),
+                                   criterion: "x", tracing: false)
+        XCTAssertEqual(grid["seed_note"], .string(EvalEpochs.noSeedOnAGridSaid))
+        let walk = policy().config(embodiment: bench,
+                                   epochs: try EvalEpochs.drops(EvalTask.walkDrops,
+                                                                reducer: .median),
+                                   criterion: "x", tracing: true)
+        XCTAssertEqual(walk["seed_note"], .string(EvalEpochs.noSeedSaid))
+    }
+
+    /// A route that records nothing says so, in both keys that describe a
+    /// recording. A grid trial is scored by the harness and answers with no
+    /// ticks at all, so `traced` is false on every trial and `total_steps` is
+    /// zero: a log claiming a trajectory was returned and a verdict offered on
+    /// it would be describing a mechanism the run never used.
+    func testARouteThatRecordsNothingSaysSoInBothKeys() throws {
+        let bench = try embodiment()
+        let grid = policy().config(embodiment: bench, epochs: .single(reducer: .mean),
+                                   criterion: "x", tracing: false)
+        XCTAssertEqual(grid["trace_note"], .string(EvalTrace.noTraceOnAGridSaid))
+        XCTAssertEqual(grid["step_counts"], .string(EvalRun.noStepsOnAGridSaid))
+        let walk = policy().config(embodiment: bench,
+                                   epochs: try EvalEpochs.drops(EvalTask.walkDrops,
+                                                                reducer: .median),
+                                   criterion: "x", tracing: true)
+        XCTAssertEqual(walk["trace_note"], .string(EvalTrace.firstDropOnlySaid))
+        XCTAssertEqual(walk["step_counts"], .string(EvalRun.stepCountsSaid))
     }
 
     /// L3. The machine that ran it, in the words this app already owns.
     func testTheHostAndTheWorldAreTheSentencesThisAppAlreadyHas() throws {
         let bench = try embodiment()
         let config = policy().config(embodiment: bench, epochs: .single(reducer: .mean),
-                                     criterion: "x")
+                                     criterion: "x", tracing: false)
         XCTAssertEqual(config["bench_host"], .string(PhoneBenchReport.ranOn(nil)))
         XCTAssertEqual(config["bench_world"], .string(bench.plantSaid))
     }
@@ -94,23 +127,26 @@ final class EvalPolicyTests: XCTestCase {
         let said = "ends standing: at the last tick the trunk's own up is still up \u{2014} "
                  + "gravity projects past \u{2212}0.5 into the body's \u{2212}z."
         let config = policy().config(embodiment: try embodiment(),
-                                     epochs: .single(reducer: .mean), criterion: said)
+                                     epochs: .single(reducer: .mean), criterion: said,
+                                     tracing: false)
         XCTAssertEqual(config["criterion"], .string(said))
     }
 
     func testAFileOnlyPolicyGetsTheExtraNoteAndANetworkOneDoesNot() throws {
         let bench = try embodiment()
         let epochs = EvalEpochs.single(reducer: .mean)
-        XCTAssertNil(policy().config(embodiment: bench, epochs: epochs,
-                                     criterion: "x")["identity_note"])
+        XCTAssertNil(policy().config(embodiment: bench, epochs: epochs, criterion: "x",
+                                     tracing: false)["identity_note"])
         XCTAssertEqual(policy(identity: .fileOnly(digest))
-            .config(embodiment: bench, epochs: epochs, criterion: "x")["identity_note"],
+            .config(embodiment: bench, epochs: epochs, criterion: "x",
+                    tracing: false)["identity_note"],
                        .string(EvalPolicy.fileOnlySaid))
     }
 
     func testARefusedTermIsNamedWithTheBenchsReason() throws {
         let config = policy().config(embodiment: try embodiment(),
                                      epochs: .single(reducer: .mean), criterion: "x",
+                                     tracing: false,
                                      refusedTerms: [("feet_air_time", "this bench knows no "
                                                                    + "reward term by that name")])
         XCTAssertEqual(config["refused_terms"]?.stringValue,
@@ -121,11 +157,59 @@ final class EvalPolicyTests: XCTestCase {
         let bench = try embodiment()
         let epochs = EvalEpochs.single(reducer: .mean)
         XCTAssertEqual(policy().config(embodiment: bench, epochs: epochs,
-                                       criterion: "x")["residual"],
+                                       criterion: "x", tracing: false)["residual"],
                        .string(EvalPolicy.identityResidualSaid))
         XCTAssertEqual(policy(residualIsIdentity: false)
-            .config(embodiment: bench, epochs: epochs, criterion: "x")["residual"],
+            .config(embodiment: bench, epochs: epochs, criterion: "x",
+                    tracing: false)["residual"],
                        .string(EvalPolicy.foldedResidualSaid))
+    }
+
+    /// A CANDIDATE'S FILE IS ALREADY A FOLD. The tuner and the weight search
+    /// save their winner by folding a per joint gain and trim into the last
+    /// layer, so a run of one of those with an identity residual has folded
+    /// nothing in today and is still not running the network as it was trained.
+    /// The log said "so the network the bench ran is the network as it was
+    /// trained" about exactly that file, and nothing else in the log recorded
+    /// that the file was a fold at all.
+    func testACandidateIsNotDescribedAsTheNetworkItWasTrainedAs() throws {
+        let bench = try embodiment()
+        let epochs = EvalEpochs.single(reducer: .mean)
+        let candidate = EvalPolicy(kind: .tunedCandidate, title: "A candidate from a search",
+                                   identity: .parameters(digest),
+                                   benchPolicyName: "alpha_walking_tuned.onnx",
+                                   residualIsIdentity: true)
+        let said = candidate.config(embodiment: bench, epochs: epochs, criterion: "x",
+                                    tracing: true)["residual"]
+        XCTAssertEqual(said, .string(EvalPolicy.identityOverACandidateSaid))
+        XCTAssertFalse(EvalPolicy.identityOverACandidateSaid
+            .contains("is the network as it was trained"))
+        XCTAssertTrue(EvalPolicy.identityOverACandidateSaid.hasPrefix("Identity."))
+        // A candidate the bench folded for THIS run says the folded sentence,
+        // the way any other policy does.
+        let folded = EvalPolicy(kind: .tunedCandidate, title: "A candidate from a search",
+                                identity: .parameters(digest),
+                                benchPolicyName: "alpha_walking_tuned.onnx",
+                                residualIsIdentity: false)
+        XCTAssertEqual(folded.residualSaid, EvalPolicy.foldedResidualSaid)
+        // And a library network is still described as what it is.
+        XCTAssertEqual(policy().residualSaid, EvalPolicy.identityResidualSaid)
+    }
+
+    /// A2: the digest a person is looking at on the policy row is the
+    /// network's, and the sentence beside it has to be about the network. The
+    /// row borrowed the embodiment's sentence, which is about the world's
+    /// sha256, so VoiceOver read out a paragraph about the plant instead of the
+    /// identity of the thing being evaluated.
+    func testThePolicyHasItsOwnDigestSentenceAndItsOwnSpokenName() {
+        XCTAssertNotEqual(EvalPolicy.digestIsIdentitySaid, EvalEmbodiment.digestIsIdentitySaid)
+        XCTAssertTrue(EvalPolicy.digestIsIdentitySaid.contains("network's parameters"))
+        XCTAssertFalse(EvalPolicy.digestIsIdentitySaid.contains("world"))
+        XCTAssertEqual(policy().spokenLogName, "alpha_walking.onnx, digest 27b1f53d1f26")
+        XCTAssertEqual(policy().logName, "alpha_walking.onnx@27b1f53d1f26")
+        let move = EvalPolicy(kind: .authoredMotion, title: "Vault", identity: nil,
+                              benchPolicyName: "vault", residualIsIdentity: true)
+        XCTAssertEqual(move.spokenLogName, "vault")
     }
 
     /// Nothing app specific may collide with one of their schema keys, because
@@ -133,6 +217,7 @@ final class EvalPolicyTests: XCTestCase {
     func testTheSpecStripCarriesNoneOfTheirOwnSchemaKeys() throws {
         let config = policy().config(embodiment: try embodiment(),
                                      epochs: .single(reducer: .mean), criterion: "x",
+                                     tracing: false,
                                      refusedTerms: [("a", "b")])
         for key in EvalLog.Key.all {
             XCTAssertNil(config[key], "\(key) is one of their schema keys")

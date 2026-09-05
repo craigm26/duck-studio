@@ -115,6 +115,19 @@ public struct EvalTrace: Equatable, Sendable {
         "The bench returns a trajectory for the first drop of each call only, capped at 500 "
       + "ticks. That one episode is the only one anybody could watch, so it is the only one a "
       + "verdict was offered on."
+
+    /// The other route, said where the sentence above would be a description of
+    /// a mechanism the run did not use.
+    ///
+    /// A GRID CELL IS SCORED BY THE HARNESS AND NOT WATCHED. `/climb` and
+    /// `/chase` answer with the cell's numbers and no ticks, so there is no
+    /// recording, the verdict toggle has nothing to offer a person, and
+    /// `total_steps` is zero. A log that carried the trace sentence anyway
+    /// would be claiming an episode existed that nobody could produce.
+    public static let noTraceOnAGridSaid =
+        "Nothing was recorded to watch. A grid cell is scored by the harness, which answers with "
+      + "the cell's own numbers and no trajectory, so there is no episode to play and no verdict "
+      + "to give on one."
 }
 
 /// What a person made of the one trial they watched.

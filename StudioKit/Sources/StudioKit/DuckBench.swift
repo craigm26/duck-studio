@@ -733,7 +733,7 @@ public enum DuckBench {
             policy: top["policy"] as? String ?? "unknown",
             episodes: episodes,
             standing: top["standing"] as? Int ?? 0,
-            criterion: top["criterion"] as? String ?? "unstated",
+            criterion: top["criterion"] as? String ?? criterionUnstated,
             travelled: top["travelled"] as? Double ?? 0,
             terms: terms,
             perDrop: (top["perDrop"] as? [[String: Any]] ?? []).compactMap {
@@ -774,16 +774,27 @@ public enum DuckBench {
     /// `twist` would be a duck standing perfectly still for one frame, which is
     /// exactly the kind of invented number the rest of this file exists to
     /// refuse.
+    ///
+    /// AND DROPPING ONE DROPS THE WHOLE TRACE, which is the same rule `doubles`
+    /// below keeps for a row. A trace one tick short is not a shorter
+    /// recording: its count is what an evaluation writes as `ticks_reported`,
+    /// sums into `total_steps`, tests against the bench's 500 tick cap and
+    /// divides by the tick rate to get a duration. All four would quietly be
+    /// about a different episode from the one the bench ran, and none of them
+    /// would look wrong.
     static func readTicks(_ raw: Any?) -> [Tuned.Tick]? {
         guard let rows = raw as? [[String: Any]] else { return nil }
-        let ticks: [Tuned.Tick] = rows.compactMap {
-            guard let root = doubles($0["root"]), let qvel = doubles($0["qvel"]),
-                  let twist = doubles($0["twist"]), let joints = doubles($0["joints"]),
-                  let action = doubles($0["action"]), let command = doubles($0["command"]) else {
+        var ticks: [Tuned.Tick] = []
+        ticks.reserveCapacity(rows.count)
+        for row in rows {
+            guard let root = doubles(row["root"]), let qvel = doubles(row["qvel"]),
+                  let twist = doubles(row["twist"]), let joints = doubles(row["joints"]),
+                  let action = doubles(row["action"]),
+                  let command = doubles(row["command"]) else {
                 return nil
             }
-            return Tuned.Tick(root: root, qvel: qvel, twist: twist,
-                              joints: joints, action: action, command: command)
+            ticks.append(Tuned.Tick(root: root, qvel: qvel, twist: twist,
+                                    joints: joints, action: action, command: command))
         }
         return ticks.isEmpty ? nil : ticks
     }
@@ -1024,6 +1035,26 @@ public enum DuckBench {
     /// two hand-built scenes will not collide by accident, short enough to sit
     /// in a caption. The whole digest is kept; only the printing is shortened.
     static let digestShown = 12
+
+    /// What the readers below put where a bench sent no criterion.
+    ///
+    /// IT IS SPELLED ONCE BECAUSE IT IS A HOLE AND NOT A SENTENCE. Three
+    /// answers carry a `criterion`, the bench's own words for what ending
+    /// standing means, and three readers defaulted it to this word
+    /// independently. An evaluation log quotes that field under "in the bench's
+    /// own words", so a bench that said nothing had this app's placeholder
+    /// published as its own sentence, and the writer's rule that a log without
+    /// a criterion is not written could never fire. Anything that has to tell a
+    /// stated criterion from an absent one asks `statedCriterion`.
+    public static let criterionUnstated = "unstated"
+
+    /// The bench's own criterion, or nil where there was not one.
+    public static func statedCriterion(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed != criterionUnstated else { return nil }
+        return value
+    }
 
     /// Which world a run happened in, in one sentence — or plainly that
     /// nothing recorded it.
@@ -1304,7 +1335,7 @@ public enum DuckBench {
               let rollouts = root["rollouts"] as? Int,
               let achieves = root["achieves"] as? Int else { throw ReadError.notJSON }
         return Success(policy: policy, rollouts: rollouts, achieves: achieves,
-                       criterion: root["criterion"] as? String ?? "unstated",
+                       criterion: root["criterion"] as? String ?? criterionUnstated,
                        randomised: root["randomised"] as? String,
                        medianHeight: root["medianHeight"] as? Double)
     }
