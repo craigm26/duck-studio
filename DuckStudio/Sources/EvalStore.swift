@@ -112,6 +112,13 @@ final class EvalStore: ObservableObject {
     func reload() {
         var found: [(file: EvalLogFile, when: Date)] = []
         var bad = 0
+        landingNames = [:]
+        // THE SHELF IS RE READ AND THE LAST REFUSAL GOES WITH IT. It used to
+        // outlive whatever raised it: one cancelled import put a sentence under
+        // every successful one for the rest of the launch. Whoever raises a
+        // refusal after this says so after this, which is why `delete` assigns
+        // its own on the far side of the reload.
+        failure = nil
 
         for url in jsonFiles(in: directory) {
             guard let data = try? Data(contentsOf: url) else { bad += 1; continue }
@@ -126,8 +133,16 @@ final class EvalStore: ObservableObject {
         for url in jsonFiles(in: receivedDirectory) {
             guard let data = try? Data(contentsOf: url) else { bad += 1; continue }
             do {
-                found.append((try EvalLogFile.imported(data, named: url.lastPathComponent),
-                              landed(url)))
+                let file = try EvalLogFile.imported(data, named: url.lastPathComponent)
+                // THE NAME ON DISK IS REMEMBERED HERE BECAUSE IT CANNOT BE
+                // REBUILT. `importedName` has been through `EvalText.foreign`,
+                // which trims, strips control characters and caps at 240, so a
+                // path assembled back out of it points at nothing for exactly
+                // the arrival names those rules changed, and delete then did
+                // nothing at all, silently, in a feature whose rule is that
+                // every refusal has words.
+                landingNames[file.name] = url.lastPathComponent
+                found.append((file, landed(url)))
             } catch {
                 bad += 1
             }
@@ -137,11 +152,24 @@ final class EvalStore: ObservableObject {
         unreadable = bad == 0 ? nil : bad
     }
 
+    /// An imported log's name on the shelf, against the file name its bytes
+    /// actually landed under in `received/`. Rebuilt by every `reload`.
+    private var landingNames: [String: String] = [:]
+
+    /// THE EXTENSION IS COMPARED IN ONE CASE, which `PolicyLibrary` and
+    /// `LibraryModel` already do for `onnx`. `.fileImporter` matches a UTI's
+    /// extension without regard to case, so `LOG.JSON`, an ordinary name off a
+    /// desktop, passed the picker, passed the reader, was copied into the
+    /// container, and then matched nothing here: not a row, and not part of the
+    /// unreadable count that exists so a swallowed file is a number on screen
+    /// rather than silence.
     private func jsonFiles(in folder: URL) -> [URL] {
         let urls = (try? FileManager.default.contentsOfDirectory(
             at: folder, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
-        return urls.filter { $0.pathExtension == "json" }
+        return urls.filter { $0.pathExtension.lowercased() == Self.jsonExtension }
     }
+
+    private static let jsonExtension = "json"
 
     private func landed(_ url: URL) -> Date {
         (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?
@@ -158,6 +186,10 @@ final class EvalStore: ObservableObject {
     /// instead of one of them disappearing.
     @discardableResult
     func save(_ file: EvalLogFile) -> Bool {
+        // THE LAST REFUSAL IS CLEARED BY THE NEXT SUCCESS, not left under the
+        // shelf for the rest of the launch. One cancelled import used to put a
+        // sentence under every later import that worked.
+        failure = nil
         do {
             try FileManager.default.createDirectory(at: directory,
                                                     withIntermediateDirectories: true)
@@ -192,13 +224,14 @@ final class EvalStore: ObservableObject {
     func importLog(at url: URL) -> Bool {
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        failure = nil
         do {
             let data = try Data(contentsOf: url)
             // Read first, so an unreadable file is refused rather than stored.
             _ = try EvalLogFile.imported(data, named: url.lastPathComponent)
             try FileManager.default.createDirectory(at: receivedDirectory,
                                                     withIntermediateDirectories: true)
-            let safe = ExportFile.safeName(url.lastPathComponent) ?? url.lastPathComponent
+            let safe = landingName(for: url)
             let landing = receivedDirectory.appendingPathComponent(safe)
             guard !FileManager.default.fileExists(atPath: landing.path) else {
                 throw EvalShelfRefusal.alreadyOnTheShelf(EvalText.foreign(safe))
@@ -212,22 +245,57 @@ final class EvalStore: ObservableObject {
         }
     }
 
+    /// What an arriving file is called once it is inside the container: the
+    /// name it came with, made safe, and always ending in a lower case `.json`.
+    ///
+    /// THE EXTENSION IS NORMALISED ON THE WAY IN so the listing above and the
+    /// picker that admitted the file agree about what a log is called.
+    private func landingName(for url: URL) -> String {
+        let safe = ExportFile.safeName(url.lastPathComponent) ?? url.lastPathComponent
+        guard safe.lowercased().hasSuffix(".\(Self.jsonExtension)") else {
+            return safe + ".\(Self.jsonExtension)"
+        }
+        let stem = safe.dropLast(Self.jsonExtension.count)
+        return stem + Self.jsonExtension
+    }
+
     // MARK: - putting one down
 
     /// Take a log off the shelf. The only edit this store has: a log cannot be
     /// changed, and deleting it is not changing it.
+    ///
+    /// AND IT SAYS SO WHEN IT COULD NOT. A `try?` here meant a delete that
+    /// found nothing at the path put the row straight back with no sentence
+    /// anywhere, which reads as a control that ignored the swipe.
     func delete(_ file: EvalLogFile) {
-        let url = location(of: file)
-        try? FileManager.default.removeItem(at: url)
+        var refusal: String?
+        do {
+            try FileManager.default.removeItem(at: location(of: file))
+        } catch {
+            refusal = EvalMessage.of(error)
+        }
+        // AFTER THE RELOAD, WHICH CLEARS THE LAST ONE. A refusal set before it
+        // would be wiped by the very listing that proves the row came back.
         reload()
+        failure = refusal
     }
 
     /// Where a log's bytes are, which is decided by where it came from.
+    ///
+    /// AN IMPORTED LOG IS FOUND BY THE NAME IT LANDED UNDER, remembered by
+    /// `reload`, rather than by rebuilding one from `importedName`: that string
+    /// has been capped and stripped for a screen, and a path built back out of
+    /// it missed every arrival name those rules changed. The rebuild is kept as
+    /// the fallback for a file this store has not listed, where it is the only
+    /// guess available and a wrong one now reports itself.
     func location(of file: EvalLogFile) -> URL {
         switch file.origin {
         case .written:
             return directory.appendingPathComponent(file.name)
         case .imported:
+            if let landing = landingNames[file.name] {
+                return receivedDirectory.appendingPathComponent(landing)
+            }
             let name = file.importedName ?? file.name
             return receivedDirectory.appendingPathComponent(
                 ExportFile.safeName(name) ?? file.name)
@@ -236,8 +304,10 @@ final class EvalStore: ObservableObject {
 
     // MARK: - what a person reads
 
-    /// The two counts a Compare row needs before it decides whether to offer
-    /// itself, kept here so a view never filters the shelf twice.
+    /// The whole shelf, named so a Compare row does not reach past the store
+    /// for it. It filters nothing: which two logs can actually be put side by
+    /// side is `EvalCompare.checked`'s answer and it needs both files to say
+    /// so, which is why the row it gates only asks whether there are two.
     var comparable: [EvalLogFile] { files }
 }
 

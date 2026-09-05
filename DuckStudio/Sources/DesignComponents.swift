@@ -897,6 +897,14 @@ enum Haptic {
     /// A behaviour started — something is now moving.
     static func behaviourStarted() { impact(medium) }
 
+    /// A stop was asked for and the thing it stops has not finished yet.
+    ///
+    /// IT IS THE ONLY ANSWER A STOP CAN GIVE IMMEDIATELY. An evaluation stops
+    /// at the end of the scene it is in, which is up to fifty seconds away, and
+    /// a control that does nothing a person can feel for fifty seconds is a
+    /// control they press again.
+    static func stopRequested() { impact(medium) }
+
     /// The stick is against its limit; pushing further will not do more.
     static func stickAtLimit() { impact(rigid) }
 

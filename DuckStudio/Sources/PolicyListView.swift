@@ -408,8 +408,8 @@ struct PolicyListView: View {
     /// networks. But it is the same question a person asks here, "what have
     /// other people published", and burying the only published things in this
     /// app that can be scored against their own leaderboards inside another tab
-    /// is how a shelf goes unread. It is the one row in this section that
-    /// leaves the tab, so it is a `Button` on the router rather than a
+    /// is how a shelf goes unread. It is one of the two rows in this section
+    /// that leave the tab, so it is a `Button` on the router rather than a
     /// `NavigationLink`: pushing Studio's screen onto the Behaviours stack
     /// would be a second copy of it, on a stack where its own Back button lies
     /// about where you came from.
@@ -443,9 +443,9 @@ struct PolicyListView: View {
             } label: {
                 // A BUTTON IN A LIST DRAWS NO CHEVRON, so it is put back by
                 // hand. The row leads out of this tab entirely, which is more
-                // of a journey than the two above it and not less — and a row
-                // that looks inert beside two that look tappable reads as a
-                // heading rather than as a door.
+                // of a journey than the two catalogue rows above it and not
+                // less, and a row that looks inert beside two that look
+                // tappable reads as a heading rather than as a door.
                 HStack(alignment: .center, spacing: Theme.spacing(.tight)) {
                     VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
                         Label {

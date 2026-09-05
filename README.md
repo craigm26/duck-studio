@@ -351,7 +351,7 @@ and the two things a run swaps are the **policy** and the **embodiment**.
 theirs.** An iPhone cannot run Python, so nothing here is inspect-robots
 executing; a log this app wrote says so in its own `inspect_robots_version`,
 which reads `none; written by Microduck Studio ...` rather than a version
-number, and that string is what their report prints verbatim in its footer. They
+number, and that string is what their report prints verbatim in its header. They
 have not reviewed, endorsed or been consulted about any of this.
 
 What the borrowing buys is that a file leaving this phone is a file their library

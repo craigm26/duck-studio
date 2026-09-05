@@ -92,6 +92,7 @@ struct EvalLogDetailView: View {
             metrics
             scenes
             errors
+            fromTheFileStats
             whatThisIsNot
             shareIt
             publishIt
@@ -179,15 +180,16 @@ struct EvalLogDetailView: View {
             // A SEED IS SHOWN AS THE FILE HAS IT AND NEVER EXPLAINED AWAY. Our
             // own logs carry none, and the sentence for that is the app's; a
             // log that does carry one came from a run somewhere else that had
-            // one, and its own sentence says exactly that.
+            // one, and its own sentence says exactly that. There is one chooser
+            // between the two, in the kit, and it has a third answer this
+            // screen had no room for: a log from elsewhere with no seed gets
+            // nothing, because "no route on this bench reads one" is a claim
+            // about this bench and nobody here ran that file.
             if let seed = log.eval.seed {
                 TelemetryRow(label: EvalLog.Key.seed, value: String(seed))
-                Text(EvalLogFile.foreignSeedSaid)
-                    .font(.caption)
-                    .foregroundStyle(Theme.textTertiary)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else {
-                Text(EvalEmbodiment.notSeedable)
+            }
+            if let said = EvalReport.seedSaid(log) {
+                Text(said)
                     .font(.caption)
                     .foregroundStyle(Theme.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -330,10 +332,18 @@ struct EvalLogDetailView: View {
                 } else {
                     epochGrid(sample)
                 }
-                Text(EvalReport.spreadSaid(spread(sample)))
-                    .font(.caption)
-                    .foregroundStyle(Theme.textTertiary)
-                    .fixedSize(horizontal: false, vertical: true)
+                // THE SPREAD SENTENCE IS THE SCENE'S AND NOT A LIST OF NUMBERS
+                // WITH A CLAIM ATTACHED. The kit reads the axis off the scene
+                // itself, so a grid cell, which is one episode with no drop
+                // height, is not told that the drop height changed nothing;
+                // and one epoch agreeing with itself says nothing at all.
+                if let name = EvalReport.ordered(scorerNames(sample)).first,
+                   let said = EvalReport.spreadSaid(sample, scorer: name) {
+                    Text(said)
+                        .font(.caption)
+                        .foregroundStyle(Theme.textTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 verdicts(sample)
             } header: {
                 SectionHeading(text: EvalText.foreign(sample.sceneID))
@@ -362,12 +372,12 @@ struct EvalLogDetailView: View {
                     Text(EvalLog.Key.epochs)
                         .font(.caption2.monospaced())
                         .foregroundStyle(Theme.textTertiary)
-                        .frame(width: Self.scorerColumn, alignment: .leading)
+                        .frame(width: scorerColumn, alignment: .leading)
                     ForEach(sample.epochs.indices, id: \.self) { index in
                         Text(columnHead(sample, index))
                             .font(.caption2.monospacedDigit())
                             .foregroundStyle(Theme.textTertiary)
-                            .frame(width: Self.cellColumn, alignment: .trailing)
+                            .frame(width: cellColumn, alignment: .trailing)
                     }
                 }
                 ForEach(scorerNames(sample), id: \.self) { name in
@@ -375,15 +385,25 @@ struct EvalLogDetailView: View {
                         Text(EvalText.foreign(name))
                             .font(.caption.monospaced())
                             .foregroundStyle(Theme.textSecondary)
-                            .frame(width: Self.scorerColumn, alignment: .leading)
+                            .frame(width: scorerColumn, alignment: .leading)
                         ForEach(sample.epochs.indices, id: \.self) { index in
                             Text(cell(sample, index, name))
                                 .font(.caption.monospacedDigit())
                                 .foregroundStyle(sample.epochs[index].isEmpty
                                                  ? Theme.refused : Theme.measured)
-                                .frame(width: Self.cellColumn, alignment: .trailing)
+                                .frame(width: cellColumn, alignment: .trailing)
                         }
                     }
+                    // ONE ELEMENT PER SCORER, NOT ONE PER CELL. VoiceOver walked
+                    // the table cell by cell and read "1, 1, 0" with nothing
+                    // saying which epoch or which drop height each belonged to,
+                    // and the card layout that carries those labels is only
+                    // reached at accessibility text sizes. The kit pairs every
+                    // cell with its own column head, and names the empty ones,
+                    // because a silence in that list reads as a zero.
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(Text(EvalText.foreign(name)))
+                    .accessibilityValue(Text(EvalReport.spokenEpochs(sample, scorer: name)))
                 }
             }
             .padding(.vertical, Theme.spacing(.hairline))
@@ -414,8 +434,19 @@ struct EvalLogDetailView: View {
         }
     }
 
-    private static let scorerColumn: CGFloat = 132
-    private static let cellColumn: CGFloat = 76
+    /// The two column widths, in points at the default text size.
+    ///
+    /// `@ScaledMetric` AND NOT A CONSTANT, which is the fix `BenchView`'s
+    /// `sigmaWidth` and `IntentListView`'s `angleColumn` both already carry: a
+    /// hard 132 held about eighteen monospaced characters at Large and twelve
+    /// at xxxLarge, so `peak_above_tread_mm` and `closest_approach_mm` were
+    /// clipped at the DEFAULT size and `travelled_m` against
+    /// `net_displacement_m` became two stubs on the one table that says which
+    /// reading is which. The width still has to be a width rather than a
+    /// minimum, because a column that grows per row is a table whose columns no
+    /// longer line up under their own heads.
+    @ScaledMetric(relativeTo: .caption) private var scorerColumn: CGFloat = 152
+    @ScaledMetric(relativeTo: .caption) private var cellColumn: CGFloat = 76
 
     /// Every scorer either the reduced values or any epoch carries, in reading
     /// order.
@@ -439,14 +470,6 @@ struct EvalLogDetailView: View {
             return sample.epochs[index].isEmpty ? EvalReport.statusShown(.error) : ""
         }
         return EvalReport.number(value)
-    }
-
-    /// The values the spread sentence is about: the success scorer's, because
-    /// that is the one a flat grid would be read as a distribution of.
-    private func spread(_ sample: EvalLog.Sample) -> [Double] {
-        let name = EvalReport.ordered(scorerNames(sample)).first
-        guard let name else { return [] }
-        return sample.epochs.compactMap { $0[name] }
     }
 
     /// The verdicts recorded beside this scene's trials, if anybody watched
@@ -534,6 +557,15 @@ struct EvalLogDetailView: View {
 
     /// Every claim this log does not make, in one list so nothing can be added
     /// to the screen without being added to the reading.
+    ///
+    /// THE FIRST PERSON HALF IS THE KIT'S AND IT IS CHOSEN BY THE FILE. "No
+    /// frames were stored", "nothing here timed the policy", "the terms under
+    /// each trial are the bench's" are all this app describing its own bench,
+    /// and this screen printed them over imported logs too, including two that
+    /// the file's own stats flatly contradicted. `EvalReport.caveats(for:)`
+    /// returns nothing for a log this app did not write, and picks the
+    /// recording sentences by route for one it did, so a grid is not described
+    /// as having recorded a trajectory it never had.
     private var caveats: [String] {
         var lines: [String] = []
         // THE TWO MACHINE FACTS, NOT THE IDENTITY STRING. `DuckBench.plantSaid`
@@ -543,12 +575,7 @@ struct EvalLogDetailView: View {
         lines.append(DuckBench.plantSaid(
             name: log.eval.embodimentInfo[EvalMeta.plantName]?.stringValue,
             digest: log.eval.embodimentInfo[EvalMeta.plantDigest]?.stringValue))
-        lines.append(EvalRun.stepCountsSaid)
-        lines.append(EvalRun.erroredNotScoredSaid)
-        lines.append(EvalScorer.termsAreNotScoresSaid)
-        lines.append(EvalRun.noFramesSaid)
-        lines.append(EvalRun.noLatencySaid)
-        lines.append(EvalScorer.notEmittedHere)
+        lines.append(contentsOf: EvalReport.caveats(for: file))
         if let challenge = EvalReport.challenge(log) {
             lines.append(EvalReport.leaderboardIsTheChallengeScreen)
             lines.append(challenge.realDuckCaveat)
@@ -559,6 +586,34 @@ struct EvalLogDetailView: View {
         lines.append(EvalText.notTheirRender)
         lines.append(Provenance.independenceShort)
         return lines
+    }
+
+    /// The two `stats` fields this app never fills, drawn only when the file
+    /// that arrived does fill them.
+    ///
+    /// A LABEL AND THE FILE'S OWN VALUE, WITH NO SENTENCE OF OURS OVER IT. The
+    /// page used to assert that nothing timed the policy and no frames were
+    /// stored, over files whose `mean_inference_latency_s` and `frames_dir`
+    /// said otherwise two sections up.
+    @ViewBuilder private var fromTheFileStats: some View {
+        if log.stats.meanInferenceLatencySeconds != nil || log.stats.framesDir != nil {
+            Section {
+                if let latency = log.stats.meanInferenceLatencySeconds {
+                    TelemetryRow(label: EvalReport.latencyLabel,
+                                 value: EvalReport.number(latency, places: 4))
+                }
+                if let frames = log.stats.framesDir {
+                    TelemetryRow(label: EvalReport.framesLabel,
+                                 value: EvalText.foreign(frames))
+                }
+            } footer: {
+                Text(EvalLogFile.fromTheFile)
+                    .font(.caption)
+                    .foregroundStyle(Theme.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .listRowBackground(Theme.surfacePrimary)
+        }
     }
 
     // MARK: - share
@@ -632,10 +687,19 @@ struct EvalLogDetailView: View {
     @ViewBuilder private var publishIt: some View {
         if file.canPublish {
             Section {
-                SecureField("hf_", text: $token)
+                // THE FIVE WORDS OF THIS FORM ARE THE KIT'S, like every other
+                // word on this screen. They were typed here in shapes
+                // `check_stage_sentences.sh` could not see, which is how a file
+                // whose header says it draws no sentence of its own shipped
+                // four of them; the guard reads those shapes now.
+                SecureField(EvalScreen.tokenFieldSaid, text: $token)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
-                Button("Check this token") { Task { await check() } }
+                    // A PLACEHOLDER IS NOT A LABEL. VoiceOver reads the
+                    // placeholder, so the field announced itself as "hf",
+                    // which names nothing.
+                    .accessibilityLabel(Text(EvalScreen.tokenLabelSaid))
+                Button(EvalScreen.checkThisTokenSaid) { Task { await check() } }
                     .disabled(token.trimmingCharacters(in: .whitespaces).isEmpty || busy)
                 if let account {
                     Label(HuggingFacePublish.publishingAs(account),
@@ -643,14 +707,27 @@ struct EvalLogDetailView: View {
                         .font(.footnote)
                         .foregroundStyle(Theme.success)
                 }
-                Toggle("Private repository", isOn: $isPrivate)
+                Toggle(EvalScreen.privateRepositorySaid, isOn: $isPrivate)
+                // PUBLIC IS A CAVEAT AND PRIVATE IS NOT, the distinction
+                // `StairsSubmitView` draws: one of these is reversible and the
+                // other is not. It is a row and not the section's footer,
+                // because a footer is drawn on the list's own ground, where
+                // `Theme.warning` measures 4.25:1 and owes 4.5:1; on the card
+                // this row sits on it clears.
+                if !isPrivate {
+                    Label(HuggingFacePublish.publicWarning,
+                          systemImage: "exclamationmark.triangle")
+                        .font(.caption)
+                        .foregroundStyle(Theme.warning)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 filePreviews
                 Button {
                     Task { await publish() }
                 } label: {
                     HStack(spacing: Theme.spacing(.tight)) {
-                        Text(isPrivate ? "Commit to a private dataset"
-                                       : "Commit to a public dataset")
+                        Text(isPrivate ? EvalScreen.commitPrivateSaid
+                                       : EvalScreen.commitPublicSaid)
                             .frame(maxWidth: .infinity)
                         if busy { ProgressView() }
                     }
@@ -671,17 +748,6 @@ struct EvalLogDetailView: View {
                 }
             } header: {
                 SectionHeading(text: EvalScreen.publishItHeading)
-            } footer: {
-                // PUBLIC IS A CAVEAT AND PRIVATE IS NOT, the distinction
-                // `StairsSubmitView` draws: one of these is reversible and the
-                // other is not, and a person skimming a form reads the shape
-                // before the words.
-                if !isPrivate {
-                    Label(HuggingFacePublish.publicWarning,
-                          systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(Theme.warning)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
             }
             .listRowBackground(Theme.surfacePrimary)
         } else {

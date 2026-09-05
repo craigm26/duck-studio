@@ -46,6 +46,10 @@ struct StudioHubView: View {
     /// store, shared, for the same reason `benches` is: the shelf is one shelf,
     /// and a second store would be a second answer to what is on it.
     @ObservedObject var evals: EvalStore
+    /// The one evaluation runner, held as high as the shelf it files into. A
+    /// runner owned by the screen that starts a run is a run that dies with
+    /// that screen, which is what `DuckStudioApp` explains where it is made.
+    @ObservedObject var evalRunner: EvalRunner
 
     /// ROOM CAPTURE IS THE ONE ROW HERE THAT NEEDS A CAMERA TO EXIST AT ALL,
     /// so this screen reads the door too. The ghost duck and soccer are not in
@@ -280,11 +284,12 @@ struct StudioHubView: View {
     /// The screen behind one of the six places another tab may name.
     ///
     /// IT IS THE ROWS' DESTINATION TOO, WHICH IS THE POINT. A route that built
-    /// its own copy of `AutomationChatView` would be a second wiring of the six
-    /// stores, and the failure mode of a second wiring is not a crash: it is a
-    /// Draft screen with a different `EndpointStore` behind it, drafting against
-    /// a model the rest of the app has not got. `DriveView`'s own comment about
-    /// `models:` is the same bug, already paid for once.
+    /// its own copy of `AutomationChatView` would be a second wiring of the
+    /// seven stores and the runner beside them, and the failure mode of a
+    /// second wiring is not a crash: it is a Draft screen with a different
+    /// `EndpointStore` behind it, drafting against a model the rest of the app
+    /// has not got. `DriveView`'s own comment about `models:` is the same bug,
+    /// already paid for once.
     @ViewBuilder private func place(_ destination: StudioDestination) -> some View {
         switch destination {
         case .motions:
@@ -303,7 +308,7 @@ struct StudioHubView: View {
                               models: models, benches: benches)
         case .evaluations:
             EvalListView(model: model, benches: benches, drafts: drafts,
-                         scenes: scenes, evals: evals)
+                         scenes: scenes, evals: evals, runner: evalRunner)
         }
     }
 

@@ -49,6 +49,14 @@ struct EvalRunView: View {
         .background(Theme.backgroundSecondary)
         .navigationTitle(runner.task?.name ?? EvalTask.rowTitle)
         .navigationBarTitleDisplayMode(.inline)
+        // THE VERDICT QUEUE ONLY GROWS WHILE SOMETHING CAN DRAIN IT, and the
+        // only thing that can is the sheet this screen presents. The runner
+        // outlives this screen, so a queue filled after somebody walked away
+        // would be a run that never filed its log: the guard on the write is
+        // "nothing left to judge", and nothing could ever answer. Leaving says
+        // so, which files what was measured with the rest unjudged.
+        .onAppear { runner.somebodyIsWatching() }
+        .onDisappear { runner.nobodyIsWatching() }
         // THE VERDICT SHEET IS PRESENTED ON THE TRIAL, NOT ON A `Bool`. An
         // identity per trial is what makes the stage, the playhead and the
         // note start again for each one; a Bool with the trial read out of the
@@ -242,12 +250,20 @@ struct EvalRunView: View {
     /// a second tap is a no operation rather than an error, and a Stop that
     /// greyed itself out the moment it was pressed would leave somebody
     /// watching physics they have already said they do not want.
+    ///
+    /// THE WORD CHANGES, WHICH IS THE ONLY ACKNOWLEDGEMENT AVAILABLE. A scene
+    /// is one request and the flag is read at the end of it, so for up to fifty
+    /// seconds after the tap the progress row goes on saying the run is going.
+    /// The button said "Stop" throughout, and the reading of a control that
+    /// answers nothing is that the tap was missed.
     private var stopIt: some View {
         Section {
             Button(role: .destructive) {
                 runner.stop()
             } label: {
-                Text(EvalScreen.stopSaid).frame(maxWidth: .infinity)
+                Text(runner.stopped ? EvalScreen.stoppingAfterThisSceneSaid
+                                    : EvalScreen.stopSaid)
+                    .frame(maxWidth: .infinity)
             }
         } footer: {
             Text(EvalTask.stopIsNotAFailure)

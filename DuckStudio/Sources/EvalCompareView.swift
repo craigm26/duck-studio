@@ -23,6 +23,8 @@ import StudioKit
 struct EvalCompareView: View {
     @ObservedObject var evals: EvalStore
 
+    @Environment(\.dynamicTypeSize) private var typeSize
+
     @State private var leftName: String?
     @State private var rightName: String?
 
@@ -109,18 +111,47 @@ struct EvalCompareView: View {
     /// the other cell with a zero would turn it into a result.
     private func rows(_ comparison: EvalCompare) -> some View {
         Section {
+            // HOW MUCH OF EACH RUN THERE IS, BEFORE ANY OF ITS NUMBERS. A run
+            // somebody stopped is filed with the scenes that finished and none
+            // of the ones that never started, so one of these columns can be a
+            // mean over one scene and the other a mean over twelve, and the
+            // screen said which nowhere: not in the picker, which shows a task
+            // and a file name, and not in the rows, which colour a winner.
+            TelemetryRow(label: EvalScreen.leftSaid,
+                         value: comparison.statusSaid(comparison.left))
+            TelemetryRow(label: EvalScreen.rightSaid,
+                         value: comparison.statusSaid(comparison.right))
+            if let partial = comparison.partialSideSaid() {
+                Text(partial)
+                    .font(.caption)
+                    .foregroundStyle(Theme.warning)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             ForEach(comparison.rows) { row in
                 VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
                     Text(EvalText.foreign(row.name))
                         .font(.footnote.monospaced())
                         .foregroundStyle(Theme.textPrimary)
-                    HStack(spacing: Theme.spacing(.snug)) {
-                        value(row.left, isBetter: row.better == .left)
-                        value(row.right, isBetter: row.better == .right)
-                        Spacer(minLength: Theme.spacing(.tight))
-                        Text(differenceSaid(row))
-                            .font(.caption.monospacedDigit())
+                    if typeSize.isAccessibilitySize {
+                        // THE SENTENCE RATHER THAN THE COLUMNS at a size where
+                        // two numbers and a difference cannot share the width
+                        // of a card, which is the branch the epoch grid on the
+                        // detail screen already takes. It is the same sentence
+                        // a screen reader hears at every size, so the two
+                        // layouts cannot come to say different things.
+                        Text(comparison.spoken(row))
+                            .font(.caption)
                             .foregroundStyle(Theme.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } else {
+                        HStack(spacing: Theme.spacing(.snug)) {
+                            value(row.left, isBetter: row.better == .left)
+                            value(row.right, isBetter: row.better == .right)
+                            Spacer(minLength: Theme.spacing(.tight))
+                            Text(differenceSaid(row))
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(Theme.textSecondary)
+                        }
                     }
                     if let said = row.said {
                         Text(said)
@@ -130,7 +161,14 @@ struct EvalCompareView: View {
                     }
                 }
                 .padding(.vertical, Theme.spacing(.hairline))
-                .accessibilityElement(children: .combine)
+                // THE FINDING OF THIS SCREEN, OUT LOUD. Combined, the row read
+                // as three unlabelled numbers with no sides and no direction,
+                // and which side a scorer prefers was carried by a colour on
+                // one of them. The kit knows `higherIsBetter`, so it says the
+                // whole row and this draws it.
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(EvalText.foreign(row.name)))
+                .accessibilityValue(Text(comparison.spoken(row)))
             }
             if !comparison.oneSidedRows.isEmpty {
                 Text(EvalCompare.oneSidedSaid)
@@ -151,18 +189,32 @@ struct EvalCompareView: View {
 
     /// One side's number, or an empty cell where that side has none.
     ///
-    /// BETTER IS A COLOUR ON A NUMBER AND NOT A VERDICT. It marks which side
-    /// this one scorer prefers, which the kit only answers for a scorer this
-    /// app knows; a name out of somebody else's task gets no direction at all,
-    /// because a direction guessed would be an opinion about their measurement.
+    /// BETTER IS A WORD AS WELL AS A COLOUR. It marks which side this one
+    /// scorer prefers, which the kit only answers for a scorer this app knows;
+    /// a name out of somebody else's task gets no direction at all, because a
+    /// direction guessed would be an opinion about their measurement. The hue
+    /// alone was the whole finding of this screen carried in a colour, on the
+    /// one row a person acts on, which is what `IntentListView`'s clamp row
+    /// already refuses to do.
     private func value(_ number: Double?, isBetter: Bool) -> some View {
-        Text(number.map { EvalReport.number($0) } ?? "")
-            .font(.footnote.monospacedDigit())
-            .foregroundStyle(isBetter ? Theme.measured : Theme.textPrimary)
-            .frame(width: Self.column, alignment: .trailing)
+        VStack(alignment: .trailing, spacing: 0) {
+            Text(number.map { EvalReport.number($0) } ?? "")
+                .font(.footnote.monospacedDigit())
+                .foregroundStyle(isBetter ? Theme.measured : Theme.textPrimary)
+            if isBetter {
+                Text(EvalCompare.betterMark)
+                    .font(.caption2)
+                    .foregroundStyle(Theme.measured)
+            }
+        }
+        .frame(width: column, alignment: .trailing)
     }
 
-    private static let column: CGFloat = 88
+    /// `@ScaledMetric` for the reason `IntentListView.angleColumn` is one: a
+    /// hard 88 points holds a four character value at Large and nothing at all
+    /// by the top of the ordinary sizes, and the numbers here are the whole
+    /// row. Above the accessibility sizes the columns are gone entirely.
+    @ScaledMetric(relativeTo: .footnote) private var column: CGFloat = 88
 
     private func differenceSaid(_ row: EvalCompare.Row) -> String {
         row.difference.map { EvalReport.number($0) } ?? ""

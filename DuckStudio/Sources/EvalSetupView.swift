@@ -33,10 +33,14 @@ struct EvalSetupView: View {
     @ObservedObject var model: LibraryModel
     @ObservedObject var benches: BenchStore
     @ObservedObject var evals: EvalStore
-    /// `@StateObject` AND NOT `@State`: the runner publishes, and a `@State`
-    /// would hold it without subscribing, so a probe answering would change
-    /// the object and redraw nothing.
-    @StateObject private var runner = EvalRunner()
+    /// HANDED IN AND NOT MADE HERE. It was a `@StateObject` on this screen,
+    /// which meant the run belonged to a view somebody could pop: two taps on
+    /// Back left the bench working for minutes with no Stop anywhere in the
+    /// app, and a run that was still asking for verdicts could never file its
+    /// log, because the queue is drained by a sheet that no longer had a
+    /// screen. It is owned where `EvalStore` is owned now, so this screen sets
+    /// a run up and never holds its life.
+    @ObservedObject var runner: EvalRunner
     @State private var showRun = false
 
     var body: some View {
@@ -54,6 +58,7 @@ struct EvalSetupView: View {
         .navigationTitle(EvalTask.rowTitle)
         .navigationBarTitleDisplayMode(.inline)
         .task {
+            runner.prepare()
             if runner.policyID == nil { runner.policyID = candidates.first?.id }
             await runner.probe(benches: benches)
             Haptic.prepare()
@@ -132,11 +137,19 @@ struct EvalSetupView: View {
                 }
                 .disabled(runner.running)
 
+                // THE LABEL IS THE VALUE AND THE SENTENCE IS THE HINT. This row
+                // is the only statement on the screen of WHICH network is about
+                // to consume three minutes, and it read the plant's sentence in
+                // place of it: a paragraph about the world's sha256, spoken over
+                // the policy's own name and digest. `spokenLogName` is the same
+                // twelve characters said as a person can check them, and the
+                // hint is the policy's sentence rather than the world's.
                 if let policy {
                     Text(policy.logName)
                         .font(.footnote.monospaced())
                         .foregroundStyle(Theme.measured)
-                        .accessibilityLabel(Text(EvalEmbodiment.digestIsIdentitySaid))
+                        .accessibilityLabel(Text(policy.spokenLogName))
+                        .accessibilityHint(Text(EvalPolicy.digestIsIdentitySaid))
                 }
                 // THE SAME SENTENCE, IN THE REFUSAL'S COLOUR WHEN IT IS THE
                 // REASON THERE IS NOTHING TO PICK. A library with no network
@@ -216,7 +229,11 @@ struct EvalSetupView: View {
             }
             .padding(.vertical, Theme.spacing(.hairline))
 
-            if runner.probing { ProgressView() }
+            // NO BARE `ProgressView()` HERE. A spinner with no words is a
+            // spinner VoiceOver reads as nothing at all, which is the rule the
+            // Start section states forty lines down; the probe is reported
+            // there, in words, and saying it twice would teach a person to
+            // read neither.
             if let refusal = runner.embodimentRefusal {
                 paragraph(refusal, tone: Theme.refused, size: .footnote)
             }
@@ -309,7 +326,17 @@ struct EvalSetupView: View {
             }
             .disabled(runner.task?.wantsTrace != true || runner.running)
 
-            paragraph(EvalTrace.firstDropOnlySaid, tone: Theme.textSecondary, size: .caption)
+            // THE REASON UNDER THE TOGGLE IS ABOUT THE ROUTE THAT IS ACTUALLY
+            // SELECTED. `firstDropOnlySaid` describes a trajectory the bench
+            // returns for one drop of each call, which is `/tune` and nothing
+            // else: printed on a grid preset it asserted there was an episode
+            // to watch on exactly the two presets where there is none, under a
+            // control that had disabled itself for that very reason.
+            if runner.task?.wantsTrace == true {
+                paragraph(EvalTrace.firstDropOnlySaid, tone: Theme.textSecondary, size: .caption)
+            } else {
+                paragraph(EvalTrace.noTraceOnAGridSaid, tone: Theme.refused, size: .caption)
+            }
             paragraph(EvalVerdict.recordedNotScoredSaid, tone: Theme.textTertiary,
                       size: .caption)
             paragraph(EvalVerdict.vocabularySaid, tone: Theme.textTertiary, size: .caption)
@@ -324,9 +351,36 @@ struct EvalSetupView: View {
     /// NO START BUTTON BEFORE THE PROBE, which is `StairsRun.hasProbed`'s rule:
     /// a control offered before the bench has said what it can do is a control
     /// that finds out afterwards.
+    ///
+    /// AND NOT DURING A LATER ONE EITHER. `hasProbed` latches on the first
+    /// answer and never clears, so every re-probe, which is every change of
+    /// preset and for a walk preset a real one second episode on the bench,
+    /// drew a live Start button over an embodiment the probe had just set back
+    /// to nil. The tap returned before it set anything and pushed a run screen
+    /// with one heading and nothing under it. This branches on `probing`, which
+    /// is what every sibling screen in this app already gates on.
+    ///
+    /// A RUN IN FLIGHT REPLACES START WITH THE WAY BACK TO IT. The runner
+    /// outlives this screen now, so the honest thing under it is the run that
+    /// is happening rather than a button that silently does nothing.
     private var startIt: some View {
         Section {
-            if !runner.hasProbed {
+            if runner.running {
+                Button {
+                    showRun = true
+                } label: {
+                    Label(runner.task?.name ?? EvalTask.rowTitle,
+                          systemImage: "waveform.path.ecg")
+                }
+                TelemetryRow(label: EvalScreen.scenesSaid, value: scenesCounted)
+                Button(role: .destructive) {
+                    runner.stop()
+                } label: {
+                    Text(runner.stopped ? EvalScreen.stoppingAfterThisSceneSaid
+                                        : EvalScreen.stopSaid)
+                        .frame(maxWidth: .infinity)
+                }
+            } else if runner.probing || !runner.hasProbed {
                 // NO START BUTTON AND NO PROMISE OF ONE while the bench is
                 // still being asked. A spinner with no words is a spinner
                 // VoiceOver reads as nothing at all.
@@ -347,7 +401,11 @@ struct EvalSetupView: View {
                     Text(EvalScreen.startSaid).frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.primaryAction)
-                .disabled(startRefusal != nil || policy == nil || runner.task == nil)
+                // THE EMBODIMENT IS IN THE GATE BECAUSE `start` GUARDS ON IT.
+                // A button whose tap is a no operation is a button that told
+                // somebody something happened.
+                .disabled(startRefusal != nil || policy == nil || runner.task == nil
+                          || runner.embodiment == nil)
                 .accessibilityLabel(Text(EvalTask.rowTitle))
             }
             if let failure = runner.failure {
@@ -360,6 +418,12 @@ struct EvalSetupView: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .listRowBackground(Theme.surfacePrimary)
+    }
+
+    /// Where the run has got to, said the way the run screen and the shelf say
+    /// it, because three answers to one question is two too many.
+    private var scenesCounted: String {
+        "\(runner.scenesDone) of \(runner.scenesTotal)"
     }
 
     private func start() {

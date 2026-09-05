@@ -151,3 +151,81 @@ TuneView.swift|Ends the search after the current episode.
 TuneView.swift|This bench
 TuneView.swift|How long
 TuneView.swift|Result
+
+# BUILD 58: FIVE MORE CALL SHAPES, AND THE DEBT THEY FOUND.
+#
+# The guard read `Text("...")`, `Label("...")` and `SectionHeading(text: "...")`.
+# Its own header said that leaving a shape out would make it trivially
+# avoidable, "a new sentence would simply be typed into the shape the grep
+# cannot see", and by build 58 that had happened: an evaluation publish form
+# shipped four user-visible words in `Button(`, `Toggle(`, `SecureField(` and a
+# `Text(cond ? "..." : "...")` under a green gate. Those four are kit constants
+# now. The grep reads `Button(`, `Toggle(`, `SecureField(`, `TextField(`,
+# `Picker(` and both branches of a ternary as well, and the sixty-two lines
+# below are what it found already there, in files that were already in its list.
+#
+# They are debt made visible on the day the guard could first see it, not
+# permission. The rule is unchanged and so is the direction: THE LIST ONLY
+# SHRINKS.
+DuckStage.swift|Hide the readings
+DuckStage.swift|Show the readings
+DriveView.swift|OK
+DriveView.swift|Where
+DriveView.swift|on
+DriveView.swift|off
+DriveView.swift|Bench
+DriveView.swift|duck.local
+DriveView.swift|World
+DriveView.swift|Pause
+DriveView.swift|Drive
+IntentAuthorView.swift|Panel
+IntentAuthorView.swift|Cancel
+IntentAuthorView.swift|Done
+IntentAuthorView.swift|Author against
+IntentAuthorView.swift|Delete this motion
+IntentAuthorView.swift|Throw it away
+IntentAuthorView.swift|Keep editing
+IntentAuthorView.swift|Delete
+IntentAuthorView.swift|Keep it
+IntentAuthorView.swift|OK
+IntentAuthorView.swift|Name
+IntentAuthorView.swift|A deleted scene
+IntentAuthorView.swift|Editing
+IntentAuthorView.swift|Make the bow deeper. Hold it longer. Look left at the end.
+IntentAuthorView.swift|Show
+MoveSearchView.swift|Move
+MoveSearchView.swift|Rise
+MoveSearchView.swift|When it happens
+MoveSearchView.swift|hold the hips in the second pose
+MoveSearchView.swift|Reading…
+MoveSearchView.swift|Read it
+PadBindSheet.swift|Done
+PadChrome.swift|on
+PadChrome.swift|off
+PadMapSection.swift|Policy
+PolicyRenameSheet.swift|Clear
+PolicyRenameSheet.swift|Cancel
+PolicyRenameSheet.swift|Save
+SequenceKeepSheet.swift|Close
+SequenceKeepSheet.swift|Name
+SequenceKeepSheet.swift|Play it
+SequenceKeepSheet.swift|Keep
+SequenceKeepSheet.swift|Keep on the bench as a Motion
+SequenceKeepSheet.swift|Discard
+SequenceListView.swift|Name
+SequenceListView.swift|Keep the old name
+SequenceListView.swift|Rename
+SequenceListView.swift|Play
+SequenceListView.swift|Keep on the bench as a Motion
+SequenceListView.swift|Delete
+TalkToTheDuckView.swift|Read it
+TalkToTheDuckView.swift|Close
+TalkToTheDuckView.swift|Play it
+ControlShelfChips.swift|Close
+WeightSearchView.swift|OK
+TuneView.swift|Fold into
+TuneView.swift|hold the knees, six generations
+TuneView.swift|Reading…
+TuneView.swift|Read it
+TuneView.swift|Running
+TuneView.swift|What it did

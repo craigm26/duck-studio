@@ -52,9 +52,10 @@ struct EvalEntrant: Identifiable {
 
 /// One evaluation, run over the bench routes the app already speaks.
 ///
-/// MODELLED ON `StairsRun`, WHICH IS THE SHAPE THAT WORKS. Probe first and set
-/// `hasProbed`, so no Start button is drawn before the bench has said what it
-/// can do; one request at a time and never in parallel, because the bench
+/// MODELLED ON `StairsRun`, WHICH IS THE SHAPE THAT WORKS. Probe first, and
+/// draw no Start button while `probing` or before `hasProbed`, so a control is
+/// never offered before the bench has said what it can do or while it is being
+/// asked again; one request at a time and never in parallel, because the bench
 /// serialises anyway and parallel answers arrive in an order that makes a
 /// progress row a lie; a `notYet` carrying the bench's own words for a bench
 /// that lacks the route, and a separate `unreachable` for a bench that did not
@@ -81,10 +82,19 @@ struct EvalEntrant: Identifiable {
 ///     runner.skipJudging()              Skip this one, Stop watching
 ///     runner.judgeable                  the trial the sheet is about, or nil
 ///     runner.finishedFile               the log, once there is one
+///     runner.somebodyIsWatching()       that screen appeared
+///     runner.nobodyIsWatching()         that screen went away
 ///
 /// The log is filed by the runner itself the moment there is nothing left to
 /// judge, because `EvalLogFile.aLogIsFinished` says a log is finished when the
 /// run is and a screen that had to remember to save one would eventually not.
+///
+/// AND THE RUNNER OUTLIVES BOTH SCREENS. It is a `@StateObject` on the app,
+/// beside the shelf it files into, because it was one on the setup screen and a
+/// run therefore died with a view somebody could pop: the bench went on working
+/// with no Stop anywhere, and a run that was still asking for verdicts could
+/// never file its log. The last two calls above are how it knows whether
+/// anything can answer a verdict.
 @MainActor
 final class EvalRunner: ObservableObject {
 
@@ -173,7 +183,25 @@ final class EvalRunner: ObservableObject {
     private var startedAt = Date()
     private var chosenPolicy: EvalPolicy?
     private var chosenEmbodiment: EvalEmbodiment?
+    /// The task as it was at Start, captured for the same reason the policy and
+    /// the embodiment are: the log has to be assembled from what the run
+    /// actually used. `task` is rebuilt whenever a preset changes or a probe
+    /// answers, and a rebuild that failed left the finished run with no task at
+    /// all, which is a run that ended with neither a log nor a sentence.
+    private var chosenTask: EvalTask?
     private var store: EvalStore?
+
+    /// Whether a screen is on hand to put a verdict sheet in front of somebody.
+    ///
+    /// A QUEUE NOBODY CAN ANSWER IS A LOG NOBODY GETS. The log is filed when
+    /// there is nothing left to judge, and the three things that empty the
+    /// queue are all buttons on a sheet the run screen presents. With that
+    /// screen gone the queue could only grow, so the run ended with its
+    /// measurements in memory and nothing on the shelf. Trials queued while
+    /// nobody is watching are simply not queued: a trial nobody judged carries
+    /// no verdict, which is what `null` in their three parallel arrays already
+    /// means.
+    private var watching = false
 
     // MARK: - the verdict queue
 
@@ -205,6 +233,20 @@ final class EvalRunner: ObservableObject {
     @Published private(set) var ballEntrants: [EvalEntrant] = []
 
     init() {
+        rebuildTask()
+    }
+
+    /// The bundle reading this runner needs, done when a screen that can use it
+    /// appears rather than at launch.
+    ///
+    /// IT IS OWNED AS HIGH AS THE SHELF NOW, WHICH IS WHY THIS IS NOT IN
+    /// `init`. Decoding every published entrant of both challenges is thirty
+    /// files, and doing it while the first tab is drawing would spend that on
+    /// every launch for a screen most launches never open. Called from the
+    /// setup screen's `.task`, and idempotent, because a `.task` runs again
+    /// every time that screen comes back.
+    func prepare() {
+        guard stairsEntrants.isEmpty, ballEntrants.isEmpty else { return }
         loadEntrants()
         rebuildTask()
     }
@@ -285,7 +327,13 @@ final class EvalRunner: ObservableObject {
 
     /// Called when the preset changes, which is also when the grid it needs
     /// has to be asked for.
+    ///
+    /// NOT WHILE A RUN IS GOING. Every picker on the setup screen disables
+    /// itself during a run, so this cannot be reached by hand; the guard is
+    /// here because `settle` reassigns the task the run is being filed against
+    /// and a second way in would be a run that changed its own plan halfway.
     func choose(_ preset: EvalPreset, benches: BenchStore) async {
+        guard !running else { return }
         settle(on: preset)
         await probe(benches: benches)
     }
@@ -299,7 +347,16 @@ final class EvalRunner: ObservableObject {
     /// not name the bytes its world was built from. Refusing that in front of
     /// the Start button costs a sentence; refusing it at the writer costs the
     /// minutes the run already spent.
+    ///
+    /// NEVER WHILE A RUN IS GOING, which is what this file's own header
+    /// promises the bench: one request at a time and never in parallel. The
+    /// setup screen's `.task` re-runs whenever that screen reappears, which is
+    /// what backing out of the run screen does, and a probe there sent a real
+    /// one second episode at the address the scene loop was using, nulled the
+    /// embodiment the run reports from, and rebuilt the task the log is filed
+    /// against, while the measurement was still in flight.
     func probe(benches: BenchStore) async {
+        guard !running else { return }
         probing = true
         defer { probing = false; hasProbed = true }
         unreachable = nil
@@ -458,6 +515,10 @@ final class EvalRunner: ObservableObject {
         haltedBy = nil
         scenes = []
         awaitingVerdict = []
+        // START PUSHES THE RUN SCREEN, so somebody is watching from here until
+        // that screen says otherwise. Waiting for its `onAppear` would leave a
+        // scene that answered inside the first frame unqueued.
+        watching = true
         criterion = nil
         refusedTerms = []
         declaredTail = nil
@@ -466,6 +527,7 @@ final class EvalRunner: ObservableObject {
         startedAt = Date()
         chosenPolicy = policy
         chosenEmbodiment = embodiment
+        chosenTask = task
         store = evals
         ranOnBench = benches.selected?.name
         ranOnAddress = benches.selected?.address
@@ -495,7 +557,29 @@ final class EvalRunner: ObservableObject {
         fileIfNothingLeftToJudge()
     }
 
-    func stop() { stopped = true }
+    /// THE TAP IS ANSWERED THE MOMENT IT LANDS, even though the loop reads the
+    /// flag at the end of a scene. `stopped` is published, so the button's own
+    /// word changes with it; the haptic is here rather than in the view because
+    /// both screens that draw a Stop should feel the same.
+    func stop() {
+        guard !stopped else { return }
+        stopped = true
+        Haptic.stopRequested()
+    }
+
+    /// Nobody is on a screen that could present the verdict sheet.
+    ///
+    /// Called when the run screen goes away. Everything queued goes unjudged
+    /// and nothing more is queued, which is exactly what "Stop watching"
+    /// already does, and the log is filed the moment the loop is over.
+    func nobodyIsWatching() {
+        watching = false
+        awaitingVerdict = []
+        fileIfNothingLeftToJudge()
+    }
+
+    /// A screen that can present the sheet is up.
+    func somebodyIsWatching() { watching = true }
 
     /// A halt raised inside a scene, which stops the run after that scene
     /// rather than throwing through the request that found it: the scene that
@@ -582,7 +666,7 @@ final class EvalRunner: ObservableObject {
             return EvalSceneResult(scene: scene, reducer: task.epochs.reducer, trials: [],
                                    error: EvalMessage.of(error))
         }
-        if criterion == nil { criterion = answer.criterion }
+        if criterion == nil { criterion = DuckBench.statedCriterion(answer.criterion) }
         if refusedTerms.isEmpty { refusedTerms = answer.refused }
         if let halt = plantHalt(digest: answer.plantDigest, against: embodiment) {
             pendingHalt = halt
@@ -659,7 +743,7 @@ final class EvalRunner: ObservableObject {
             return EvalSceneResult(scene: scene, reducer: task.epochs.reducer, trials: [],
                                    error: EvalMessage.of(error))
         }
-        if criterion == nil { criterion = climbed.criterion }
+        if criterion == nil { criterion = DuckBench.statedCriterion(climbed.criterion) }
         if let halt = plantHalt(digest: climbed.plantDigest, against: embodiment) {
             pendingHalt = halt
         }
@@ -711,7 +795,7 @@ final class EvalRunner: ObservableObject {
             return EvalSceneResult(scene: scene, reducer: task.epochs.reducer, trials: [],
                                    error: EvalMessage.of(error))
         }
-        if criterion == nil { criterion = chased.criterion }
+        if criterion == nil { criterion = DuckBench.statedCriterion(chased.criterion) }
         if refusedTerms.isEmpty {
             refusedTerms = chased.refused.map { (name: $0.term, why: $0.reason) }
         }
@@ -786,7 +870,7 @@ final class EvalRunner: ObservableObject {
     // MARK: - verdicts
 
     private func queueVerdicts(in trials: [EvalTrial], sceneID: String) {
-        guard wantsVerdicts else { return }
+        guard wantsVerdicts, watching else { return }
         for trial in trials where trial.trace != nil {
             awaitingVerdict.append(EvalTrialAddress(sceneID: sceneID, epoch: trial.epoch))
         }
@@ -850,8 +934,8 @@ final class EvalRunner: ObservableObject {
     /// a file.
     private func fileIfNothingLeftToJudge() {
         guard loopEnded, awaitingVerdict.isEmpty, finishedFile == nil else { return }
-        guard let task = task, let policy = chosenPolicy, let embodiment = chosenEmbodiment,
-              let store else { return }
+        guard let task = chosenTask, let policy = chosenPolicy,
+              let embodiment = chosenEmbodiment, let store else { return }
         guard let criterion else {
             // NO ANSWER MEANS NO FILE AND A SENTENCE INSTEAD, and the sentence
             // is whichever refusal actually happened: the halt, or the first
@@ -864,8 +948,16 @@ final class EvalRunner: ObservableObject {
                           wasCancelled: stopped, haltedBy: haltedBy)
         let file = EvalLogFile.written(run, criterion: criterion, refusedTerms: refusedTerms,
                                        appVersion: Self.marketingVersion, build: Self.build)
-        finishedFile = file
-        store.save(file)
+        // "WHAT IT WROTE" IS A STATEMENT ABOUT THE DISK. `finishedFile` is what
+        // the run screen draws its Open the log and Share section on, and
+        // setting it before the write meant a failed save left that section on
+        // screen, offering a file that was not on the shelf, with the refusal
+        // waiting on another screen entirely.
+        if store.save(file) {
+            finishedFile = file
+        } else {
+            failure = store.failure
+        }
     }
 
     /// READ FROM THE BUNDLE RATHER THAN WRITTEN DOWN, for the reason

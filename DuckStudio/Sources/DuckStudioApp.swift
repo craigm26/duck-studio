@@ -53,8 +53,9 @@ enum AppTab: String, CaseIterable, Identifiable {
 /// Motions, Scenes, Draft with words, Run on your network, the Challenges and
 /// Run a formal evaluation — and they are spelled as cases rather than as view
 /// builders so that the sender does not have to know which view a row opens, or
-/// hold the seven stores that view wants. `StudioHubView` already holds all
-/// seven; it is the only place that should be naming `AutomationChatView`.
+/// hold the seven stores and the one runner that view wants. `StudioHubView`
+/// already holds all eight; it is the only place that should be naming
+/// `AutomationChatView`.
 ///
 /// SIX AND NOT EVERY SCREEN IN THE APP, deliberately. A destination that no
 /// other tab has ever asked to reach is a destination nobody can prove works,
@@ -174,6 +175,20 @@ struct DuckStudioApp: App {
     /// every time somebody leaves the tab, and because the run screen files a
     /// log into the same store the list reads.
     @StateObject private var evals = EvalStore()
+
+    /// The machine that runs one evaluation, held beside the shelf it files
+    /// into rather than inside the screen that sets one up.
+    ///
+    /// A RUN OUTLIVES EVERY SCREEN THAT CAN SEE IT, AND THAT IS THE WHOLE
+    /// REASON IT IS HERE. It was a `@StateObject` on the setup screen: two taps
+    /// on Back destroyed the only reference anything held, while the request
+    /// loop went on spending minutes of somebody's bench with no Stop button
+    /// anywhere in the app, and a run that was still asking for verdicts could
+    /// never file its log, because the queue it waits on is drained by a sheet
+    /// that no longer had a screen to sit on. Nothing that was measured
+    /// survived. Owned here it lives exactly as long as `evals` does, which is
+    /// the store it writes into, so leaving a screen is leaving a screen.
+    @StateObject private var evalRunner = EvalRunner()
 
     /// THE PHYSICS THIS APP SPENT ITS WHOLE LIFE SAYING IT DID NOT HAVE.
     ///
@@ -297,7 +312,7 @@ struct DuckStudioApp: App {
                 NavigationStack {
                     StudioHubView(model: model, scenes: scenes, drafts: drafts,
                                   models: models, benches: benches, plans: plans,
-                                  evals: evals)
+                                  evals: evals, evalRunner: evalRunner)
                 }
                     .tabItem { Label(AppTab.studio.title, systemImage: AppTab.studio.symbol) }
                     .tag(AppTab.studio)
