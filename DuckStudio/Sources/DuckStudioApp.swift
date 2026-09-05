@@ -47,28 +47,30 @@ enum AppTab: String, CaseIterable, Identifiable {
     }
 }
 
-/// The five places inside Studio another tab is allowed to name.
+/// The six places inside Studio another tab is allowed to name.
 ///
 /// A ROUTE IS A PLACE, NOT A SCREEN. These are rows on the Studio root —
-/// Motions, Scenes, Draft with words, Run on your network, and the Challenges
-/// — and they are spelled as cases rather than as view builders so
-/// that the sender does not have to know which view a row opens, or hold the
-/// six stores that view wants. `StudioHubView` already holds all six; it is the
-/// only place that should be naming `AutomationChatView`.
+/// Motions, Scenes, Draft with words, Run on your network, the Challenges and
+/// Run a formal evaluation — and they are spelled as cases rather than as view
+/// builders so that the sender does not have to know which view a row opens, or
+/// hold the seven stores that view wants. `StudioHubView` already holds all
+/// seven; it is the only place that should be naming `AutomationChatView`.
 ///
-/// FIVE AND NOT EVERY SCREEN IN THE APP, deliberately. A destination that no
+/// SIX AND NOT EVERY SCREEN IN THE APP, deliberately. A destination that no
 /// other tab has ever asked to reach is a destination nobody can prove works,
 /// and this enum is the list of the ones that are actually sent to. It grows
 /// when a caller appears, not before — `challenges` arrived with one, the row
 /// in the Behaviours root's discover section, which is the second door onto the
-/// challenges and the reason they are addressable by name at all.
+/// challenges and the reason they are addressable by name at all, and
+/// `evaluations` arrived the same way, with the fourth row in that same
+/// section.
 ///
 /// IT IS `challenges` AND NOT `stairs`, since build 46. The place behind this
 /// case used to be the stairs screen and is now the list of the two challenges;
 /// a case still called `stairs` would have named one of them as if it were the
 /// destination, which is the kind of stale address a router is worst at.
 enum StudioDestination: String, Identifiable, Hashable, CaseIterable {
-    case motions, scenes, draft, measure, challenges
+    case motions, scenes, draft, measure, challenges, evaluations
 
     var id: String { rawValue }
 }
@@ -166,6 +168,12 @@ struct DuckStudioApp: App {
     /// reason `models` is: three screens send work to a bench, and a bench
     /// chosen on one of them is the bench the others should use.
     @StateObject private var benches = BenchStore()
+    /// The evaluation logs on this phone, the ones it wrote and the ones it was
+    /// handed. Held here rather than inside Studio's own screens because a
+    /// shelf built when a screen appears is a shelf that forgets what is on it
+    /// every time somebody leaves the tab, and because the run screen files a
+    /// log into the same store the list reads.
+    @StateObject private var evals = EvalStore()
 
     /// THE PHYSICS THIS APP SPENT ITS WHOLE LIFE SAYING IT DID NOT HAVE.
     ///
@@ -288,7 +296,8 @@ struct DuckStudioApp: App {
                 // verb: authoring something and seeing what physics does to it.
                 NavigationStack {
                     StudioHubView(model: model, scenes: scenes, drafts: drafts,
-                                  models: models, benches: benches, plans: plans)
+                                  models: models, benches: benches, plans: plans,
+                                  evals: evals)
                 }
                     .tabItem { Label(AppTab.studio.title, systemImage: AppTab.studio.symbol) }
                     .tag(AppTab.studio)

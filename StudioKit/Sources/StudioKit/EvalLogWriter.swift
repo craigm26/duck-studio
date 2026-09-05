@@ -336,6 +336,30 @@ public struct EvalLogFile: Equatable, Sendable, Identifiable {
                            wroteIt: EvalLogWriter.wroteIt(version: appVersion, build: build))
     }
 
+    /// A log this app wrote, read back off the disk it was written to.
+    ///
+    /// THE THIRD CONSTRUCTOR, AND IT EXISTS BECAUSE THE OTHER TWO ANSWER
+    /// DIFFERENT QUESTIONS. Coming back after a launch there is no run any
+    /// more, only bytes and a filename, and reading this phone's own
+    /// measurements back through `imported` would put the Imported badge on
+    /// them and turn `canPublish` off, which is this type's own gate answering
+    /// the wrong question.
+    ///
+    /// `wroteIt` COMES OUT OF THE LOG AND NOT OFF THE RUNNING BUILD.
+    /// `eval.inspect_robots_version` was written by whichever build made the
+    /// run, so an archived file keeps saying which one that was rather than
+    /// claiming today's.
+    ///
+    /// THE BYTES ARE THE FILE'S AND ARE NEVER RE ENCODED. A log read back and
+    /// written out again through this app's own encoder would be a different
+    /// file from the one on disk, which is exactly what write once is for.
+    public static func onDisk(_ data: Data, named name: String) throws -> EvalLogFile {
+        let log = try EvalLogReader.read(data)
+        return EvalLogFile(log: log, bytes: data, origin: .written, name: name,
+                           importedName: nil,
+                           wroteIt: EvalRun.wroteItSaid(from: log.eval.inspectRobotsVersion))
+    }
+
     /// A file somebody else wrote, read as strictly as their own reader reads
     /// it. Throws `EvalLogRefusal`, which names the key and the object it sat
     /// in.

@@ -39,6 +39,7 @@ final class EvalStringsTests: XCTestCase {
         ("EvalScorerSet.Refusal.successWithoutMotionEvidence",
          EvalScorerSet.Refusal.successWithoutMotionEvidence("success_at_end").message),
         ("EvalEpochs.noSeedSaid", EvalEpochs.noSeedSaid),
+        ("EvalEpochs.wholeSceneAtOnceSaid", EvalEpochs.wholeSceneAtOnceSaid),
         ("EvalEpochs.noPassAtK", EvalEpochs.noPassAtK),
         ("EvalEpochs.Refusal.noDrops", EvalEpochs.Refusal.noDrops.message),
         ("EvalEpochs.Refusal.outOfRange", EvalEpochs.Refusal.outOfRange.message),

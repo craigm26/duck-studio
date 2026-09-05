@@ -243,11 +243,36 @@ public struct EvalRun: Equatable, Sendable {
       + "a directory that will not exist on the reader's machine is a claim rather than a "
       + "record."
 
+    /// The two fixed clauses `producerSaid` is made of, spelled once so the
+    /// sentence and the reader of it below cannot drift apart. A parser holding
+    /// its own copy of the words it is looking for is a parser that goes on
+    /// finding nothing after somebody improves the sentence.
+    static let producerLead = "none; written by "
+    static let producerTail = ". No inspect-robots ran: an iPhone cannot run Python."
+
     /// `eval.inspect_robots_version`, which their own report prints verbatim in
     /// its footer. A version number there would say a Python library ran.
     public static func producerSaid(version: String, build: String) -> String {
-        "none; written by Microduck Studio \(version) (\(build)). No inspect-robots ran: an "
-      + "iPhone cannot run Python."
+        producerLead + EvalLogWriter.wroteIt(version: version, build: build) + producerTail
+    }
+
+    /// The `Microduck Studio 1.1 (58)` clause back out of a log's own producer
+    /// sentence, or nil for one this app did not write.
+    ///
+    /// IT COMES OUT OF THE LOG AND NOT OFF THE RUNNING BUILD, which is the
+    /// whole point of reading it rather than stamping it: an archived log was
+    /// written by whichever build made the run, and today's version on it would
+    /// make every old file claim to be new. Nil is what
+    /// `EvalReport.shareSentence` turns into `passedOnSaid`, which is the
+    /// honest thing to say about a file that arrived from somewhere else.
+    public static func wroteItSaid(from producer: String) -> String? {
+        guard producer.hasPrefix(producerLead), producer.hasSuffix(producerTail) else {
+            return nil
+        }
+        let start = producer.index(producer.startIndex, offsetBy: producerLead.count)
+        let end = producer.index(producer.endIndex, offsetBy: -producerTail.count)
+        guard start < end else { return nil }
+        return String(producer[start..<end])
     }
 
     // MARK: - how long to wait

@@ -42,6 +42,10 @@ struct StudioHubView: View {
     @ObservedObject var models: EndpointStore
     @ObservedObject var benches: BenchStore
     @ObservedObject var plans: PlanStore
+    /// The evaluation logs this phone wrote and the ones it was handed. One
+    /// store, shared, for the same reason `benches` is: the shelf is one shelf,
+    /// and a second store would be a second answer to what is on it.
+    @ObservedObject var evals: EvalStore
 
     /// ROOM CAPTURE IS THE ONE ROW HERE THAT NEEDS A CAMERA TO EXIST AT ALL,
     /// so this screen reads the door too. The ghost duck and soccer are not in
@@ -51,8 +55,8 @@ struct StudioHubView: View {
 
     /// WHERE THE SECOND HOP LANDS. Behaviours → Retrain means Studio → Draft,
     /// and a router that could only select a tab left somebody on this root
-    /// looking at four rows with nothing saying which of them they had asked
-    /// for. See `AppRouter.pendingStudio`.
+    /// looking at a list of rows with nothing saying which of them they had
+    /// asked for. See `AppRouter.pendingStudio`.
     @EnvironmentObject private var router: AppRouter
 
     var body: some View {
@@ -168,6 +172,30 @@ struct StudioHubView: View {
                 } label: {
                     Label(Challenge.listTitle, systemImage: "trophy")
                 }
+                // THE SIXTH DOOR UNDER MEASURE, AND THE ONLY ONE THAT ENDS IN A
+                // FILE SOMEBODY ELSE'S TOOL READS. Tune, the weight search and
+                // the move search all end on this phone; a challenge ends in a
+                // submission this project's own harness re-scores. This ends in
+                // an EvalLog v1, which is inspect-robots' format, so a number
+                // measured here can be read by a program that has never heard
+                // of this app.
+                //
+                // NOT A SIXTH TAB, AND THE ANSWER IS ALREADY WRITTEN DOWN. The
+                // comment on the fifth tab in `DuckStudioApp` says five is a
+                // HARD CEILING, because iPhone folds anything past it into
+                // "More", where a tab is somewhere people do not go. Anything
+                // that arrives after that has to live inside one of the five,
+                // and measuring is what this section is.
+                //
+                // A `StudioDestination`, like the challenges and unlike Tune,
+                // because a second door names it: the Behaviours root's
+                // discover section routes here by name. See
+                // `AppRouter.pendingStudio`.
+                NavigationLink {
+                    place(.evaluations)
+                } label: {
+                    Label(EvalTask.rowTitle, systemImage: "checklist")
+                }
             } header: {
                 SectionHeading(text: "Measure")
             }
@@ -227,8 +255,8 @@ struct StudioHubView: View {
         // `navigationDestination(item:)` is the one API that takes a two-way
         // binding, so SwiftUI writes `pendingStudio` back to nil when the
         // person taps Back; a `NavigationPath` here would have meant converting
-        // all four rows to `NavigationLink(value:)` and then owning the path's
-        // lifetime, to buy nothing this screen needs.
+        // all six named rows to `NavigationLink(value:)` and then owning the
+        // path's lifetime, to buy nothing this screen needs.
         //
         // ONE DEFINITION OF WHAT A DESTINATION OPENS. Both the row and the
         // route go through `place(_:)`, so Behaviours → Retrain cannot land on
@@ -249,7 +277,7 @@ struct StudioHubView: View {
         }
     }
 
-    /// The screen behind one of the five places another tab may name.
+    /// The screen behind one of the six places another tab may name.
     ///
     /// IT IS THE ROWS' DESTINATION TOO, WHICH IS THE POINT. A route that built
     /// its own copy of `AutomationChatView` would be a second wiring of the six
@@ -273,6 +301,9 @@ struct StudioHubView: View {
         case .challenges:
             ChallengeListView(drafts: drafts, scenes: scenes,
                               models: models, benches: benches)
+        case .evaluations:
+            EvalListView(model: model, benches: benches, drafts: drafts,
+                         scenes: scenes, evals: evals)
         }
     }
 

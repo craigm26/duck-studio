@@ -417,6 +417,13 @@ struct PolicyListView: View {
     /// ITS TWO LINES ARE THE KIT'S, ONE PER CHALLENGE. `Challenge.oneSentence`
     /// is the same sentence the list screen draws, so this door cannot describe
     /// a challenge differently from the screen it opens.
+    ///
+    /// AND A FOURTH ROW, FOR THE SAME REASON THE THIRD ONE IS HERE. A policy is
+    /// the thing an evaluation evaluates, so the door onto one belongs on the
+    /// tab that lists policies. It is built as an `HStack` rather than through
+    /// `door(_:detail:symbol:)`, exactly like the challenges row above it: the
+    /// helper draws no chevron, and a row that leaves this tab entirely must
+    /// not look inert beside two that look tappable.
     private var discover: some View {
         Section {
             NavigationLink { CatalogueView(model: model) } label: {
@@ -463,6 +470,43 @@ struct PolicyListView: View {
                         .foregroundStyle(Theme.textTertiary)
                         // The row already says where it goes; a screen reader
                         // announcing "chevron" adds nothing.
+                        .accessibilityHidden(true)
+                }
+            }
+            .listRowBackground(cardSegment(first: false, last: false))
+            Button {
+                router.go(to: .studio, then: .evaluations)
+            } label: {
+                // THE CHALLENGES ROW'S SHAPE, COPIED RATHER THAN SHARED. Two
+                // rows that leave this tab and one helper that draws neither of
+                // them is the arrangement that would have to grow an argument
+                // for the chevron; the shape is eleven lines and the helper is
+                // used by the two rows above, where it is right.
+                HStack(alignment: .center, spacing: Theme.spacing(.tight)) {
+                    VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
+                        Label {
+                            Text(EvalTask.rowTitle)
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(Theme.textPrimary)
+                        } icon: {
+                            Image(systemName: "checklist")
+                                .foregroundStyle(Theme.actionSecondary)
+                        }
+                        // THE SAME SENTENCE THE SCREEN ITSELF OPENS WITH.
+                        // `EvalTask.doorDetail` forwards to
+                        // `whatAnEvaluationIs`, which is what `EvalListView`
+                        // draws as its preamble, so this door cannot describe
+                        // the place differently from the place.
+                        Text(EvalTask.doorDetail)
+                            .font(.caption)
+                            .foregroundStyle(Theme.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.vertical, Theme.spacing(.hairline))
+                    Spacer(minLength: Theme.spacing(.tight))
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(Theme.textTertiary)
                         .accessibilityHidden(true)
                 }
             }

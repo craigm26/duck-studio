@@ -159,6 +159,19 @@ public struct EvalEpochs: Equatable, Sendable {
       + "name a control nothing used. What varies between the epochs of a scene is the height "
       + "the duck is dropped from, and every height is listed."
 
+    /// Under the progress bar on the run screen, because the bar moves in
+    /// steps somebody would otherwise think were a stall.
+    ///
+    /// THE REQUEST SHAPE IS THE BENCH'S AND NOT A CHOICE MADE HERE. One `/tune`
+    /// call is given the whole drop list and answers all of it at once, so the
+    /// epochs of a scene arrive together and a scene is the unit of progress
+    /// and of cancellation. A bar counting trials would sit still for the fifty
+    /// seconds a scene takes and then jump by eight.
+    public static let wholeSceneAtOnceSaid =
+        "A scene is asked for in one request and answers all of its epochs at once, so progress "
+      + "moves a scene at a time and stopping takes effect at the end of the scene that is "
+      + "running."
+
     public static let noPassAtK =
         "pass at k is not offered. It estimates how often a success would appear in k "
       + "independent draws, and these epochs are not draws. They are a fixed list of drop "

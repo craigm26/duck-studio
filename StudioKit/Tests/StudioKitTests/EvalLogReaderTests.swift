@@ -203,4 +203,61 @@ final class EvalLogReaderTests: XCTestCase {
             guard case EvalLogRefusal.missing = $0 else { return XCTFail("\($0)") }
         }
     }
+
+    // MARK: - reading this phone's own log back
+
+    /// The third constructor, and the reason it is not `imported`: a log this
+    /// app wrote and then read off its own disk is still this app's, so the
+    /// Imported badge stays off and publishing stays on.
+    func testALogReadBackOffTheDiskIsStillOursAndCanStillBePublished() throws {
+        let written = try EvalFixtures.workedExample()
+        let back = try EvalLogFile.onDisk(written.bytes, named: written.name)
+        XCTAssertEqual(back.origin, .written)
+        XCTAssertTrue(back.canPublish)
+        XCTAssertNil(back.importedName)
+        XCTAssertEqual(back.name, written.name)
+        XCTAssertEqual(back.log, written.log)
+    }
+
+    /// THE BYTES ARE THE FILE'S. A log read back and re encoded on the way out
+    /// would be a different file from the one on disk, which is what write once
+    /// exists to prevent.
+    func testReadingALogBackDoesNotReEncodeIt() throws {
+        let written = try EvalFixtures.workedExample()
+        let back = try EvalLogFile.onDisk(written.bytes, named: written.name)
+        XCTAssertEqual(back.bytes, written.bytes)
+    }
+
+    /// `wroteIt` comes out of the log rather than off the running build, so an
+    /// archived file goes on naming the build that made it.
+    func testWhatWroteItComesOutOfTheFileAndNotOffThisBuild() throws {
+        let written = try EvalFixtures.workedExample()
+        let back = try EvalLogFile.onDisk(written.bytes, named: written.name)
+        XCTAssertEqual(back.wroteIt, written.wroteIt)
+        XCTAssertEqual(back.wroteIt, "Microduck Studio 1.1 (58)")
+        // And a log an older build wrote goes on naming that build, which is
+        // the whole reason this is read rather than stamped.
+        XCTAssertEqual(
+            EvalRun.wroteItSaid(from: EvalRun.producerSaid(version: "0.9", build: "12")),
+            "Microduck Studio 0.9 (12)")
+    }
+
+    /// A producer sentence this app did not write has no clause to lift out of
+    /// it, and nil is what the share paragraph turns into `passedOnSaid`.
+    func testAForeignProducerSentenceNamesNobody() throws {
+        XCTAssertNil(EvalRun.wroteItSaid(from: "0.58.0"))
+        XCTAssertNil(EvalRun.wroteItSaid(from: ""))
+        let imported = try EvalFixtures.importedForeign()
+        let back = try EvalLogFile.onDisk(imported.bytes, named: imported.name)
+        XCTAssertNil(back.wroteIt)
+    }
+
+    /// The reader and the writer are the same two clauses, so a change to the
+    /// sentence cannot leave the parser looking for words nothing says.
+    func testTheProducerSentenceRoundTripsThroughItsOwnReader() {
+        let said = EvalRun.producerSaid(version: "1.1", build: "58")
+        XCTAssertEqual(EvalRun.wroteItSaid(from: said), "Microduck Studio 1.1 (58)")
+        XCTAssertEqual(said, "none; written by Microduck Studio 1.1 (58). "
+                           + "No inspect-robots ran: an iPhone cannot run Python.")
+    }
 }
