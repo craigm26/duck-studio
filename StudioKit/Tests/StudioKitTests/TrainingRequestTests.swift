@@ -132,6 +132,18 @@ final class TrainingRequestTests: XCTestCase {
 /// Regression tests written from what a real local model actually returned.
 extension TrainingRequestTests {
 
+    /// THE HAND-OFF IS NOT OBSOLETE, and the screen has to say why it is still
+    /// there now that the phone can search a network's weights itself. A search
+    /// starts from something that already works; this path is for when nothing
+    /// does yet.
+    func testTheHandOverPathSaysWhatItIsFor() {
+        let said = TrainingRequest.handOverIsForFromNothing
+        XCTAssertTrue(said.contains("from nothing"))
+        XCTAssertTrue(said.contains("search its weights"))
+        XCTAssertTrue(said.hasSuffix("."))
+    }
+
+
     /// qwen3.5:2b, asked to name a task, handed back the base config's
     /// FILENAME. The naive slug turned that into
     /// microduck_microduck_ground_pick_env_cfg_py_env_cfg.py.

@@ -68,6 +68,10 @@ FILES=(
   SequenceStore.swift
   TalkToTheDuckView.swift
   ControlShelfChips.swift
+  # Build 58's weight search. Added with the files rather than after a review
+  # found them missing, which is the whole lesson of the widening above.
+  WeightSearchView.swift
+  WeightSearchRun.swift
   # The tuner's screen was missing from this list while the move search's was
   # in it — so the rule that every sentence is a tested kit string silently
   # stopped applying to the one screen that judges a policy.

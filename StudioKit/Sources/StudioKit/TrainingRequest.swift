@@ -23,6 +23,16 @@ import DuckKit
 /// produce refusals here.
 public struct TrainingRequest: Equatable, Sendable {
 
+    /// WHY THIS PATH IS STILL HERE now that the phone can search a network's
+    /// own weights. The two jobs are different and neither replaces the other:
+    /// a search starts from a network that already does something, and this
+    /// file exists for the case where there is no such network yet.
+    public static let handOverIsForFromNothing =
+        "This is the path for a behaviour no network on this phone can do yet — it has to be "
+      + "learned from nothing, on a machine with a simulator and a graphics card. To improve a "
+      + "network that already works, search its weights on your own bench instead."
+
+
     /// The upstream task this one starts from. Forking a working config is how
     /// every policy in the corpus was made, and naming the parent is what lets
     /// somebody diff the two.

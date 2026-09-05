@@ -116,6 +116,21 @@ struct StudioHubView: View {
                 } label: {
                     Label("Tune it on this phone", systemImage: "slider.horizontal.3")
                 }
+                // THE SAME BENCH, THE WHOLE NETWORK. Tune folds twenty-eight
+                // numbers onto what the network already says; this moves the
+                // 197,774 numbers the network is made of, which is the
+                // difference between trimming a policy and training one.
+                // Measured on the desk bench before this row existed: 16.9%
+                // further under the command it searched, with 99% of what it
+                // could do under commands it never saw still intact.
+                //
+                // NOT A `StudioDestination`, for the reason the two rows around
+                // it give: nothing routes here by name.
+                NavigationLink {
+                    WeightSearchView(library: model, benches: benches)
+                } label: {
+                    Label("Search its weights on this phone", systemImage: "brain")
+                }
                 // THE OTHER SEARCH, AND THE ONE MOST PEOPLE MEAN. Tune searches
                 // a NETWORK — twenty-eight numbers folded into a last layer.
                 // This searches a MOVE: the poses and times of an authored

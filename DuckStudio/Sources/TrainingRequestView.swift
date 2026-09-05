@@ -46,8 +46,16 @@ struct TrainingRequestView: View {
                     .foregroundStyle(request.isTrainable ? Theme.success : Theme.refused)
                 Text(request.summary).font(.footnote).foregroundStyle(Theme.textPrimary)
             } footer: {
-                Label("Nothing here has been trained. A phone has no Python, no mjlab and no GPU — this is a specification for a machine that has all three.",
-                      systemImage: "pencil.and.list.clipboard")
+                // THE CLAIM, CORRECTED, AND THE CORRECTION IS THE POINT. What
+                // was here read as "a phone cannot train", which is false: a
+                // phone can read all 197,774 weights out of a network, move
+                // them under a reward its own bench measures, and write one
+                // back that walks 16.9% further with 99% of its untrained
+                // behaviour intact. What a phone cannot do is learn a network
+                // from NOTHING — which is exactly what the config below is for.
+                // Both jobs are named now, and `WeightSearch` owns the sentence
+                // so a test reads it.
+                Label(WeightSearch.bothPathsSaid, systemImage: "pencil.and.list.clipboard")
                     .foregroundStyle(Theme.asked)
             }
             .listRowBackground(Theme.surfacePrimary)
@@ -186,6 +194,9 @@ struct TrainingRequestView: View {
                 }
             } header: {
                 SectionHeading(text: "Hand it over")
+            } footer: {
+                Text(TrainingRequest.handOverIsForFromNothing)
+                    .foregroundStyle(Theme.textSecondary)
             }
             .listRowBackground(Theme.surfacePrimary)
         }
