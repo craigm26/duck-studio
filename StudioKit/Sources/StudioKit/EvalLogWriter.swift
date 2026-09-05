@@ -469,6 +469,14 @@ public struct EvalLogFile: Equatable, Sendable, Identifiable {
         "A log is finished when the run is. Changing a verdict afterwards would make the file "
       + "disagree with the run it describes, so the way to a different answer is another run."
 
+    /// What the shelf says when a log with this name is already on it. Owned
+    /// here rather than assembled where the refusal is thrown, so the one
+    /// sentence the shelf can refuse with is a sentence a test reads; the app
+    /// target only hands over the name.
+    public static func alreadyOnTheShelfSaid(_ name: String) -> String {
+        "\(name) is already here. " + aLogIsFinished
+    }
+
     /// THE SECOND CLAUSE SAYS WHAT THIS APP DOES, NOT WHO WROTE THE FILE. It
     /// used to open "This app wrote the file", and the page it sits at the foot
     /// of is drawn for an imported log as well, where that is exactly what did

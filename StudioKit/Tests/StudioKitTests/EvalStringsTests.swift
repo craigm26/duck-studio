@@ -117,6 +117,7 @@ final class EvalStringsTests: XCTestCase {
         ("EvalLogFile.foreignSeedSaid", EvalLogFile.foreignSeedSaid),
         ("EvalLogFile.whatAnImportedLogMustBe", EvalLogFile.whatAnImportedLogMustBe),
         ("EvalLogFile.aLogIsFinished", EvalLogFile.aLogIsFinished),
+        ("EvalLogFile.alreadyOnTheShelfSaid", EvalLogFile.alreadyOnTheShelfSaid("walk-forward_1a2b3c4d.json")),
         ("EvalLogFile.howToRead", EvalLogFile.howToRead),
         ("EvalLogFile.oneLogAtATimeSaid", EvalLogFile.oneLogAtATimeSaid),
         ("EvalLogFile.criterionLabel", EvalLogFile.criterionLabel),

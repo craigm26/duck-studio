@@ -75,7 +75,7 @@ struct EvalLogDetailView: View {
     @State private var busy = false
     @State private var publishFailure: String?
     @State private var published: String?
-    /// The three files as they will be committed, built once.
+    /// The four files as they will be committed, built once.
     ///
     /// `EvalLogFile.files()` RENDERS THE WHOLE HTML REPORT AND THE WHOLE CARD.
     /// Calling it from a `ForEach` inside `body` would rebuild both on every
@@ -763,7 +763,7 @@ struct EvalLogDetailView: View {
         }
     }
 
-    /// The three files as they will be committed, each openable, each with its
+    /// The four files as they will be committed, each openable, each with its
     /// own byte count beside it.
     private var filePreviews: some View {
         ForEach(previews, id: \.path) { outgoing in

@@ -46,7 +46,7 @@ enum EvalShelfRefusal: Error, Equatable {
     var message: String {
         switch self {
         case .alreadyOnTheShelf(let name):
-            return "\(name) is already here. " + EvalLogFile.aLogIsFinished
+            return EvalLogFile.alreadyOnTheShelfSaid(name)
         }
     }
 }
