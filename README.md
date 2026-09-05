@@ -336,6 +336,53 @@ after a test run.
 | `.duckplan` | A fetch plan: the measured object, and what was asked for. Ours. The steps are derived on read, so a plan cannot go stale and disagree with the app that opens it. | Yes — it lands in Studio → Motions, under Plans. |
 | `.onnx` | The policy file itself, handed on with a message that leads with the digest. | Yes — this is the import path. |
 
+## Formal evaluations, and the one format here that is not ours
+
+Studio → Measure → **Run a formal evaluation** sets a task, a policy and an
+embodiment, runs the bench work the app was already doing, and writes the result
+as an **EvalLog v1**: the log format of
+[inspect-robots](https://github.com/robocurve/inspect-robots) (MIT, docs at
+[docs.inspectrobots.org](https://docs.inspectrobots.org/)), a Python framework
+for evaluating robot policies. Its vocabulary is the one this feature borrows:
+a **Task** is scenes plus scorers plus one horizon plus epochs with a reducer,
+and the two things a run swaps are the **policy** and the **embodiment**.
+
+**This app writes their format. It does not run their framework, and it is not
+theirs.** An iPhone cannot run Python, so nothing here is inspect-robots
+executing; a log this app wrote says so in its own `inspect_robots_version`,
+which reads `none; written by Microduck Studio ...` rather than a version
+number, and that string is what their report prints verbatim in its footer. They
+have not reviewed, endorsed or been consulted about any of this.
+
+What the borrowing buys is that a file leaving this phone is a file their library
+opens. `read_eval_log` reads it, `inspect-robots view LOG.json` renders it, and a
+directory of them indexes. That is the point of writing somebody else's schema
+instead of a ninth format of our own.
+
+Two gates hold it there, both free, both run locally:
+
+| Gate | What it answers |
+|---|---|
+| `scripts/check_evallog_schema.sh` | Are the forty wire keys spelled in exactly one file, and never in the app target? |
+| `scripts/check_evallog_parity.sh` | Does the real library, pinned at 0.58.0, read back every fixture this kit writes, reproduce its bytes exactly, and render it? |
+
+Both are written to fail rather than to pass. The schema guard was proved able to
+fail on 2026-09-05 before it shipped: a scratch `"total_scenes"` literal added to
+`DuckStudio/Sources/EvalStore.swift` turned it red, the same literal in
+`StudioKit/Sources/StudioKit/EvalRun.swift` turned it red for the other reason,
+and both were removed. The parity gate was proved the same way, against a copy of
+the corpus: one added space inside a log, a deleted fixture and an unlisted extra
+one each turned it red. `scripts/evallog_fixtures.txt` pins the corpus, so a
+fixture cannot be added or dropped without saying so. Neither gate exits 0 when
+it could not run.
+
+The evaluation screens are also where an inspect-robots log written somewhere
+else can be opened on the phone and read. Its bytes are never rewritten and its
+sentences are shown as its own, not as this app's.
+
+More about the app, including the TestFlight link, is at
+[microduckstudio.com](https://microduckstudio.com).
+
 ## Not built yet
 
 Kept here rather than deleted, because they are scheduled work in `PLAN.md` and
@@ -477,8 +524,11 @@ The nine policies, the observation layout, the control constants and the MuJoCo
 model are from `pollen-robotics/microduck` and `pollen-robotics/microduck_rl`,
 Apache-2.0. Every number Microduck Studio displays about the robot is upstream's
 number, and the Behaviours screen says of each file whether it is one of Pollen's
-releases. Every file format this app writes is its own; nothing here implements
-another project's schema.
+releases. Every file format this app writes is its own, with exactly one
+exception, named because it used to say none: evaluation logs are
+inspect-robots' EvalLog v1 (`robocurve/inspect-robots`, MIT), deliberately, so
+that their library can read what this phone writes. See **Formal evaluations,
+and the one format here that is not ours** above.
 
 A top-level `NOTICE` file carrying the Apache-2.0 attribution is still owed and
 is not in the tree; it is required before the first App Store submission.

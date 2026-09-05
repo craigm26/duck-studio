@@ -76,7 +76,18 @@ FILES=(
   # in it — so the rule that every sentence is a tested kit string silently
   # stopped applying to the one screen that judges a policy.
   TuneView.swift
-)
+  # The evaluation shelf, its setup, its runner's screen, its detail view and
+  # its comparison, added with the files. Nothing joins
+  # stage_sentences_allowlist.txt with them: six screens entering the guard
+  # with an empty contribution is the strong form of the rule, so the first
+  # literal anybody types into one of them is a red gate rather than a habit.
+  EvalListView.swift
+  EvalSetupView.swift
+  EvalRunView.swift
+  EvalLogDetailView.swift
+  EvalCompareView.swift
+  EvalStore.swift
+  )
 
 if [ ! -d "$SRC" ]; then
   echo "check_stage_sentences: no app sources yet ($SRC) — nothing to check."

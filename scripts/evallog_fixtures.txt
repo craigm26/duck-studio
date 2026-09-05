@@ -1,0 +1,32 @@
+# The evaluation log corpus, pinned.
+#
+# One line per fixture: the filename, a tab, and the one thing that fixture is
+# in the corpus to prove. scripts/evallog_parity.py reads this list, compares it
+# against the manifest StudioKit's WriteEvalLogFixtures writes and against the
+# files actually on disk, and exits 2 on a difference in either direction.
+#
+# WHY THE LIST IS PINNED HERE AND NOT DISCOVERED BY GLOB. A parity gate that
+# runs over whatever it finds passes when it finds nothing, and passes just as
+# happily when somebody deletes the one fixture that was catching something. A
+# fixture added to the kit and not to this file is a failure, so adding one is a
+# deliberate two-file act; a fixture deleted from the kit is a failure too, so
+# the corpus cannot quietly shrink to the cases that were already green.
+#
+# THE SENTENCES HERE ARE THIS FILE'S OWN. The manifest carries the kit's
+# description of each fixture and this carries the gate's, on purpose: two
+# independent statements of what a file is for, and a reader who finds them
+# disagreeing has found something worth looking at. Only the names are compared.
+#
+# Lines beginning with # are comments. Blank lines are ignored.
+
+walk_worked_example.json	The plan's worked example, produced by the shipping writer rather than typed out, so the numbers a person checked by hand are the numbers Python reads
+walk_clean.json	The ordinary shape: three scenes, eight drop heights each, every trial scored, one traced trial per scene
+walk_inert.json	A perfect success rate beside two millimetres of travel, which is the lie the motion evidence rule exists to keep visible
+walk_diverged.json	Two episodes recorded and not scored, each carrying the bench's own reason, in a run that is still a success
+walk_verdict.json	One watched operator verdict per scene with null for every unwatched trial, and no operator scorer anywhere in the metrics
+stairs_mixed.json	Fourteen grid cells, one epoch each, three of them invalid and written as an empty epoch rather than an absent one
+ball_grid.json	The ball challenge grid through the same shape as the stairs grid, so one reader covers both
+cancelled.json	A run stopped part way keeps the scenes that finished and does not invent the ones that never started
+all_errored.json	Every trial errored, so the run is an error in inspect-robots' own words rather than a success over no data
+hostile_strings.json	Every escaping case at once: an em dash, a minus sign, an emoji above the BMP, a tab, a DEL, a negative zero, a tiny exponent and a metric that became null
+imported_foreign.json	A log this app did not write, read in and written back out unchanged, carrying a seed and a real inspect-robots version
