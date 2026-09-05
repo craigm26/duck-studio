@@ -543,6 +543,23 @@ extension EvalLog {
         return value
     }
 
+    /// A block of scores.
+    ///
+    /// A NULL SCORE COMES BACK AS AN ABSENT KEY, AND THAT IS THE ONE PLACE THE
+    /// TYPED READER IS LOSSY. Their writer maps a non-finite float to null
+    /// (`json_log._sanitize`) and their reader keeps the None in the dict,
+    /// because Python's dict will hold one. `[String: Double]` will not, and
+    /// the alternatives are both worse: a placeholder number would be a value
+    /// nobody measured, and widening every score block to `[String: Double?]`
+    /// would put an Optional in front of every metric on every screen to carry
+    /// a case that only arises from a scorer that already failed.
+    ///
+    /// What this costs is bounded and stated: the FILE is right either way, an
+    /// imported log's bytes are never rewritten (`EvalLogFile.imported` keeps
+    /// them), and the writing side names the scorer out loud through
+    /// `EvalRun.nonFiniteScores` rather than leaving a silent null.
+    /// `EvalLogReaderTests` pins the behaviour so nobody discovers it from a
+    /// missing row.
     static func doubleMap(_ json: EvalLogJSON?) -> [String: Double] {
         var out: [String: Double] = [:]
         for (key, value) in json?.objectValue ?? [:] { out[key] = value.doubleValue }

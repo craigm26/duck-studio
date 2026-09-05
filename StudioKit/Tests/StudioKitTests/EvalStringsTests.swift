@@ -89,13 +89,83 @@ final class EvalStringsTests: XCTestCase {
         ("EvalLogRefusal.missing", EvalLogRefusal.missing("status", in: "the log").message),
         ("EvalLogRefusal.wrongType",
          EvalLogRefusal.wrongType("version", in: "the log", wanted: "a whole number").message),
+        // the writer, the file and the shelf
+        ("EvalLogWriter.runIDSaid", EvalLogWriter.runIDSaid),
+        ("EvalLogWriter.wroteIt", EvalLogWriter.wroteIt(version: "1.1", build: "58")),
+        ("EvalLogReader.asStrictAsTheirs", EvalLogReader.asStrictAsTheirs),
+        ("EvalLogFile.fromTheFile", EvalLogFile.fromTheFile),
+        ("EvalLogFile.importedBadge", EvalLogFile.importedBadge),
+        ("EvalLogFile.importedSaid", EvalLogFile.importedSaid),
+        ("EvalLogFile.cannotPublishImported", EvalLogFile.cannotPublishImported),
+        ("EvalLogFile.foreignSeedSaid", EvalLogFile.foreignSeedSaid),
+        ("EvalLogFile.whatAnImportedLogMustBe", EvalLogFile.whatAnImportedLogMustBe),
+        ("EvalLogFile.aLogIsFinished", EvalLogFile.aLogIsFinished),
+        ("EvalLogFile.howToRead", EvalLogFile.howToRead),
+        ("EvalLogFile.oneLogAtATimeSaid", EvalLogFile.oneLogAtATimeSaid),
+        ("EvalLogFile.criterionLabel", EvalLogFile.criterionLabel),
+        ("EvalLogFile.plantDigestLabel", EvalLogFile.plantDigestLabel),
+        ("EvalLogFile.Refusal.imported", EvalLogFile.Refusal.imported.message),
+        // the report
+        ("EvalReport.notFinite", EvalReport.notFinite),
+        ("EvalReport.leaderboardIsTheChallengeScreen",
+         EvalReport.leaderboardIsTheChallengeScreen),
+        ("EvalReport.whatIsShared", EvalReport.whatIsShared),
+        ("EvalReport.meanOverScenesSaid", EvalReport.meanOverScenesSaid),
+        ("EvalReport.cancelledLead", EvalReport.cancelledLead),
+        ("EvalReport.passedOnSaid", EvalReport.passedOnSaid),
+        ("EvalReport.wroteItSaid", EvalReport.wroteItSaid("Microduck Studio 1.1 (58)")),
+        ("EvalReport.horizonSaid", EvalReport.horizonSaid(seconds: 6.0, steps: 300)),
+        ("EvalReport.spreadSaid (flat)", EvalReport.spreadSaid([1.0, 1.0, 1.0])),
+        ("EvalReport.spreadSaid (spread)", EvalReport.spreadSaid([1.18, 1.22])),
+        ("EvalReport.spreadSaid (none)", EvalReport.spreadSaid([])),
+        ("EvalReport.statusShown", EvalReport.statusShown(.cancelled)),
+        // comparing two
+        ("EvalCompare.neverCombinedSaid", EvalCompare.neverCombinedSaid),
+        ("EvalCompare.differenceIsNotAScoreSaid", EvalCompare.differenceIsNotAScoreSaid),
+        ("EvalCompare.oneSidedSaid", EvalCompare.oneSidedSaid),
+        ("EvalCompare.whatCanBeComparedSaid", EvalCompare.whatCanBeComparedSaid),
+        ("EvalCompare.Refusal.sameLog", EvalCompare.Refusal.sameLog("walk_4b1e77a2.json").message),
+        ("EvalCompare.Refusal.differentEmbodiment",
+         EvalCompare.Refusal.differentEmbodiment("a/one.mjb@aa", "a/two.mjb@bb").message),
+        ("EvalCompare.Refusal.differentTask",
+         EvalCompare.Refusal.differentTask("Walk forward", "Stairs grid").message),
+        ("EvalCompare.Refusal.nothingInCommon", EvalCompare.Refusal.nothingInCommon.message),
     ]
 
     func testEveryStringSaysSomething() {
         for (name, text) in Self.everyString {
             XCTAssertFalse(text.trimmingCharacters(in: .whitespaces).isEmpty, name)
         }
-        XCTAssertGreaterThan(Self.everyString.count, 45)
+        XCTAssertGreaterThan(Self.everyString.count, 80)
+    }
+
+    /// Two constants with the same words are two places a wording can be
+    /// changed in one of them, which is the "second wording" failure this whole
+    /// feature is organised against.
+    ///
+    /// THE EXCEPTIONS ARE FORWARDS AND NOT COPIES. A `Refusal.message` that
+    /// returns a named constant is one sentence reachable by two names, which
+    /// is the opposite of the problem: change the constant and both move. Each
+    /// one is listed here so a real duplicate cannot hide behind the rule.
+    static let sameWordsOnPurpose: Set<String> = [
+        // A door that described itself differently from the screen it opens
+        // would be two descriptions of one thing.
+        "EvalTask.whatAnEvaluationIs",
+        // Refusals that forward to the sentence they are the refusal for.
+        "EvalLogFile.Refusal.imported", "EvalLogFile.cannotPublishImported",
+        "EvalText.notTheirRender", "EvalReport.notTheirRender",
+    ]
+
+    func testNoTwoConstantsSayTheSameThing() {
+        var seen: [String: String] = [:]
+        for (name, text) in Self.everyString {
+            if let first = seen[text] {
+                XCTAssertTrue(Self.sameWordsOnPurpose.contains(name)
+                              || Self.sameWordsOnPurpose.contains(first),
+                              "\(name) and \(first) are the same sentence")
+            }
+            seen[text] = name
+        }
     }
 
     /// No em dash anywhere in copy under Craig's name. The bench's own
@@ -151,6 +221,24 @@ final class EvalStringsTests: XCTestCase {
         ]
         for (name, note) in notes {
             XCTAssertLessThanOrEqual(Self.sentences(in: note), 2, "\(name): \(note)")
+        }
+    }
+
+    /// The cap, over the log a run actually writes rather than over a list
+    /// somebody remembered to keep up to date. Their viewer renders
+    /// `policy_config` as a definition list, and a paragraph in a definition
+    /// list is a paragraph nobody finishes.
+    ///
+    /// The bench's own `criterion` is exempt and is the only exemption: it is a
+    /// measurement quoted exactly, this app did not write it, and truncating it
+    /// would put a sentence in the record the bench never said.
+    func testEveryNoteInAWrittenLogIsAtMostTwoSentences() throws {
+        for entry in try EvalFixtures.corpus() where entry.file.origin == .written {
+            for (key, value) in entry.file.log.eval.policyConfig {
+                guard key != EvalMeta.criterion, let text = value.stringValue else { continue }
+                XCTAssertLessThanOrEqual(Self.sentences(in: text), 2,
+                                         "\(entry.name)/\(key): \(text)")
+            }
         }
     }
 

@@ -67,11 +67,21 @@ public struct EvalSceneResult: Equatable, Sendable, Identifiable {
     /// record, and a network has none to give.
     public var policyTranscripts: [EvalLogJSON] { trials.map { _ in .null } }
 
+    /// Each trial's own metadata, plus the three facts every trial has whatever
+    /// route it came from. The keys are `EvalMeta`'s, which is the one place
+    /// this project's own key names are spelled.
+    ///
+    /// THE REASON IS IN `EvalMeta.why`. Their schema has one `error` per scene,
+    /// so a scene of eight drops where two diverged has one reason and loses
+    /// the other. Each reason goes in its own trial's metadata instead, where
+    /// their reader passes it through and both reports print it beside the
+    /// trial it belongs to.
     public var trialMetadata: [[String: EvalLogJSON]] {
         trials.map { trial in
             var metadata = trial.metadata
-            metadata["ticks_reported"] = .maybe(trial.ticks)
-            metadata["traced"] = .bool(trial.trace != nil)
+            metadata[EvalMeta.ticksReported] = .maybe(trial.ticks)
+            metadata[EvalMeta.traced] = .bool(trial.trace != nil)
+            if let why = trial.error { metadata[EvalMeta.why] = .string(why) }
             return metadata
         }
     }

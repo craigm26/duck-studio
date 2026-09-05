@@ -253,31 +253,33 @@ public struct EvalTask: Equatable, Sendable, Identifiable {
     public func sceneMetadata(for scene: EvalScene,
                               refusedTerms: [String] = []) -> [String: EvalLogJSON] {
         var metadata = scene.metadata
-        metadata["route"] = .string(route.path)
-        metadata["reducer"] = .string(epochs.reducer.rawValue)
-        metadata["terms_refused"] = .strings(refusedTerms)
-        if let drops = epochs.axis.dropValues { metadata["drop_heights_m"] = .numbers(drops) }
-        if let seconds = maxSeconds { metadata["seconds"] = .number(seconds) }
+        metadata[EvalMeta.route] = .string(route.path)
+        metadata[EvalMeta.reducer] = .string(epochs.reducer.rawValue)
+        metadata[EvalMeta.termsRefused] = .strings(refusedTerms)
+        if let drops = epochs.axis.dropValues {
+            metadata[EvalMeta.dropHeights] = .numbers(drops)
+        }
+        if let seconds = maxSeconds { metadata[EvalMeta.seconds] = .number(seconds) }
         if let command = scene.command {
-            metadata["schedule"] = .array(command.map {
+            metadata[EvalMeta.schedule] = .array(command.map {
                 .object(["at": .number($0.at), "vx": .number($0.vx),
                          "vy": .number($0.vy), "vyaw": .number($0.vyaw)])
             })
         }
         if let cell = scene.cell, let rise = scene.rise {
-            metadata["cell"] = .object(["dh": .number(cell.dh), "drop": .number(cell.drop),
-                                        "fmul": .number(cell.fmul),
-                                        "tier": .string(cell.tier.rawValue)])
-            metadata["cell_label"] = .string(cell.said(rise: rise))
-            metadata["rise_m"] = .number(rise)
+            metadata[EvalMeta.cell] = .object(["dh": .number(cell.dh), "drop": .number(cell.drop),
+                                               "fmul": .number(cell.fmul),
+                                               "tier": .string(cell.tier.rawValue)])
+            metadata[EvalMeta.cellLabel] = .string(cell.said(rise: rise))
+            metadata[EvalMeta.riseMetres] = .number(rise)
         }
         if let cell = scene.chaseCell {
-            metadata["cell"] = .object(["bearing": .number(cell.bearing),
-                                        "range": .number(cell.range),
-                                        "drop": .number(cell.drop),
-                                        "fmul": .number(cell.fmul),
-                                        "tier": .string(cell.tier.rawValue)])
-            metadata["cell_label"] = .string(cell.said)
+            metadata[EvalMeta.cell] = .object(["bearing": .number(cell.bearing),
+                                               "range": .number(cell.range),
+                                               "drop": .number(cell.drop),
+                                               "fmul": .number(cell.fmul),
+                                               "tier": .string(cell.tier.rawValue)])
+            metadata[EvalMeta.cellLabel] = .string(cell.said)
         }
         return metadata
     }
