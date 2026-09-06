@@ -117,7 +117,8 @@ public enum BenchRoute: Equatable, Sendable {
             if let refusal = standing.refusal {
                 return .notYet(.planRefused(refusal, movedToTheBank: standing.spawn != nil))
             }
-            return performable(standing, StairsChallenge.roomWasEdited)
+            return performable(standing, [StairsChallenge.roomWasEdited, standing.said]
+                                             .compactMap { $0 }.joined(separator: " "))
 
         case .theScoredRoom(let room):
             guard blend >= StairsChallenge.blendBox.low,
@@ -150,7 +151,9 @@ public enum BenchRoute: Equatable, Sendable {
             if let refusal = standing.refusal {
                 return .notYet(.planRefused(refusal, movedToTheBank: standing.spawn != nil))
             }
-            return performable(standing, nil)
+            // WHAT THE MOVE DID goes out with the run, so the tab that prints
+            // one line about a run prints this one too.
+            return performable(standing, standing.said)
         }
     }
 }

@@ -131,6 +131,24 @@ final class BenchRouteTests: XCTestCase {
         XCTAssertEqual(blocked, .tooFewKeyframes(1))
     }
 
+    /// A staircase with the editor's own ball on it runs, and the one line the
+    /// run carries says what happened to the ball. This was a not-yet whose
+    /// sentence began "Moving the duck to the step bank" on a tab standing in
+    /// the bench's own world.
+    func testAStaircaseWithTheDefaultBallRunsAndSaysWhereTheBallStayed() throws {
+        var scene = DuckScene.staircase(count: 3)
+        scene.props.append(DuckScene.ball())
+        let route = BenchRoute.of(draft: RoomFixture.draft(scene: scene), scene: scene)
+        guard case .perform(let standing, let because) = route else {
+            return XCTFail("a legal drawing with a ball runs, got \(route)")
+        }
+        let stood = try XCTUnwrap(standing)
+        XCTAssertNil(stood.plan.ball)
+        XCTAssertEqual(stood.spawn, DuckWorld.Point(x: 0, y: 1.305))
+        XCTAssertEqual(because, stood.said)
+        XCTAssertTrue(try XCTUnwrap(because).hasPrefix("The scene's ball was left where it already is."))
+    }
+
     func testEveryBlockedCaseHasItsOwnMessage() {
         let cases: [BenchRoute.Blocked] = [
             .roomWasEdited,

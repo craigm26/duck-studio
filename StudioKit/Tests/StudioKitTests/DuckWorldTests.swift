@@ -737,20 +737,76 @@ final class DuckWorldTests: XCTestCase {
     }
 
     /// MOVING THE DUCK MOVES EVERYTHING ELSE WITH IT, and the refusal is
-    /// evaluated where the bench will see it.
-    func testTheArenaRefusalFiresInRoomCoordinatesNotSceneCoordinates() throws {
+    /// evaluated where the bench will see it — and when the move, and only the
+    /// move, puts the ball past the face, the ball is left where it is rather
+    /// than the whole run being refused for a body it is not about.
+    func testABallTheMoveWouldCarryIntoTheWallIsLeftWhereItIs() throws {
         let scene = DuckScene(name: "A step and a ball to the left",
                               steps: [.init(x: 0.40, y: 0, top: 0.06)],
                               props: [DuckScene.ball(x: 0.40, y: 0.20)])
         XCTAssertTrue(DuckWorld.plan(for: scene, on: bank).refusals.isEmpty,
                       "at scene y = 0.20 the ball is well inside the arena")
         let standing = DuckWorld.standing(for: scene, on: bank)
+        XCTAssertNil(standing.refusal, "the run is not refused for the ball")
+        XCTAssertNil(standing.refusalSaid)
+        XCTAssertTrue(standing.isSendable)
+        XCTAssertEqual(standing.spawn, DuckWorld.Point(x: 0, y: 1.305))
+        XCTAssertNil(standing.plan.ball, "the request says nothing about the ball, so it stays put")
+        XCTAssertEqual(standing.plan.steps?.count, 1, "the step is still laid")
+        let said = try XCTUnwrap(standing.said)
+        XCTAssertTrue(said.hasPrefix("The scene's ball was left where it already is."), said)
+        XCTAssertTrue(said.contains("(0.40, 1.50) m"), said)
+        XCTAssertTrue(said.contains("105 mm past"), said)
+        // And the plan's own notes carry it, once, in place of the generic
+        // "still where it was" row.
+        let ballNotes = standing.plan.predicted.filter { $0.what == "ball" }
+        XCTAssertEqual(ballNotes.count, 1)
+        XCTAssertEqual(ballNotes.first?.got, "left where it already is")
+        XCTAssertEqual(ballNotes.first?.why, said)
+    }
+
+    /// THE SHIPPED CASE. The editor's "Ball" is added at (0.55, 0.10), the
+    /// bench's own compiled spot, and after the move to the bank's row its
+    /// edge is 5 mm into wall_n. That refused every staircase-with-a-ball
+    /// motion on both tabs with a sentence about moving the duck.
+    func testTheEditorsDefaultBallOnAStaircaseNoLongerRefusesTheRun() throws {
+        // THREE STEPS, NOT THE STARTER'S FOUR: the fourth step of
+        // `staircase()` reaches 1.48 m along x, past wall_e, and is refused in
+        // its own words wherever the duck stands. That is a different fact.
+        var scene = DuckScene.staircase(count: 3)
+        scene.props.append(DuckScene.ball())
+        let standing = DuckWorld.standing(for: scene, on: bank)
+        XCTAssertTrue(standing.isSendable)
+        XCTAssertNil(standing.plan.ball)
+        let said = try XCTUnwrap(standing.said)
+        XCTAssertTrue(said.contains("(0.55, 1.41) m"), said)
+        XCTAssertTrue(said.contains("5 mm past"), said)
+    }
+
+    /// A ball the move leaves inside the arena is carried with the scene, as
+    /// it always was, and there is nothing to say.
+    func testABallTheMoveLeavesInsideTheArenaStillMoves() {
+        let scene = DuckScene(name: "ball to the right",
+                              steps: [.init(x: 0.40, y: 0, top: 0.06)],
+                              props: [DuckScene.ball(x: 0.55, y: -0.30)])
+        let standing = DuckWorld.standing(for: scene, on: bank)
+        XCTAssertTrue(standing.isSendable)
+        XCTAssertEqual(standing.plan.ball, DuckWorld.Point(x: 0.55, y: 1.005))
+        XCTAssertNil(standing.said)
+    }
+
+    /// A ball drawn outside the arena to begin with is still refused, in its
+    /// own words, with nothing blamed on the move.
+    func testABallDrawnOutsideTheArenaIsStillRefusedWithSteps() throws {
+        let scene = DuckScene(name: "far ball on steps",
+                              steps: [.init(x: 0.40, y: 0, top: 0.06)],
+                              props: [DuckScene.ball(x: 2.0, y: 0)])
+        let standing = DuckWorld.standing(for: scene, on: bank)
         guard case .ballOutsideTheArena = try XCTUnwrap(standing.refusal) else {
-            return XCTFail("a ball at room y = 1.505 is past the inner face")
+            return XCTFail("a ball at x = 2.0 is outside wherever the duck stands")
         }
-        let said = try XCTUnwrap(standing.refusalSaid)
-        XCTAssertTrue(said.hasPrefix("Moving the duck to the step bank"), said)
-        XCTAssertTrue(said.contains("outside the arena"), said)
+        XCTAssertNil(standing.refusalSaid)
+        XCTAssertNil(standing.said)
     }
 
     /// A scene that was already illegal where it was drawn is refused in its
@@ -783,7 +839,8 @@ final class DuckWorldTests: XCTestCase {
         let all = [DuckWorld.stoodIsTheReadback, DuckWorld.duckMovedToTheBank,
                    DuckWorld.blocksAreTwoHundredMillimetresTall,
                    DuckWorld.noSpawnBesideAFlight, DuckWorld.bankWasParkedForThisRun,
-                   DuckWorld.theBallIsAlwaysThere]
+                   DuckWorld.theBallIsAlwaysThere,
+                   DuckWorld.ballLeftWhereItIs(carriedTo: 0.55, 1.405, inner: 1.45, radius: 0.05)]
         XCTAssertEqual(Set(all).count, all.count)
         for line in all {
             XCTAssertFalse(line.contains("probably"), line)

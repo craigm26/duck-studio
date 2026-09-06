@@ -889,11 +889,17 @@ extension DuckWorld {
         /// scene was translated. Nil otherwise — a scene that was already
         /// illegal where it was drawn is refused in its own words.
         public let refusalSaid: String?
+        /// What the move did to the scene that the plan does not say by
+        /// itself: today, that the ball was left where it already is because
+        /// carrying it to the bank's row would have put it in the wall. Nil
+        /// when the move changed nothing worth a sentence.
+        public let said: String?
 
         public init(plan: Plan, spawn: Point?, refusal: Refusal? = nil,
-                    refusalSaid: String? = nil) {
+                    refusalSaid: String? = nil, said: String? = nil) {
             self.plan = plan; self.spawn = spawn
             self.refusal = refusal; self.refusalSaid = refusalSaid
+            self.said = said
         }
 
         public var isSendable: Bool { refusal == nil }
@@ -951,16 +957,53 @@ extension DuckWorld {
                         predicted: made.predicted, refusals: made.refusals)
         }
 
+        // THE BALL IS NOT CARRIED INTO THE WALL. The bank's row is 145 mm from
+        // `wall_n`, so anything drawn more than 95 mm to the duck's left ends
+        // up past the arena's inner face once the duck is moved there. The
+        // editor's own "Ball" is added at (0.55, 0.10) — the spot the bench
+        // compiles it at — which after the move is 5 mm into the wall, and a
+        // whole motion was being refused for it with a sentence about moving
+        // the duck that nobody had asked to move. The ball is a permanent body
+        // no request can take out; a run over steps is not about it. So when
+        // the move, and only the move, puts the ball outside, the ball is left
+        // where it already is, the plan says nothing about it, and the one
+        // sentence about that goes out with the run. A ball the author drew
+        // outside the arena to begin with is still refused in its own words.
+        var said: String? = nil
+        if point != nil,
+           !made.refusals.isEmpty,
+           made.refusals.allSatisfy({ if case .ballOutsideTheArena = $0 { return true }
+                                      return false }),
+           plan(for: scene, on: bank, graspables: graspables).refusals.isEmpty,
+           let carried = moved.props.first(where: { $0.name.lowercased().hasPrefix("ball") }) {
+            var without = moved
+            without.props.removeAll { $0.name.lowercased().hasPrefix("ball") }
+            let kept = plan(for: without, on: bank, graspables: graspables)
+            let sentence = ballLeftWhereItIs(carriedTo: carried.x, carried.y,
+                                             inner: bank.arenaInner, radius: ballRadius)
+            made = Plan(name: kept.name, clear: kept.clear, steps: kept.steps,
+                        ball: nil, props: kept.props, walls: kept.walls,
+                        predicted: kept.predicted.filter { $0.what != "ball" }
+                            + [Unexpressed(what: "ball",
+                                           asked: String(format: "(%.2f, %.2f) m",
+                                                         carried.x, carried.y),
+                                           got: "left where it already is",
+                                           why: sentence)],
+                        refusals: kept.refusals)
+            said = sentence
+        }
+
         guard let refusal = made.refusals.first else {
-            return Standing(plan: made, spawn: point)
+            return Standing(plan: made, spawn: point, said: said)
         }
         // A REFUSAL THAT ONLY EXISTS BECAUSE THE SCENE MOVED GETS THE EXTRA
         // SENTENCE. One that was already there does not: the drawing was
         // illegal where it was drawn, and blaming the translation for it would
         // send somebody looking for the wrong fault.
         let drawnWhereItWas = plan(for: scene, on: bank, graspables: graspables)
-        let said = drawnWhereItWas.refusals.isEmpty ? movedThenRefused(refusal) : nil
-        return Standing(plan: made, spawn: point, refusal: refusal, refusalSaid: said)
+        let blamed = drawnWhereItWas.refusals.isEmpty ? movedThenRefused(refusal) : nil
+        return Standing(plan: made, spawn: point, refusal: refusal, refusalSaid: blamed,
+                        said: said)
     }
 
     /// The readback, narrowed to the shape a draft can hold.
@@ -1108,6 +1151,18 @@ extension DuckWorld {
         "There is a ball in every run on this bench whether or not anything asked for one: a "
       + "permanent 30 g body compiled at (0.55, 0.10) m. A world can move it and nothing can "
       + "take it out, so a run that says nothing about the ball ran with the ball there."
+
+    /// The ball the move would have carried into the wall, left alone.
+    public static func ballLeftWhereItIs(carriedTo x: Double, _ y: Double,
+                                         inner: Double, radius: Double) -> String {
+        let past = max(abs(x) + radius - inner, abs(y) + radius - inner)
+        return String(format: "The scene's ball was left where it already is. Moving the duck "
+                            + "to the step bank moves everything else in the scene with it, "
+                            + "and that would have carried the ball to (%.2f, %.2f) m, %.0f mm "
+                            + "past the arena's inner face at ±%.2f m. The ball is a permanent "
+                            + "body no request can take out, and this run is not about it.",
+                      x, y, past * 1000, inner)
+    }
 
     public static func movedThenRefused(_ refusal: Refusal) -> String {
         "Moving the duck to the step bank moves everything else in the scene with it, and "
