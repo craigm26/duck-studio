@@ -42,7 +42,7 @@ public struct DuckWorld: Equatable, Sendable {
     /// against a recompiled scene would report a different `y`. Keeping the
     /// transcription and the readback in the same type is what lets a screen
     /// print the bench's own numbers while `WorldConstantsFixtureTests` pins
-    /// `pinned` against `duck-sounds/site/stairs.js` — the two are allowed to
+    /// `pinned` against `duckbench/site/stairs.js` — the two are allowed to
     /// disagree, and when they do, the bench's is the one that decides what
     /// happens.
     public struct Bank: Equatable, Sendable {

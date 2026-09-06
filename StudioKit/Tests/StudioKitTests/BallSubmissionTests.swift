@@ -100,7 +100,7 @@ final class BallSubmissionTests: XCTestCase {
     func testTheIssueTitleNamesTheEntrant() throws {
         let made = try submission()
         XCTAssertEqual(made.issueTitle, "Ball challenge: ctrl_alpha_walking")
-        XCTAssertEqual(made.issueURL.path, "/craigm26/duck-sounds/issues/new")
+        XCTAssertEqual(made.issueURL.path, "/craigm26/duckbench/issues/new")
     }
 
     func testTheIssueBodyCarriesTheVerdictTheFactsAndBothCaveats() throws {
@@ -132,7 +132,7 @@ final class BallSubmissionTests: XCTestCase {
         XCTAssertTrue(card.contains(BallChallenge.criterionSentence))
         XCTAssertTrue(card.contains(BallChallenge.ballCaveat))
         XCTAssertTrue(card.contains(BallChallenge.realDuckCaveat))
-        XCTAssertTrue(card.contains("https://github.com/craigm26/duck-sounds"))
+        XCTAssertTrue(card.contains("https://github.com/craigm26/duckbench"))
     }
 
     /// A DATASET, NEVER A MODEL, and to the ball repository rather than the

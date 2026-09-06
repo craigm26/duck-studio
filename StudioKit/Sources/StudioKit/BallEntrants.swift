@@ -4,7 +4,7 @@ extension BallChallenge {
 
     /// THE FOUR BUNDLED ENTRANT FILES, AS THEIR OWN BYTES.
     ///
-    /// COPIED OUT OF `duck-sounds/chase` WITHOUT A BYTE CHANGED, which is the
+    /// COPIED OUT OF `duckbench/chase` WITHOUT A BYTE CHANGED, which is the
     /// same discipline the stairs challenge keeps for its nineteen intent
     /// files and it exists for the same reason: the bench hashes the entrant
     /// object it receives, and `chase_controls-results.json` publishes each of
@@ -14,7 +14,7 @@ extension BallChallenge {
     /// THEY ARE LITERALS RATHER THAN RESOURCES only because they are four
     /// small files and a Swift literal can be diffed against the harness's own
     /// in one test. `BallFixtureTests.testTheBundledEntrantsAreTheHarnessesOwnFiles`
-    /// reads `duck-sounds/chase/<file>` when the harness is checked out beside
+    /// reads `duckbench/chase/<file>` when the harness is checked out beside
     /// this repository and compares the bytes; when it is not, it SKIPS BY
     /// NAME. THE FILE WINS: a disagreement is fixed here, never there.
     ///
@@ -26,7 +26,7 @@ extension BallChallenge {
     /// normalises before it hashes.
     public enum Entrants {
 
-        /// A bundled file's bytes, exactly as `duck-sounds/chase` holds them.
+        /// A bundled file's bytes, exactly as `duckbench/chase` holds them.
         public static func text(_ file: String) -> String? { texts[file] }
 
         /// The same, as the bytes a byte comparison needs.

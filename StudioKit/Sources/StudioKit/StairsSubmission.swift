@@ -54,7 +54,7 @@ extension StairsChallenge {
 
         /// Where an entry actually goes.
         public static let issueBase =
-            "https://github.com/craigm26/duck-sounds/issues/new"
+            "https://github.com/craigm26/duckbench/issues/new"
 
         /// Said above the Submit button, once a score exists.
         public static let whatIsSent =
@@ -88,7 +88,7 @@ extension StairsChallenge {
         /// it with the harness, which refuses the bundle file itself.
         public static let howToRescore =
             "To re-score: extract the `intent` object from this file to intent.json, then from "
-          + "duck-sounds/sim run node --input-type=module -e 'import { scoreRobust } from "
+          + "duckbench/sim run node --input-type=module -e 'import { scoreRobust } from "
           + "\"../climb/robust.mjs\"; console.log(await scoreRobust(\"intent.json\", { rise: "
           + "<rise in metres> }))'."
 

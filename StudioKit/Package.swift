@@ -46,7 +46,7 @@ let package = Package(
             // challenge is a published dataset — a leaderboard and the intent
             // files behind its rows — and an app that retyped either would be
             // showing numbers nobody can trace. So the files themselves ship,
-            // copied from duck-sounds/challenge without a byte changed, and
+            // copied from duckbench/challenge without a byte changed, and
             // `StairsChallengeResourceTests` pins every one of them by sha256
             // against the list the dataset publishes. `.copy` rather than
             // `.process`: processing is free to rewrite what it recognises,

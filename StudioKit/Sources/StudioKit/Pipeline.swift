@@ -45,7 +45,7 @@ public struct Pipeline: Equatable, Sendable {
         /// sha256 of the plant file's bytes, hex, as the bench reported it.
         ///
         /// THE NAME ALONE WILL NOT DO. Two files called `scene.mjb` exist in
-        /// the duck-sounds tree with the same size and different bytes, and one
+        /// the duckbench tree with the same size and different bytes, and one
         /// of them is four times stiffer in the solver than the other — so
         /// "ran on scene.mjb" does not identify a world. Also Optional: a bench
         /// old enough not to send it is not lying, it is silent, and the

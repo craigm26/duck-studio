@@ -28,7 +28,7 @@ Measured 2026-08-30:
 | Repo | Swift files | What is actually there |
 |---|---|---|
 | `duck-studio` | 27 + StudioKit | The shipping app. Build 27 on TestFlight. |
-| `duck-sounds` | **0** | Docs — *and* `sim/`, which is real and substantial |
+| `duckbench` | **0** | Docs — *and* `sim/`, which is real and substantial |
 | `duckboard-ios` | **0** | Docs only: 7 markdown files |
 | `duck-diary` | **0** | Docs only: 7 markdown files |
 | `duckkit` | shared | The kit all of them were going to depend on |
@@ -41,7 +41,7 @@ difference between three apps that do not exist and three screens that could.
 
 **And the sim2real argument is the real one.** Microduck Studio can already inspect a
 policy and author a motion, but it cannot run either — an iPhone has no physics.
-`duck-sounds/sim/` has physics. Put them in one app and the loop closes: author a
+`duckbench/sim/` has physics. Put them in one app and the loop closes: author a
 motion, run it in MuJoCo on a machine on your desk, watch what physics did to it,
 and then — when hardware exists — send the same thing to a robot. That loop is
 the whole point, and today it is split across a shipping app and a directory of
@@ -50,7 +50,7 @@ Node scripts in a repository with no app in it.
 ## What already connects, which is more than it looks
 
 `StudioKit/Sources/StudioKit/DuckBench.swift` **already names
-`sim/duckbench.mjs` in duck-sounds** and speaks to it over the LAN.
+`sim/duckbench.mjs` in duckbench** and speaks to it over the LAN.
 `RemoteRunView`, `BenchView` and `PipelineView` are already clients of it. The
 bench serves eleven endpoints:
 
@@ -189,7 +189,7 @@ are most able to do.
 
 ## What stays in its own repository
 
-`duck-sounds/sim/` — the bench is a Node service that runs on a machine with
+`duckbench/sim/` — the bench is a Node service that runs on a machine with
 physics, and it does not belong in an iOS app bundle. What merges is the
 *client*, which is already here. The repository stays; the app that never got
 written is what folds in.
@@ -208,7 +208,7 @@ land on the tread — clears 2 of 9 cells at 40 mm, 2 of 9 at 50, 4 of 9 at 60, 
 9 at 90 mm or taller, against 9 of 9 for a duck placed on the tread and 0 of 9 for doing
 nothing. Ten of the eleven clears are still upright fifty ticks later. Roughly 48,000
 searched attempts over four rounds; every claim re-scored from its saved file by an
-adversarial audit (duck-sounds `climb/r4_judge-results.json`).
+adversarial audit (duckbench `climb/r4_judge-results.json`).
 
 **The instrument was broken first.** The harness's flight is built from 200 mm-tall step
 blocks whose top is the tread, so at any rise under 200 mm adjacent blocks interpenetrate

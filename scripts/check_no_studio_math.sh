@@ -80,7 +80,7 @@ done
 # for forbidden tokens is the wrong question.
 #
 # THE RIGHT QUESTION IS WHETHER THEY ARE THE FILES THEY CLAIM TO BE. They are
-# vendored, byte for byte, from duck-sounds by scripts/make_phone_bench.sh,
+# vendored, byte for byte, from duckbench by scripts/make_phone_bench.sh,
 # which writes MANIFEST.json with a sha256 per file. So this pass proves two
 # things: nothing in the folder is missing from the manifest, and nothing in the
 # folder differs from what the manifest says it is. A .mjs edited in this repo
@@ -151,7 +151,7 @@ else
       echo "FORBIDDEN: $rel does not match MANIFEST.json."
       echo "  manifest $claimed"
       echo "  on disk  $actual"
-      echo "  A vendored artefact was edited here. Change it in duck-sounds and"
+      echo "  A vendored artefact was edited here. Change it in duckbench and"
       echo "  re-run scripts/make_phone_bench.sh."
       status=1
     fi

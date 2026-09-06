@@ -131,7 +131,7 @@ def password() -> str:
 # `git archive HEAD` reads the CWD, so running this by absolute path from
 # another checkout silently tarred THAT repo and shipped it to the Mac to be
 # built as if it were Duck Studio. Caught when the source line read 87384 KB
-# instead of the usual 13 MB and the tarball turned out to hold duck-sounds:
+# instead of the usual 13 MB and the tarball turned out to hold duckbench:
 # scene_full.mjb, mujoco.wasm and no app at all. A gate that builds the wrong
 # repository is worse than one that does not run, because it answers.
 REPO = pathlib.Path(__file__).resolve().parent.parent

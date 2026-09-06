@@ -9,7 +9,7 @@ final class StairsChallengeTests: XCTestCase {
     // MARK: - the files are the dataset's, unchanged
 
     /// EVERY BUNDLED FILE, BY SHA-256, AGAINST THE PUBLISHED DATASET. Taken on
-    /// 2026-09-02 from `duck-sounds/challenge`, which is what
+    /// 2026-09-02 from `duckbench/challenge`, which is what
     /// `huggingface.co/datasets/craigm26/microduck-stairs-challenge` carries.
     /// A file that drifts here is a move the leaderboard does not describe, and
     /// there is no way to notice that by looking at the app.
@@ -282,7 +282,7 @@ final class StairsChallengeTests: XCTestCase {
             "No /climb on the Pi at 100.122.199.6:8770. This bench answers /health and /perform "
           + "but not the stairs challenge, so nothing here can be scored on it. Pick a bench "
           + "that has it — this iPhone's own bench does, once the app is updated — or update "
-          + "the Pi bench from github.com/craigm26/duck-sounds and restart it with "
+          + "the Pi bench from github.com/craigm26/duckbench and restart it with "
           + "`systemctl --user restart duckbench`.")
         XCTAssertTrue(said.contains("the Pi at 100.122.199.6:8770"))
     }

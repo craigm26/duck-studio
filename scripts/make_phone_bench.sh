@@ -2,7 +2,7 @@
 # Assemble DuckStudio/Resources/phonebench — the bench that ships inside the app.
 #
 # WHY IT IS ASSEMBLED AND NOT AUTHORED HERE. Every file it serves already has a
-# home in duck-sounds: the bench core, the plant and the forward pass in sim/,
+# home in duckbench: the bench core, the plant and the forward pass in sim/,
 # the MuJoCo WebAssembly build in site/vendor/. A hand-maintained second copy in
 # this repo is a copy that goes stale, and the one that would go stale silently
 # is scene.mjb — a phone running a different plant from the desk bench would
@@ -15,7 +15,7 @@
 # over one language into a claim about the whole bundle: a .mjs edited here to
 # recompute an observation would change its digest and fail the gate.
 #
-# WHAT IS DELIBERATELY NOT COPIED: the policies. duck-sounds ships
+# WHAT IS DELIBERATELY NOT COPIED: the policies. duckbench ships
 # site/phonebench/assets/policies/*.bin, and this app does not, because it
 # already bundles the .onnx those bins were made from. `PhoneBenchAssets`
 # exports DuckPolicy.canonicalParameterBytes from them at runtime, which means
@@ -25,19 +25,19 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SOURCE="${DUCK_SOUNDS:-$HOME/projects/duck-sounds}"
+SOURCE="${DUCKBENCH:-$HOME/projects/duckbench}"
 OUT="$HERE/DuckStudio/Resources/phonebench"
 
 if [ ! -d "$SOURCE/sim" ]; then
-  echo "make_phone_bench: no duck-sounds at $SOURCE" >&2
-  echo "Set DUCK_SOUNDS to where it is checked out." >&2
+  echo "make_phone_bench: no duckbench at $SOURCE" >&2
+  echo "Set DUCKBENCH to where it is checked out." >&2
   exit 1
 fi
 
 rm -rf "$OUT"
 mkdir -p "$OUT/assets"
 
-# THE SHELL PAGE. It is the probe page from duck-sounds, unchanged, and that is
+# THE SHELL PAGE. It is the probe page from duckbench, unchanged, and that is
 # on purpose: it installs `globalThis.duckbench` — the whole bridge the app
 # talks through — and then measures the phone it is running on and prints what
 # it found. Shipping the measurement rather than stripping it means the one
@@ -60,7 +60,7 @@ cp "$SOURCE/sim/duckkit-constants.json" "$OUT/assets/"
 # challenge's fourteen — out of `sim/climb_score.mjs`, which is the SAME episode
 # climb/rig3.mjs and climb/robust.mjs run, so a cell scored on the phone is the
 # cell the audit published rather than one that resembles it
-# (duck-sounds sim/climb_parity.mjs is the gate that says so). It reaches its
+# (duckbench sim/climb_parity.mjs is the gate that says so). It reaches its
 # staircase, its event block and its servo law through `./stairs.js`,
 # `./climb_event.mjs` and `./climb_servo.mjs`; in sim/ those are re-export shims
 # pointing at site/ and climb/, and a WebView has no `../site` or `../climb` to
@@ -76,7 +76,7 @@ cp "$SOURCE/climb/servo.mjs"            "$OUT/assets/climb_servo.mjs"
 # answers POST /chase — one cell of the BALL challenge's fourteen — out of
 # `sim/chase_score.mjs`, which is the SAME episode `chase/chase_rig.mjs` and
 # `chase/chase_robust.mjs` run, so a cell scored on the phone is the cell the
-# package published rather than one that resembles it (duck-sounds
+# package published rather than one that resembles it (duckbench
 # chase/chase_parity.mjs is the gate that says so). It takes the keyframe
 # interpolation curve and the 45-of-50 tail bar from `./climb_score.mjs`, copied
 # just above, and its quaternion arithmetic from `./reward_math.mjs` — which
@@ -88,7 +88,7 @@ cp "$SOURCE/sim/chase_score.mjs"        "$OUT/assets/"
 cp "$SOURCE/sim/reward_math.mjs"        "$OUT/assets/"
 
 # THE PLANT, FROM sim/. `site/scene.mjb` and `sim/scene.mjb` share a name and
-# differ in bytes (duck-sounds PLANT.md), and it is sim/'s that every clip in
+# differ in bytes (duckbench PLANT.md), and it is sim/'s that every clip in
 # duckkit is stamped with. Copying the wrong one is the failure this script
 # exists to prevent, which is why its digest is printed at the end and can be
 # read straight off /health.
@@ -115,8 +115,8 @@ done
 # of any byte in the folder.
 {
   printf '{\n'
-  printf '  "why": "Vendored from duck-sounds by scripts/make_phone_bench.sh. Nothing here is\\nauthored in this repo; check_no_studio_math.sh proves it by digest.",\n'
-  printf '  "source": "duck-sounds",\n'
+  printf '  "why": "Vendored from duckbench by scripts/make_phone_bench.sh. Nothing here is\\nauthored in this repo; check_no_studio_math.sh proves it by digest.",\n'
+  printf '  "source": "duckbench",\n'
   printf '  "files": [\n'
   first=1
   while IFS= read -r path; do

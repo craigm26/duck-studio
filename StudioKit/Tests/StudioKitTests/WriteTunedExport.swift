@@ -18,7 +18,7 @@ import DuckKit
 /// language, in another repository, can be pointed at it:
 ///
 ///     swift test --filter WriteTunedExport
-///     node duck-sounds/sim/onnx_meta.mjs <the path it prints>
+///     node duckbench/sim/onnx_meta.mjs <the path it prints>
 ///
 /// It writes to a directory named by `TUNED_EXPORT_DIR` and does nothing at all
 /// when that is unset, so a normal `swift test` run neither writes files nor

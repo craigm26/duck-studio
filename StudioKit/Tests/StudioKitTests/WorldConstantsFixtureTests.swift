@@ -3,7 +3,7 @@ import Crypto
 @testable import StudioKit
 
 /// `DuckWorld.Bank` AGAINST THE FILES IT WAS TRANSCRIBED FROM, when
-/// `duck-sounds` is checked out beside this repository.
+/// `duckbench` is checked out beside this repository.
 ///
 /// WHY A TRANSCRIPTION NEEDS A TEST. Every number in `DuckWorld.Bank.pinned`
 /// is a copy of something the harness owns — five constants in
@@ -15,7 +15,7 @@ import Crypto
 ///
 /// THE HARNESS WINS. If this fails, `DuckWorld.swift` is what changes.
 ///
-/// AND IT SKIPS RATHER THAN FAILING when `duck-sounds` is not beside this
+/// AND IT SKIPS RATHER THAN FAILING when `duckbench` is not beside this
 /// repository — a phone build and a checkout of `duck-studio` alone are both
 /// legitimate, and a test that failed there would train somebody to ignore it.
 /// Every skip names exactly what was missing. Same shape as `BallFixtureTests`.
@@ -36,7 +36,7 @@ final class WorldConstantsFixtureTests: XCTestCase {
             .deletingLastPathComponent()   // StudioKit
             .deletingLastPathComponent()   // duck-studio
             .deletingLastPathComponent()   // projects
-            .appendingPathComponent("duck-sounds")
+            .appendingPathComponent("duckbench")
     }
 
     private func text(_ relative: String) throws -> String {

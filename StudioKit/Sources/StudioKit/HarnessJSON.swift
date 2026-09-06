@@ -139,7 +139,7 @@ public indirect enum HarnessJSON: Equatable, Sendable {
 
     public enum WriteStyle: Equatable, Sendable {
         /// Two-space indent, exactly `JSON.stringify(value, null, 2)` — the
-        /// shape every file in `duck-sounds/challenge/intents` is written in.
+        /// shape every file in `duckbench/challenge/intents` is written in.
         case pretty
         /// No whitespace at all, for a request body.
         case compact

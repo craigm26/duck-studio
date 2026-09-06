@@ -121,7 +121,7 @@ final class StairsSubmissionTests: XCTestCase {
         let url = try made().issueURL
         XCTAssertEqual(url.scheme, "https")
         XCTAssertEqual(url.host, "github.com")
-        XCTAssertEqual(url.path, "/craigm26/duck-sounds/issues/new")
+        XCTAssertEqual(url.path, "/craigm26/duckbench/issues/new")
         let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
         XCTAssertEqual(items.first { $0.name == "title" }?.value, "Stairs challenge: 60 mm")
         XCTAssertEqual(items.first { $0.name == "body" }?.value, try made().issueBody)
@@ -159,7 +159,7 @@ final class StairsSubmissionTests: XCTestCase {
         XCTAssertTrue(card.contains("license: cc-by-4.0"))
         XCTAssertTrue(card.contains(submission.score.verdict))
         XCTAssertTrue(card.contains(StairsChallenge.realDuckCaveat))
-        XCTAssertTrue(card.contains("https://github.com/craigm26/duck-sounds"))
+        XCTAssertTrue(card.contains("https://github.com/craigm26/duckbench"))
     }
 
     /// The token never enters a Call. `HuggingFacePublish` pins that for its

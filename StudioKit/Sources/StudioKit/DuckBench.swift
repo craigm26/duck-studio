@@ -10,7 +10,7 @@ import DuckKit
 /// somebody published on Hugging Face — and then do nothing with it: an iPhone
 /// has no MuJoCo, so every clip in the app was recorded on a bigger machine and
 /// baked in at build time. Point this at a bench (`sim/duckbench.mjs` in
-/// duck-sounds) and an imported policy becomes something you can actually run:
+/// duckbench) and an imported policy becomes something you can actually run:
 /// record it into a clip, or measure how often it works.
 ///
 /// IT DOES NOT TRAIN, AND THE BENCH SAYS SO ITSELF in `/health`. Training is a
@@ -428,7 +428,7 @@ public enum DuckBench {
     /// LENIENT ABOUT THE BANK AND THE ARENA, STRICT ABOUT NOTHING. A bench that
     /// omits either is answered from `DuckWorld.Bank.pinned` — the
     /// transcription `WorldConstantsFixtureTests` holds against
-    /// `duck-sounds/site/stairs.js` — because those numbers are compiled into
+    /// `duckbench/site/stairs.js` — because those numbers are compiled into
     /// the plant and a bench that does not repeat them has not changed them.
     /// Where the bench DOES say, the bench wins.
     public static func readWorld(_ data: Data) throws -> DuckWorld {

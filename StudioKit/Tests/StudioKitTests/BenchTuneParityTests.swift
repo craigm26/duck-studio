@@ -25,7 +25,7 @@ import DuckEvidence
 ///     network's own fourteen outputs and the command, per tick — WITH the six
 ///     term values the bench computed from them. This test recomputes those six
 ///     through `RunMetrics` and requires agreement. `sim/tune_parity.mjs` in
-///     duck-sounds recomputes them through the bench's own `rewardSums` and
+///     duckbench recomputes them through the bench's own `rewardSums` and
 ///     requires the same. Change either transcription and exactly one side goes
 ///     red, which is the whole point.
 ///
@@ -81,7 +81,7 @@ final class BenchTuneParityTests: XCTestCase {
         let url = try XCTUnwrap(Bundle.module.url(forResource: name, withExtension: "json",
                                                   subdirectory: "Fixtures/tune"),
                                 "missing Fixtures/tune/\(name).json — regenerate it with "
-                              + "`node sim/tune_parity.mjs --emit` in duck-sounds")
+                              + "`node sim/tune_parity.mjs --emit` in duckbench")
         return try JSONDecoder().decode(Trace.self, from: Data(contentsOf: url))
     }
 
@@ -283,7 +283,7 @@ final class BenchTuneParityTests: XCTestCase {
         -0.0202, 0.0011, -0.0333, 0.0444, -0.005,
     ]
 
-    /// Write the base and the folded network out, for duck-sounds to fold the
+    /// Write the base and the folded network out, for duckbench to fold the
     /// same base and compare.
     ///
     /// WHY `.build` AND NOT A TEMPORARY DIRECTORY. `NSTemporaryDirectory()` is
@@ -338,7 +338,7 @@ final class BenchTuneParityTests: XCTestCase {
             "why": "Written by BenchTuneParityTests in StudioKit. base.bin is "
                  + "alpha_walking.onnx as DuckPolicy.canonicalParameterBytes; folded.bin is the "
                  + "same network after DuckPolicyWriter.folding with the gain and trim below. "
-                 + "duck-sounds' sim/tune_parity.mjs folds base.bin with the bench's own "
+                 + "duckbench' sim/tune_parity.mjs folds base.bin with the bench's own "
                  + "arithmetic and must reproduce folded.bin byte for byte.",
             "policy": "alpha_walking.onnx",
             "gain": Self.gain,

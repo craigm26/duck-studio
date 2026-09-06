@@ -5,14 +5,14 @@ import XCTest
 /// out beside this repository.
 ///
 /// WHY THIS TEST EXISTS. Everything the ball challenge ships is a copy of
-/// something `duck-sounds` owns: the four entrant files are its bytes, the
+/// something `duckbench` owns: the four entrant files are its bytes, the
 /// fourteen cells are `sim/chase_score.mjs`'s constants, the criterion is its
 /// exported sentence, and every number in the leaderboard came out of
 /// `chase/chase_controls-results.json`. A copy nobody checks is a copy that
 /// drifts, and a drifted copy shows a number under a published row's name that
 /// the run behind that row never produced.
 ///
-/// AND WHY IT SKIPS RATHER THAN FAILING when `duck-sounds` is not beside this
+/// AND WHY IT SKIPS RATHER THAN FAILING when `duckbench` is not beside this
 /// repository: a phone build and a CI checkout of `duck-studio` alone are both
 /// legitimate, and a test that failed there would train somebody to ignore it.
 /// Every skip names exactly what was missing.
@@ -25,14 +25,14 @@ final class BallFixtureTests: XCTestCase {
             .deletingLastPathComponent()   // StudioKit
             .deletingLastPathComponent()   // duck-studio
             .deletingLastPathComponent()   // projects
-            .appendingPathComponent("duck-sounds")
+            .appendingPathComponent("duckbench")
     }
 
     static var chase: URL { duckSounds.appendingPathComponent("chase") }
 
     func requireHarness() throws {
         guard FileManager.default.fileExists(atPath: Self.chase.path) else {
-            throw XCTSkip("duck-sounds/chase is not checked out beside duck-studio "
+            throw XCTSkip("duckbench/chase is not checked out beside duck-studio "
                         + "(\(Self.chase.path)), so the harness's own files cannot be read")
         }
     }

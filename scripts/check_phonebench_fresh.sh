@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Is the bench that ships inside the app the bench duck-sounds actually has?
+# Is the bench that ships inside the app the bench duckbench actually has?
 #
 # THE FAILURE THIS EXISTS TO CATCH IS A GREEN BUILD OVER A STALE BENCH.
-# `DuckStudio/Resources/phonebench` is vendored from duck-sounds by
+# `DuckStudio/Resources/phonebench` is vendored from duckbench by
 # scripts/make_phone_bench.sh, which writes MANIFEST.json with a sha256 per
 # file. `check_no_studio_math.sh` proves every file in the folder matches the
 # manifest — and a folder that was never re-assembled has stale files AND a
@@ -28,20 +28,20 @@
 # stairs.js (readStairs). Every other vendored file is covered by the manifest
 # check in check_no_studio_math.sh, which this does not repeat.
 #
-# THE SOURCES ARE duck-sounds' OWN sim/ AND site/, NOT ITS site/phonebench COPY.
+# THE SOURCES ARE duckbench' OWN sim/ AND site/, NOT ITS site/phonebench COPY.
 # make_phone_bench.sh copies from sim/*.mjs and site/stairs.js, so those are
-# what "fresh" means here. duck-sounds has a second assembler of its own
+# what "fresh" means here. duckbench has a second assembler of its own
 # (scripts/make_phonebench.sh) writing site/phonebench/assets; comparing
 # against that would make this gate pass whenever the two assemblers agreed
 # with each other and disagreed with the source.
 #
 # Usage:  scripts/check_phonebench_fresh.sh
-#         DUCK_SOUNDS=/path/to/duck-sounds scripts/check_phonebench_fresh.sh
+#         DUCKBENCH=/path/to/duckbench scripts/check_phonebench_fresh.sh
 # Run from anywhere. Exit 0 = the three digests match.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SOURCE="${DUCK_SOUNDS:-$HOME/projects/duck-sounds}"
+SOURCE="${DUCKBENCH:-$HOME/projects/duckbench}"
 BUNDLE="$HERE/DuckStudio/Resources/phonebench/assets"
 
 digest() {
@@ -54,10 +54,10 @@ digest() {
 
 # A MISSING SOURCE TREE IS A FAILURE AND NOT A SKIP. This gate's whole job is to
 # say the bundle came from somewhere; "I could not check" is the answer it must
-# never give quietly. A checkout without duck-sounds cannot ship a phone bench.
+# never give quietly. A checkout without duckbench cannot ship a phone bench.
 if [ ! -d "$SOURCE/sim" ]; then
-  echo "check_phonebench_fresh: no duck-sounds at $SOURCE" >&2
-  echo "  Set DUCK_SOUNDS to where it is checked out. The vendored bench cannot" >&2
+  echo "check_phonebench_fresh: no duckbench at $SOURCE" >&2
+  echo "  Set DUCKBENCH to where it is checked out. The vendored bench cannot" >&2
   echo "  be shown to be the bench without the tree it was vendored from." >&2
   exit 1
 fi
@@ -68,7 +68,7 @@ if [ ! -d "$BUNDLE" ]; then
   exit 1
 fi
 
-# "shipped-file-name  source-path-relative-to-duck-sounds"
+# "shipped-file-name  source-path-relative-to-duckbench"
 PAIRS=(
   "duckbench-core.mjs  sim/duckbench-core.mjs"
   "climb_score.mjs     sim/climb_score.mjs"
@@ -100,7 +100,7 @@ for pair in "${PAIRS[@]}"; do
   checked=$((checked + 1))
   if [ "$want" != "$got" ]; then
     echo "STALE: DuckStudio/Resources/phonebench/assets/$1"
-    echo "  duck-sounds $2"
+    echo "  duckbench $2"
     echo "    $want"
     echo "  shipped in the app"
     echo "    $got"
@@ -122,7 +122,7 @@ if [ $status -eq 0 ]; then
   echo "check_phonebench_fresh: 3 of 3 digests match $SOURCE."
 else
   echo
-  echo "The app would ship a bench older than the one duck-sounds has. Fix it by"
+  echo "The app would ship a bench older than the one duckbench has. Fix it by"
   echo "re-running the assembler, never by editing anything under"
   echo "DuckStudio/Resources/phonebench:"
   echo "    scripts/make_phone_bench.sh"

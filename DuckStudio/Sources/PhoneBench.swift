@@ -40,7 +40,7 @@ import StudioKit
 ///
 /// TWO KINDS OF ASSET AND THEY ARE KEPT APART ON PURPOSE. Everything under
 /// `Resources/phonebench` is a VENDORED artefact — copied byte-for-byte from
-/// duck-sounds by `scripts/make_phone_bench.sh`, listed with its digest in
+/// duckbench by `scripts/make_phone_bench.sh`, listed with its digest in
 /// `MANIFEST.json`, and checked by `scripts/check_no_studio_math.sh` so that
 /// nobody can edit physics into the app target through a `.mjs` file the Swift
 /// guard cannot see. The policies are the other kind: they are DERIVED, at

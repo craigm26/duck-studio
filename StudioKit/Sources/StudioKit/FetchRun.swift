@@ -3,7 +3,7 @@ import Foundation
 /// Fetch: drop balls on the floor and time the duck bringing them in.
 ///
 /// THE STEERING LAW IS THE ONE THAT WAS PROVEN ON THE BENCH. `walk_to` in
-/// duck-sounds arrives at a ball 8 times out of 8, from anywhere between dead
+/// duckbench arrives at a ball 8 times out of 8, from anywhere between dead
 /// ahead and 40 degrees off the nose, stopping at a median 0.242 m — steering
 /// on nothing but a camera bearing. This is that controller: square up if the
 /// target is more than 25 degrees off, otherwise walk and turn at the same

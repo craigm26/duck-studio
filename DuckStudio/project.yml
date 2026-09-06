@@ -68,7 +68,7 @@ targets:
       #
       # IT IS ALSO WHAT KEEPS THE VENDORED ARTEFACTS HONEST. Nothing in here is
       # compiled or processed; the bytes in the bundle are the bytes
-      # `scripts/make_phone_bench.sh` copied out of duck-sounds, and
+      # `scripts/make_phone_bench.sh` copied out of duckbench, and
       # `MANIFEST.json` beside them carries the digest of each one so
       # `scripts/check_no_studio_math.sh` can prove none of them was edited into
       # a second implementation of the physics.

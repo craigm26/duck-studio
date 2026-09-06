@@ -348,7 +348,7 @@ final class LinePeerTests: XCTestCase {
         return nil
     }
 
-    /// `duck-sounds/sim/fake_mediad.mjs`, beside this repository.
+    /// `duckbench/sim/fake_mediad.mjs`, beside this repository.
     private static func fakeDaemon() -> String {
         URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()   // StudioKitTests
@@ -356,7 +356,7 @@ final class LinePeerTests: XCTestCase {
             .deletingLastPathComponent()   // StudioKit
             .deletingLastPathComponent()   // duck-studio
             .deletingLastPathComponent()   // projects
-            .appendingPathComponent("duck-sounds/sim/fake_mediad.mjs")
+            .appendingPathComponent("duckbench/sim/fake_mediad.mjs")
             .path
     }
 
@@ -375,7 +375,7 @@ final class LinePeerTests: XCTestCase {
         }
         let script = Self.fakeDaemon()
         guard FileManager.default.fileExists(atPath: script) else {
-            throw XCTSkip("duck-sounds is not checked out beside duck-studio: \(script)")
+            throw XCTSkip("duckbench is not checked out beside duck-studio: \(script)")
         }
 
         let child = Process()

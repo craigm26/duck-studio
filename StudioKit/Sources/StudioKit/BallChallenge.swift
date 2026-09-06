@@ -135,7 +135,7 @@ public enum BallChallenge {
         "No /chase on \(bench). This bench answers /health and /perform but not the ball "
       + "challenge, so nothing here can be scored on it. Pick a bench that has it — this "
       + "iPhone's own bench does, once the app is updated — or update the Pi bench from "
-      + "github.com/craigm26/duck-sounds and restart it with "
+      + "github.com/craigm26/duckbench and restart it with "
       + "`systemctl --user restart duckbench`."
     }
 
@@ -391,7 +391,7 @@ public enum BallChallenge {
     /// they are a prediction somebody can watch being tested. Written down
     /// after, they would be a caption.
     public struct Control: Equatable, Sendable, Identifiable {
-        /// The file in `duck-sounds/chase/`.
+        /// The file in `duckbench/chase/`.
         public let file: String
         public let entrant: Entrant
         public let who: String

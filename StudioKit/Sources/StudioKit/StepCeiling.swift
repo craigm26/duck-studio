@@ -19,7 +19,7 @@ import Foundation
 ///
 /// WHAT IS KNOWN NOW, after six rounds and roughly 55,000 searched attempts,
 /// each claim re-scored from its saved file by an adversarial audit
-/// (duck-sounds/climb/r4_judge-results.json) on a robustness grid — the rise
+/// (duckbench/climb/r4_judge-results.json) on a robustness grid — the rise
 /// 10 mm either side crossed with three spawn-height and foot-friction
 /// plants, nine cells per candidate: the tallest step the duck can get onto
 /// is UNRELIABLE AT EVERY HEIGHT. The best open-loop move, a beak-strut vault
@@ -169,7 +169,7 @@ public struct StepCeiling: Equatable, Sendable {
         criterion: "upright, within the 340 mm-wide flight, the trunk past the riser face and more than "
                  + "95 mm above the tread, both feet resting on the tread past that same line, "
                  + "scored a second after the move ends",
-        evidence: "duck-sounds climb/r6_judge-results.json",
+        evidence: "duckbench climb/r6_judge-results.json",
         measuredOn: "2026-09-02",
         editorRise: 0.010)
 

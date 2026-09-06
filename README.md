@@ -273,7 +273,7 @@ of the file, and the screen says that is the weaker kind of identity.
 You can import a policy and then find there is nothing to press, because this
 device cannot run one forward in a world. **Run on your network** points the app
 at a machine that can: a box on your own network running `duckbench.mjs` from the
-duck-sounds repository. It reports what plant it is simulating, at what rate, on
+duckbench repository. It reports what plant it is simulating, at what rate, on
 how many cores, and what is in that world; a run comes back as a real result the
 draft keeps. Plain http, and only a private address or a `.local` name is
 accepted, because a Pi on a desk has no certificate.
@@ -465,9 +465,9 @@ bash scripts/check_no_studio_math.sh
 # And the one trap no test can reach:
 bash scripts/check_no_atomic_exclusive_write.sh
 
-# The bench's half of /tune — run in duck-sounds, AFTER `swift test`, because
+# The bench's half of /tune — run in duckbench, AFTER `swift test`, because
 # BenchTuneParityTests writes the folded policy it compares against.
-node ~/projects/duck-sounds/sim/tune_parity.mjs
+node ~/projects/duckbench/sim/tune_parity.mjs
 
 # The app — needs a Mac:
 cd DuckStudio && xcodegen generate

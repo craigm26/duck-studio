@@ -422,7 +422,7 @@ final class DuckTunerTests: XCTestCase {
     /// policies: the first version of `export` assembled a folded file out of
     /// parameters alone and it arrived with NOTHING — no `default_joint_pos`,
     /// no `action_scale`, no joint names. `default_joint_pos` is the neutral
-    /// pose the actions are offsets from; duck-sounds carries a whole file
+    /// pose the actions are offsets from; duckbench carries a whole file
     /// whose reason for existing is that ignoring it lied to a community policy
     /// by nineteen degrees on the head. So the base file's own account of
     /// itself is carried forward, and this is where that is held.

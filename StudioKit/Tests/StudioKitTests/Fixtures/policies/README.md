@@ -1,7 +1,7 @@
 # Vendored policies
 
 Copied verbatim from `pollen-robotics/microduck` by way of the duck simulator in
-`duck-sounds/site`. Apache-2.0, same as upstream. These are the real trained
+`duckbench/site`. Apache-2.0, same as upstream. These are the real trained
 networks, not stand-ins: the point of an inspector is that it inspects the thing
 that actually drives the robot.
 

@@ -1058,7 +1058,7 @@ public enum DuckTuner {
         // alone arrives with NOTHING. Read out of Pollen's own
         // `alpha_walking.onnx`, that "nothing" costs eight keys, and one of
         // them is load-bearing: `default_joint_pos` is the neutral pose the
-        // policy's actions are offsets FROM. duck-sounds carries a whole file
+        // policy's actions are offsets FROM. duckbench carries a whole file
         // (`sim/onnx_meta.mjs`) whose entire reason for existing is that
         // ignoring that key lied to the community `headspin.onnx` by seven
         // degrees on the neck and nineteen on the head — in a policy whose job

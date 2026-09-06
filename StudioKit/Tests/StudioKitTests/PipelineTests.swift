@@ -266,7 +266,7 @@ extension PipelineTests {
 
     /// A bench that names a file but will not digest it is not lying, it is
     /// silent — and the difference is a sentence. A filename alone does not
-    /// identify a world: two files called `scene.mjb` exist in duck-sounds,
+    /// identify a world: two files called `scene.mjb` exist in duckbench,
     /// same size, different bytes, one running a solver four times stiffer.
     func testABenchThatNamesItsPlantWithoutDigestingItSaysWhatThatCosts() {
         var vague = goodRun

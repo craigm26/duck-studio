@@ -196,7 +196,7 @@ notes, TestFlight, submit.
 the Pi against duckkit v1.4.0. Only T-015, the app target, is left — it needs
 the Mac.*
 - **T-010 DONE** Nine policies vendored, not seven — they were already sitting
-  in `duck-sounds/site` from the simulator work, so nothing had to be fetched.
+  in `duckbench/site` from the simulator work, so nothing had to be fetched.
   Sizes and SHA-256 recorded. Note the README says plainly that the file digest
   and `DuckPolicy.fingerprint` answer different questions and are expected to
   differ. A test asserts all nine load: an inspector that cannot open the

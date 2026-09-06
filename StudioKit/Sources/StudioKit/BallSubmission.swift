@@ -74,7 +74,7 @@ extension BallChallenge {
         /// it with the harness, which refuses the bundle file itself.
         public static let howToRescore =
             "To re-score: extract the `entrant` object from this file to entrant.json inside "
-          + "duck-sounds/sim, then from that directory run node --input-type=module -e 'import { "
+          + "duckbench/sim, then from that directory run node --input-type=module -e 'import { "
           + "scoreChase } from \"../chase/chase_robust.mjs\"; console.log(await "
           + "scoreChase(\"./entrant.json\"))'. Relative paths resolve against the working directory."
 

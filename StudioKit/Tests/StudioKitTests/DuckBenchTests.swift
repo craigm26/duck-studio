@@ -87,7 +87,7 @@ final class DuckBenchTests: XCTestCase {
 
     /// The bench identifies the world it is actually running now — the file's
     /// bare name and a sha256 of its bytes. VERIFIED against the real thing:
-    /// `sim/scene.mjb` in duck-sounds digests to 3f8c9ab9b409… , which is the
+    /// `sim/scene.mjb` in duckbench digests to 3f8c9ab9b409… , which is the
     /// canon plant every recorded clip in DuckKit came from (sim/PLANT.md).
     func testABenchThatIdentifiesItsWorldIsSaidToIdentifyIt() throws {
         let data = Data(#"""

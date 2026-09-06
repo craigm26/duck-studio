@@ -26,7 +26,7 @@ import Foundation
 /// three quarters of the push-off.
 ///
 /// THE FILES ARE THE DATASET'S OWN BYTES. `intent(named:)` reads a file copied
-/// out of `duck-sounds/challenge/intents` without a byte changed, and
+/// out of `duckbench/challenge/intents` without a byte changed, and
 /// `StairsChallengeResourceTests` pins all nineteen by sha256. An app that
 /// retyped a leaderboard would be publishing numbers that cannot be traced to
 /// the run that produced them.
@@ -85,7 +85,7 @@ public enum StairsChallenge {
 
     public static let datasetURL =
         URL(string: "https://huggingface.co/datasets/craigm26/microduck-stairs-challenge")!
-    public static let harnessURL = URL(string: "https://github.com/craigm26/duck-sounds")!
+    public static let harnessURL = URL(string: "https://github.com/craigm26/duckbench")!
 
     public static func riseSaid(_ rise: Double) -> String {
         "\(Int((rise * 1000).rounded())) mm"
@@ -192,7 +192,7 @@ public enum StairsChallenge {
         "No /climb on \(bench). This bench answers /health and /perform but not the stairs "
       + "challenge, so nothing here can be scored on it. Pick a bench that has it — this "
       + "iPhone's own bench does, once the app is updated — or update the Pi bench from "
-      + "github.com/craigm26/duck-sounds and restart it with "
+      + "github.com/craigm26/duckbench and restart it with "
       + "`systemctl --user restart duckbench`."
     }
 

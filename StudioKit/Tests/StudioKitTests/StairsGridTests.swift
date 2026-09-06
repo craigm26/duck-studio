@@ -4,7 +4,7 @@ import XCTest
 /// The fourteen cells, against `climb/robust.mjs`'s own constants.
 final class StairsGridTests: XCTestCase {
 
-    // Transcribed from duck-sounds/climb/robust.mjs, lines 494–518, on
+    // Transcribed from duckbench/climb/robust.mjs, lines 494–518, on
     // 2026-09-02. Written out here rather than referenced so this test fails
     // if the app's copy drifts from the harness the numbers came from.
     //
