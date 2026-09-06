@@ -2614,14 +2614,19 @@ struct DriveView: View {
                 lastAction = "\(control.face): \(DuckQuickActions.notHeldHere(slot))"
                 return
             }
-            // ONE SWAP, STRAIGHT INTO `flight` WHERE STOP CAN CUT IT OFF. It
-            // used to go through the policy picker's `onChange`, which is gone
-            // with the gate; the reason it goes through `flight` has not
-            // changed. A face button used to ALSO start its own swap beside
-            // that one — two `/policy` posts per press, and only the later one
-            // cancellable, so a stop pressed after a face button could still be
-            // followed by a network landing on the servos.
-            flight = Task { await swap(to: policy) }
+            // ONE SWAP, THROUGH THE LOOP, WHERE STOP CAN CUT IT OFF. This was
+            // `flight = Task { await swap(to: policy) }` followed by
+            // `engageLoop()` — and `engageLoop()` begins with `flight?.cancel()`.
+            // Both ran on the same main-actor turn, so with the loop stopped the
+            // swap was cancelled before its request had left the phone, the
+            // cancellation was (correctly) swallowed as a stop, and the line
+            // below still claimed the load. With the loop already running the
+            // swap did land — and the next trip put the walker straight back,
+            // because the map wanted it and the bench said something else was
+            // driving. Either way the duck stood there. The pilot now carries
+            // the name to the next trip's `Go.load`, and `drive()` posts it
+            // through the same `swap` every other load takes.
+            desk.request(load: policy)
             lastAction = "\(control.face) → \(slot.title): \(policy)"
             // AND IT DRIVES. A network loaded while the loop is stopped is a
             // policy on the servos that nothing is stepping: the duck stands

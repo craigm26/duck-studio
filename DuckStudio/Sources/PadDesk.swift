@@ -84,10 +84,19 @@ final class PadDesk: ObservableObject {
         return said.joined(separator: " ")
     }
 
-    /// A swap landed. The map's automatic locomotion load is guarded against
-    /// this, so the tab cannot undo a quick action launched from the front door.
+    /// A swap landed. What keeps the map's automatic locomotion load from
+    /// undoing it is the pilot's rule that centred sticks ask for nothing —
+    /// see `PadPilot.locomotion(for:wanting:driving:)`.
     func noteLoaded(_ policy: String) {
         lastLoaded = policy
+    }
+
+    /// A face button asked for a network. The loop's next trip posts it —
+    /// through `drive()`'s one `swap`, where Stop can cut it off — rather than
+    /// a second task beside the loop, which `engageLoop()` used to cancel
+    /// before the request had left the phone.
+    func request(load policy: String) {
+        pilot.load(policy)
     }
 
     // MARK: - sequences

@@ -59,6 +59,17 @@ public struct PadPilot: Equatable, Sendable {
     private var asked: Set<String> = []
     /// The slot a chained sequence loads when it finishes.
     private var chained: DuckOfficialPolicies.Slot?
+    /// A network a face button asked for, waiting for the next round trip.
+    ///
+    /// A FACE BUTTON'S LOAD GOES THROUGH THE LOOP, NOT BESIDE IT. It used to be
+    /// its own `Task` assigned into `flight`, and the loop's `engageLoop()`
+    /// cancelled that task on the same run-loop turn it was created — before
+    /// the `POST /policy` had left the phone. The readout then said
+    /// "X → Roulade" over a duck that was still standing under the walking
+    /// network. Surfacing the name here, as the next trip's `Go.load`, is the
+    /// same door every other load already uses, and Stop cancels it the same
+    /// way it cancels everything else the loop does.
+    private var requested: String?
 
     /// Cleared by the app when the keep sheet is dismissed either way.
     public private(set) var pending: DuckSequenceRecording?
@@ -82,10 +93,11 @@ public struct PadPilot: Equatable, Sendable {
                               now: Date) -> Go {
         switch state {
         case .steering:
-            return Go(command: steering, load: ask(for: wanting, driving: policySaid))
+            return Go(command: steering,
+                      load: locomotion(for: steering, wanting: wanting, driving: policySaid))
 
         case .recording(var recording):
-            let load = ask(for: wanting, driving: policySaid)
+            let load = locomotion(for: steering, wanting: wanting, driving: policySaid)
             let sampled = recording.sample(steering, atSim: simSeconds,
                                            policySaid: policySaid, now: now)
             if case .closed(let refusal) = sampled {
@@ -106,17 +118,21 @@ public struct PadPilot: Equatable, Sendable {
             // no point on the recording's own timeline to be at; sending
             // `.still` for one round trip costs a tenth of a second of sim and
             // is the only honest command.
+            // A FACE BUTTON STILL WINS. The one load a replay may not stop is
+            // the one a person just pressed for; it goes out on this trip and
+            // the recording's own swaps resume after it.
             guard let simSeconds else {
                 state = .playing(run)
-                return Go(command: .still)
+                return Go(command: .still, load: takeRequested())
             }
             let beat = run.advance(toSimClock: simSeconds)
             state = .playing(run)
             switch beat {
             case .command(let twist):
-                return Go(command: twist)
+                return Go(command: twist, load: takeRequested())
             case .swap(let name, let twist):
-                return Go(command: twist, load: ask(for: name, driving: policySaid))
+                return Go(command: twist,
+                          load: takeRequested() ?? ask(for: name, driving: policySaid))
             case .finished:
                 // THE STICKS TAKE OVER WITH NO ANNOUNCEMENT. A person who has
                 // a thumb on the pad while a bound sequence ends does not need
@@ -124,9 +140,52 @@ public struct PadPilot: Equatable, Sendable {
                 state = .steering
                 let slot = chained
                 chained = nil
-                return Go(command: steering, load: ask(for: wanting, driving: policySaid), thenLoading: slot)
+                return Go(command: steering,
+                          load: locomotion(for: steering, wanting: wanting, driving: policySaid),
+                          thenLoading: slot)
             }
         }
+    }
+
+    /// A face button's network, if one is waiting; otherwise the map's
+    /// locomotion network — BUT ONLY WHILE A THUMB IS ACTUALLY PUSHING.
+    ///
+    /// THIS IS THE GUARD THAT LETS A TRICK FINISH. The map's answer to "what
+    /// should be on the servos" is the walking network, on every trip, for as
+    /// long as the loop runs. Combined with `ask`'s rule that a bench saying
+    /// something ELSE is driving gets asked again, that meant a roulade loaded
+    /// by a face button was on the servos for exactly one round trip: the next
+    /// trip saw `driving: roulade.onnx`, wanted walking, and put walking back
+    /// before the roll had begun. The duck stood there and the button read as
+    /// broken — while Studio, which runs the same network on its own for six
+    /// seconds, rolled every time.
+    ///
+    /// CENTRED STICKS ASK FOR NOTHING. Under `DuckDrive.deadZone` the standing
+    /// policy takes over anyway, so loading the walker for a twist it would
+    /// ignore buys nothing; and a person watching a roll has their thumbs off
+    /// the sticks. The moment a thumb pushes, walking comes back — which is
+    /// what "the sticks just walk" promised.
+    private mutating func locomotion(for steering: DuckDrive.Twist, wanting: String?,
+                                     driving: String?) -> String? {
+        if let requested = takeRequested() { return requested }
+        guard !steering.standsStill else { return nil }
+        return ask(for: wanting, driving: driving)
+    }
+
+    /// The waiting face-button load, once. Recorded in `asked` so the map does
+    /// not ask for the same name again on the trip after.
+    private mutating func takeRequested() -> String? {
+        guard let name = requested else { return nil }
+        requested = nil
+        asked.insert(name)
+        return name
+    }
+
+    /// A face button asked for this network. Surfaced as `Go.load` on the next
+    /// round trip, once, whatever state the pilot is in.
+    public mutating func load(_ name: String) {
+        guard !name.isEmpty else { return }
+        requested = name
     }
 
     /// One name, once — UNLESS THE BENCH SAYS SOMETHING ELSE IS DRIVING.
@@ -182,6 +241,7 @@ public struct PadPilot: Equatable, Sendable {
         state = .steering
         chained = nil
         asked = []
+        requested = nil
     }
 
     public mutating func discardPending() {

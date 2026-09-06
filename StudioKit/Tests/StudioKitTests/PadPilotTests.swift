@@ -59,6 +59,69 @@ final class PadPilotTests: XCTestCase {
         XCTAssertEqual(surfaced, 1, "a bench that refuses is not asked again every trip")
     }
 
+    // MARK: - a face button's load, and the walker that used to undo it
+
+    /// THE ROULADE BUG. X loads `roulade.onnx`; the next trip saw the bench
+    /// driving roulade, wanted walking, and put walking back before the roll
+    /// began. With the sticks centred the map's network is not asked for.
+    func testAFaceButtonsNetworkIsNotUndoneByTheMapWhileTheSticksAreCentred() {
+        var pilot = PadPilot()
+        pilot.load("roulade.onnx")
+        let first = pilot.step(steering: .still, simSeconds: 0, policySaid: walking,
+                               wanting: walking, now: clock)
+        XCTAssertEqual(first.load, "roulade.onnx", "the face button's network goes first")
+        for tick in 1...10 {
+            let go = pilot.step(steering: .still, simSeconds: Double(tick) / 10,
+                                policySaid: "roulade.onnx", wanting: walking, now: clock)
+            XCTAssertNil(go.load, "trip \(tick): centred sticks must not bring the walker back")
+            XCTAssertEqual(go.command, .still)
+        }
+    }
+
+    func testPushingAStickBringsTheWalkerBackOverATrick() {
+        var pilot = PadPilot()
+        _ = pilot.step(steering: .still, simSeconds: 0, policySaid: "roulade.onnx",
+                       wanting: walking, now: clock)
+        let go = pilot.step(steering: forward, simSeconds: 1, policySaid: "roulade.onnx",
+                            wanting: walking, now: clock)
+        XCTAssertEqual(go.load, walking, "a thumb pushing is what asks for the walker")
+        XCTAssertEqual(go.command, forward)
+    }
+
+    func testAStickInsideTheDeadZoneIsCentredForTheLoad() {
+        var pilot = PadPilot()
+        let nudge = DuckDrive.Twist(vx: DuckDrive.deadZone / 2, vy: 0, vyaw: 0)
+        let go = pilot.step(steering: nudge, simSeconds: 0, policySaid: "roulade.onnx",
+                            wanting: walking, now: clock)
+        XCTAssertNil(go.load, "under the dead zone the standing policy takes over anyway")
+    }
+
+    func testAFaceButtonsLoadIsSurfacedOnceAndStopDropsIt() {
+        var pilot = PadPilot()
+        pilot.load("roulade.onnx")
+        pilot.load("")
+        XCTAssertEqual(pilot.step(steering: .still, simSeconds: 0, policySaid: walking,
+                                  wanting: nil, now: clock).load, "roulade.onnx",
+                       "an empty name does not replace a real one")
+        XCTAssertNil(pilot.step(steering: .still, simSeconds: 0.1, policySaid: walking,
+                                wanting: nil, now: clock).load)
+        pilot.load("headspin.onnx")
+        pilot.cutOff(.stop)
+        XCTAssertNil(pilot.step(steering: .still, simSeconds: 0.2, policySaid: walking,
+                                wanting: nil, now: clock).load,
+                     "Stop cancels a load that has not gone out yet")
+    }
+
+    func testAFaceButtonsLoadBeatsTheMapDuringAReplay() throws {
+        var pilot = PadPilot()
+        pilot.play(try twoSteps(), thenLoading: nil)
+        pilot.load("roulade.onnx")
+        let go = pilot.step(steering: .still, simSeconds: 0, policySaid: walking,
+                            wanting: walking, now: clock)
+        XCTAssertEqual(go.command, forward, "the replay still owns the twist")
+        XCTAssertEqual(go.load, "roulade.onnx")
+    }
+
     // MARK: - recording
 
     func testARecordingStampsFromTheBenchsClockAndNotTheStepCount() throws {
