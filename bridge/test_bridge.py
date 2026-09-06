@@ -18,6 +18,8 @@ import time
 import unittest
 
 import importlib.util
+import base64
+import hashlib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 spec = importlib.util.spec_from_file_location("bridge", os.path.join(HERE, "microduck-bridge.py"))
@@ -202,6 +204,148 @@ class BridgeTests(unittest.TestCase):
         self.assertEqual(stops, [], "a driven robot is not stopped by its own driver")
         client.close()
 
+
+
+
+class InstallTests(unittest.TestCase):
+    """policy.install: the one verb the bridge answers itself, proved on a disk."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.socket_path = os.path.join(self.dir, "robotd.sock")
+        self.robotd = MockRobotd(self.socket_path)
+        self.token = "0123456789abcdef0123456789abcdef"
+        self.policy_dir = os.path.join(self.dir, "policies")
+        self.toml = os.path.join(self.dir, "robotd.toml")
+        with open(self.toml, "w") as f:
+            f.write("[robot]\nname = \"huey\"\n\n[policy]\nwalk = \"/opt/old/alpha_walking.onnx\"\n"
+                    "stand = \"/opt/old/alpha_stand.onnx\"\n# roulade = \"off\"\n")
+        self.port = self.start(self.policy_dir, self.toml)
+
+    def start(self, policy_dir, toml):
+        ready = threading.Event()
+        port = {}
+        def note(p):
+            port["n"] = p
+            ready.set()
+        threading.Thread(
+            target=bridge.serve,
+            args=("127.0.0.1", 0, self.socket_path, self.token, 300),
+            kwargs={"log": lambda *a: None, "ready": note,
+                    "policy_dir": policy_dir, "robotd_toml": toml}, daemon=True).start()
+        ready.wait(5)
+        return port["n"]
+
+    def tearDown(self):
+        self.robotd.close()
+
+    def connect(self, port=None):
+        client = socket.create_connection(("127.0.0.1", port or self.port), timeout=5)
+        self.addCleanup(client.close)
+        client.sendall(json.dumps({"microduck": "v1", "token": self.token}).encode() + b"\n")
+        return client
+
+    def line(self, sock):
+        buf = b""
+        while not buf.endswith(b"\n"):
+            chunk = sock.recv(1)
+            if not chunk:
+                return buf.decode()
+            buf += chunk
+        return buf.decode().strip()
+
+    def request(self, sock, params, rpc_id=7):
+        sock.sendall(json.dumps({"jsonrpc": "2.0", "id": rpc_id,
+                                 "method": "policy.install", "params": params}).encode() + b"\n")
+        return json.loads(self.line(sock))
+
+    def payload(self, data=b"ONNX" * 1000, name="walk_two", **extra):
+        p = {"name": name, "bytes": base64.b64encode(data).decode(),
+             "sha256": hashlib.sha256(data).hexdigest()}
+        p.update(extra)
+        return p
+
+    def testTheGreetingSaysInstallIsOn(self):
+        client = self.connect()
+        greeting = json.loads(self.line(client))
+        self.assertTrue(greeting["policy_install"])
+
+    def testAnInstallLandsOnTheDiskUnderItsNameAndIsAnsweredInRpcShape(self):
+        client = self.connect(); self.line(client)
+        data = b"\x08\x07ONNX-ish" * 500
+        answer = self.request(client, self.payload(data, name="walk_two.onnx"))
+        self.assertEqual(answer["id"], 7)
+        result = answer["result"]
+        self.assertEqual(result["installed"], os.path.join(self.policy_dir, "walk_two.onnx"))
+        with open(result["installed"], "rb") as f:
+            self.assertEqual(f.read(), data)
+        self.assertEqual(result["sha256"], hashlib.sha256(data).hexdigest())
+        self.assertEqual(result["bytes"], len(data))
+        self.assertIn("robotd next starts", result["takes_effect"])
+        self.assertNotIn("slot", result)
+        # NOTHING OF IT REACHED ROBOTD.
+        time.sleep(0.1)
+        self.assertEqual(self.robotd.lines, [])
+
+    def testAWrongDigestWritesNothingAndSaysSo(self):
+        client = self.connect(); self.line(client)
+        p = self.payload(); p["sha256"] = "0" * 64
+        answer = self.request(client, p)
+        self.assertIn("error", answer)
+        self.assertIn("nothing was written", answer["error"]["message"])
+        self.assertFalse(os.path.exists(os.path.join(self.policy_dir, "walk_two.onnx")))
+
+    def testANameThatCouldBeAPathIsRefusedBeforeAnythingIsDecoded(self):
+        client = self.connect(); self.line(client)
+        for bad in ["../escape", "/abs", "a/b", "", ".hidden", "x" * 65, "walk two"]:
+            answer = self.request(client, self.payload(name=bad))
+            self.assertIn("error", answer, bad)
+        self.assertFalse(os.path.exists(self.policy_dir) and os.listdir(self.policy_dir))
+
+    def testASlotIsPointedAtTheFileWithABackupAndAnUnknownSlotIsRefused(self):
+        client = self.connect(); self.line(client)
+        answer = self.request(client, self.payload(slot="walk"))
+        slot = answer["result"]["slot"]
+        self.assertTrue(slot["applied"], slot)
+        with open(self.toml) as f:
+            text = f.read()
+        self.assertIn('walk = "%s"' % answer["result"]["installed"], text)
+        self.assertIn('stand = "/opt/old/alpha_stand.onnx"', text, "the other key is untouched")
+        self.assertIn('[robot]\nname = "huey"', text)
+        self.assertTrue(os.path.exists(slot["backup"]))
+        refused = self.request(client, self.payload(name="another", slot="roulade"))["result"]["slot"]
+        self.assertFalse(refused["applied"])
+        self.assertIn("no `roulade` key", refused["why"])
+        self.assertIn("walk, stand", refused["why"])
+
+    def testASlotWithoutATomlIsInstalledButNotApplied(self):
+        port = self.start(self.policy_dir, None)
+        client = self.connect(port); self.line(client)
+        result = self.request(client, self.payload(name="third", slot="walk"))["result"]
+        self.assertTrue(os.path.exists(result["installed"]))
+        self.assertFalse(result["slot"]["applied"])
+        self.assertIn("--robotd-toml", result["slot"]["why"])
+
+    def testWithoutAPolicyDirTheVerbIsOffByName(self):
+        port = self.start(None, None)
+        client = self.connect(port)
+        self.assertFalse(json.loads(self.line(client))["policy_install"])
+        answer = self.request(client, self.payload())
+        self.assertIn("--policy-dir", answer["error"]["message"])
+
+    def testEveryOtherLineStillReachesRobotdWholeAndInOrder(self):
+        client = self.connect(); self.line(client)
+        first = b'{"jsonrpc":"2.0","method":"robot.move","params":{"vx":0.1}}\n'
+        client.sendall(first[:20])          # a line split across two sends
+        time.sleep(0.05)
+        client.sendall(first[20:])
+        self.request(client, self.payload(name="between"))
+        client.sendall(b'{"jsonrpc":"2.0","id":9,"method":"robot.stop"}\n')
+        time.sleep(0.2)
+        self.assertEqual(self.robotd.lines, [first.decode().strip(),
+                                            '{"jsonrpc":"2.0","id":9,"method":"robot.stop"}'])
+        self.robotd.push('{"jsonrpc":"2.0","id":9,"result":true}')
+        self.assertEqual(self.line(client), '{"jsonrpc":"2.0","id":9,"result":true}')
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

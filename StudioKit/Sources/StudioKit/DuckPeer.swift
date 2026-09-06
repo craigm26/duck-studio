@@ -92,6 +92,13 @@ public enum DuckMethod: String, CaseIterable, Sendable {
     /// has — while still occupying a row in the routing table, which is the job
     /// it is here to do.
     case update = "update.*"
+    /// Put a policy file on the robot's disk. NOT ROBOTD'S — the bridge's.
+    /// `robotd` has no method that takes a file, and a network searched on a
+    /// phone reaches the robot's disk or it reaches nothing; the bridge is the
+    /// one process on that machine with a disk, so it answers this one line
+    /// itself and forwards everything else untouched. Bridge only, by
+    /// construction: no other transport has anywhere to put the bytes.
+    case installPolicy = "policy.install"
 
     /// Whether getting this method wrong locks somebody out of their robot.
     ///
@@ -107,6 +114,11 @@ public enum DuckMethod: String, CaseIterable, Sendable {
         switch self {
         case .pairingPin, .setPairingPin, .update: return true
         case .hello, .move, .head, .look, .stop, .enable, .initPose, .relax, .state: return false
+        // A NEW FILE ON THE DISK IS NOT THE RECOVERY PATH. The recovery path
+        // is pairing and firmware — what gets a person back INTO a robot. An
+        // installed policy does nothing until robotd is restarted and a slot
+        // names it, and the screen that sends it confirms first.
+        case .installPolicy: return false
         }
     }
 
@@ -156,6 +168,7 @@ public enum DuckMethod: String, CaseIterable, Sendable {
         switch self {
         case .hello, .pairingPin, .setPairingPin, .update: return true
         case .move, .head, .look, .stop, .enable, .initPose, .relax, .state: return false
+        case .installPolicy: return false
         }
     }
 
@@ -166,7 +179,7 @@ public enum DuckMethod: String, CaseIterable, Sendable {
         case .hello, .move, .head, .look, .stop, .enable, .initPose, .relax: return true
         // `state` is not a method `robotd` answers, and `reach` is not the
         // place to wish that it were.
-        case .state, .pairingPin, .setPairingPin, .update: return false
+        case .state, .pairingPin, .setPairingPin, .update, .installPolicy: return false
         }
     }
 
@@ -183,7 +196,7 @@ public enum DuckMethod: String, CaseIterable, Sendable {
         switch self {
         case .hello, .move, .stop, .state: return true
         case .head, .look, .enable, .initPose, .relax: return false
-        case .pairingPin, .setPairingPin, .update: return false
+        case .pairingPin, .setPairingPin, .update, .installPolicy: return false
         }
     }
 
@@ -198,6 +211,7 @@ public enum DuckMethod: String, CaseIterable, Sendable {
     private var overBridge: Bool {
         switch self {
         case .hello, .move, .head, .look, .stop, .enable, .initPose, .relax, .state: return true
+        case .installPolicy: return true
         case .pairingPin, .setPairingPin, .update: return false
         }
     }
@@ -328,6 +342,8 @@ public enum DuckCall: Equatable, Sendable {
     case relax
     /// `studio.state` — ours, not Pollen's. See `DuckMethod.state`.
     case state
+    /// `policy.install` — the bridge's, not robotd's. See `DuckMethod.installPolicy`.
+    case installPolicy(DuckPolicyInstall)
 
     /// What this is called on the wire.
     public var method: DuckMethod {
@@ -341,6 +357,7 @@ public enum DuckCall: Equatable, Sendable {
         case .initPose: return .initPose
         case .relax: return .relax
         case .state: return .state
+        case .installPolicy: return .installPolicy
         }
     }
 
@@ -356,7 +373,7 @@ public enum DuckCall: Equatable, Sendable {
     public var isNotification: Bool {
         switch self {
         case .move, .head: return true
-        case .hello, .look, .stop, .enable, .initPose, .relax, .state: return false
+        case .hello, .look, .stop, .enable, .initPose, .relax, .state, .installPolicy: return false
         }
     }
 
@@ -467,6 +484,8 @@ public enum DuckCall: Equatable, Sendable {
             return pose.wire
         case .stop, .enable, .initPose, .relax, .state:
             return nil
+        case .installPolicy(let install):
+            return install.wire
         }
     }
 
@@ -491,6 +510,7 @@ public enum DuckCall: Equatable, Sendable {
         case .initPose: return .initPose
         case .relax: return .relax
         case .state: return .state
+        case .installPolicy: return .installPolicy(DuckPolicyInstall.shape)
         case .pairingPin, .setPairingPin, .update: return nil
         }
     }

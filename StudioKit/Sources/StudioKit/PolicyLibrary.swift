@@ -52,6 +52,13 @@ public struct PolicyLibrary: Sendable {
         /// it anybody else has ever measured. The walk is the base policy's;
         /// this changed a per-joint gain and trim.
         case tuned(base: String)
+        /// Made on this phone by a search over ALL of the network's weights,
+        /// out of the named policy. `tuned` moved twenty-eight numbers folded
+        /// onto the output; this moved the hundreds of thousands the network
+        /// is made of. Same shelf as `tuned`, same family of caveat, and a
+        /// different claim — which is why it is its own case rather than a
+        /// flag on that one.
+        case searched(base: String)
 
         var rank: Int {
             switch self {
@@ -63,6 +70,7 @@ public struct PolicyLibrary: Sendable {
             // putting it at the bottom is where somebody will look for a thing
             // they just made.
             case .tuned:    return 3
+            case .searched: return 4
             }
         }
 
@@ -70,6 +78,7 @@ public struct PolicyLibrary: Sendable {
             if a.rank != b.rank { return a.rank < b.rank }
             if case .fetched(let x) = a, case .fetched(let y) = b { return x < y }
             if case .tuned(let x) = a, case .tuned(let y) = b { return x < y }
+            if case .searched(let x) = a, case .searched(let y) = b { return x < y }
             return false
         }
 
@@ -79,6 +88,7 @@ public struct PolicyLibrary: Sendable {
             case .imported: return "Imported"
             case .fetched(let host): return "From \(host)"
             case .tuned(let base): return "Tuned here from \(base)"
+            case .searched(let base): return "Searched here from \(base)"
             }
         }
 
@@ -95,7 +105,7 @@ public struct PolicyLibrary: Sendable {
             switch self {
             case .bundled, .fetched: return "somebody else"
             case .imported:          return "whoever sent it"
-            case .tuned:             return "you"
+            case .tuned, .searched:  return "you"
             }
         }
 
@@ -116,6 +126,10 @@ public struct PolicyLibrary: Sendable {
                      + "into \(base). Nothing was trained: the walk is still the base policy's. "
                      + "Every number behind it came out of a simulator, and it has never run on "
                      + "hardware."
+            case .searched(let base):
+                return "Made on this phone by searching the weights of \(base) on a physics "
+                     + "bench. Nothing was trained: no gradient was computed, and every number "
+                     + "behind it came out of a simulator. It has never run on hardware."
             }
         }
     }
@@ -649,6 +663,11 @@ public struct PolicyLibrary: Sendable {
         }
     }
 
+    /// The manifest's own bytes, for a publish that must not rewrite them.
+    public static func manifestBytes(for entry: Entry, in container: URL) -> Data? {
+        try? Data(contentsOf: manifestURL(for: entry, in: container))
+    }
+
     /// The manifest stored with a policy, if one was.
     public static func manifest(for entry: Entry, in container: URL,
                                 using fileManager: FileManager = .default) -> PolicyManifest? {
@@ -794,7 +813,7 @@ extension PolicyLibrary.Entry {
     public var isRemovable: Bool {
         switch origin {
         case .bundled: return false
-        case .imported, .fetched, .tuned: return true
+        case .imported, .fetched, .tuned, .searched: return true
         }
     }
 
@@ -825,6 +844,11 @@ extension PolicyLibrary.Entry {
             return "Removes \(title) from this phone. It was made here by tuning "
                  + "\(base), and this is the only copy there has ever been — no server has it "
                  + "and no other machine made it. Export it first if the run was worth keeping."
+        case .searched(let base):
+            return "Removes \(title) from this phone. It was made here by searching the weights "
+                 + "of \(base), and this is the only copy there has ever been — no server has it "
+                 + "and no other machine made it. Share or publish it first if the search was "
+                 + "worth keeping."
         }
     }
 

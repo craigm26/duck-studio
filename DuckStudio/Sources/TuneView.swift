@@ -51,6 +51,8 @@ struct TuneView: View {
     @StateObject private var run = TuneRun()
     @State private var orbit = OrbitState()
     @State private var outgoing: ExportedFile?
+    /// The title the kept policy went onto the shelf under, once it has.
+    @State private var kept: String?
     /// ONE SCHEDULE, READ IN BOTH PLACES. The panel's line and the run used to
     /// reach for `.onAPhone` separately, so a sentence that changed the
     /// schedule would have changed the run and not the line describing it — the
@@ -462,10 +464,22 @@ struct TuneView: View {
                     .foregroundStyle(Theme.warning)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Button {
-                export(result)
-            } label: {
-                secondaryAction("Save the tuned policy", symbol: "square.and.arrow.up")
+            if let kept {
+                Text(KeptNetwork.keptSaid(kept))
+                    .font(.caption)
+                    .foregroundStyle(Theme.success)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button {
+                    export(result)
+                } label: {
+                    secondaryAction(KeptNetwork.shareTheFileSaid, symbol: "square.and.arrow.up")
+                }
+            } else {
+                Button {
+                    keep(result)
+                } label: {
+                    secondaryAction(KeptNetwork.keepTheTunedSaid, symbol: "square.and.arrow.down")
+                }
             }
         } header: {
             SectionHeading(text: "Result")
@@ -505,6 +519,25 @@ struct TuneView: View {
         Task { await run.search(baseFile: bytes, named: entry.fileName,
                                 declaredScale: library.declaredScale(for: entry),
                                 schedule: schedule, benches: benches) }
+    }
+
+    /// Onto the Behaviours shelf with its manifest — see `KeptNetwork`.
+    private func keep(_ result: TuneRun.Result) {
+        let title = KeptNetwork.title(from: result.basePolicy, how: "tuned", at: Date())
+        let made = KeptNetwork.Tune(
+            baseTitle: result.basePolicy, verdict: result.verdict, residual: result.residual,
+            provenance: result.provenance,
+            build: Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "0")
+        do {
+            let manifest = try KeptNetwork.manifest(for: made, named: title)
+            let entry = library.keep(result.onnx, named: result.filename, title: title,
+                                     origin: .tuned(base: result.basePolicy),
+                                     manifest: manifest)
+            kept = entry.title
+            Haptic.finished()
+        } catch {
+            run.failure = error.localizedDescription
+        }
     }
 
     private func export(_ result: TuneRun.Result) {

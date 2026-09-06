@@ -107,6 +107,9 @@ public enum HuggingFacePublish {
         case noNamespace
         case nothingToPublish
         case noWhenToUse
+        /// A policy's version of `noWhenToUse`: a network with no sentence is
+        /// a filename on a shelf of filenames.
+        case noWhatItDoes
 
         public var message: String {
             switch self {
@@ -126,6 +129,10 @@ public enum HuggingFacePublish {
                      + "moves with no descriptions is a list of filenames — that sentence is "
                      + "what somebody browsing reads, and it is all a model choosing a move "
                      + "has to go on."
+            case .noWhatItDoes:
+                return "Say what this network does and when to load it, in one sentence. It "
+                     + "goes on the card and in the manifest, and it is what somebody browsing "
+                     + "the Community list reads before deciding to run it on a robot."
             }
         }
     }

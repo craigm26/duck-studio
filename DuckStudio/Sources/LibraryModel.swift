@@ -68,6 +68,11 @@ final class LibraryModel: ObservableObject {
         PolicyLibrary.manifest(for: entry, in: container)
     }
 
+    /// The manifest sidecar as it sits on disk, for publishing it verbatim.
+    func manifestBytes(for entry: PolicyLibrary.Entry) -> Data? {
+        PolicyLibrary.manifestBytes(for: entry, in: container)
+    }
+
     /// The action scale that policy declared, or nil to let the caller guess.
     func declaredScale(for entry: PolicyLibrary.Entry) -> Double? {
         PolicyLibrary.declaredScale(for: entry, in: container)
@@ -227,6 +232,30 @@ final class LibraryModel: ObservableObject {
         // THESE WEIGHTS". Looking the held entry up by name would find the
         // wrong one exactly when two files share a name, which is the case the
         // digest identity exists for.
+        let held = library.entries.first { $0.identity == entry.identity }
+        let added = updated.add(entry)
+        lastImport = PolicyLibrary.arrivalMessage(added: added, incoming: entry, held: held)
+        library = updated
+        return added ? entry : (held ?? entry)
+    }
+
+    /// A network this app MADE, kept under the origin that says so.
+    ///
+    /// NOT `accept(_:named:origin:)`. That door files what ARRIVED — imported
+    /// or fetched, somebody else's weights — and a searched or tuned network
+    /// is the one kind whose weights exist nowhere else. `KeptNetwork` writes
+    /// the manifest; this puts the file, the manifest and the origin on the
+    /// shelf together so Behaviours, a bench upload and a publish all read the
+    /// same record.
+    @discardableResult
+    func keep(_ data: Data, named name: String, title: String,
+              origin: PolicyLibrary.Origin, manifest: Data?) -> PolicyLibrary.Entry {
+        let plate = PolicyNameplate(fileName: name, originHost: nil)
+        let entry = PolicyLibrary.entry(for: data, name: name, origin: origin,
+                                        nameplate: plate, authorName: title,
+                                        arrivalWasRecorded: true)
+        try? PolicyLibrary.persist(data, entry: entry, into: container, manifest: manifest)
+        var updated = library
         let held = library.entries.first { $0.identity == entry.identity }
         let added = updated.add(entry)
         lastImport = PolicyLibrary.arrivalMessage(added: added, incoming: entry, held: held)

@@ -45,6 +45,13 @@ final class WeightSearchRun: ObservableObject {
         let onnx: Data
         let filename: String
         let verdict: WeightSearch.Verdict
+        /// What it was searched from, how, and where — the manifest's facts.
+        let baseTitle: String
+        let baseIdentity: String
+        let settings: WeightSearch.Settings
+        let generationsRun: Int
+        let plantName: String?
+        let plantDigest: String?
     }
 
     func stop() { stopped = true }
@@ -57,7 +64,7 @@ final class WeightSearchRun: ObservableObject {
     /// eight tuned policies used to look good while having quietly stopped
     /// moving sideways. It is measured before the run and again after it, on
     /// the same drops, and it goes in the verdict whatever it says.
-    func search(base: Data,
+    func search(base: Data, from entry: PolicyLibrary.Entry,
                 settings: WeightSearch.Settings,
                 benches: BenchStore) async {
         isRunning = true; stopped = false
@@ -67,8 +74,11 @@ final class WeightSearchRun: ObservableObject {
 
         do {
             let (address, token) = try armed(benches)
-            let host = try? DuckBench.readHealth(
-                await ask(DuckBench.health(address), token: token)).host
+            // THE WHOLE HEALTH, NOT JUST THE HOST: the plant the search ran in
+            // is the one fact about the result that nothing else records.
+            let health = try? DuckBench.readHealth(
+                await ask(DuckBench.health(address), token: token))
+            let host = health?.host
 
             let policy = try DuckPolicy.load(from: base)
             let start = policy.parameters
@@ -147,7 +157,10 @@ final class WeightSearchRun: ObservableObject {
                                                         layers: theta)
             result = Result(onnx: searched,
                             filename: WeightSearch.filename(for: try DuckPolicy.load(from: searched)),
-                            verdict: reached)
+                            verdict: reached,
+                            baseTitle: entry.title, baseIdentity: entry.identity.value,
+                            settings: settings, generationsRun: generations.count - 1,
+                            plantName: health?.plantName, plantDigest: health?.plantDigest)
         } catch let refusal as WeightSearch.Refusal {
             failure = refusal.message
         } catch let refusal as DuckBench.Refusal {

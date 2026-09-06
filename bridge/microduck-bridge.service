@@ -7,7 +7,7 @@ After=network.target
 # DIED. robotd's own twist deadman is the backstop under this one; a bridge that
 # stays down is a robot that answers nothing, which is safe, and a bridge that
 # comes back is a robot somebody can stop.
-ExecStart=@BIN@ --socket @SOCKET@ --port @PORT@ --deadman @DEADMAN@ --token-file @TOKEN@
+ExecStart=@BIN@ --socket @SOCKET@ --port @PORT@ --deadman @DEADMAN@ --token-file @TOKEN@ @INSTALL@
 Restart=always
 RestartSec=2
 

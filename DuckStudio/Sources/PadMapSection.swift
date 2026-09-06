@@ -44,6 +44,13 @@ struct PadMapSection: View {
     var bench: BenchEndpoint? = nil
     var token: String? = nil
     var library: LibraryModel? = nil
+    /// Which kind of bench this is, so the upload sends the bytes it takes.
+    var host: DuckBench.Health.Host? = nil
+    /// A network landed on the bench under this name: the tab re-reads
+    /// `/health` so the name is in `policies` before the next settle.
+    var landed: (String) -> Void = { _ in }
+    @State private var putting: String?
+    @State private var putSaid: String?
 
     /// `PadSheet` rather than a bare `DuckPad.Control`, because `.sheet(item:)`
     /// wants `Identifiable` and a control is `padd`'s enum — not this track's
@@ -72,6 +79,7 @@ struct PadMapSection: View {
         Text(DuckPadMap.sticksAreAlwaysMapped)
             .font(.footnote)
             .foregroundStyle(Theme.textSecondary)
+        putOneOfYours
 
         DisclosureGroup(isExpanded: $showingButtons) {
             ForEach(DuckPadMap.remappable, id: \.rawValue) { control in
@@ -137,6 +145,63 @@ struct PadMapSection: View {
             Label(DuckPadMap.pickANetwork, systemImage: "square.stack.3d.up")
         }
         .disabled(policies.isEmpty)
+    }
+
+    // MARK: - one of yours, onto this bench
+
+    /// Networks in Behaviours this bench does not hold yet.
+    private var candidates: [PolicyLibrary.Entry] {
+        (library?.library.entries ?? []).filter { entry in
+            entry.isRunnable && !policies.contains(entry.title)
+                && !policies.contains(entry.fileName)
+        }
+    }
+
+    @ViewBuilder private var putOneOfYours: some View {
+        if let library, bench != nil {
+            Menu {
+                ForEach(candidates) { entry in
+                    Button(entry.title) { put(entry, from: library) }
+                }
+                if candidates.isEmpty {
+                    Text(DuckPadMap.nothingOfYoursToPut)
+                }
+            } label: {
+                Label(putting.map(DuckPadMap.puttingSaid) ?? DuckPadMap.putOneOfYours,
+                      systemImage: "square.and.arrow.up.on.square")
+            }
+            .disabled(putting != nil)
+            .accessibilityHint(Text(DuckPadMap.putOneOfYoursDetail))
+            if let putSaid {
+                Text(putSaid)
+                    .font(.caption)
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func put(_ entry: PolicyLibrary.Entry, from library: LibraryModel) {
+        guard let bench else { return }
+        putting = entry.title
+        putSaid = nil
+        Task {
+            defer { putting = nil }
+            do {
+                let name = try await BenchUploads.put(entry, address: try bench.resolved(),
+                                                      token: token, host: host)
+                landed(name)
+                desk.steer(.named(name))
+                swap(name)
+                putSaid = DuckPadMap.landedSaid(entry.title, as: name)
+            } catch let refusal as DuckBench.ReadError {
+                putSaid = refusal.message
+            } catch let refusal as DuckBench.Refusal {
+                putSaid = refusal.message
+            } catch {
+                putSaid = error.localizedDescription
+            }
+        }
     }
 
     // MARK: - the fourteen rows

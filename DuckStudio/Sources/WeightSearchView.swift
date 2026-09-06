@@ -36,6 +36,8 @@ struct WeightSearchView: View {
     @State private var generations = 8.0
     @State private var outgoing: ExportedFile?
     @State private var failure: String?
+    /// The title the kept network went onto the shelf under, once it has.
+    @State private var kept: String?
 
     private var settings: WeightSearch.Settings? {
         try? WeightSearch.Settings(step: step, rate: 0.05,
@@ -143,10 +145,21 @@ struct WeightSearchView: View {
             Text(said).font(.footnote)
                 .foregroundStyle(run.verdict?.survived == true ? Theme.textPrimary : Theme.asked)
             if let result = run.result, result.verdict.survived {
-                Button {
-                    export(result)
-                } label: {
-                    Label(WeightSearch.keepThisNetworkSaid, systemImage: "square.and.arrow.down")
+                if let kept {
+                    Text(KeptNetwork.keptSaid(kept))
+                        .font(.caption).foregroundStyle(Theme.success)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button {
+                        export(result)
+                    } label: {
+                        Label(KeptNetwork.shareTheFileSaid, systemImage: "square.and.arrow.up")
+                    }
+                } else {
+                    Button {
+                        keep(result)
+                    } label: {
+                        Label(WeightSearch.keepThisNetworkSaid, systemImage: "square.and.arrow.down")
+                    }
                 }
             }
         } header: {
@@ -183,7 +196,31 @@ struct WeightSearchView: View {
             return
         }
         Haptic.behaviourStarted()
-        await run.search(base: bytes, settings: settings, benches: benches)
+        kept = nil
+        await run.search(base: bytes, from: base, settings: settings, benches: benches)
+    }
+
+    /// Onto the Behaviours shelf, with its manifest, under the origin that
+    /// says this phone made it. Sharing is the step after.
+    private func keep(_ result: WeightSearchRun.Result) {
+        let title = KeptNetwork.title(from: result.baseTitle, how: "searched", at: Date())
+        let made = KeptNetwork.Search(
+            baseTitle: result.baseTitle, baseIdentity: result.baseIdentity,
+            generations: result.generationsRun, pairs: result.settings.pairs,
+            step: result.settings.step, gained: result.verdict.gained,
+            keptElsewhere: result.verdict.keptElsewhere,
+            plantName: result.plantName, plantDigest: result.plantDigest,
+            build: Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "0")
+        do {
+            let manifest = try KeptNetwork.manifest(for: made, named: title)
+            let entry = library.keep(result.onnx, named: result.filename, title: title,
+                                     origin: .searched(base: result.baseTitle),
+                                     manifest: manifest)
+            kept = entry.title
+            Haptic.finished()
+        } catch {
+            run.failure = error.localizedDescription
+        }
     }
 
     private func export(_ result: WeightSearchRun.Result) {

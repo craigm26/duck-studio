@@ -323,8 +323,8 @@ final class BenchPeerTests: XCTestCase {
             XCTAssertNotEqual(said, DuckCall.Misuse.outOfReach(call.method, .bench).message)
             sentences.append(said)
         }
-        XCTAssertEqual(sentences.count, 5,
-                       "The bench carries four of the nine calls; the other five each owe an "
+        XCTAssertEqual(sentences.count, 6,
+                       "The bench carries four of the ten calls; the other six each owe an "
                        + "explanation.")
     }
 

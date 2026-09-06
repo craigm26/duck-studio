@@ -396,6 +396,19 @@ public struct DuckPadMap: Equatable, Sendable {
     public static let steerBySlot = "the network filling Walk on this bench"
     public static let steerByWhateverIsLoaded = "whatever this bench already has loaded"
     public static let pickANetwork = "Pick a network"
+    /// The menu that puts a network from Behaviours on THIS bench — the door
+    /// a kept network needed before the sticks could drive it here.
+    public static let putOneOfYours = "Put one of your networks on this bench"
+    public static let putOneOfYoursDetail =
+        "Sends the file to the bench under its own name and steers by it. A desk bench takes "
+      + "the .onnx; the phone bench takes the same network as its parameter bytes. It stays "
+      + "on the bench until the bench restarts, and nothing here changes the file on this phone."
+    public static func puttingSaid(_ title: String) -> String { "Sending \(title) to the bench…" }
+    public static func landedSaid(_ title: String, as name: String) -> String {
+        "\(title) is on this bench as \(name), and the sticks steer by it."
+    }
+    public static let nothingOfYoursToPut =
+        "Every network in Behaviours is already on this bench, or none of them loads."
 
     /// The bind sheet's footnote, where somebody is about to change what a
     /// button does.

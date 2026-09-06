@@ -13,6 +13,15 @@ TOKEN_FILE="${TOKEN_FILE:-$HOME/.microduck-bridge-token}"
 SOCKET="${SOCKET:-/run/robotd.sock}"
 PORT="${PORT:-7788}"
 DEADMAN="${DEADMAN:-700}"
+# policy.install IS OFF UNLESS YOU SAY WHERE. Set POLICY_DIR to the folder
+# robotd loads policies from to turn it on, and ROBOTD_TOML to robotd's config
+# if an install should be able to point a [policy] key at the file. The
+# bridge never restarts robotd; an install takes effect when it next starts.
+POLICY_DIR="${POLICY_DIR:-}"
+ROBOTD_TOML="${ROBOTD_TOML:-}"
+INSTALL=""
+[ -n "$POLICY_DIR" ] && INSTALL="--policy-dir $POLICY_DIR"
+[ -n "$ROBOTD_TOML" ] && INSTALL="$INSTALL --robotd-toml $ROBOTD_TOML"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 
 mkdir -p "$PREFIX/bin"
@@ -29,13 +38,14 @@ if command -v systemctl >/dev/null 2>&1; then
   sed -e "s|@BIN@|$PREFIX/bin/microduck-bridge|" \
       -e "s|@SOCKET@|$SOCKET|" -e "s|@PORT@|$PORT|" \
       -e "s|@DEADMAN@|$DEADMAN|" -e "s|@TOKEN@|$TOKEN_FILE|" \
+      -e "s|@INSTALL@|$INSTALL|" \
       "$HERE/microduck-bridge.service" > "$HOME/.config/systemd/user/microduck-bridge.service"
   systemctl --user daemon-reload
   systemctl --user enable --now microduck-bridge.service
   echo "service: systemctl --user status microduck-bridge"
 else
   echo "no systemd here — run it yourself:"
-  echo "  $PREFIX/bin/microduck-bridge --socket $SOCKET --port $PORT"
+  echo "  $PREFIX/bin/microduck-bridge --socket $SOCKET --port $PORT $INSTALL"
 fi
 
 if [ -d /etc/avahi/services ] && [ -w /etc/avahi/services ]; then
@@ -47,6 +57,11 @@ else
 fi
 
 echo
+if [ -n "$POLICY_DIR" ]; then
+  echo "policy.install is ON: files land in $POLICY_DIR${ROBOTD_TOML:+, slots edit $ROBOTD_TOML}"
+else
+  echo "policy.install is OFF. Re-run with POLICY_DIR=<where robotd loads policies> to turn it on."
+fi
 echo "token (the app asks for this once):"
 cat "$TOKEN_FILE"
 echo

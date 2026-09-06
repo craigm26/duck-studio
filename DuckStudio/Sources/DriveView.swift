@@ -1986,7 +1986,9 @@ struct DriveView: View {
                                                 among: health?.policies ?? [], face: "")
                                       engageLoop()
                                   },
-                                  bench: bench, token: token, library: model)
+                                  bench: bench, token: token, library: model,
+                                  host: health?.host,
+                                  landed: { _ in Task { await refreshHealth() } })
                     NavigationLink { BenchSettingsView(store: benches) } label: {
                         Label("Manage benches", systemImage: "gearshape")
                     }
@@ -2881,6 +2883,18 @@ struct DriveView: View {
               let clock: String = reply.field("clock"),
               let t: Double = reply.field("t") else { return }
         stateSaid = String(format: "%@ clock %.2f s", clock, t)
+    }
+
+    /// `/health` again, and nothing else. A network just put on the bench is
+    /// in the bench's list and not yet in this tab's copy, and the next
+    /// settle would put the map back to its role with `staleNetwork` for a
+    /// name the bench answers to. Re-reading the list is a status GET that
+    /// advances no physics.
+    @MainActor private func refreshHealth() async {
+        guard let address = try? requireBench() else { return }
+        if let fresh = try? DuckBench.readHealth(await ask(DuckBench.health(address))) {
+            health = fresh
+        }
     }
 
     @MainActor private func connect() async {

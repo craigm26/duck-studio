@@ -70,6 +70,31 @@ python3 -u microduck-bridge.py --socket /tmp/duck.sock --port 7788 \
         --host 127.0.0.1 --token-file /tmp/token --deadman 400
 ```
 
+## Installing a policy
+
+The one line the bridge answers itself. `policy.install` is a JSON-RPC request
+whose params are `name`, `bytes` (the `.onnx`, base64), `sha256` (of those bytes
+— required, and checked before anything is written) and an optional `slot`. The
+bridge writes `<name>.onnx` under `--policy-dir`, atomically, and answers with
+the path, the digest, the byte count and `takes_effect`, which always says the
+same thing: **when robotd next starts**. The bridge does not restart robotd.
+
+With `--robotd-toml` as well, a `slot` points that one `[policy]` key at the
+file — only a key the table already has, with a backup of the config written
+first — and the answer says whether it was applied and why not if not. Without
+`--policy-dir` the verb is still answered, with the refusal that names the flag,
+rather than forwarded to a robotd that has no such method.
+
+```sh
+POLICY_DIR=/path/robotd/loads/policies/from ROBOTD_TOML=/path/to/robotd.toml sh install.sh
+```
+
+Every other line still reaches robotd unchanged and in order; the client's bytes
+are now forwarded a line at a time so this one can be seen whole. `test_bridge.py`
+proves all of it — the landing, the digest refusal, the path-shaped name refusal,
+the slot edit and its backup, the unknown slot, the flag-off refusal, and a
+`robot.move` split across two sends arriving at robotd as one line.
+
 ## Where it runs
 
 Python 3.9 or newer, standard library only, no pip and nothing to build — so

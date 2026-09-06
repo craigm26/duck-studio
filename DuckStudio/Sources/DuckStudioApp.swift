@@ -325,7 +325,7 @@ struct DuckStudioApp: App {
                 // Hardware, motors, firmware, network and diagnostics: the
                 // things you look at when the answer on the first tab was "no".
                 NavigationStack {
-                    RobotView(benches: benches, models: models)
+                    RobotView(benches: benches, models: models, library: model)
                 }
                     .tabItem { Label(AppTab.robot.title, systemImage: AppTab.robot.symbol) }
                     .tag(AppTab.robot)

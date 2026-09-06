@@ -810,7 +810,7 @@ struct PolicyListView: View {
         switch entry.origin {
         case .fetched: return .community
         case .bundled, .imported: return .brought
-        case .tuned: return .tuned
+        case .tuned, .searched: return .tuned
         }
     }
 
@@ -905,11 +905,14 @@ struct PolicyDetailView: View {
         /// behind it has none, because a rename affordance on every row is a
         /// screen full of controls for the one thing nobody does twice.
         case rename
+        /// Onto Hugging Face, where the Community list reads it back.
+        case publish
 
         var id: String {
             switch self {
             case .share(let out): return "share:\(out.id)"
             case .rename:         return "rename"
+            case .publish:        return "publish"
             }
         }
     }
@@ -956,6 +959,8 @@ struct PolicyDetailView: View {
                     PolicyRenameSheet(entry: shown) { typed in
                         model.rename(shown, to: typed)
                     }
+                case .publish:
+                    PublishPolicyView(entry: shown, library: model)
                 }
             }
             .alert("Could not share", isPresented: Binding(
@@ -1136,6 +1141,16 @@ struct PolicyDetailView: View {
                                                    drafts: drafts, models: models,
                                                    benches: benches) } label: {
                         secondaryAction("Run it on a bench", symbol: "wifi")
+                    }
+                    // WHERE A NETWORK LEAVES FOR EVERYBODY ELSE'S PHONE. The
+                    // share button above hands over bytes; this puts the
+                    // network, its manifest and a tagged card where the
+                    // Community list on this very tab reads them back.
+                    if entry.isRunnable {
+                        Button { presented = .publish } label: {
+                            secondaryAction("Publish it to Hugging Face",
+                                            symbol: "arrow.up.doc.on.clipboard")
+                        }
                     }
                     // THE PRESENT TENSE, UNDER THE TWO PAST ONES. Watch is what
                     // it did, Run records what it does under a schedule written

@@ -231,9 +231,17 @@ public enum DuckBench {
     /// parameters — can fold a gain into its last layer for `/tune`. Absent,
     /// the bench keeps the file only, and `/tune` on that name is refused with
     /// the reason.
-    public static func upload(_ address: Address, onnx: Data, parameters: Data? = nil) throws -> Call {
+    /// `name` IS WHAT THE BENCH CALLS IT AFTERWARDS, when the caller has one.
+    /// Absent, the bench names the upload by its digest — `uploaded-3fa2…` —
+    /// which is exactly the right identity and exactly the wrong thing to read
+    /// on a Control tab beside eight networks with real names. The bench keeps
+    /// the last word: it refuses a name that could be a path, a name a shipped
+    /// policy already answers to, or one already held with different weights.
+    public static func upload(_ address: Address, onnx: Data, parameters: Data? = nil,
+                              name: String? = nil) throws -> Call {
         var body: [String: Any] = ["onnx": onnx.base64EncodedString()]
         if let parameters { body["parameters"] = parameters.base64EncodedString() }
+        if let name = uploadName(name) { body["name"] = name }
         return Call(method: "POST", url: URL(string: "\(address.base)/upload")!,
                     body: try JSONSerialization.data(withJSONObject: body))
     }
@@ -268,10 +276,25 @@ public enum DuckBench {
     /// loads through onnxruntime, which wants a file. Send `upload(_:onnx:)`
     /// there. `DuckBench.Health.host.kind` is how a caller tells them apart.
     public static func uploadParameters(_ address: Address,
-                                        canonicalBytes: Data) throws -> Call {
-        let body: [String: Any] = ["onnx": canonicalBytes.base64EncodedString()]
+                                        canonicalBytes: Data,
+                                        name: String? = nil) throws -> Call {
+        var body: [String: Any] = ["onnx": canonicalBytes.base64EncodedString()]
+        if let name = uploadName(name) { body["name"] = name }
         return Call(method: "POST", url: URL(string: "\(address.base)/upload")!,
                     body: try JSONSerialization.data(withJSONObject: body))
+    }
+
+    /// The name as the wire carries it: the file's stem, trimmed, or nothing.
+    ///
+    /// ONLY THE `.onnx` COMES OFF. The bench answers with the bare name and
+    /// `/health` lists shipped policies WITH the extension, so a caller that
+    /// sent `mine.onnx` and got `mine` back has to know both spellings anyway;
+    /// sending the stem makes the answer the name that was asked for.
+    public static func uploadName(_ name: String?) -> String? {
+        guard var stem = name?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !stem.isEmpty else { return nil }
+        if stem.lowercased().hasSuffix(".onnx") { stem = String(stem.dropLast(5)) }
+        return stem.isEmpty ? nil : stem
     }
 
     // MARK: - /tune — scoring a candidate where the trace is

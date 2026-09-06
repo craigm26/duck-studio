@@ -470,7 +470,10 @@ struct EvalSetupView: View {
         if runner.preset.evaluatesANetwork {
             guard let entry = selectedEntry else { return nil }
             var kind = EvalPolicy.Kind.libraryNetwork
-            if case .tuned = entry.origin { kind = .tunedCandidate }
+            switch entry.origin {
+            case .tuned, .searched: kind = .tunedCandidate
+            case .bundled, .imported, .fetched: break
+            }
             return EvalPolicy(kind: kind, title: entry.title, identity: entry.identity,
                               benchPolicyName: entry.fileName, residualIsIdentity: true)
         }

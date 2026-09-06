@@ -204,6 +204,7 @@ public actor BenchPeer: DuckPeer {
         case .enable: return .noMotorBus(.enable)
         case .relax: return .noMotorBus(.relax)
         case .initPose: return .resetIsNotTheInitialPose
+        case .installPolicy: return .noDiskToInstallOn
         case .hello, .move, .stop, .state: return nil
         }
     }
@@ -227,6 +228,8 @@ public actor BenchPeer: DuckPeer {
 
         /// `studio.state` was asked before anything had been commanded.
         case nothingHasHappenedYet
+        /// `policy.install`: a bench has no robot's disk to put a file on.
+        case noDiskToInstallOn
 
         public var message: String {
             switch self {
@@ -258,6 +261,11 @@ public actor BenchPeer: DuckPeer {
                      + "then ask what happened. Nothing is fetched to answer this, because a "
                      + "read that advanced physics would be a measurement that changed what it "
                      + "was measuring."
+            case .noDiskToInstallOn:
+                return "policy.install puts a file on a robot's disk, through the bridge on its "
+                     + "computer, and a bench is not that. A bench takes a network through "
+                     + "/upload, under a name, for as long as it runs — which is what putting one "
+                     + "of your networks on this bench does from the Control tab."
             }
         }
     }
@@ -346,7 +354,7 @@ public actor BenchPeer: DuckPeer {
             // answer, so a "read" would be a command.
             guard let live else { throw Refusal.nothingHasHappenedYet }
             return DuckReply(id: id, result: try Self.stateResult(live), failure: nil)
-        case .move, .head, .look, .enable, .initPose, .relax:
+        case .move, .head, .look, .enable, .initPose, .relax, .installPolicy:
             // UNREACHABLE, AND A THROW RATHER THAN A CRASH. `refusal(for:)`
             // has answered for five of these six — head, look, enable,
             // initPose, relax — and `vet` for the sixth, `move`, which is a

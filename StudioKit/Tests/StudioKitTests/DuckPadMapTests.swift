@@ -49,6 +49,16 @@ final class DuckPadMapTests: XCTestCase {
                        "alpha_walking.onnx")
     }
 
+    // MARK: - putting one of yours on the bench
+
+    func testTheBenchUploadSentencesNameTheNetworkAndNeverTheFile() {
+        XCTAssertTrue(DuckPadMap.puttingSaid("walk two").contains("walk two"))
+        let landed = DuckPadMap.landedSaid("walk two", as: "walk two")
+        XCTAssertTrue(landed.contains("steer by it"), landed)
+        XCTAssertTrue(DuckPadMap.putOneOfYoursDetail.contains("parameter bytes"))
+        XCTAssertFalse(DuckPadMap.putOneOfYoursDetail.contains("probably"))
+    }
+
     // MARK: - settling against a bench
 
     func testAMappedNetworkThisBenchDoesNotHoldDegradesAndSaysSo() {

@@ -494,6 +494,24 @@ final class DuckBenchTests: XCTestCase {
         }
     }
 
+    /// A named upload carries its name; an unnamed one carries none, so an
+    /// older bench sees the body it has always seen.
+    func testAnUploadCarriesItsNameOnlyWhenItHasOne() throws {
+        let address = DuckBench.Address(host: "127.0.0.1", port: 1)
+        func body(_ call: DuckBench.Call) throws -> [String: Any] {
+            try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(call.body)) as? [String: Any])
+        }
+        XCTAssertNil(try body(DuckBench.upload(address, onnx: Data([1])))["name"])
+        XCTAssertEqual(try body(DuckBench.upload(address, onnx: Data([1]), name: "mine.onnx"))["name"] as? String,
+                       "mine")
+        XCTAssertEqual(try body(DuckBench.uploadParameters(address, canonicalBytes: Data([1]),
+                                                           name: " walk two "))["name"] as? String,
+                       "walk two")
+        XCTAssertNil(try body(DuckBench.upload(address, onnx: Data([1]), name: ".onnx"))["name"],
+                     "an extension alone is no name")
+        XCTAssertNil(DuckBench.uploadName("   "))
+    }
+
     /// EVERY FACTORY'S PATH IS IN `routes`, AND NOTHING ELSE IS. The phone's
     /// loopback server forwards exactly `routes`; an endpoint a factory can
     /// name that is not in the list ships dead on that bench. `/tune` did.
