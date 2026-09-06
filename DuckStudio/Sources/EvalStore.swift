@@ -180,10 +180,20 @@ final class EvalStore: ObservableObject {
 
     /// Put a finished run on the shelf.
     ///
-    /// ATOMIC AND NON DESTRUCTIVE. `withoutOverwriting` is the option that
-    /// makes the write-once rule the file system's rather than this app's, so
-    /// two runs that somehow produced the same eight hex end with a refusal
-    /// instead of one of them disappearing.
+    /// NON DESTRUCTIVE, AND NOT ATOMIC, BECAUSE IT CANNOT BE BOTH.
+    /// `withoutOverwriting` is the option that makes the write-once rule the
+    /// file system's rather than this app's — `O_EXCL` on the open — so two
+    /// runs that somehow produced the same eight hex end with a refusal instead
+    /// of one of them disappearing. It was paired with `.atomic`, and on the
+    /// Swift-native Foundation every iPhone since iOS 18 runs, that pair is a
+    /// `fatalError` ("withoutOverwriting is not supported with atomic"), not an
+    /// error: an atomic write is a temp file renamed over the name, and a
+    /// rename cannot be exclusive. Build 58 crashed at the end of every
+    /// evaluation run and on every imported log, right here, with the run's
+    /// three minutes of measurements in memory. The Linux gates never saw it
+    /// because the parity gate writes with Python, and no test on any platform
+    /// can catch a trap in Foundation; `scripts/check_no_atomic_exclusive_write.sh`
+    /// is what keeps the pair out now.
     @discardableResult
     func save(_ file: EvalLogFile) -> Bool {
         // THE LAST REFUSAL IS CLEARED BY THE NEXT SUCCESS, not left under the
@@ -197,7 +207,7 @@ final class EvalStore: ObservableObject {
             guard !FileManager.default.fileExists(atPath: url.path) else {
                 throw EvalShelfRefusal.alreadyOnTheShelf(file.name)
             }
-            try file.bytes.write(to: url, options: [.atomic, .withoutOverwriting])
+            try file.bytes.write(to: url, options: [.withoutOverwriting])
             reload()
             return true
         } catch {
@@ -236,7 +246,9 @@ final class EvalStore: ObservableObject {
             guard !FileManager.default.fileExists(atPath: landing.path) else {
                 throw EvalShelfRefusal.alreadyOnTheShelf(EvalText.foreign(safe))
             }
-            try data.write(to: landing, options: [.atomic, .withoutOverwriting])
+            // `.withoutOverwriting` ALONE — see `save(_:)` for the crash the
+            // pair with `.atomic` was.
+            try data.write(to: landing, options: [.withoutOverwriting])
             reload()
             return true
         } catch {
