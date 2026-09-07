@@ -109,7 +109,10 @@ struct MimicBar: View {
         }
         if engine.stoppedAtCap { return MimicTrack.stoppedAtTheCap }
         if engine.personInView { return Mimic.tracking(posesPerSecond: engine.posesPerSecond) }
-        return door.canOffer(.mimic) ? Mimic.noPersonYet : CameraAvailability.Dependent.mimic.title
+        guard door.canOffer(.mimic) else { return CameraAvailability.Dependent.mimic.title }
+        if engine.framesPerSecond == 0 { return Mimic.noFramesYet(.camera) }
+        if engine.personSeen { return Mimic.personSeenNotRead }
+        return Mimic.noPersonYet
     }
 
     /// Record, hold, keep, run — in a row that wraps at accessibility sizes.

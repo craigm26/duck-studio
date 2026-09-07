@@ -60,6 +60,7 @@ struct PoseCaptureView: View {
     @State private var editing: DraftID?
 
     @Environment(\.dynamicTypeSize) private var typeSize
+    @FocusState private var linkFocused: Bool
 
     /// The pose on the stage: the person's, or the last one they left.
     private var shown: [Double] { engine.duckPose ?? lastShown }
@@ -74,6 +75,11 @@ struct PoseCaptureView: View {
             bottom
         }
         .background(Theme.backgroundPrimary)
+        // THE KEYBOARD DOES NOT MOVE THE PICTURE. Left to itself SwiftUI
+        // shrinks this stack to fit above the keyboard, which on the first
+        // phone test pushed the source picker up under the title bar. The
+        // link field is at the top and is never under the keyboard.
+        .ignoresSafeArea(.keyboard, edges: .bottom)
         .navigationTitle(Mimic.title)
         .navigationBarTitleDisplayMode(.inline)
         .refreshingCameraDoor($door)
@@ -203,6 +209,7 @@ struct PoseCaptureView: View {
             VStack(spacing: Theme.spacing(.tight)) {
                 HStack(spacing: Theme.spacing(.tight)) {
                     TextField(Mimic.linkField, text: $linkText)
+                        .focused($linkFocused)
                         .textFieldStyle(.roundedBorder)
                         .keyboardType(.URL)
                         .textInputAutocapitalization(.never)
@@ -321,6 +328,17 @@ struct PoseCaptureView: View {
         }
     }
 
+    /// Whether a source is running at all — the camera, a loaded video, or a
+    /// loaded clip. Without one, "no frames" would be a complaint about a
+    /// source nobody has started.
+    private var sourceIsUp: Bool {
+        switch source {
+        case .camera: return door.canOffer(.mimic)
+        case .video: return player != nil
+        case .youtube: return videoID != nil
+        }
+    }
+
     private var status: String {
         if let keptNote { return keptNote }
         if engine.isRecording {
@@ -328,6 +346,8 @@ struct PoseCaptureView: View {
         }
         if engine.stoppedAtCap { return MimicTrack.stoppedAtTheCap }
         if engine.personInView { return Mimic.tracking(posesPerSecond: engine.posesPerSecond) }
+        if sourceIsUp, engine.framesPerSecond == 0 { return Mimic.noFramesYet(source) }
+        if engine.personSeen { return Mimic.personSeenNotRead }
         return source == .camera ? Mimic.noPersonYet : Mimic.noPersonInTheClip
     }
 
@@ -393,6 +413,7 @@ struct PoseCaptureView: View {
     }
 
     private func loadLink() {
+        linkFocused = false
         guard let id = YouTubeLink.videoID(in: linkText) else {
             linkNote = YouTubeLink.refusal
             videoID = nil
@@ -525,8 +546,12 @@ struct MovieFile: Transferable {
 /// The numbers this screen writes down for itself.
 private enum CaptureMetric {
     /// The source area — a camera preview or a player — is a fixed band so the
-    /// duck under it gets the rest, whatever the source.
-    static let sourceHeight: CGFloat = 250
+    /// duck under it gets the rest, whatever the source. TALL ENOUGH FOR A
+    /// PORTRAIT CLIP: a vertical video sits inside YouTube's player at the
+    /// player's height, and at 250 points the person in it was a sixth of the
+    /// screen and unreadable. The stage keeps its minimum; the readout under
+    /// it is what gives.
+    static let sourceHeight: CGFloat = 330
     static let stageMinHeight: CGFloat = 200
     static let bottomMaxHeight: CGFloat = 260
 }

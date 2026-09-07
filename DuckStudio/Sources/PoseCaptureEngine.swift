@@ -27,8 +27,8 @@ import StudioKit
 /// head's turn is measured as the head joint's rotation relative to the
 /// shoulder joint's — convention-free, as `HumanFigure` explains. THE ONE THING
 /// THAT CANNOT BE DERIVED IS HANDEDNESS, and the `mirrored` switch is the
-/// answer: it swaps the person's sides, which is also what a mirror does and
-/// what a person facing a phone expects.
+/// answer: it swaps the person's sides, which is also what a mirror does. It
+/// is off by default — the duck faces the way the person faces.
 ///
 /// FRAMES ARE DROPPED WHILE ONE IS BEING READ. The 3D request costs tens of
 /// milliseconds on a recent phone and more on an older one; queueing frames
@@ -47,12 +47,23 @@ final class PoseCaptureEngine: ObservableObject {
     /// How many poses a second Vision is managing, measured over the last
     /// second of answers.
     @Published private(set) var posesPerSecond: Double = 0
-    /// True when the last frame read had a person in it.
+    /// True when the last frame read had a person in it that the 3D model
+    /// could read.
     @Published private(set) var personInView = false
+    /// True when the last frame had a person the 2D stage found, whether or
+    /// not the 3D stage could read them. `personInView` implies this.
+    @Published private(set) var personSeen = false
+    /// How many frames a second the source is delivering, read or dropped —
+    /// zero means the source is not producing pictures at all, which is a
+    /// different fact from pictures with nobody in them.
+    @Published private(set) var framesPerSecond: Double = 0
     /// Something the source wants said — a capture that would not start.
     @Published private(set) var sourceNote: String?
 
-    @Published var mirrored = true {
+    /// OFF BY DEFAULT: the duck faces the way the person faces. Craig's call
+    /// on the first phone test ("to not mirror a human"); the switch stays
+    /// for anybody who wants the looking-glass version.
+    @Published var mirrored = false {
         didSet { if let last = lastRaw { absorb(last) } }
     }
 
@@ -66,6 +77,7 @@ final class PoseCaptureEngine: ObservableObject {
     private var lastRaw: HumanFigure?
     private var source: (any FrameSource)?
     private var answered: [TimeInterval] = []
+    private var offered: [TimeInterval] = []
 
     /// The Vision work, off the main actor and one frame at a time.
     private let detector = PoseDetector()
@@ -100,6 +112,8 @@ final class PoseCaptureEngine: ObservableObject {
     func stopSource() {
         source?.stop()
         source = nil
+        offered = []
+        framesPerSecond = 0
     }
 
     private func replace(with next: any FrameSource) {
@@ -107,9 +121,13 @@ final class PoseCaptureEngine: ObservableObject {
         source = next
         sourceNote = nil
         next.onFrame = { [weak self] buffer, orientation, region, clock in
-            self?.detector.read(buffer, orientation: orientation, region: region) { figure in
+            guard let self else { return }
+            self.offered.append(clock)
+            self.offered.removeAll { $0 < clock - 1 }
+            self.framesPerSecond = Double(self.offered.count)
+            self.detector.read(buffer, orientation: orientation, region: region) { sighting in
                 Task { @MainActor [weak self] in
-                    self?.received(figure, at: clock)
+                    self?.received(sighting, at: clock)
                 }
             }
         }
@@ -121,10 +139,16 @@ final class PoseCaptureEngine: ObservableObject {
 
     // MARK: - what comes back
 
-    private func received(_ raw: HumanFigure?, at clock: TimeInterval) {
+    private func received(_ sighting: PoseDetector.Sighting, at clock: TimeInterval) {
         answered.append(clock)
         answered.removeAll { $0 < clock - 1 }
         posesPerSecond = Double(answered.count)
+        let raw: HumanFigure?
+        switch sighting {
+        case .nobody: raw = nil; personSeen = false
+        case .seen: raw = nil; personSeen = true
+        case .figure(let figure): raw = figure; personSeen = true
+        }
         personInView = raw != nil
         // NOBODY IN VIEW CLEARS THE READING. The first phone test printed hip
         // and knee angles under "No person found": the reading was the last
@@ -179,33 +203,102 @@ final class PoseCaptureEngine: ObservableObject {
 
 // MARK: - Vision
 
-/// Vision's 3D body-pose request, run on its own queue one frame at a time.
+/// Vision's body-pose requests, run on their own queue one frame at a time.
+///
+/// TWO STAGES, BECAUSE THE 3D MODEL WANTS A BIG PERSON. The first phone test
+/// played a skateboarder who filled a sixth of the screen and the 3D request
+/// answered nothing, frame after frame. Vision resizes whatever it is given to
+/// the model's own input size, so a person eighty pixels tall stays eighty
+/// pixels tall. The 2D request is far more tolerant: it finds the person,
+/// its joints give a box, and the 3D request is handed a crop of that box —
+/// the same pixels, with the person now filling the frame. What comes back is
+/// still a skeleton in metres relative to the root, so the crop changes
+/// nothing downstream.
+///
+/// AND IT TELLS THE TWO FAILURES APART. "Nobody in the picture" and "somebody
+/// the 3D model could not read" are different sentences with different
+/// remedies, and a single nil would have collapsed them.
 final class PoseDetector: @unchecked Sendable {
+
+    enum Sighting: Sendable {
+        case nobody
+        /// The 2D stage found a person; the 3D stage could not read them.
+        case seen
+        case figure(HumanFigure)
+    }
+
     private let queue = DispatchQueue(label: "duckstudio.pose", qos: .userInitiated)
     private var busy = false
     private let lock = NSLock()
 
+    /// Joints below this confidence do not count toward the person's box.
+    private static let confidentEnough: Float = 0.3
+    /// How many confident joints make a person worth cropping to.
+    private static let enoughJoints = 6
+    /// Room around the joints' box, as a fraction of its size, so the head
+    /// and feet — which the 2D box is measured to, not past — stay inside.
+    private static let margin: CGFloat = 0.35
+
     /// Read one frame. Dropped, silently, when the previous one is still
     /// being read.
     func read(_ buffer: CVPixelBuffer, orientation: CGImagePropertyOrientation,
-              region: CGRect?, then: @escaping @Sendable (HumanFigure?) -> Void) {
+              region: CGRect?, then: @escaping @Sendable (Sighting) -> Void) {
         lock.lock()
         if busy { lock.unlock(); return }
         busy = true
         lock.unlock()
         queue.async { [self] in
             defer { lock.lock(); busy = false; lock.unlock() }
-            let request = VNDetectHumanBodyPose3DRequest()
-            if let region { request.regionOfInterest = region }
-            let handler = VNImageRequestHandler(cvPixelBuffer: buffer, orientation: orientation)
-            do {
-                try handler.perform([request])
-                let best = request.results?.first
-                then(best.flatMap(Self.figure(from:)))
-            } catch {
-                then(nil)
-            }
+            then(sight(buffer, orientation: orientation, region: region))
         }
+    }
+
+    private func sight(_ buffer: CVPixelBuffer, orientation: CGImagePropertyOrientation,
+                       region: CGRect?) -> Sighting {
+        var image = CIImage(cvPixelBuffer: buffer).oriented(orientation)
+        if let region { image = Self.crop(image, to: region) }
+        // Stage one: is there a person, and where.
+        let flat = VNDetectHumanBodyPoseRequest()
+        do {
+            try VNImageRequestHandler(ciImage: image, orientation: .up).perform([flat])
+        } catch {
+            return .nobody
+        }
+        guard let body = flat.results?.first,
+              let joints = try? body.recognizedPoints(.all) else { return .nobody }
+        let confident = joints.values.filter { $0.confidence >= Self.confidentEnough }
+        guard confident.count >= Self.enoughJoints else { return .nobody }
+        let xs = confident.map(\.location.x), ys = confident.map(\.location.y)
+        var box = CGRect(x: xs.min()!, y: ys.min()!,
+                         width: xs.max()! - xs.min()!, height: ys.max()! - ys.min()!)
+        box = box.insetBy(dx: -box.width * Self.margin, dy: -box.height * Self.margin)
+            .intersection(CGRect(x: 0, y: 0, width: 1, height: 1))
+        guard box.width > 0.02, box.height > 0.02 else { return .seen }
+        // Stage two: the 3D reading, on the person alone.
+        let deep = VNDetectHumanBodyPose3DRequest()
+        do {
+            try VNImageRequestHandler(ciImage: Self.crop(image, to: box), orientation: .up)
+                .perform([deep])
+        } catch {
+            return .seen
+        }
+        guard let observation = deep.results?.first,
+              let figure = Self.figure(from: observation) else { return .seen }
+        return .figure(figure)
+    }
+
+    /// A normalised rectangle of an image (origin bottom-left, as Vision has
+    /// it), as a new image whose extent starts at zero — Vision's normalised
+    /// answers are relative to the extent, so the extent has to be the crop.
+    private static func crop(_ image: CIImage, to normalised: CGRect) -> CIImage {
+        let e = image.extent
+        let rect = CGRect(x: e.minX + normalised.minX * e.width,
+                          y: e.minY + normalised.minY * e.height,
+                          width: normalised.width * e.width,
+                          height: normalised.height * e.height)
+        let cropped = image.cropped(to: rect)
+        return cropped.transformed(by: CGAffineTransform(translationX: -cropped.extent.minX,
+                                                         y: -cropped.extent.minY))
     }
 
     /// The observation as the kit's figure: seventeen points and two rotations.

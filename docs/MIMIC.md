@@ -24,7 +24,7 @@ after moving one joint 0.3 rad from home) and is re-measured by
 The person's own frame is built from their hips and spine — `left`, `up`,
 `forward = left × up` — so the camera angle and the phone's orientation do not
 matter. Handedness cannot be derived, which is what the **Mirror** switch is
-for; it is on by default because a person facing a phone expects a mirror.
+for; it is OFF by default — the duck faces the way the person faces.
 
 ## Sources
 

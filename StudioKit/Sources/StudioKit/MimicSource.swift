@@ -193,6 +193,27 @@ public enum Mimic {
     public static let noPersonInTheClip =
         "No person found in this frame. Play a part of the clip where a whole body is in shot."
 
+    /// A person is in the picture, but too small for the 3D reading — the
+    /// two-stage read found them and the second stage answered nothing.
+    public static let personSeenNotRead =
+        "A person is in view, but too small for a 3D reading. Make them bigger in the picture: "
+      + "closer to the camera, or a clip where they fill the frame."
+
+    /// No frame has reached the model at all, which is a different fact from
+    /// a frame with nobody in it — and, for the screen source, the one a
+    /// refused permission produces.
+    public static func noFramesYet(_ source: MimicSource) -> String {
+        switch source {
+        case .camera:
+            return "The camera has not delivered a frame yet."
+        case .video:
+            return "The video is not playing, so there is nothing to read. Press play."
+        case .youtube:
+            return "The phone is not reading its screen yet. If iOS asked to allow screen "
+                 + "recording, allow it and press Load again."
+        }
+    }
+
     public static func tracking(posesPerSecond: Double) -> String {
         String(format: "Tracking · %.0f poses a second", posesPerSecond)
     }
@@ -262,5 +283,6 @@ public enum Mimic {
         fromFiles, flipCamera, linkField, load, videoAndYouTubeAreInStudio, openStudio,
         screenReadingFailed("x."), screenReadingStopped, videoCouldNotBeOpened("x."),
         YouTubeLink.refusal, MimicTrack.stoppedAtTheCap, motionNotHere, motionNotHereSaid,
+        personSeenNotRead, noFramesYet(.camera), noFramesYet(.video), noFramesYet(.youtube),
     ] + MimicSource.allCases.flatMap { [$0.label, $0.how, $0.whatIsReal] }
 }
