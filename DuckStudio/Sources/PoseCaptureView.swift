@@ -582,6 +582,10 @@ struct VideoSurface: UIViewControllerRepresentable {
 struct YouTubePlayer: UIViewRepresentable {
     let videoID: String
 
+    final class Coordinator { var loaded: String? }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
     func makeUIView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
         configuration.allowsInlineMediaPlayback = true
@@ -590,16 +594,21 @@ struct YouTubePlayer: UIViewRepresentable {
         view.isOpaque = false
         view.backgroundColor = .black
         view.scrollView.isScrollEnabled = false
-        load(videoID, into: view)
+        load(videoID, into: view, context.coordinator)
         return view
     }
 
     func updateUIView(_ view: WKWebView, context: Context) {
-        if view.url?.absoluteString.contains(videoID) != true { load(videoID, into: view) }
+        if context.coordinator.loaded != videoID { load(videoID, into: view, context.coordinator) }
     }
 
-    private func load(_ id: String, into view: WKWebView) {
-        guard let url = URL(string: YouTubeLink.embedURL(for: id)) else { return }
-        view.load(URLRequest(url: url))
+    /// THE EMBED IS INSIDE A PAGE WITH AN ORIGIN, NOT LOADED BARE. Loaded bare
+    /// the iframe request carries no referrer and YouTube answers error 153,
+    /// "Video player configuration error" — seen on the first phone test.
+    /// `YouTubeLink.referrer` is the base URL, so the request says who is
+    /// embedding.
+    private func load(_ id: String, into view: WKWebView, _ coordinator: Coordinator) {
+        coordinator.loaded = id
+        view.loadHTMLString(YouTubeLink.embedPage(for: id), baseURL: URL(string: YouTubeLink.referrer))
     }
 }

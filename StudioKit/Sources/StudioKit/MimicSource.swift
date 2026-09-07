@@ -135,6 +135,27 @@ public enum YouTubeLink {
         "https://www.youtube-nocookie.com/embed/\(id)?playsinline=1&autoplay=1&rel=0&modestbranding=1"
     }
 
+    /// The origin the player page is loaded from.
+    ///
+    /// ERROR 153 IS WHAT HAPPENS WITHOUT THIS. YouTube's embed refuses to play
+    /// when the request carries no HTTP referrer — "Video player configuration
+    /// error" — and a web view handed the embed URL directly sends none. So
+    /// the embed is put inside a page of our own, loaded with this as its
+    /// base URL, and the iframe's request carries it. It is the app's own
+    /// site, which is true of the embed and says who is embedding.
+    public static let referrer = "https://microduckstudio.com/"
+
+    /// The page the player sits in: the embed, full-bleed, on a black ground.
+    public static func embedPage(for id: String) -> String {
+        """
+        <!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>html,body{margin:0;padding:0;height:100%;background:#000;overflow:hidden}
+        iframe{position:absolute;top:0;left:0;width:100%;height:100%;border:0}</style></head>
+        <body><iframe src="\(embedURL(for: id))" allow="autoplay; encrypted-media; picture-in-picture"
+        referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe></body></html>
+        """
+    }
+
     public static let refusal =
         "That is not a YouTube link this screen can play. It takes youtube.com/watch?v=…, "
       + "youtu.be/…, a Shorts link, a live link or an embed link."

@@ -50,6 +50,16 @@ final class MimicSourceTests: XCTestCase {
         XCTAssertNotNil(URL(string: url))
     }
 
+    /// The player page carries the embed and is loaded from an origin, which
+    /// is what keeps YouTube from answering error 153.
+    func testThePlayerPageEmbedsTheClipFromAnOrigin() {
+        let page = YouTubeLink.embedPage(for: "dQw4w9WgXcQ")
+        XCTAssertTrue(page.contains("<iframe src=\"" + YouTubeLink.embedURL(for: "dQw4w9WgXcQ") + "\""))
+        XCTAssertTrue(page.contains("allow=\"autoplay"))
+        XCTAssertTrue(YouTubeLink.referrer.hasPrefix("https://"))
+        XCTAssertNotNil(URL(string: YouTubeLink.referrer))
+    }
+
     func testEachSourceSaysWhatIsRealAndThatNothingIsSent() {
         for source in MimicSource.allCases {
             XCTAssertTrue(source.whatIsReal.hasPrefix("Real here:"), source.rawValue)

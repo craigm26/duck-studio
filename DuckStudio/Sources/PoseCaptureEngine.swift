@@ -126,7 +126,15 @@ final class PoseCaptureEngine: ObservableObject {
         answered.removeAll { $0 < clock - 1 }
         posesPerSecond = Double(answered.count)
         personInView = raw != nil
-        guard let raw else { return }
+        // NOBODY IN VIEW CLEARS THE READING. The first phone test printed hip
+        // and knee angles under "No person found": the reading was the last
+        // person's, left standing. The screens keep drawing the last pose on
+        // purpose (`lastShown`, `posed`), but a readout of a person who is
+        // not there is a readout of nobody.
+        guard let raw else {
+            duckPose = nil; reading = nil; clamped = []
+            return
+        }
         lastRaw = raw
         absorb(raw)
         if isRecording, let duckPose {
@@ -404,8 +412,12 @@ final class ScreenFrameSource: FrameSource {
                   let buffer = CMSampleBufferGetImageBuffer(sample) else { return }
             let clock = ProcessInfo.processInfo.systemUptime
             Task { @MainActor [weak self] in
-                guard let self else { return }
-                self.onFrame?(buffer, .up, self.visionRegion, clock)
+                // NEVER THE WHOLE SCREEN. Until the player's rectangle is
+                // known the frame is dropped, not read: on the first phone
+                // test the whole screen was read and the rendered duck under
+                // the player was found as a person, hips and knees and all.
+                guard let self, let region = self.visionRegion else { return }
+                self.onFrame?(buffer, .up, region, clock)
             }
         }, completionHandler: { [weak self] error in
             guard let error else { return }
@@ -422,8 +434,8 @@ final class ScreenFrameSource: FrameSource {
     }
 
     /// The player's rectangle as Vision wants it: normalised to the screen,
-    /// origin at the bottom-left. Nil when the rectangle is empty, which reads
-    /// the whole screen rather than nothing.
+    /// origin at the bottom-left. Nil when the rectangle is empty, and a nil
+    /// region means the frame is dropped — see `start`.
     private var visionRegion: CGRect? {
         let screen = UIScreen.main.bounds
         guard screen.width > 0, screen.height > 0, region.width > 0, region.height > 0 else { return nil }
