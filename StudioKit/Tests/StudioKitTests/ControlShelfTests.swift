@@ -60,7 +60,8 @@ final class ControlShelfTests: XCTestCase {
         let labels = [ControlShelf.sceneChip, ControlShelf.poseChip, ControlShelf.motionsChip,
                       ControlShelf.runItHere, ControlShelf.whatHappened,
                       ControlShelf.holdIt, ControlShelf.keepItAsAMotion,
-                      ControlShelf.doneposing, ControlShelf.posingNow]
+                      ControlShelf.doneposing, ControlShelf.posingNow,
+                      ControlShelf.mimicChip, ControlShelf.mimickingNow]
         for said in labels { XCTAssertFalse(said.hasSuffix("."), said) }
         for said in ControlShelf.everySentence where !labels.contains(said) {
             XCTAssertTrue(said.hasSuffix(".") || said.hasSuffix("…"), said)

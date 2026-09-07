@@ -211,7 +211,7 @@ targets:
         # a Lab mode on their floor. There is no compile-time gate that can see
         # this: it is a runtime plist check, so `swiftc -parse`, `swift test`
         # and a clean `xcodebuild` all pass while the binary is unusable.
-        NSCameraUsageDescription: "Microduck Studio uses the camera in two kinds of Studio mode: to find your floor when you choose 'Your floor', so a duck can be drawn at real size on it, and in Room capture, which scans the room around you. No image is recorded, stored, or transmitted. Every other mode works on a rendered stage with the camera off."
+        NSCameraUsageDescription: "Microduck Studio uses the camera in three places: to find your floor when you choose 'Your floor', so a duck can be drawn at real size on it; in Room capture, which scans the room around you; and in Mimic, which reads where your joints are so the duck on the screen can stand the way you stand. No image is recorded, stored, or transmitted. Every other mode works on a rendered stage with the camera off."
         # THE BENCH IS ON YOUR NETWORK, WHICH iOS TREATS AS PRIVATE. A plain
         # request to an RFC1918 or `.local` address needs this key from iOS 14
         # on, and `DuckBench` refuses to send anywhere else — see its `Address`
@@ -312,7 +312,7 @@ targets:
         DEVELOPMENT_TEAM: WYGG3JXWMG
         CODE_SIGN_STYLE: Automatic
         MARKETING_VERSION: "1.1"
-        CURRENT_PROJECT_VERSION: "62"
+        CURRENT_PROJECT_VERSION: "63"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         SWIFT_VERSION: "5.9"
         TARGETED_DEVICE_FAMILY: "1,2"

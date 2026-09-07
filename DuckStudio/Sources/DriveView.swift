@@ -1,4 +1,5 @@
 import SwiftUI
+import AVFoundation
 import StudioKit
 import DuckKit
 import DuckEvidence
@@ -206,6 +207,20 @@ struct DriveView: View {
     @State private var playhead: TimeInterval = 0
     @State private var poseNote: String?
 
+    /// THE PERSON IN FRONT OF THE CAMERA, AS A POSE. While `mimicking` the
+    /// engine writes the duck's retargeted stance into `posed` on every
+    /// answer, so the picture, `holdThePose` and `keepThePose` all work on it
+    /// exactly as they do on a pose built by hand — a mimicked stance is a
+    /// stance. The engine is a `@StateObject` so the camera session lives as
+    /// long as this screen and is stopped when the bar is closed or the tab
+    /// is left, never per render.
+    @StateObject private var mimic = PoseCaptureEngine()
+    @State private var mimicking = false
+    @State private var mimicPosition: AVCaptureDevice.Position = .front
+    /// The draft the last mimic recording was kept as, so Run it here has
+    /// something to run.
+    @State private var mimicKept: IntentDraft?
+
     private enum Shelf: String, Identifiable {
         case scene, motions
         var id: String { rawValue }
@@ -312,6 +327,10 @@ struct DriveView: View {
     @State private var worldNote: String?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// The one sanctioned way to another tab: the Mimic bar sends a person to
+    /// Studio for the two sources this screen does not draw.
+    @EnvironmentObject private var router: AppRouter
 
     /// A REAL PAD WINS WHILE IT IS BEING HELD. Both inputs are live at once —
     /// a tester can put a thumb on the glass without unpairing anything — and
@@ -458,8 +477,18 @@ struct DriveView: View {
         // benches the second. Rebuilding on either is what stops a peer holding
         // an address the person has stopped using or a token they have replaced.
         .onChange(of: peerKey) { _, _ in rebuildPeer() }
+        // THE CAMERA'S ANSWER BECOMES THE POSE ON THE PICTURE. Only while
+        // the bar is up: an answer arriving after Done would re-pose a duck
+        // somebody has gone back to driving.
+        .onReceive(mimic.$duckPose) { answer in
+            guard mimicking, let answer else { return }
+            posed = answer
+        }
         .onDisappear {
             pad.stop()
+            // AND THE CAMERA, which is a session iOS keeps running for a
+            // screen nobody is looking at until it is told otherwise.
+            if mimicking { stopMimic() }
             // LEAVING THE SCREEN STOPS THE LOOP. Without this the task keeps
             // sending intents at a bench for a screen nobody is looking at.
             running = false
@@ -719,7 +748,10 @@ struct DriveView: View {
     /// The handles for the pose being built. EMPTY WHEN NOBODY IS POSING, so
     /// the stage draws no targets over a duck somebody is driving.
     private var poseHandles: [JointHandles.Handle] {
-        guard let posed else { return [] }
+        // NO HANDLES ON A MIMICKED POSE: the camera is moving the joints, and
+        // a handle on a joint that moves under the finger is a handle that
+        // cannot be grabbed.
+        guard let posed, !mimicking else { return [] }
         return JointHandles.handles(at: posed).filter { poseGroupJoints.contains($0.joint) }
     }
 
@@ -985,13 +1017,15 @@ struct DriveView: View {
                 HStack(spacing: Theme.spacing(.tight)) {
                     venuePicker
                     ControlShelfChips(standing: world?.name,
-                                      posing: posed != nil,
+                                      posing: posed != nil && !mimicking,
+                                      mimicking: mimicking,
                                       openScene: { shelf = .scene },
                                       openMotions: { shelf = .motions },
                                       pose: {
                                           // THE POSE STARTS WHERE THE DUCK IS.
                                           // Anything else would be a pose about
                                           // a duck that is not on the picture.
+                                          if mimicking { stopMimic() }
                                           if posed == nil {
                                               posed = pose.jointAngles
                                               poseNote = nil
@@ -999,7 +1033,8 @@ struct DriveView: View {
                                               posed = nil
                                               posedJoint = nil
                                           }
-                                      })
+                                      },
+                                      mimic: { mimicking ? stopMimic() : startMimic() })
                     PadChrome(desk: desk, venue: venue, bench: bench, token: token,
                               lastAction: $lastAction,
                               engage: { engageLoop() },
@@ -1083,6 +1118,10 @@ struct DriveView: View {
                                               style: .continuous)
                         .strokeBorder(Theme.separator, lineWidth: DriveMetric.hairlineStroke))
                     .transition(.move(edge: .bottom))
+            } else if mimicking {
+                // THE MIMIC BAR TAKES THE SAME PLACE, for the same reason: a
+                // person being copied by the duck is not driving it.
+                mimicBar
             } else if posed != nil {
                 // THE POSE BAR TAKES THE PAD'S PLACE. A person building a pose
                 // is not driving, and two thumb pads under a duck being posed
@@ -1222,6 +1261,74 @@ struct DriveView: View {
             poseNote = error.localizedDescription
         }
         if wasDriving { engageLoop() }
+    }
+
+    // MARK: - mimicking
+
+    /// The bar that replaces the pose bar while the camera is posing the duck.
+    private var mimicBar: some View {
+        MimicBar(engine: mimic, door: cameraDoor, benchIsHere: bench != nil, busy: busy,
+                 keptName: mimicKept?.name, note: poseNote,
+                 flip: {
+                     mimicPosition = mimicPosition == .front ? .back : .front
+                     mimic.useCamera(position: mimicPosition)
+                 },
+                 hold: { Task { await holdThePose() } },
+                 keep: { keepMimic() },
+                 runIt: {
+                     if let kept = mimicKept { Task { await runMotion(kept.id) } }
+                 },
+                 openStudio: {
+                     stopMimic()
+                     router.go(to: .studio, then: .mimic)
+                 },
+                 done: { stopMimic() })
+            .onStageChrome(DriveMetric.viewport.inner)
+    }
+
+    /// Start posing the duck from the camera. The pose starts as the live
+    /// stance and is overwritten by the first answer.
+    @MainActor private func startMimic() {
+        mimicking = true
+        posed = pose.jointAngles
+        posedJoint = nil
+        poseNote = nil
+        mimicKept = nil
+        guard cameraDoor.canOffer(.mimic) else { return }
+        mimic.useCamera(position: mimicPosition)
+    }
+
+    /// Put the camera down and the sticks back.
+    @MainActor private func stopMimic() {
+        mimic.stopSource()
+        mimic.discardRecording()
+        mimicking = false
+        mimicKept = nil
+        posed = nil
+        posedJoint = nil
+        poseNote = nil
+    }
+
+    /// Keep what was recorded — or, with nothing recorded, the stance the
+    /// duck is in right now, the way the pose bar keeps one.
+    @MainActor private func keepMimic() {
+        let name = MimicTrack.name(.camera, ordinal: drafts.drafts.count + 1)
+        if let draft = mimic.track.draft(named: name, provenance: MimicTrack.provenance(.camera)) {
+            drafts.save(draft)
+            mimicKept = draft
+            poseNote = Mimic.kept(name)
+            Haptic.behaviourStarted()
+            return
+        }
+        guard let posed else { return }
+        var draft = IntentDraft.blank(named: name)
+        draft.provenance = MimicTrack.provenance(.camera)
+        draft.keys = [IntentDraft.Key(time: 0, pose: pose.jointAngles),
+                      IntentDraft.Key(time: DriveMetric.poseSeconds, pose: posed)]
+        drafts.save(draft)
+        mimicKept = draft
+        poseNote = Mimic.kept(name)
+        Haptic.behaviourStarted()
     }
 
     /// Keep the pose as a motion in Studio, where every other motion lives.

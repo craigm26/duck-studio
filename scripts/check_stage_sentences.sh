@@ -113,6 +113,11 @@ FILES=(
   EvalLogDetailView.swift
   EvalCompareView.swift
   EvalStore.swift
+  # Mimic: the Studio capture screen, the Control tab's bar, and the engine
+  # behind both. Added with the files, contributing nothing to the allow-list.
+  PoseCaptureView.swift
+  MimicChrome.swift
+  PoseCaptureEngine.swift
   )
 
 if [ ! -d "$SRC" ]; then

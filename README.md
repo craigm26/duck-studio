@@ -93,6 +93,11 @@ under them. The pads stay pressable against a bench that cannot honour them and
 answer with the reason, which is how somebody learns that the mouth is servo
 nine and no network drives it; the present-or-absent rule lives on My
 Microduck's Drive button, which appears only when the link carries the call.
+A fourth chip on the picture, **Mimic**, turns the front camera on and stands
+the duck the way the person in front of it stands — a pose from a body-pose
+model rather than from a finger — with the pose bar's own doors after that:
+hold it on the bench, record a run, keep it as a motion, run it here. Nothing is
+sent while it copies you; the sentence beside the thumbnail says so.
 
 **Behaviours.** The policy library, organised by *provenance* rather than by
 folder: two sections, "Released by Pollen Robotics" and "From elsewhere", and
@@ -122,6 +127,21 @@ drafts you are working on. Playing one draws the robot walking its recorded path
 against whichever scene you choose. Each draft also carries a **Sim to real**
 pipeline row: what has actually happened to it — written, previewed, run on a
 bench — so a motion opened a week later is not just keyframes and a name.
+
+**Mimic a person** is the fourth way to write a motion. A person in front of
+the camera, in a video from the library or Files, or in a YouTube clip is read
+as a 3D skeleton on the phone (Vision's body-pose model; nothing leaves the
+device), and `PoseRetarget` in StudioKit puts the reading onto the duck's
+fifteen joints: thighs to hip pitch, knees to knees with the ankle following so
+the foot stays level, legs-out to hip roll, the head to the head, and — since
+the duck has no arms — the higher hand to the beak. Every sign in that mapping
+was measured with `DuckKinematics` and is re-measured by `PoseRetargetTests`.
+Record keeps ten smoothed keyframes a second for up to thirty seconds, under the
+editor's own joint-rate limit, and the result is an ordinary draft: it opens in
+the editor, runs on a bench, goes on a pad button. The YouTube source is honest
+about how it works: the clip plays in YouTube's own inline player and the phone
+reads its own screen through ReplayKit, cropped to the player — iOS asks once —
+because that is the only way to see those frames without downloading the video.
 
 **Fetch something** lives here too, and it writes no poses at all. It composes
 skills the robot already has — walking is `alpha_walking`, reaching down is

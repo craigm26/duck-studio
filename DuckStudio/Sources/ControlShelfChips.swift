@@ -21,9 +21,12 @@ struct ControlShelfChips: View {
     /// Whether a pose is being built right now, so the chip reads as a state
     /// rather than as a thing that has not happened.
     let posing: Bool
+    /// Whether the camera is posing the duck. The Mimic chip's second line.
+    let mimicking: Bool
     let openScene: () -> Void
     let openMotions: () -> Void
     let pose: () -> Void
+    let mimic: () -> Void
 
     var body: some View {
         HStack(spacing: Theme.spacing(.tight)) {
@@ -33,6 +36,10 @@ struct ControlShelfChips: View {
                  glyph: "figure.walk.motion", act: openMotions)
             chip(ControlShelf.poseChip, detail: posing ? ControlShelf.posingNow : nil,
                  glyph: "hand.draw", act: pose)
+            // THE FOURTH CHIP. A pose from the camera rather than from a
+            // finger; everything after that is the pose bar's own doors.
+            chip(ControlShelf.mimicChip, detail: mimicking ? ControlShelf.mimickingNow : nil,
+                 glyph: Mimic.studioRowSymbol, act: mimic)
         }
     }
 

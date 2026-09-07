@@ -20,6 +20,7 @@ final class CameraAvailabilityTests: XCTestCase {
 
     private let venue = "\"Your floor\" is off, so this mode plays in its own rendered world instead — which is where it starts anyway."
     private let followMe = "Follow me is off entirely, and it is the one mode with no stage to fall back to: what it follows is your phone, and the camera's own reckoning of where the phone has moved to IS the measurement. A stage would have to replace you with a joystick, which is pretend where this is perception."
+    private let mimic = "The camera door of Mimic is shut, so the duck cannot follow a person in the room. A video on this phone and a YouTube clip are read without the camera and still work."
     private let roomCapture = "Room capture is off entirely. It has no stage either, and nothing to measure without a camera — what it writes out is the floor and the furniture ARKit found in the room you are standing in."
 
     private let itIsABug = "That is a bug in this build, not something you did."
@@ -147,7 +148,7 @@ final class CameraAvailabilityTests: XCTestCase {
                     let label = "\(declared)/\(permission.rawValue)/\(supported)"
                     for dependent in CameraAvailability.Dependent.allCases {
                         let refusal = door.refusal(for: dependent)
-                        if door.canOfferAR {
+                        if door.canOffer(dependent) {
                             XCTAssertNil(refusal, "\(label) \(dependent.rawValue)")
                         } else {
                             XCTAssertNotNil(refusal, "\(label) \(dependent.rawValue)")
@@ -235,11 +236,50 @@ final class CameraAvailabilityTests: XCTestCase {
         XCTAssertEqual(CameraAvailability.Dependent.venue.title, "\"Your floor\" cannot start")
         XCTAssertEqual(CameraAvailability.Dependent.followMe.title, "Follow me cannot start")
         XCTAssertEqual(CameraAvailability.Dependent.roomCapture.title, "Room capture cannot start")
+        XCTAssertEqual(CameraAvailability.Dependent.mimic.title, "Mimic cannot use the camera")
         for dependent in CameraAvailability.Dependent.allCases {
             XCTAssertFalse(dependent.title.isEmpty, dependent.rawValue)
             // A headline that says "error" or "sorry" tells nobody what is off.
             XCTAssertFalse(dependent.title.lowercased().contains("error"), dependent.title)
             XCTAssertFalse(dependent.title.lowercased().contains("sorry"), dependent.title)
         }
+    }
+
+    // MARK: - mimic, the dependent that reads knees and not floors
+
+    /// A phone that cannot world-track can still find a person: the device
+    /// blocker does not apply, and every other blocker still does.
+    func testMimicIgnoresWorldTrackingAndNothingElse() {
+        let noTracking = CameraAvailability(usageDescriptionIsDeclared: true,
+                                            permission: .authorized,
+                                            deviceSupportsWorldTracking: false)
+        XCTAssertFalse(noTracking.canOfferAR)
+        XCTAssertTrue(noTracking.canOffer(.mimic))
+        XCTAssertNil(noTracking.refusal(for: .mimic))
+        XCTAssertNil(noTracking.blocker(for: .mimic))
+        XCTAssertEqual(noTracking.blocker(for: .venue), .deviceCannotWorldTrack)
+
+        let denied = CameraAvailability(usageDescriptionIsDeclared: true,
+                                        permission: .denied,
+                                        deviceSupportsWorldTracking: false)
+        XCTAssertEqual(denied.blocker(for: .mimic), .permissionDenied)
+        XCTAssertEqual(denied.refusal(for: .mimic),
+                       switchedOff + " " + mimic + " " + goToSettings)
+
+        let stripped = CameraAvailability(usageDescriptionIsDeclared: false,
+                                          permission: .authorized,
+                                          deviceSupportsWorldTracking: true)
+        XCTAssertEqual(stripped.refusal(for: .mimic), missingKey + " " + mimic + " " + itIsABug)
+        XCTAssertFalse(CameraAvailability.Dependent.mimic.needsWorldTracking)
+        for dependent in CameraAvailability.Dependent.allCases where dependent != .mimic {
+            XCTAssertTrue(dependent.needsWorldTracking, dependent.rawValue)
+        }
+    }
+
+    /// The mimic refusal names the two doors that stay open, because they do.
+    func testTheMimicRefusalNamesTheDoorsThatStayOpen() {
+        XCTAssertTrue(mimic.contains("video"))
+        XCTAssertTrue(mimic.contains("YouTube"))
+        XCTAssertTrue(mimic.contains("still work"))
     }
 }

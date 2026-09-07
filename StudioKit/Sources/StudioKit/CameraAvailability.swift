@@ -77,6 +77,23 @@ public struct CameraAvailability: Equatable, Sendable {
         /// Room capture, which has no stage and nothing to measure without a
         /// camera.
         case roomCapture
+        /// Mimic from the camera, which is the one dependent that DOES NOT
+        /// NEED WORLD TRACKING: a body-pose model reads plain camera frames,
+        /// so a phone that cannot find a floor can still find a person. It
+        /// also has two other doors — a video and a YouTube clip — which stay
+        /// open when this one shuts.
+        case mimic
+
+        /// Whether the dependent needs ARKit's world tracking, or only the
+        /// camera. The device blocker applies to the first kind alone; a
+        /// refusal about floors on a screen that reads knees would be a true
+        /// sentence used to shut the wrong door.
+        public var needsWorldTracking: Bool {
+            switch self {
+            case .venue, .followMe, .roomCapture: return true
+            case .mimic: return false
+            }
+        }
 
         /// The headline over a full-screen refusal.
         ///
@@ -91,6 +108,7 @@ public struct CameraAvailability: Equatable, Sendable {
             case .venue: return "\"Your floor\" cannot start"
             case .followMe: return "Follow me cannot start"
             case .roomCapture: return "Room capture cannot start"
+            case .mimic: return "Mimic cannot use the camera"
             }
         }
     }
@@ -133,9 +151,15 @@ public struct CameraAvailability: Equatable, Sendable {
     /// bug this whole file is against: nobody has been asked yet, ARKit's own
     /// prompt is what asks, and refusing before asking means the answer can
     /// never become yes.
-    public var blocker: Blocker? {
+    public var blocker: Blocker? { blocker(for: .venue) }
+
+    /// What is in the way of one dependent. The same order, with the device
+    /// check skipped for a dependent that reads the camera and not the floor.
+    public func blocker(for dependent: Dependent) -> Blocker? {
         if !usageDescriptionIsDeclared { return .noUsageDescription }
-        if !deviceSupportsWorldTracking { return .deviceCannotWorldTrack }
+        if dependent.needsWorldTracking, !deviceSupportsWorldTracking {
+            return .deviceCannotWorldTrack
+        }
         switch permission {
         case .denied: return .permissionDenied
         case .restricted: return .permissionRestricted
@@ -145,6 +169,10 @@ public struct CameraAvailability: Equatable, Sendable {
 
     /// True when an AR control may be enabled. Exactly `blocker == nil`.
     public var canOfferAR: Bool { blocker == nil }
+
+    /// True when a control for this dependent may be enabled. Exactly
+    /// `refusal(for:) == nil`.
+    public func canOffer(_ dependent: Dependent) -> Bool { blocker(for: dependent) == nil }
 
     /// The sentence to put beside the control that just went dark, or nil when
     /// the control can be enabled.
@@ -162,7 +190,7 @@ public struct CameraAvailability: Equatable, Sendable {
     /// they can do, because inventing a remedy is worse than admitting there
     /// is none.
     public func refusal(for dependent: Dependent) -> String? {
-        guard let blocker else { return nil }
+        guard let blocker = blocker(for: dependent) else { return nil }
         let parts = [Self.cause(blocker), Self.consequence(dependent), Self.remedy(blocker)]
         return parts.compactMap { $0 }.joined(separator: " ")
     }
@@ -206,6 +234,8 @@ public struct CameraAvailability: Equatable, Sendable {
             return "Follow me is off entirely, and it is the one mode with no stage to fall back to: what it follows is your phone, and the camera's own reckoning of where the phone has moved to IS the measurement. A stage would have to replace you with a joystick, which is pretend where this is perception."
         case .roomCapture:
             return "Room capture is off entirely. It has no stage either, and nothing to measure without a camera — what it writes out is the floor and the furniture ARKit found in the room you are standing in."
+        case .mimic:
+            return "The camera door of Mimic is shut, so the duck cannot follow a person in the room. A video on this phone and a YouTube clip are read without the camera and still work."
         }
     }
 

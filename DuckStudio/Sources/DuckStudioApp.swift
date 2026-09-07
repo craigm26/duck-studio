@@ -72,6 +72,10 @@ enum AppTab: String, CaseIterable, Identifiable {
 /// destination, which is the kind of stale address a router is worst at.
 enum StudioDestination: String, Identifiable, Hashable, CaseIterable {
     case motions, scenes, draft, measure, challenges, evaluations
+    /// Mimic a person. Arrived with its caller: the Control tab's Mimic bar
+    /// offers only the camera and sends a person here for a video or a
+    /// YouTube clip.
+    case mimic
 
     var id: String { rawValue }
 }

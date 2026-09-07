@@ -137,6 +137,21 @@ public enum ControlShelf {
       + "than on it, so the live duck stayed where it was — what you are watching is what "
       + "actually happened, frame for frame."
 
+    // MARK: - mimicking, on the picture
+
+    /// THE FOURTH CHIP. Pose builds a stance by hand; Mimic builds one from a
+    /// person in front of the camera, continuously, and everything after that
+    /// is the Pose shelf's own doors — hold it on the bench, keep it as a
+    /// motion — plus a record button, because a person moves. The sentences
+    /// about sources and skeletons are `Mimic`'s; these are the chip's.
+    public static let mimicChip = "Mimic"
+    public static let mimickingNow = "Watching you"
+
+    public static let mimicSaid =
+        "Stand where the camera can see you. The duck on the picture is standing as you stand, "
+      + "and nothing is sent while it does: hold it to put the pose on the bench, or record to "
+      + "keep a motion."
+
     /// The pose became a motion in Studio, named.
     public static func keptAsAMotion(_ name: String) -> String {
         "Kept as \(name). It is in Studio with the other motions, and it is on the Motions chip."
@@ -147,5 +162,6 @@ public enum ControlShelf {
         sceneChip, poseChip, posingNow, motionsChip, runItHere, whatHappened, holdIt,
         keepItAsAMotion, doneposing, posingSaid, holdingSaid, thisIsTheRun, sceneSheetSaid, motionSheetSaid, runsInItsOwnRoom,
         runningStopsTheDrive, authoredAnywhere, noMotionsYet, alsoOnAButton, watching("x"),
+        mimicChip, mimickingNow, mimicSaid,
     ]
 }
