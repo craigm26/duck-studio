@@ -361,6 +361,16 @@ final class BridgeDriveWireTests: XCTestCase {
         XCTAssertTrue(BridgeDrive.connectFirst.contains("Bridge"))
     }
 
+    /// TWO EMPTY STATES, TWO SENTENCES. "Nothing has been asked" and "it was
+    /// asked and has said nothing" are different faults with different places
+    /// to look, and one sentence for both collapses them into a shrug.
+    func testASilentSubscriptionIsNotTheSameAsAnUnaskedOne() {
+        XCTAssertNotEqual(BridgeDrive.subscribedButSilent, DuckSubscription.notAskedYet)
+        XCTAssertTrue(BridgeDrive.subscribedButSilent.contains("Subscribed"))
+        XCTAssertTrue(BridgeDrive.subscribedButSilent.contains("on the robot rather than here"))
+        XCTAssertTrue(DuckSubscription.notAskedYet.contains("until this app subscribes"))
+    }
+
     /// The three absences this venue has to explain rather than leave blank.
     func testTheVenueSaysWhatItIsNotDrawing() {
         XCTAssertTrue(BridgeDrive.noPictureHere.contains("joint angles"))

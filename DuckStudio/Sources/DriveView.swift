@@ -2302,10 +2302,12 @@ struct DriveView: View {
             if let said = robotStateSaid {
                 TelemetryRow(label: "Last said", value: said, unit: "")
             } else {
-                // NOT A BLANK ROW. A subscription that was accepted and has
-                // published nothing is a specific, findable fault, and it is
-                // invisible if the only evidence is a label that stayed empty.
-                Text(DuckSubscription.notAskedYet)
+                // NOT A BLANK ROW, AND NOT THE LINE ABOVE REPEATED. "Nothing
+                // has been asked" and "it was asked and has said nothing" are
+                // two different faults with two different places to look, and
+                // the row above already covers the first.
+                Text(robot.subscription == nil ? DuckSubscription.notAskedYet
+                                               : BridgeDrive.subscribedButSilent)
                     .font(.caption)
                     .foregroundStyle(Theme.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)

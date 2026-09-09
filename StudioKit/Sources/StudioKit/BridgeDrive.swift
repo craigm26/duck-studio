@@ -168,6 +168,21 @@ public enum BridgeDrive {
       + "leaves this screen is robot.move, at the same speeds a gamepad would send, and the duck "
       + "walks until you stop or let go."
 
+    /// A link that was asked to talk and has not yet said anything.
+    ///
+    /// A DIFFERENT SENTENCE FROM `DuckSubscription.notAskedYet`, and the
+    /// difference is the whole diagnosis. "Not asked" is this app not having
+    /// sent `robot.subscribe`; this is the robot having accepted one and
+    /// published nothing, which is a specific, findable fault — a daemon whose
+    /// loop is not running, or a schema this build cannot decode. Printing one
+    /// sentence for both would collapse the two states a person needs told
+    /// apart into a single shrug.
+    public static let subscribedButSilent =
+        "Subscribed, and nothing has arrived yet. States are pushed at the loop rate, so one "
+      + "should land within a tick or two; a link that stays empty means the robot accepted the "
+      + "subscription and is publishing nothing, which is worth looking at on the robot rather "
+      + "than here."
+
     /// The door from the screen that opens the link to the screen that uses it.
     ///
     /// A PERSON WHO HAS JUST CONNECTED A ROBOT IS ONE TAP FROM DRIVING IT, and
