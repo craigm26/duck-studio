@@ -123,6 +123,40 @@ final class LabCatalogueTests: XCTestCase {
             + "shapes. It does not yet become a scene this app can stand a duck in.")
     }
 
+    /// THE RELEASE GATE HIDES EXACTLY THE ROWS NOBODY CAN OPEN, and nothing
+    /// else. A row a person cannot tap is placeholder content to App Review
+    /// whatever its reason sentence says, so a shipped build does not list one
+    /// — and the way to prove that is to name the four rows here, so hiding a
+    /// FIFTH one, or quietly shipping a new unwritten row, fails this test
+    /// rather than turning up in a screenshot.
+    func testTheReleaseGateHidesTheRowsThatCannotBeOpened() {
+        let shipped = LabCatalogue.listed(showingUnfinished: false).map(\.id)
+        XCTAssertEqual(shipped, ["bench", "ghost", "soccer", "room", "sounds"])
+        let hidden = Set(LabCatalogue.modes.map(\.id)).subtracting(shipped)
+        XCTAssertEqual(hidden, ["trials", "bobsled", "deck", "diary"])
+        for id in hidden {
+            let mode = LabCatalogue.modes.first { $0.id == id }
+            XCTAssertNotEqual(mode?.status, .here, "\(id) is openable and should not be hidden")
+        }
+    }
+
+    /// AND THE ROWS ARE HIDDEN, NOT DELETED. With the gate open the whole
+    /// catalogue is listed again, in its own order — which is the difference
+    /// between a flag and an edit, and the reason the sentences and the code
+    /// behind them are still here to switch back on.
+    func testTheGateOpenListsTheWholeCatalogue() {
+        XCTAssertEqual(LabCatalogue.listed(showingUnfinished: true), LabCatalogue.modes)
+        XCTAssertEqual(LabCatalogue.listed(showingUnfinished: true).count,
+                       LabCatalogue.usable.count + 4)
+    }
+
+    /// The default argument is the shipped answer, so a screen that calls
+    /// `listed()` with nothing draws what a release draws.
+    func testTheShippedDefaultIsTheGatedList() {
+        XCTAssertFalse(ReleaseGates.showUnfinishedModes)
+        XCTAssertEqual(LabCatalogue.listed(), LabCatalogue.usable)
+    }
+
     func testTheRationaleNamesTheAppsThatFoldedIn() {
         let r = LabCatalogue.rationale
         for app in ["Duck Soccer", "Duckboard", "Duck Diary"] {

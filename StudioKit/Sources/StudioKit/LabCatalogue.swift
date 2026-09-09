@@ -192,4 +192,21 @@ public enum LabCatalogue {
 
     /// The modes a person can actually open today.
     public static var usable: [Mode] { modes.filter { $0.status == .here } }
+
+    /// The rows a screen may draw, which is not the same list as `modes`.
+    ///
+    /// A ROW NOBODY CAN OPEN IS PLACEHOLDER CONTENT TO APP REVIEW, whatever it
+    /// says about itself. The table above is the honest record and stays whole;
+    /// this is the part of it a shipped build lists. With the gate off, that is
+    /// exactly the rows whose status is `.here` — so Trials, Bobsled, Deck and
+    /// Diary are not listed rather than listed-and-inert, and none of their
+    /// code, sentences or tests are gone.
+    ///
+    /// THE FLAG IS AN ARGUMENT WITH A DEFAULT, not a read of the constant in
+    /// the body, so a test can assert both sides of it without a build setting.
+    public static func listed(
+        showingUnfinished: Bool = ReleaseGates.showUnfinishedModes
+    ) -> [Mode] {
+        showingUnfinished ? modes : usable
+    }
 }

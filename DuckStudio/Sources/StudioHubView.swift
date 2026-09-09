@@ -224,7 +224,16 @@ struct StudioHubView: View {
                 // "room", "sounds"] against `destination(_:)` below, which
                 // still answers all five — so the mapping stays provable and
                 // only the drawing skips one.
-                ForEach(LabCatalogue.modes.filter { $0.id != "bench" }) { mode in
+                //
+                // `listed()` RATHER THAN `modes`, WHICH IS THE RELEASE GATE.
+                // The catalogue still holds Trials, Bobsled, Deck and Diary
+                // with their reasons; `ReleaseGates.showUnfinishedModes` is
+                // false in a shipped build, so this list is the rows a person
+                // can open. A row nobody can open is placeholder content to App
+                // Review however honestly it explains itself, and the honest
+                // sentence is worth more to a developer reading the source than
+                // to a person holding the phone. Flip the gate to see them.
+                ForEach(LabCatalogue.listed().filter { $0.id != "bench" }) { mode in
                     row(mode)
                 }
             } header: {
