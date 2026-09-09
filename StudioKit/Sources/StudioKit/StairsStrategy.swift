@@ -83,7 +83,8 @@ extension StairsChallenge {
             case .ceilingVault:
                 return "The same beak-strut launch, searched against how high the trunk gets "
                      + "rather than against whether it lands — which is how round six measured "
-                     + "that the bar was never reachable at this scale."
+                     + "that the bar was never reachable at this scale with the stock 50 mm neck; a "
+                     + "40 mm neck reached a 6 of 9 ceiling on 2026-09-07, still short of 7."
             case .eventLanding:
                 return "A beak-strut launch whose landing fires on a condition rather than at a "
                      + "fixed time. Measured against the launch it came from, it moved the "

@@ -14,7 +14,7 @@ final class StairsChallengeTests: XCTestCase {
     /// A file that drifts here is a move the leaderboard does not describe, and
     /// there is no way to notice that by looking at the app.
     static let digests: [String: String] = [
-        "leaderboard.md": "4a6765931656d45e2993568326c7c1f34ce20313f47a769edd5544b6c96c6376",
+        "leaderboard.md": "19b9ed17437ef8e79dbda83de23961a538b9542215f4e6edf1d2ad3ac6cd5085",
         "best_r6_ceilvaultC_60mm.json":
             "bbb8e0eb7c41a65e23c0f53ecbc762e0ab25843fde65ec5da06b7a3a87f7c746",
         "best_r3_vault_60mm.json":
@@ -244,7 +244,8 @@ final class StairsChallengeTests: XCTestCase {
         XCTAssertEqual(StairsChallenge.barSaid,
             "The bar is 7 of the 9 core cells, cleared and still standing. Nothing has met it: "
           + "the record is 5 of 9 at a 60 mm rise, and round six measured the trunk's peak "
-          + "height as the reason 7 was never reachable at this scale.")
+          + "height as the reason 7 was never reachable at this scale. A robot with a 10 mm shorter "
+          + "neck link reached a 6 of 9 ceiling in simulation on 2026-09-07, still short of 7.")
     }
 
     func testTheChallengeIsOneSentence() {
