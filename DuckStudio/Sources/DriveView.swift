@@ -71,6 +71,15 @@ struct DriveView: View {
     /// Studio's motions, so one can be run from the picture. See `ControlShelf`.
     @ObservedObject var drafts: DraftStore
 
+    /// The app's one link to a real robot, opened on the Robot tab.
+    ///
+    /// THE WHOLE POINT OF THIS SCREEN'S CHANGE, IN ONE PROPERTY. The Robot
+    /// venue used to be a page of paragraphs about a link nobody had; the link
+    /// exists, it is owned above this screen so that arriving here does not
+    /// open one and leaving does not close one, and what this screen does with
+    /// it is exactly what it does with a bench — call the vocabulary at it.
+    @ObservedObject var robot: BridgeLink
+
     /// The model endpoints, handed down so the gear can open Settings.
     ///
     /// OPTIONAL, AND THE OPTIONALITY IS A HANDOVER NOTE RATHER THAN A DESIGN.
@@ -114,6 +123,15 @@ struct DriveView: View {
     @StateObject private var desk = PadDesk()
     @State private var live: DuckDrive.Live?
     @State private var touchSticks = DuckDrive.Sticks.centred
+
+    /// Whether the sticks are posing the robot's head instead of driving it.
+    ///
+    /// A MODE, NOT A FIFTH AXIS, AND `padd` IS WHY. Its `Mode::Head` puts BOTH
+    /// sticks on the head and zeroes the twist in the same frame — see
+    /// `DuckDrive.stillWhilePosingTheHead`. Offered on the robot venue only,
+    /// because a bench has no door for a head pose at all and `BenchPeer`
+    /// refuses `robot.head` by name.
+    @State private var posingHead = false
     @State private var running = false
     @State private var busy = false
     /// Whether a STOP is in flight.
@@ -134,6 +152,9 @@ struct DriveView: View {
     @State private var failureTitle = DriveView.benchRefusedTitle
     private static let benchRefusedTitle = "The bench refused"
     private static let worldRefusedTitle = "This world cannot be built"
+    /// THE THIRD TITLE, because a refusal from a machine on somebody's floor is
+    /// not a bench refusing and should not say it is.
+    private static let robotRefusedTitle = "The robot refused"
     /// FOLLOWING BY DEFAULT, AND ONLY ON THIS SCREEN.
     ///
     /// `OrbitState.defaults` is Fixed and the reasoning behind that stands
@@ -259,7 +280,26 @@ struct DriveView: View {
     /// for exactly that reason, and `BenchPeer` keeps the last state block and
     /// the id counter, both of which a fresh instance per request would throw
     /// away every request.
-    @State private var peer: BenchPeer?
+    @State private var benchPeer: BenchPeer?
+
+    /// THE PEER THE DRIVE LOOP ACTUALLY TALKS TO, AS THE VOCABULARY AND NOT AS
+    /// A TRANSPORT.
+    ///
+    /// THIS IS THE LINE THE WHOLE SCREEN WAS BLOCKED ON. `peer` was
+    /// `BenchPeer?`, concretely, so `drive()` could only ever notify a bench —
+    /// and the app therefore never sent a `robot.move` to anything in its life,
+    /// despite holding a complete vocabulary, a routing table, a line peer and
+    /// a working bridge. It is `any DuckPeer?` now, chosen by venue: the bench
+    /// this screen has always driven, or the robot on the other end of the
+    /// bridge.
+    ///
+    /// THE VENUE PICKS IT AND NOT A SETTING, because the venue is the thing a
+    /// person can see. Somebody looking at the Robot segment is looking at a
+    /// robot; a switch that also had to be flipped somewhere else to decide
+    /// where the sticks went would be a way to drive the wrong duck.
+    private var peer: (any DuckPeer)? {
+        venue == .real ? robot.peer : benchPeer
+    }
 
     /// The bench errand in flight, kept so STOP CAN CUT IT OFF.
     ///
@@ -342,6 +382,11 @@ struct DriveView: View {
 
     private var twist: DuckDrive.Twist { DuckDrive.twist(for: sticks) }
 
+    /// THE MODE IS ONLY REAL ON A ROBOT. A bench has no endpoint that takes an
+    /// angle, so leaving this true after a venue change would send a stream of
+    /// still twists to a simulator and call it posing.
+    private var posingRobotHead: Bool { venue == .real && posingHead }
+
     /// The duck as last seen, or the home stance before the first answer.
     private var pose: StagePose { live?.stance ?? .home }
 
@@ -390,7 +435,12 @@ struct DriveView: View {
         .onChange(of: cameraDoor) { _, _ in
             venue = DriveVenue.coerce(venue, camera: cameraDoor)
         }
-        .onChange(of: venue) { _, now in entered(now) }
+        .onChange(of: venue) { was, now in entered(from: was, to: now) }
+        // ARRIVING AT THE ROBOT ASKS IT TO TALK, and so does a link that opens
+        // while this tab is already showing — somebody can connect on the Robot
+        // tab and walk back here, which is the ordinary way round. Both land on
+        // the same idempotent subscribe.
+        .task(id: robotLinkKey) { await askTheRobotToTalk() }
         // THE TAB'S NAME, NOT THE VERB. This screen was pushed from a menu row
         // that said "Drive one live", so the bar repeated the row that opened
         // it. It is the Control tab's root now: the tab bar below says Control
@@ -458,7 +508,11 @@ struct DriveView: View {
         // deliver. A bench is the only thing it needs, and `halt` cuts off
         // whatever else is in flight on its way past.
         .accessibilityAction(.magicTap) {
-            guard bench != nil else { return }
+            // THE ONE CONTROL THAT MUST BE REACHABLE WITHOUT FINDING IT, and
+            // it now covers the robot too: `bench != nil` alone would have made
+            // the magic tap dead on the one venue where a stop is a machine in
+            // a room rather than a simulation.
+            guard peer != nil else { return }
             Task { await halt() }
         }
         .task {
@@ -603,10 +657,52 @@ struct DriveView: View {
     /// arrangement `transport` exists to end: a duck walking with the Stop out
     /// of reach. So that one move sends a real stop, in the same words the
     /// button does, rather than merely pausing.
-    @MainActor private func entered(_ now: DriveVenue) {
+    /// - Parameter was: the venue being LEFT, and the reason this takes two
+    ///   arguments now rather than one.
+    ///
+    /// A STOP MUST GO TO THE THING THAT IS MOVING, WHICH IS THE ONE BEING LEFT.
+    /// `onChange` fires after `venue` has already changed, so the old body's
+    /// `halt()` — which resolves its peer from `venue` — would have sent
+    /// `robot.stop` to the robot on the way INTO the robot venue while the
+    /// bench it was actually driving carried on walking. That is a duck left
+    /// walking by the very code written to stop one, and it only became
+    /// possible when the peer stopped being a bench unconditionally.
+    ///
+    /// SIM AND YOUR FLOOR STILL DO NOT STOP ANYTHING. They are the same drive
+    /// drawn two ways, so a duck being steered keeps being steered while the
+    /// floor under it changes. Crossing the robot boundary in either direction
+    /// is the move that stops: the two sides drive different machines.
+    @MainActor private func entered(from was: DriveVenue, to now: DriveVenue) {
         let allowed = DriveVenue.coerce(now, camera: cameraDoor)
         if allowed != now { venue = allowed; return }
-        if allowed == .real, running { Task { await halt() } }
+        guard was != allowed, was == .real || allowed == .real, running else { return }
+        // The peer for the venue being left — named explicitly rather than
+        // resolved from `venue`, which has already moved on.
+        let leaving: (any DuckPeer)? = was == .real ? robot.peer : benchPeer
+        // THE HEAD MODE DOES NOT TRAVEL. It is a robot's mode; carrying it to a
+        // bench would be a stream of still twists at a simulator.
+        posingHead = false
+        running = false
+        touchSticks = .centred
+        desk.pilot.cutOff(.stop)
+        flight?.cancel()
+        Task { await stop(leaving) }
+    }
+
+    /// Zero the command on a NAMED peer, and say nothing if there is none.
+    ///
+    /// SPLIT OUT OF `halt` SO A STOP CAN BE ADDRESSED. `halt` is the button and
+    /// resolves its own peer from the venue somebody is looking at; this is the
+    /// half that puts the call on a link chosen by the caller, which is what
+    /// leaving a venue needs.
+    @MainActor private func stop(_ peer: (any DuckPeer)?) async {
+        guard let peer else { return }
+        do {
+            let answer = try await peer.call(.stop)
+            if let refusal = answer.failure {
+                failure = DuckBench.ReadError.bench(refusal.message).message
+            }
+        } catch { if !stopCutItOff(error) { report(error) } }
     }
 
     /// The picture, or the absence of one.
@@ -1732,7 +1828,7 @@ struct DriveView: View {
     }
 
     private func reachLine(_ control: String, _ method: DuckMethod,
-                           _ peer: BenchPeer) -> String {
+                           _ peer: any DuckPeer) -> String {
         "\(control) \(method.rawValue) — "
             + (peer.reach.contains(method) ? "carried" : "not carried")
     }
@@ -2155,20 +2251,139 @@ struct DriveView: View {
     /// `DeviceCard.Charge.linkCarriesNoCharge`; the presence line is
     /// `DeviceCard.Presence`'s; and the four paragraphs about what does not
     /// exist yet are `DriveVenue`'s, where a test reads them letter by letter.
+    /// The sticks, and everything a person driving a machine in a room is owed.
+    ///
+    /// THE ORDER IS THE ORDER OF WHAT MATTERS. What this is (a robot, and these
+    /// sticks move it), what stops it (three timers, with this bridge's own
+    /// number in the sentence), what it is running (the subscribe answer, which
+    /// is the robot's list and not a bench's), what it last said, and only then
+    /// the sticks — because somebody scrolling to the sticks has read the rest
+    /// on the way past, and somebody who already knows scrolls in one gesture.
+    ///
+    /// THE PADS ARE THE SAME `ThumbPad`s THE OTHER VENUES DRAW, bound to the
+    /// same `touchSticks`, feeding the same `twist`. Nothing about the stick
+    /// mapping is re-decided here: `DuckDrive.twist(for:)` transcribes `padd`'s
+    /// signs and speeds, and it is what the bench has always been driven with.
+    /// What a person learnt driving the simulator IS knowledge about driving
+    /// the robot, which was the whole premise of the vocabulary and is true for
+    /// the first time on this screen.
+    @ViewBuilder private var drivingSection: some View {
+        Section {
+            Text(DriveVenue.robotIsDrivenOverTheBridge)
+                .font(.footnote)
+                .foregroundStyle(Theme.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(BridgeDrive.theseCommandsAreReal)
+                .font(.footnote)
+                .foregroundStyle(Theme.warning)
+                .fixedSize(horizontal: false, vertical: true)
+            if !robot.host.isEmpty {
+                TelemetryRow(label: "Bridge", value: robot.host, unit: "")
+            }
+            Text(robot.deadmanSaid)
+                .font(.caption)
+                .foregroundStyle(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        } header: {
+            SectionHeading(text: BridgeDrive.drivingHeading)
+        }
+        .listRowBackground(Theme.surfacePrimary)
+
+        Section {
+            // WHAT THE ROBOT SAID ABOUT ITSELF, IN ITS OWN WORDS. This is the
+            // replacement for the bench's `/health` policy list, and it is a
+            // different answer rather than the same one wearing a robot's name:
+            // a bench lists files it could load, and this names the networks
+            // already running. See `DuckSubscription`.
+            Text(robot.subscription?.says ?? DuckSubscription.notAskedYet)
+                .font(.footnote)
+                .foregroundStyle(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if let said = robotStateSaid {
+                TelemetryRow(label: "Last said", value: said, unit: "")
+            } else {
+                // NOT A BLANK ROW. A subscription that was accepted and has
+                // published nothing is a specific, findable fault, and it is
+                // invisible if the only evidence is a label that stayed empty.
+                Text(DuckSubscription.notAskedYet)
+                    .font(.caption)
+                    .foregroundStyle(Theme.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        } header: {
+            SectionHeading(text: BridgeDrive.runningHeading)
+        }
+        .listRowBackground(Theme.surfacePrimary)
+
+        Section {
+            padDeck(compact: true)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, Theme.spacing(.tight))
+            // THE HEAD IS `padd`'s MODE, OFFERED WHERE IT IS CARRIED. It is on
+            // the robot venue alone because `robot.head` is denied on a bench
+            // by name, and a toggle that produced a refusal would look exactly
+            // like a robot without a head.
+            Toggle(BridgeDrive.headModeLabel, isOn: $posingHead)
+                .tint(Theme.actionPrimary)
+            Text(DuckDrive.stillWhilePosingTheHead)
+                .font(.caption)
+                .foregroundStyle(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        } header: {
+            SectionHeading(text: BridgeDrive.sticksHeading)
+        } footer: {
+            Text(posingHead ? DuckDrive.headSays(DuckDrive.head(for: sticks))
+                            : DuckDrive.says(twist))
+                .foregroundStyle(Theme.textSecondary)
+        }
+        .listRowBackground(Theme.surfacePrimary)
+
+        // THE THREE ABSENCES, EXPLAINED WHERE THEY ARE MISSING RATHER THAN
+        // LEFT TO BE DISCOVERED. A person who has driven the other venues
+        // arrives here looking for a picture, a world picker and a Reset, and
+        // finds none of the three.
+        Section {
+            Text(BridgeDrive.noPictureHere)
+                .font(.footnote).foregroundStyle(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(BridgeDrive.noWorldNoScene)
+                .font(.footnote).foregroundStyle(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(BridgeDrive.noPolicySwapHere)
+                .font(.footnote).foregroundStyle(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Label(BridgeDrive.oneWriterOnly, systemImage: "person.2.slash")
+                .font(.caption).foregroundStyle(Theme.warning)
+                .fixedSize(horizontal: false, vertical: true)
+        } header: {
+            SectionHeading(text: BridgeDrive.absencesHeading)
+        }
+        .listRowBackground(Theme.surfacePrimary)
+    }
+
+    /// The venue with no link open: what it is, and where to open one.
+    @ViewBuilder private var notDrivingSection: some View {
+        Section {
+            Text(DriveVenue.robotNeedsABridge)
+                .font(.footnote)
+                .foregroundStyle(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(BridgeDrive.connectFirst)
+                .font(.footnote)
+                .foregroundStyle(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            NavigationLink { PairingSpikeView() } label: {
+                Label("Find and pair a duck", systemImage: "dot.radiowaves.left.and.right")
+            }
+        } header: {
+            SectionHeading(text: "Robot")
+        }
+        .listRowBackground(Theme.surfacePrimary)
+    }
+
     private var robotControls: some View {
         List {
-            Section {
-                Text(DriveVenue.robotIsNotDrivenYet)
-                    .font(.footnote)
-                    .foregroundStyle(Theme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                NavigationLink { PairingSpikeView() } label: {
-                    Label("Find and pair a duck", systemImage: "dot.radiowaves.left.and.right")
-                }
-            } header: {
-                SectionHeading(text: "Robot")
-            }
-            .listRowBackground(Theme.surfacePrimary)
+            if robot.isConnected { drivingSection } else { notDrivingSection }
             // THE CONSOLE THE ROBOT SERVES, WHICH IS THE CAMERA AND THE
             // CONTROL CHANNEL WITHOUT A SECOND CLIENT. Opened in the system
             // browser rather than drawn here: the page is the robot's own, it
@@ -2575,14 +2790,20 @@ struct DriveView: View {
         // link to a robot to make them over; drawing them there would be the
         // simulator's bar under the hardware's name. `entered` sends a real
         // stop on the way in, so nothing is left walking behind it.
-        if !benches.benches.isEmpty, venue != .real {
+        // THE ROBOT VENUE DRAWS IT NOW, AND WITHOUT RESET. The old comment
+        // here said the bar was not drawn on that venue because there was "no
+        // link to a robot to make them over". There is one. What has not
+        // appeared is a reset: a duck on somebody's floor cannot be teleported
+        // upright, so that button stays behind, and its absence is explained by
+        // `BridgeDrive.noWorldNoScene` in the venue's own list.
+        if transportIsDrawn {
             ViewThatFits(in: .horizontal) {
                 transportRow(icons: true)
                 transportRow(icons: false)
                 VStack(spacing: Theme.spacing(.tight)) {
                     driveButton(icons: true, expands: true)
                     stopButton(icons: true, expands: true)
-                    resetButton(icons: true, expands: true)
+                    if venue != .real { resetButton(icons: true, expands: true) }
                 }
             }
             .padding(.horizontal, Theme.spacing(.snug))
@@ -2596,11 +2817,28 @@ struct DriveView: View {
         }
     }
 
+    /// Whether there is anything for the bar to talk to.
+    ///
+    /// TWO DIFFERENT QUESTIONS UNDER ONE BAR. On a bench it is "does this phone
+    /// know about any bench at all"; on a robot it is "is a link open right
+    /// now". Collapsing them into `bench != nil` is what used to make the
+    /// robot venue barless, and collapsing them the other way would draw a
+    /// Drive button over a robot nobody has connected to.
+    private var transportIsDrawn: Bool {
+        venue == .real ? robot.isConnected : !benches.benches.isEmpty
+    }
+
+    /// What the transport bar needs before it can be pressed — the same
+    /// question `transportIsDrawn` asks, as the thing a button disables on.
+    private var somethingToDrive: Bool {
+        venue == .real ? robot.isConnected : bench != nil
+    }
+
     private func transportRow(icons: Bool) -> some View {
         HStack(spacing: Theme.spacing(.tight)) {
             driveButton(icons: icons, expands: false)
             stopButton(icons: icons, expands: false)
-            resetButton(icons: icons, expands: false)
+            if venue != .real { resetButton(icons: icons, expands: false) }
         }
     }
 
@@ -2624,10 +2862,25 @@ struct DriveView: View {
                            icons: icons, expands: expands)
         }
         .buttonStyle(.primaryActionMoves)
-        .disabled(bench == nil)
-        .accessibilityHint(Text(running
-            ? "Stops sending intents. The duck keeps whatever command it last had."
-            : "Starts the loop that sends the sticks to the bench."))
+        .disabled(!somethingToDrive)
+        .accessibilityHint(Text(pauseHint))
+    }
+
+    /// What Pause actually does, which is NOT the same thing in both places.
+    ///
+    /// THE BENCH FREEZES AND THE ROBOT DOES NOT. A bench advances physics only
+    /// inside a request, so pausing there leaves the duck exactly where it was,
+    /// mid-stride. A robot keeps walking on its last twist until a deadman
+    /// zeroes it — which is a stop, but one that arrives up to half a second
+    /// later. A single hint reading "the duck keeps whatever command it last
+    /// had" would be the bench's sentence read out over hardware, which is the
+    /// exact habit `BenchPeer.theWorldOnlyMovesWhenAsked` warns about.
+    private var pauseHint: String {
+        guard running else { return "Starts the loop that sends the sticks to the duck." }
+        return venue == .real
+            ? "Stops sending twists. The robot keeps walking on the last one until a deadman "
+            + "zeroes it — press Stop to zero it now."
+            : "Stops sending intents. The duck keeps whatever command it last had."
     }
 
     private func stopButton(icons: Bool, expands: Bool) -> some View {
@@ -2643,7 +2896,7 @@ struct DriveView: View {
         // being unavailable because the software is doing something else; if it
         // cannot be pressed it is not a stop, it is a suggestion. What is left
         // is the one case where the button would have nothing to talk to.
-        .disabled(bench == nil)
+        .disabled(!somethingToDrive)
         .accessibilityHint(Text("Zeroes the command and lets the duck settle under it."))
         // FIRST IN THE BAR FOR A SCREEN READER, whatever order it is drawn in.
         // Sort priority is the only way to say "reach this one first" without
@@ -2686,10 +2939,15 @@ struct DriveView: View {
     /// back from the world, in `swap`, `drive` and `halt`. `Haptic`'s own
     /// preamble makes the argument at length.
     @MainActor private func press(_ control: DuckPad.Control) async {
-        // The robot venue drives nothing yet. The pad is drawn there so the
-        // layout is the same everywhere; a press on it is an explicit not-yet.
+        // THE STICKS DRIVE A ROBOT AND THE FACE BUTTONS STILL DO NOT, which
+        // is a narrower not-yet than the one that used to be here and is worth
+        // the distinction. Every face binding in this app ends in a bench call
+        // — load a network into a slot, run a recorded motion against a world,
+        // replay a take — and `robotd` owns its own slots. A press is told
+        // which of those it is rather than being told the robot cannot be
+        // driven, which is no longer true.
         if venue == .real {
-            lastAction = DriveVenue.robotIsNotDrivenYet
+            lastAction = BridgeDrive.noPolicySwapHere
             return
         }
         // THE MAP IS THE ONE DOOR, AND IT IS NEVER NIL. An unmapped control
@@ -2838,12 +3096,37 @@ struct DriveView: View {
     /// into `DuckBench.Refusal.empty`, which is the exact error the old private
     /// `makePeer` threw out of `requireBench` and the one `report` already knows
     /// how to put on the glass.
-    @MainActor private func requirePeer() throws -> BenchPeer {
-        if let peer { return peer }
+    /// - Returns: `any DuckPeer` — see the `peer` accessor for why this is the
+    ///   change the Control tab existed without for its whole life.
+    ///
+    /// THE ROBOT VENUE BUILDS NOTHING. A bench peer is cheap and local and can
+    /// be constructed on demand from an address somebody typed; a robot link is
+    /// a socket to a machine with a duck on it, and this screen must never open
+    /// one as a side effect of somebody pressing Drive. So the robot branch
+    /// either hands back the link that is already open or refuses with the
+    /// sentence that says where to open one.
+    @MainActor private func requirePeer() throws -> any DuckPeer {
+        if venue == .real {
+            guard let live = robot.peer else { throw BridgeLink.LinkGone.notConnected }
+            return live
+        }
+        if let benchPeer { return benchPeer }
         guard let made = try benches.makePeer() else { throw DuckBench.Refusal.empty }
-        peer = made
+        benchPeer = made
         return made
     }
+
+    /// The bench, when the thing being driven is one.
+    ///
+    /// EVERY BENCH-ONLY MEMBER GOES THROUGH THIS AND NONE OF THEM IS FAKED FOR
+    /// A ROBOT. `live` (fifteen joint angles and a root), the world, the scene,
+    /// `/health`'s policy list, `/policy`, `/reset` — all of them are things a
+    /// physics server has and a Microduck does not, and the choice at every one
+    /// of them was between guarding it and inventing a robot-shaped answer.
+    /// Guarding it means a screen with less on it; inventing one means a duck
+    /// drawn standing still while the real one walks. `BridgeDrive.noPictureHere`
+    /// and `BridgeDrive.noWorldNoScene` are those absences, said out loud.
+    private var drivingABench: BenchPeer? { venue == .real ? nil : benchPeer }
 
     // POINTING A PEER AT THE SELECTED BENCH IS THE STORE'S JOB NOW. The private
     // `makePeer` that stood here is `BenchStore.makePeer()`, moved whole: the
@@ -2877,10 +3160,20 @@ struct DriveView: View {
         // and a screen with no bench selected wants exactly what a screen with
         // an unreachable one wants here: no peer, no alert, and the refusal
         // saved for the moment somebody presses Drive.
-        peer = try? benches.makePeer()
+        benchPeer = try? benches.makePeer()
         // THE NEW PEER HAS SEEN NOTHING. Carrying the old one's state line over
         // would put the last bench's sim clock under the new bench's name.
         stateSaid = nil
+    }
+
+    /// The robot link, as one value a `.task(id:)` can compare.
+    ///
+    /// IT CARRIES THE VENUE because arriving at the robot is as much a reason
+    /// to subscribe as a link opening, and it carries the host so that
+    /// connecting to a DIFFERENT robot re-asks rather than showing the previous
+    /// one's networks under the new one's name.
+    private var robotLinkKey: String {
+        "\(venue.rawValue)·\(robot.isConnected)·\(robot.host)"
     }
 
     /// What the peer is pointed at, as one value `onChange` can compare.
@@ -2917,6 +3210,13 @@ struct DriveView: View {
     /// that was just asked to stop is the app apologising for doing as it was
     /// told. Saying nothing at all would be worse: the trip count stops moving
     /// and nothing explains why.
+    /// - Note: The list grew again with the robot link. `BridgeLink.LinkGone`
+    ///   and `LinePeer.LinkEnded` are the two refusals only a real link can
+    ///   produce — "nothing is connected" and "the far end stopped" — and both
+    ///   have sentences written for them. Without these two rows they would
+    ///   fall through to `localizedDescription`, which is this app admitting it
+    ///   did not know what it caught, on the one screen where what it caught is
+    ///   a robot.
     @MainActor private func report(_ error: Error) {
         if stopCutItOff(error) {
             // ONLY WHEN IT WAS STOP. Leaving the screen cancels the same errand
@@ -2929,8 +3229,14 @@ struct DriveView: View {
         // THE TITLE SAYS WHO REFUSED. A world this bank cannot hold is refused
         // by this app before anything is sent, and calling that a bench
         // refusal blames a bench that never heard about it.
-        failureTitle = error is DuckWorld.Refusal ? Self.worldRefusedTitle
-                                                  : Self.benchRefusedTitle
+        // AND ON A ROBOT IT IS NOT A BENCH EITHER. "The bench refused" over a
+        // duck standing on a floor names the wrong machine, which is the exact
+        // fault this title exists to avoid.
+        if error is DuckWorld.Refusal {
+            failureTitle = Self.worldRefusedTitle
+        } else {
+            failureTitle = venue == .real ? Self.robotRefusedTitle : Self.benchRefusedTitle
+        }
         switch error {
         case let refusal as DuckBench.ReadError: failure = refusal.message
         case let refusal as DuckBench.Refusal: failure = refusal.message
@@ -2944,6 +3250,10 @@ struct DriveView: View {
         // arena: `DuckWorld.Refusal` writes each of those in its own words and
         // `DuckBench.setWorld` throws rather than posting.
         case let refusal as DuckWorld.Refusal: failure = refusal.message
+        // THE TWO ONLY A REAL LINK CAN THROW.
+        case let gone as BridgeLink.LinkGone: failure = gone.message
+        case let ended as LinePeer.LinkEnded: failure = ended.message
+        case let refusal as DuckSubscription.ReadError: failure = refusal.message
         default: failure = error.localizedDescription
         }
     }
@@ -2985,11 +3295,44 @@ struct DriveView: View {
         // CLEARED BEFORE THE GUARD, so a layer switched off and on again shows
         // nothing rather than the sim clock from whenever it was last on.
         stateSaid = nil
-        guard layers.contains(.link), let peer else { return }
+        guard layers.contains(.link) else { return }
+        // A ROBOT'S STATE IS NOT ASKED FOR, IT ARRIVES. `studio.state` is this
+        // app's own method and `robotd` answers no such thing — which is why
+        // `BridgeClient` narrows its reach to exclude it, so the line above
+        // reads "not carried" rather than this screen discovering it with a
+        // refusal by name. What a robot publishes comes off the subscription,
+        // and `BridgeLink` holds the newest one.
+        guard drivingABench != nil else {
+            stateSaid = robotStateSaid
+            return
+        }
+        guard let peer else { return }
         guard let reply = try? await peer.call(.state), reply.succeeded,
               let clock: String = reply.field("clock"),
               let t: Double = reply.field("t") else { return }
         stateSaid = String(format: "%@ clock %.2f s", clock, t)
+    }
+
+    /// What the robot last said about itself, or nil when it has said nothing.
+    ///
+    /// EVERY FIELD IS OPTIONAL AND EVERY ABSENCE IS SKIPPED RATHER THAN ZEROED.
+    /// `DuckState`'s whole design is that a missing block reads as nil, because
+    /// "a zero is a lie that looks exactly like data" — so this prints what the
+    /// duck actually said and nothing else. A robot whose schema has moved
+    /// under this build shows a short line, which is the signal, rather than a
+    /// full one made of defaults.
+    private var robotStateSaid: String? {
+        guard let state = robot.lastState else { return nil }
+        var parts: [String] = []
+        if let policy = state.policy { parts.append(policy) }
+        if state.safety?.fallen == true { parts.append("fallen") }
+        if state.safety?.limp == true { parts.append("limp") }
+        if let missed = state.loop?.missed, missed > 0 { parts.append("\(missed) missed ticks") }
+        if let volts = state.battery?.volts {
+            parts.append(String(format: "%.1f V", volts))
+        }
+        parts.append("\(robot.statesHeard) states")
+        return parts.joined(separator: " · ")
     }
 
     /// `/health` again, and nothing else. A network just put on the bench is
@@ -3007,6 +3350,13 @@ struct DriveView: View {
     @MainActor private func connect() async {
         busy = true
         defer { busy = false }
+        // THE ROBOT VENUE HAS NOTHING TO CONNECT TO AND MUST NOT BUILD ONE.
+        // The link is opened by a person on the Robot tab; what this screen
+        // does on arrival is ask the robot to start talking, once.
+        if venue == .real {
+            await askTheRobotToTalk()
+            return
+        }
         rebuildPeer()
         do {
             let peer = try requirePeer()
@@ -3054,6 +3404,28 @@ struct DriveView: View {
             // older bench 404s it and the picker goes dead with the reason
             // under it — see `readWorld`.
             await readWorld(try requireBench())
+        } catch { report(error) }
+    }
+
+    /// Ask the robot to start pushing its state, and record what it runs.
+    ///
+    /// THE FIRST THING THIS SCREEN SAYS TO A ROBOT, AND IT IS NOT A COMMAND.
+    /// `robot.subscribe` is answered with what is constant for the life of that
+    /// `robotd` — which walking and standing networks are loaded, which skills
+    /// exist, or why nothing is driving — and that answer is the honest
+    /// replacement for the bench's `/health` policy list. It is also the only
+    /// way a state ever arrives: `robotd` pushes `robot.state` to connections
+    /// that asked, and to no others.
+    ///
+    /// IT IS SAFE TO RUN TWICE. A second subscribe on one connection re-states
+    /// the rate; nothing is created and nothing moves. So this is called on
+    /// arrival and whenever the link changes underneath, without bookkeeping to
+    /// stop it.
+    @MainActor private func askTheRobotToTalk() async {
+        guard robot.isConnected else { return }
+        do {
+            _ = try await robot.subscribeToState()
+            await askWhatItSaw()
         } catch { report(error) }
     }
 
@@ -3192,11 +3564,61 @@ struct DriveView: View {
                 // the bench's own word for what is on the servos. The pilot
                 // hands back one command whether it is steering, recording or
                 // replaying — there is never a second intent stream.
+                //
+                // ON A ROBOT BOTH OF THOSE ARE NIL AND THAT IS CORRECT, not a
+                // degraded reading. There is no sim clock on a duck standing on
+                // a floor, and what is on its servos was named once, when this
+                // app subscribed — the pilot's recorder simply has no clock to
+                // stamp against, which is why a take is not offered there.
                 let go = desk.step(steering: twist, simSeconds: live?.t,
                                    policySaid: live?.policy)
-                if let want = go.load { await swap(to: want) }
-                try await peer.notify(.move(go.command))
-                live = await peer.live
+                // LOADING A NETWORK IS A BENCH CALL AND STAYS ONE. `robotd`
+                // owns its slots; there is no method in the vocabulary for
+                // "put this file on the servos", so on a robot the request is
+                // reported rather than silently dropped.
+                if let want = go.load {
+                    if drivingABench != nil {
+                        await swap(to: want)
+                    } else {
+                        lastAction = BridgeDrive.noPolicySwapHere
+                    }
+                }
+                // THE ONE LINE THIS WHOLE CHANGE EXISTS FOR. It is unchanged —
+                // that is the point: `notify(.move(_:))` was already written
+                // against the vocabulary rather than against a bench, so the
+                // only thing that had to move was the TYPE of `peer`.
+                //
+                // THE HEAD MODE ZEROES THE TWIST AND DOES NOT SKIP IT. Sending
+                // no move at all while somebody poses the head would leave the
+                // last twist standing until a deadman aged it out, which is a
+                // robot that keeps walking for up to half a second because
+                // somebody looked around. `padd` puts both in one frame for
+                // exactly this reason.
+                if posingRobotHead {
+                    try await peer.notify(.move(.still))
+                    try await peer.notify(.head(DuckDrive.head(for: sticks)))
+                } else {
+                    try await peer.notify(.move(go.command))
+                }
+                if let bench = drivingABench {
+                    // A BENCH ANSWERS EVERY CALL AND THE ANSWER IS THE PHYSICS
+                    // IT JUST RAN, so the round trip is this loop's clock.
+                    live = await bench.live
+                } else {
+                    // A ROBOT DOES NOT ANSWER A TWIST AT ALL — the contract's
+                    // continuous intents are notifications — so nothing here
+                    // paces the loop and this must pace itself, or it spins as
+                    // fast as the CPU will let it and floods a relay with
+                    // frames the send slot immediately supersedes.
+                    //
+                    // THE INTERVAL IS DERIVED FROM THIS BRIDGE'S OWN DEADMAN,
+                    // never picked: see `BridgeDrive.interval(_:)`. Sleeping
+                    // longer than a third of the shortest deadman in the chain
+                    // is handing the duck to a timer while somebody is still
+                    // driving it.
+                    try await Task.sleep(nanoseconds:
+                        UInt64(robot.interval * 1_000_000_000))
+                }
                 // A CHAINED SEQUENCE LOADS ITS SLOT WHEN IT FINISHES, and a
                 // take that closed itself on a ceiling prints its own sentence.
                 // Neither is in the seam as written; without them the chain is
@@ -3277,6 +3699,10 @@ struct DriveView: View {
         defer { stopping = false }
         do {
             let peer = try requirePeer()
+            // `robot.stop` IS THE SAME REQUEST ON BOTH LINKS. It zeroes the
+            // command; it is NOT "go limp", which is `robot.relax` and which
+            // this screen does not offer, because a duck that goes limp falls
+            // over.
             let answer = try await peer.call(.stop)
             if let refusal = answer.failure {
                 // THE BENCH'S OWN WORDS, IN THE READER'S OWN WRAPPER. A refusal
@@ -3286,7 +3712,7 @@ struct DriveView: View {
                 failure = DuckBench.ReadError.bench(refusal.message).message
                 return
             }
-            live = await peer.live
+            live = await drivingABench?.live
             // A DUCK CAN ARRIVE AT A STOP WHILE IT SETTLES, and a stop that
             // ends with a joint clipped is the same finding as one found while
             // driving. The other reason to call it here is bookkeeping: without
@@ -3299,6 +3725,17 @@ struct DriveView: View {
     @MainActor private func putBack() async {
         running = false
         touchSticks = .centred
+        // RESET IS NOT DRAWN IN THE ROBOT VENUE AND CANNOT BE REACHED THERE,
+        // and this guard is the second lock on the same door: `/reset`
+        // teleports a duck upright, which is not something that can be asked of
+        // a machine standing on somebody's floor. Without it, a Reset pressed
+        // through the magic tap or a keyboard while the venue was Robot would
+        // post to whichever bench happened to be selected — a different duck
+        // entirely, moving in another room.
+        guard drivingABench != nil || venue != .real else {
+            lastAction = BridgeDrive.noWorldNoScene
+            return
+        }
         busy = true
         defer { busy = false }
         do {
@@ -3339,6 +3776,10 @@ struct DriveView: View {
     /// is the bench's own door and this is the app's one caller of it.
     @MainActor private func swap(to policy: String) async {
         guard !policy.isEmpty else { return }
+        guard venue != .real else {
+            lastAction = BridgeDrive.noPolicySwapHere
+            return
+        }
         do {
             live = try DuckDrive.readLive(
                 await ask(try DuckDrive.load(try requireBench(), policy: policy)))

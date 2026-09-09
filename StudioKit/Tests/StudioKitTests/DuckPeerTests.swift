@@ -47,9 +47,14 @@ final class DuckPeerTests: XCTestCase {
     func testEveryMethodIsSpelledOnce() {
         let names = Set(DuckMethod.allCases.map(\.rawValue))
         XCTAssertEqual(names.count, DuckMethod.allCases.count)
-        XCTAssertEqual(DuckMethod.allCases.count, 13,
+        XCTAssertEqual(DuckMethod.allCases.count, 14,
                        "A method was added or removed. That is fine — but the routing table and "
                        + "the reach tests below are the reason this count is pinned.")
+        // FOURTEEN SINCE `robot.subscribe` ARRIVED. It is the method that turns
+        // a connection into a stream of `robot.state` notifications, and
+        // without it a link to a real duck hears nothing at all — see
+        // `DuckMethod.subscribe`.
+        XCTAssertTrue(DuckMethod.allCases.contains(.subscribe))
     }
 
     // MARK: - notifications versus requests
@@ -229,8 +234,9 @@ final class DuckPeerTests: XCTestCase {
     /// line for a transport to send by mistake.
     func testTheRecoveryPathIsNotEvenRepresentableAsACall() {
         let buildable = Set(DuckCall.allShapes.map(\.method))
-        // TEN: the nine robot calls and the bridge's own `policy.install`.
-        XCTAssertEqual(buildable.count, 10)
+        // ELEVEN: the ten robot calls — `robot.subscribe` included — and the
+        // bridge's own `policy.install`.
+        XCTAssertEqual(buildable.count, 11)
         for method in DuckMethod.allCases where method.mutatesTheRecoveryPath {
             XCTAssertNil(DuckCall.shape(of: method), method.rawValue)
             XCTAssertFalse(buildable.contains(method), method.rawValue)
@@ -272,7 +278,8 @@ final class DuckPeerTests: XCTestCase {
     /// it carries the whole robot surface and none of the recovery path.
     func testWebRTCCarriesTheWholeRobotSurface() {
         XCTAssertEqual(DuckMethod.reach(for: .webRTC),
-                       [.hello, .move, .head, .look, .stop, .enable, .initPose, .relax])
+                       [.hello, .move, .head, .look, .stop, .enable, .initPose, .relax,
+                        .subscribe])
     }
 
     /// A method routed nowhere is almost certainly a routing slip rather than a

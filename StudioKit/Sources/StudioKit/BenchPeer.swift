@@ -205,6 +205,7 @@ public actor BenchPeer: DuckPeer {
         case .relax: return .noMotorBus(.relax)
         case .initPose: return .resetIsNotTheInitialPose
         case .installPolicy: return .noDiskToInstallOn
+        case .subscribe: return .nothingToSubscribeTo
         case .hello, .move, .stop, .state: return nil
         }
     }
@@ -230,6 +231,9 @@ public actor BenchPeer: DuckPeer {
         case nothingHasHappenedYet
         /// `policy.install`: a bench has no robot's disk to put a file on.
         case noDiskToInstallOn
+        /// `robot.subscribe`: a bench pushes nothing, so there is no stream to
+        /// turn on.
+        case nothingToSubscribeTo
 
         public var message: String {
             switch self {
@@ -266,6 +270,12 @@ public actor BenchPeer: DuckPeer {
                      + "computer, and a bench is not that. A bench takes a network through "
                      + "/upload, under a name, for as long as it runs — which is what putting one "
                      + "of your networks on this bench does from the Control tab."
+            case .nothingToSubscribeTo:
+                return "robot.subscribe turns a connection into a stream of states a robot pushes "
+                     + "at its loop rate. A bench pushes nothing: it answers every request with "
+                     + "the state block it just computed, which is what studio.state reads here. "
+                     + "Accepting a subscription would be a promise that states are now arriving "
+                     + "on their own when nothing will ever send one."
             }
         }
     }
@@ -354,7 +364,7 @@ public actor BenchPeer: DuckPeer {
             // answer, so a "read" would be a command.
             guard let live else { throw Refusal.nothingHasHappenedYet }
             return DuckReply(id: id, result: try Self.stateResult(live), failure: nil)
-        case .move, .head, .look, .enable, .initPose, .relax, .installPolicy:
+        case .move, .head, .look, .enable, .initPose, .relax, .installPolicy, .subscribe:
             // UNREACHABLE, AND A THROW RATHER THAN A CRASH. `refusal(for:)`
             // has answered for five of these six — head, look, enable,
             // initPose, relax — and `vet` for the sixth, `move`, which is a

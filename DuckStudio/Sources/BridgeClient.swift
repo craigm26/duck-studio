@@ -28,7 +28,24 @@ final class BridgeClient: @unchecked Sendable {
         self.connection = connection
         self.greeting = greeting
         self.feed = feed
-        peer = LinePeer(identity: identity, over: .bridge, inbound: inbound) { stamped in
+        // THE REACH IS NARROWED, AND `studio.state` IS WHY.
+        //
+        // `DuckMethod.reach(for: .bridge)` is written for the bridge the
+        // routing table imagined — "another copy of this app relaying to a duck
+        // it can reach" — and that peer would answer `studio.state`, because it
+        // is a copy of this app. THIS bridge is not that: it relays to a real
+        // `robotd`, byte for byte, and `robotd` answers no method that asks
+        // what it is doing. Leaving `state` in reach would put a control on the
+        // Control tab's link panel reading "carried" for a call that comes back
+        // as a refusal by name — and a refusal by name is indistinguishable
+        // from a robot that does not have the feature.
+        //
+        // `DuckPeer` permits exactly this and forbids the opposite: a peer may
+        // narrow what it carries when it knows this particular duck answers
+        // less, and `LinePeer` intersects rather than trusting the argument, so
+        // nothing here can widen the table.
+        peer = LinePeer(identity: identity, over: .bridge, inbound: inbound,
+                        reach: DuckMethod.reach(for: .bridge).subtracting([.state])) { stamped in
             try await BridgeClient.send(stamped.line, over: connection)
         }
     }

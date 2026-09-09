@@ -205,6 +205,62 @@ public enum DuckDrive {
                      vyaw: -rightX * maxTurn)
     }
 
+    /// Full-deflection head travel, radians — `padd`'s `--max-head` default.
+    ///
+    /// GENEROUS ON PURPOSE AND NOT A SERVO LIMIT. `padd`'s own note: "the head
+    /// command feeds the policy's observation rather than a servo directly, so
+    /// this is the prototype's generous 2.5 — the network itself decides how
+    /// far the head actually goes." Clamping it here would be this app deciding
+    /// something the policy is trained to decide.
+    public static let maxHead = 2.5
+
+    /// The head pose the sticks mean, in `padd`'s Head mode.
+    ///
+    /// A MODE AND NOT A FIFTH AXIS, WHICH IS THE PART WORTH TRANSCRIBING.
+    /// `padd` does not steal one stick for the head while the other drives: in
+    /// `Mode::Head` BOTH sticks pose the head and the body twist is zeroed in
+    /// the same frame, with a comment saying exactly why — "a robot that keeps
+    /// walking because you started moving its head is a bad enough surprise to
+    /// be explicit about". `DuckKit` makes the same argument from the other
+    /// side: the twist alone decides walking versus standing, so head motion
+    /// must not make the robot think it is walking. So a caller that sends this
+    /// sends a still twist beside it, and `DuckDrive.stillWhilePosingTheHead`
+    /// is that rule in a sentence.
+    ///
+    /// THE SIGNS ARE THEIRS, INCLUDING THE TWO INVERSIONS. `head_pitch` and
+    /// `head_yaw` are negated relative to stick direction; `padd` marks that
+    /// mapping "verified on hardware there, kept verbatim here", which is
+    /// exactly the kind of thing this app must copy rather than reason about.
+    public static func head(for sticks: Sticks) -> DuckHead {
+        let leftX = sticks.left.axis(sticks.left.x)
+        let leftY = sticks.left.axis(sticks.left.y)
+        let rightX = sticks.right.axis(sticks.right.x)
+        let rightY = sticks.right.axis(sticks.right.y)
+        return DuckHead(neckPitch: rightY * maxHead,
+                        headPitch: -leftY * maxHead,
+                        headYaw: -leftX * maxHead,
+                        headRoll: rightX * maxHead)
+    }
+
+    /// Why a head pose travels beside a zero twist and never beside a live one.
+    public static let stillWhilePosingTheHead =
+        "While the sticks are posing the head they are not driving: the twist goes out as zero "
+      + "in the same breath. That is the gamepad's own rule and the reason for it is the policy's "
+      + "— the twist alone decides whether the robot is walking, so a head that moved the body "
+      + "would be a duck that walked off because somebody looked around."
+
+    /// What to say under the stick while it is posing a head.
+    ///
+    /// FOUR ANGLES IN DEGREES, BECAUSE NOBODY READS RADIANS OFF A STICK. The
+    /// wire carries radians and this is the only place they are turned into
+    /// anything else — a readout, never a command.
+    public static func headSays(_ head: DuckHead) -> String {
+        if head == .level { return "Head level — nothing commanded." }
+        let d = { (r: Double) in r * 180 / Double.pi }
+        return String(format: "neck %.0f°  pitch %.0f°  yaw %.0f°  roll %.0f°",
+                      d(head.neckPitch), d(head.headPitch), d(head.headYaw), d(head.headRoll))
+    }
+
     /// What to say under the stick about the command it is producing.
     ///
     /// PINNED HERE RATHER THAN COMPOSED IN THE VIEW because it makes claims

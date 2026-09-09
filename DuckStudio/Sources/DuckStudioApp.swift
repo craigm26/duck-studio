@@ -194,6 +194,13 @@ struct DuckStudioApp: App {
     /// the store it writes into, so leaving a screen is leaving a screen.
     @StateObject private var evalRunner = EvalRunner()
 
+    /// THE ONE OPEN LINK TO A ROBOT, held here for the reason `evalRunner` is:
+    /// it outlives every screen that can see it. A bridge connected on the
+    /// Robot tab is the link the Control tab drives, and walking between the
+    /// two must not close a socket to a machine with a duck standing on it.
+    /// See `BridgeLink`.
+    @StateObject private var robot = BridgeLink()
+
     /// THE PHYSICS THIS APP SPENT ITS WHOLE LIFE SAYING IT DID NOT HAVE.
     ///
     /// A 1×1 WebView, alpha zero, running MuJoCo compiled to WebAssembly behind
@@ -293,7 +300,7 @@ struct DuckStudioApp: App {
                     // overwrites the shared one — two Settings screens
                     // disagreeing about one list.
                     DriveView(model: model, benches: benches, scenes: scenes, drafts: drafts,
-                              models: models)
+                              robot: robot, models: models)
                 }
                     .tabItem { Label(AppTab.control.title, systemImage: AppTab.control.symbol) }
                     .tag(AppTab.control)
@@ -329,7 +336,7 @@ struct DuckStudioApp: App {
                 // Hardware, motors, firmware, network and diagnostics: the
                 // things you look at when the answer on the first tab was "no".
                 NavigationStack {
-                    RobotView(benches: benches, models: models, library: model)
+                    RobotView(benches: benches, models: models, library: model, robot: robot)
                 }
                     .tabItem { Label(AppTab.robot.title, systemImage: AppTab.robot.symbol) }
                     .tag(AppTab.robot)

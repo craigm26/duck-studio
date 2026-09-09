@@ -532,9 +532,18 @@ final class DuckWorldTests: XCTestCase {
 
     func testTheThreeVenuesAreLabelledAndOnlyOneIsANotYet() {
         XCTAssertEqual(DriveVenue.allCases.map(\.label), ["Sim", "Your floor", "Robot"])
-        XCTAssertNil(DriveVenue.sim.notYet)
-        XCTAssertNil(DriveVenue.ar.notYet)
-        XCTAssertEqual(DriveVenue.real.notYet, DriveVenue.robotIsNotDrivenYet)
+        XCTAssertNil(DriveVenue.sim.notYet())
+        XCTAssertNil(DriveVenue.ar.notYet())
+        // THE ROBOT VENUE'S NOT-YET IS NOW CONDITIONAL, which is the whole
+        // point of the change: it is a not-yet while nothing is linked, and it
+        // is nothing at all once a bridge is open.
+        XCTAssertEqual(DriveVenue.real.notYet(), DriveVenue.robotNeedsABridge)
+        XCTAssertEqual(DriveVenue.real.notYet(linked: false), DriveVenue.robotNeedsABridge)
+        XCTAssertNil(DriveVenue.real.notYet(linked: true))
+        // A LINK CANNOT INVENT A CAMERA. The other two venues answer the same
+        // either way, so nothing else on the switch moved.
+        XCTAssertNil(DriveVenue.sim.notYet(linked: true))
+        XCTAssertNil(DriveVenue.ar.notYet(linked: true))
         XCTAssertTrue(DriveVenue.ar.oneLine.contains("does not move house"))
     }
 
@@ -575,9 +584,21 @@ final class DuckWorldTests: XCTestCase {
     /// The robot venue names the transport rather than apologising, and says
     /// what is already written toward it.
     func testTheRobotVenueNamesTheTransportAndTheGap() {
-        XCTAssertTrue(DriveVenue.robotIsNotDrivenYet.contains("Bluetooth"))
-        XCTAssertTrue(DriveVenue.robotIsNotDrivenYet.contains("move, stop"))
-        XCTAssertTrue(DriveVenue.robotIsNotDrivenYet.contains("pair"))
+        // BLUETOOTH IS STILL NAMED AND IS STILL NOT THE ANSWER — that half of
+        // the old sentence is unchanged, and it is why the pairing screen is
+        // not what a person is sent to when they want to drive.
+        XCTAssertTrue(DriveVenue.robotNeedsABridge.contains("Bluetooth"))
+        XCTAssertTrue(DriveVenue.robotNeedsABridge.contains("move, stop"))
+        // WHAT REPLACED "find a duck and pair with it": the bridge, named as
+        // the thing that does carry driving.
+        XCTAssertTrue(DriveVenue.robotNeedsABridge.contains("bridge"))
+        XCTAssertFalse(DriveVenue.robotNeedsABridge.contains("No stick here yet"))
+        // The old symbol still resolves, to the new sentence.
+        XCTAssertEqual(DriveVenue.robotIsNotDrivenYet, DriveVenue.robotNeedsABridge)
+
+        // AND THE OTHER SIDE OF THE SWITCH SAYS THE DUCK IS REAL.
+        XCTAssertTrue(DriveVenue.robotIsDrivenOverTheBridge.contains("robot.move"))
+        XCTAssertTrue(DriveVenue.robotIsDrivenOverTheBridge.contains("no reset"))
 
         XCTAssertTrue(DriveVenue.whatTheKitHasTowardIt.contains("DuckPeer"))
         XCTAssertTrue(DriveVenue.whatTheKitHasTowardIt.contains("DuckLineSequence"))
@@ -585,7 +606,13 @@ final class DuckWorldTests: XCTestCase {
 
         XCTAssertTrue(DriveVenue.whatABridgeWouldTake.contains("/run/robotd.sock"))
         XCTAssertTrue(DriveVenue.whatABridgeWouldTake.contains("deadman"))
-        XCTAssertTrue(DriveVenue.whatABridgeWouldTake.contains("has not been built"))
+        // THE CLAIM THAT HAD TO GO. This asserted the paragraph said the bridge
+        // "has not been built"; it is built, it is in this repository, and a
+        // test pinning the false sentence is the reason to check the assertion
+        // as well as the string.
+        XCTAssertFalse(DriveVenue.whatABridgeWouldTake.contains("has not been built"))
+        XCTAssertTrue(DriveVenue.whatABridgeWouldTake.contains("it is built"))
+        XCTAssertTrue(DriveVenue.whatABridgeWouldTake.contains("in the room the first time"))
     }
 
     /// A set world with standing steps frames like a challenge scene, close.

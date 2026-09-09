@@ -46,8 +46,8 @@ public enum DriveVenue: String, CaseIterable, Identifiable, Sendable {
                  + "not move house: the duck is still walking in the bench's world, not in your "
                  + "room."
         case .real:
-            return "A Microduck. This app can find one over Bluetooth and ask it what it is, and "
-                 + "it cannot drive one."
+            return "A Microduck, driven over the bridge on its own computer. Nothing here is "
+                 + "physics: what leaves this screen is robot.move, and the duck is in a room."
         }
     }
 
@@ -59,10 +59,14 @@ public enum DriveVenue: String, CaseIterable, Identifiable, Sendable {
     /// prompt, and `CameraAvailability.refusal(for: .venue)` is the one place
     /// that decides it. A second copy of that reasoning here would be a second
     /// answer to the same question.
-    public var notYet: String? {
+    /// - Parameter linked: whether a link that carries driving is open right
+    ///   now. THE ROBOT VENUE'S ANSWER DEPENDS ON IT, which is the whole change:
+    ///   it used to be a permanent no, and it is now a no ONLY while nothing is
+    ///   connected.
+    public func notYet(linked: Bool = false) -> String? {
         switch self {
         case .sim, .ar: return nil
-        case .real: return DriveVenue.robotIsNotDrivenYet
+        case .real: return linked ? nil : DriveVenue.robotNeedsABridge
         }
     }
 
@@ -167,12 +171,37 @@ public enum DriveVenue: String, CaseIterable, Identifiable, Sendable {
     /// traverse it". A stick drawn over that link would produce calls a duck
     /// refuses by name, and a refusal by name looks exactly like a feature the
     /// duck does not have.
-    public static let robotIsNotDrivenYet =
-        "No stick here yet, and the reason is the link. The only transport this app has working "
-      + "code for is Bluetooth, and Bluetooth does not carry driving: Pollen's own split puts "
-      + "provisioning, status and firmware updates on BLE and says payloads never traverse it, "
-      + "so move, stop and a state read are all denied on it. What you can do from here is find "
-      + "a duck, pair with it, and ask it what it is."
+    /// WHAT THIS SENTENCE USED TO SAY, AND WHY IT NO LONGER SAYS IT. It read
+    /// "No stick here yet, and the reason is the link", and named Bluetooth as
+    /// the only transport this app had working code for. That was true for as
+    /// long as the Control tab's drive loop was typed to a bench. It is not
+    /// true now: the bridge in this repo has relayed robotd's socket to TCP
+    /// since build 46, `LinePeer` speaks the vocabulary over it, and the loop
+    /// takes `any DuckPeer`. Bluetooth still does not carry driving and that
+    /// half of the old paragraph is kept — it is why the pairing screen is not
+    /// the answer.
+    public static let robotNeedsABridge =
+        "There is no stick here until a link is open, and Bluetooth is not it: Pollen's own split "
+      + "puts provisioning, status and firmware updates on BLE and says payloads never traverse "
+      + "it, so move, stop and a state read are all denied there. What carries driving is the "
+      + "bridge — a small program on the robot's own computer, in this app's repo. Connect to it "
+      + "under Robot, Bridge, and the sticks appear here."
+
+    /// The old name, kept pointing at the new sentence for one release.
+    ///
+    /// NOT A DEPRECATION FOR ITS OWN SAKE. Two screens and a chip row read this
+    /// symbol, and a rename that touched all of them in the same change as the
+    /// drive loop would have made the diff impossible to read against the one
+    /// thing it had to be checked for.
+    public static var robotIsNotDrivenYet: String { robotNeedsABridge }
+
+    /// What the Robot venue says once a bridge is open. THE COUNTERPART, and
+    /// the sentence that has to survive being read by somebody whose duck is
+    /// standing on a table in front of them.
+    public static let robotIsDrivenOverTheBridge =
+        "This is a robot, and these sticks move it. The link is the bridge on its own computer "
+      + "relaying robotd's socket; every twist that leaves here is the same robot.move a gamepad "
+      + "would send, at the same speeds. Nothing catches it and there is no reset."
 
     /// What this app already holds toward driving a real one, named so the gap
     /// is a job rather than a mood.
@@ -242,14 +271,19 @@ public enum DriveVenue: String, CaseIterable, Identifiable, Sendable {
       + "the robot's WebRTC transport has no gate on it, by its own design note. That is a "
       + "property of your network, not of this app."
 
+    /// WHAT THIS SENTENCE USED TO BE. It listed the four things a bridge would
+    /// need and said none of it had been built. Three of the four now exist and
+    /// are in this repository, so the paragraph is rewritten as a description
+    /// rather than a wish — and the fourth is still true, and is the last line.
         public static let whatABridgeWouldTake =
-        "There is a shorter route than WebRTC and it has not been built either. The bench "
-      + "already speaks half of the robot's own vocabulary over HTTP — state, intent, stop, "
-      + "policy, reset — and robotd takes those same verbs as JSON-RPC on a Unix socket at "
-      + "/run/robotd.sock, which has no network endpoint for a phone to open. A bridge would be "
-      + "a process on a Pi translating one to the other. It would need four things: that Pi on "
-      + "the robot's own network; something that authorises the relay, which is the question "
-      + "nobody here has answered; a deadman, because a robot that keeps walking when the link "
-      + "drops is the failure the simulator gives us for free and hardware does not; and one "
-      + "person willing to be in the room the first time."
+        "The bridge is the shorter route than WebRTC, and it is built. robotd takes the robot's "
+      + "verbs as JSON-RPC on a Unix socket at /run/robotd.sock, which has no network endpoint a "
+      + "phone can open; bridge/microduck-bridge.py is a process on the robot's own computer that "
+      + "relays it to TCP, byte for byte, without parsing the vocabulary. It needed four things "
+      + "and has three: it runs on the robot's own machine; a token line authorises the relay, "
+      + "which keeps a television out and is not a security boundary; and it carries a deadman, "
+      + "sending robot.stop after the app goes quiet, because a robot that keeps walking when the "
+      + "link drops is the failure the simulator gives us for free and hardware does not. The "
+      + "fourth is unchanged and cannot be written: one person willing to be in the room the "
+      + "first time."
 }

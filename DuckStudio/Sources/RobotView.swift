@@ -59,6 +59,9 @@ struct RobotView: View {
     @ObservedObject var models: EndpointStore
     /// For the bridge screen: the policies a robot can be handed.
     @ObservedObject var library: LibraryModel
+    /// The app's one link to a robot. THE BRIDGE SCREEN OPENS IT AND THE
+    /// CONTROL TAB DRIVES IT, so it is owned above both rather than by either.
+    @ObservedObject var robot: BridgeLink
 
     /// The peer for whichever bench is chosen, rebuilt whenever that changes.
     @State private var peer: BenchPeer?
@@ -335,7 +338,7 @@ struct RobotView: View {
             // THE ONE LINK THAT REACHES A REAL DUCK'S DISK. Bluetooth finds a
             // duck and asks what it is; the bridge on its computer is where a
             // policy file can be put, and this is the door to it.
-            NavigationLink { RobotBridgeView(library: library) } label: {
+            NavigationLink { RobotBridgeView(library: library, robot: robot) } label: {
                 Label("Bridge to a robot's computer", systemImage: "point.3.connected.trianglepath.dotted")
             }
             .frame(minHeight: DesignMetric.minimumTarget)

@@ -77,6 +77,26 @@ public enum DuckMethod: String, CaseIterable, Sendable {
     /// transports a real `robotd` answers.
     case state = "studio.state"
 
+    /// Ask the duck to start pushing `robot.state`, and answer with what it is
+    /// running.
+    ///
+    /// THIS ONE IS POLLEN'S AND IT IS THE REASON `state` ABOVE IS OURS. A real
+    /// `robotd` answers no method that asks what it is doing; it PUSHES
+    /// `robot.state` as a notification at the loop rate, and only to
+    /// connections that asked for it — `duck-ipc-proto`'s own line is "turn the
+    /// connection into a stream of `robot.state` notifications"
+    /// (`duck-ipc-proto/src/lib.rs:639`). So a link to a real duck that never
+    /// sends this is a link that never hears one, which is exactly what this
+    /// app had: a peer whose `states()` was correct, empty and silent forever.
+    ///
+    /// THE ANSWER IS WORTH MORE THAN THE STREAM ON THE FIRST TRIP. Its result
+    /// carries what is constant for the life of that `robotd` process — which
+    /// walking and standing networks are loaded, which skills exist, and why
+    /// nothing is driving when nothing is — and that is the honest replacement
+    /// for the bench's `/health` policy list on a link to hardware. See
+    /// `DuckSubscription`.
+    case subscribe = "robot.subscribe"
+
     /// Read the pairing PIN. BLUETOOTH ONLY — see `mutatesTheRecoveryPath`.
     case pairingPin = "system.pairingPin"
 
@@ -113,7 +133,8 @@ public enum DuckMethod: String, CaseIterable, Sendable {
     public var mutatesTheRecoveryPath: Bool {
         switch self {
         case .pairingPin, .setPairingPin, .update: return true
-        case .hello, .move, .head, .look, .stop, .enable, .initPose, .relax, .state: return false
+        case .hello, .move, .head, .look, .stop, .enable, .initPose, .relax, .state,
+             .subscribe: return false
         // A NEW FILE ON THE DISK IS NOT THE RECOVERY PATH. The recovery path
         // is pairing and firmware — what gets a person back INTO a robot. An
         // installed policy does nothing until robotd is restarted and a slot
@@ -167,7 +188,8 @@ public enum DuckMethod: String, CaseIterable, Sendable {
     private var overBluetooth: Bool {
         switch self {
         case .hello, .pairingPin, .setPairingPin, .update: return true
-        case .move, .head, .look, .stop, .enable, .initPose, .relax, .state: return false
+        case .move, .head, .look, .stop, .enable, .initPose, .relax, .state,
+             .subscribe: return false
         case .installPolicy: return false
         }
     }
@@ -176,7 +198,8 @@ public enum DuckMethod: String, CaseIterable, Sendable {
     /// this column is the whole robot surface and none of the recovery path.
     private var overWebRTC: Bool {
         switch self {
-        case .hello, .move, .head, .look, .stop, .enable, .initPose, .relax: return true
+        case .hello, .move, .head, .look, .stop, .enable, .initPose, .relax,
+             .subscribe: return true
         // `state` is not a method `robotd` answers, and `reach` is not the
         // place to wish that it were.
         case .state, .pairingPin, .setPairingPin, .update, .installPolicy: return false
@@ -195,7 +218,12 @@ public enum DuckMethod: String, CaseIterable, Sendable {
     private var overBench: Bool {
         switch self {
         case .hello, .move, .stop, .state: return true
-        case .head, .look, .enable, .initPose, .relax: return false
+        // `robot.subscribe` IS DENIED HERE AND THE BENCH IS WHY, NOT THE
+        // METHOD. A bench answers every request with the state block it just
+        // computed, so `studio.state` already reads it; there is no stream to
+        // turn on, and a subscribe that returned success would be a claim that
+        // states are now arriving unbidden when nothing will ever push one.
+        case .head, .look, .enable, .initPose, .relax, .subscribe: return false
         case .pairingPin, .setPairingPin, .update, .installPolicy: return false
         }
     }
@@ -210,7 +238,8 @@ public enum DuckMethod: String, CaseIterable, Sendable {
     /// back in.
     private var overBridge: Bool {
         switch self {
-        case .hello, .move, .head, .look, .stop, .enable, .initPose, .relax, .state: return true
+        case .hello, .move, .head, .look, .stop, .enable, .initPose, .relax, .state,
+             .subscribe: return true
         case .installPolicy: return true
         case .pairingPin, .setPairingPin, .update: return false
         }
@@ -342,6 +371,15 @@ public enum DuckCall: Equatable, Sendable {
     case relax
     /// `studio.state` — ours, not Pollen's. See `DuckMethod.state`.
     case state
+    /// `robot.subscribe` — Pollen's. See `DuckMethod.subscribe`.
+    ///
+    /// THE RATE IS AN OPTION AND NIL MEANS EVERY TICK, which is the proto's own
+    /// default (`SubscribeParams.hz`: "Absent means every tick"). Decimation
+    /// happens on the robot, per subscriber, so asking for 10 Hz costs the duck
+    /// a fifth of what 50 Hz does and neither can slow the control loop. A
+    /// screen that only prints a line of text should ask for a rate rather than
+    /// take fifty states a second and drop forty-nine of them on a phone.
+    case subscribe(hz: Int?)
     /// `policy.install` — the bridge's, not robotd's. See `DuckMethod.installPolicy`.
     case installPolicy(DuckPolicyInstall)
 
@@ -357,6 +395,7 @@ public enum DuckCall: Equatable, Sendable {
         case .initPose: return .initPose
         case .relax: return .relax
         case .state: return .state
+        case .subscribe: return .subscribe
         case .installPolicy: return .installPolicy
         }
     }
@@ -373,7 +412,8 @@ public enum DuckCall: Equatable, Sendable {
     public var isNotification: Bool {
         switch self {
         case .move, .head: return true
-        case .hello, .look, .stop, .enable, .initPose, .relax, .state, .installPolicy: return false
+        case .hello, .look, .stop, .enable, .initPose, .relax, .state, .subscribe,
+             .installPolicy: return false
         }
     }
 
@@ -484,6 +524,13 @@ public enum DuckCall: Equatable, Sendable {
             return pose.wire
         case .stop, .enable, .initPose, .relax, .state:
             return nil
+        case .subscribe(let hz):
+            // OMITTED RATHER THAN NULL. `SubscribeParams` is `#[serde(default,
+            // deny_unknown_fields)]` over one optional field, so an absent `hz`
+            // is the documented "every tick" and an explicit JSON null would be
+            // a different thing to hand a strict deserialiser.
+            guard let hz else { return nil }
+            return ["hz": hz]
         case .installPolicy(let install):
             return install.wire
         }
@@ -510,6 +557,7 @@ public enum DuckCall: Equatable, Sendable {
         case .initPose: return .initPose
         case .relax: return .relax
         case .state: return .state
+        case .subscribe: return .subscribe(hz: DuckSubscription.watchingRateHz)
         case .installPolicy: return .installPolicy(DuckPolicyInstall.shape)
         case .pairingPin, .setPairingPin, .update: return nil
         }
