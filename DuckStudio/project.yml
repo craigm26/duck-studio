@@ -218,9 +218,12 @@ targets:
         # type, which rejects a host that is not obviously local precisely so a
         # typo cannot post a policy to a stranger.
         #
-        # NO BONJOUR SERVICES ARE DECLARED, deliberately: nothing here browses
-        # for a bench. You type its address. Discovery would be the moment this
-        # app started looking at a network it was not pointed at.
+        # NOTHING HERE BROWSES FOR A BENCH. You type its address, and that is
+        # still true: no target opens an NWBrowser. The one Bonjour type below
+        # is declared ahead of the browse that will use it, because iOS refuses
+        # a browse for an undeclared type SILENTLY — a failure that only shows
+        # up on a device. This comment used to say no Bonjour services were
+        # declared at all, directly above the key declaring one.
         NSLocalNetworkUsageDescription: "Microduck Studio contacts a physics bench on your own network — only the address you type in, and only when you ask it to run something. It never looks for machines by itself and nothing about your policies or motions leaves your network."
         NSBonjourServices:
           # WHAT THE BRIDGE ADVERTISES (bridge/microduck-bridge.avahi.xml), so

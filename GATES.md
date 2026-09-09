@@ -123,9 +123,28 @@ whichever comes first**
 Not pass/kill. A required re-run of every number above, because the audience
 changes shape the day hardware ships. Before delivery, everyone using this app
 is training policies. After delivery, most people holding a duck are not, and
-the app either grows a bridge to the robot (it currently has none, deliberately)
-or accepts a smaller permanent audience. That decision is not being made now on
-guesses; it is being scheduled now so it gets made at all.
+the app either reaches the robot or accepts a smaller permanent audience. That
+decision is not being made now on guesses; it is being scheduled now so it gets
+made at all.
+
+**This paragraph used to say the app "currently has none, deliberately" of a
+bridge. That stopped being true at build 46 and the sentence outlived it.** The
+bridge exists: `bridge/microduck-bridge.py` relays robotd's unix socket to TCP
+7788 behind a token and a 700 ms deadman, `bridge/install.sh` installs it as a
+systemd user unit needing no root, 17 stdlib tests cover it, and the kit half
+is done — `DuckTransportKind.bridge` and `BridgeHandshake` write the exact
+bytes the Python expects. What is still true is narrower and worth stating
+plainly, because it is what the review at this gate has to weigh: **the app has
+never sent a `robot.move` to a robot.** Its one bridge consumer is
+`RobotBridgeView`, which calls `policy.install` and nothing else, so the app
+can put a policy file onto a duck's disk and cannot drive it. The blocker is
+one bench-only member — `DriveView.requirePeer()` returns a concrete
+`BenchPeer`, and `BenchPeer.live` has no representation in `DuckPeer` — not
+the transport.
+
+So the question this review actually re-decides is no longer "should we build
+a bridge" but "is driving the robot from this app worth the day it costs, for
+the audience that exists after delivery".
 
 Pollen's stated first deliveries are "around Christmas 2026." 2027-02-01 is the
 backstop so a slipped ship date cannot quietly cancel the review.

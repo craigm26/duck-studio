@@ -52,14 +52,27 @@ moves, use the bench.
 ## Proving it
 
 ```sh
-python3 test_bridge.py          # 9 tests, stdlib only, no duck required
+python3 test_bridge.py          # 17 tests, stdlib only, no duck required
 ```
 
-Nine tests against a mock robotd that records what it was sent: bytes reach
-robotd unchanged, answers reach the client unchanged, a wrong token never
-reaches robotd at all, a token file other users can read is refused by mode, a
-silent client is stopped exactly once, talking again re-arms the deadman, and a
-client that keeps talking is never stopped by its own driver.
+Seventeen tests against a mock robotd that records what it was sent, in two
+groups.
+
+**Nine on the relay itself:** bytes reach robotd unchanged, answers reach the
+client unchanged, a wrong token is refused by name, a hello that is not JSON is
+refused, a token file other people can read is refused by mode, a short token
+is refused with its length, a silent client is stopped exactly once, talking
+again re-arms the deadman, and a client that keeps talking is never stopped by
+its own driver.
+
+**Eight on `policy.install`,** which landed after the relay and is the reason
+this count moved: the greeting says whether install is on, an install lands on
+the disk under its own name and is answered in RPC shape, a wrong digest writes
+nothing and says so, a name that could be a path is refused before anything is
+decoded, a slot is pointed at the file with a backup and an unknown slot is
+refused, a slot with no TOML is installed but not applied, the verb is off by
+name without a `--policy-dir`, and every other line still reaches robotd whole
+and in order while all that is going on.
 
 End to end on one machine:
 
