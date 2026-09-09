@@ -49,6 +49,16 @@ accepts every method and answers a constant, so the bridge and the app can be
 exercised on a laptop with no duck. Nothing in it has physics. For a duck that
 moves, use the bench.
 
+**Four methods do answer in the wire's own shape.** `hello`, `robot.health`,
+`robot.subscribe` and `robot.policies` return the real field names, transcribed
+from `pollen-robotics/microduck` at rev `5620aa2` with the source line beside
+each, because the one bug a mock robotd can catch is a client reading a key the
+daemon does not send, and `{"ok": true}` has no keys to get wrong. OpenCastor
+shipped four such reads for weeks. Everything else still answers `{"ok": true}`.
+OpenCastor carries the same four fixtures at `castor/bench/mock_robotd.py` so
+`castor bench ten-minutes --ci` runs without this repository; change one and
+change the other.
+
 ## Proving it
 
 ```sh
