@@ -59,3 +59,13 @@ Row sources: ranks 1, 3, 4, 7 and the two oracle rows from `results/r6_judge-res
 from `results/r5_judge-results.json` → `phaseE`, and for the round-6 vectors from
 `results/r6_judge-results.json` → `phaseE`; control rows from `results/r4_judge-results.json` →
 `phaseC` and `results/r6_judge-results.json` → `phaseC`.
+
+## Robot variants — a different plant, so not ranked above
+
+Measured in the same harness with the same criterion and grid, but on a robot that is not the
+stock Microduck. Each variant is its own plant; its rows cannot be compared with the table above
+and are not ranked in it. Files live under `variants/<name>/`.
+
+| variant | plant sha256 | sha256 | file | rise | kCore stable / 9 | kExt / 14 | ceilingCore | who | scored | notes |
+|---|---|---|---|---|---|---|---|---|---|---|
+| neck link 40 mm (stock 50) | `8c94204ef6ea…` | `f6d989d344a1` | `variants/neck40/intents/best_neck40_r6_ceilvault_60mm.json` | 60 mm | **5** / 9 (kCore 5) | n/m | **6 / 9** | round-6 ceiling CEM on the variant plant, continued solo | 2026-09-07 | the first change to the robot to move the ceiling past 5; the bar of 7 is still unmet; the stock vaults score 0–1 on this plant; see `variants/neck40/README.md` |

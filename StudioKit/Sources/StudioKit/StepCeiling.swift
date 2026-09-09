@@ -51,7 +51,14 @@ import Foundation
 /// neck's lever to the beak is 88 to 90 mm, where the servo's 0.6405 N·m
 /// yields 7.16 to 7.34 N against a 7.23 N body weight. A shorter lever is
 /// as good as a stronger motor, and either is a change to the robot, not
-/// to the search.
+/// to the search. THAT WAS TESTED ON 2026-09-07: the same trace on plants
+/// compiled with the neck link at 45/40/35/30/20 mm (stock 50) shows the
+/// neck servo at its cap in only 4 to 9 percent of push-off ticks on the
+/// stock robot (hips 45 percent), and a 40 mm neck with the vault searched
+/// again for it reaches a 6 of 9 ceiling, 5 landed and stable — past 5 for
+/// the first time, short of 7 (duckbench challenge/variants/neck40/). The
+/// wall, a run-up and a chimney were each measured the day before and
+/// each bought nothing.
 ///
 /// AND BELOW ABOUT 11 mm THE CHECK CANNOT SEE A STEP AT ALL. The criterion
 /// counts a foot as "on the tread" when it is within 5 mm of the tread's
@@ -152,12 +159,19 @@ public struct StepCeiling: Equatable, Sendable {
                    + "60 mm: a landing servoed from measured trunk state cleared 0 of 9 stably, and a "
                    + "search of the trunk's peak height alone over 394 distinct launches gets it past "
                    + "the 95 mm bar in at most 5 of 9 cells, which bounds every way of landing. The "
-                   + "limit is the strut: at the pose the vault depends on, the neck's lever to the "
-                   + "beak is about 89 mm, where the servo's 0.6405 N·m yields 7.2 N against a 7.23 N "
-                   + "body weight. Above 80 mm the lift budget is about 38 mm where 59 to 99 mm are "
-                   + "needed. What is left is a shorter lever or a stronger neck servo, or a move "
-                   + "that does not ask the duck to lift its own trunk unaided: a second duck, a "
-                   + "wall or rail to react against, a lever or ramp placed first.",
+                   + "limit is the robot, not the search: at the pose the vault depends on, the "
+                   + "neck's lever to the beak is about 89 mm, where the servo's 0.6405 N·m yields "
+                   + "7.2 N against a 7.23 N body weight, though the trace shows the neck at its "
+                   + "torque cap in only 4 to 9 percent of push-off ticks against 45 percent for "
+                   + "the hips. Above 80 mm the lift budget is about 38 mm where 59 to 99 mm are "
+                   + "needed. Measured on 2026-09-07: a robot with a 40 mm neck link instead of 50, "
+                   + "with the vault searched again for it, reaches a ceiling of 6 of 9 and lands 5, "
+                   + "past 5 for the first time and still short of 7. A wall beside the flight, "
+                   + "momentum from a run-up and a chimney between two faces were each tried the "
+                   + "day before and each measured no help. What is left is that shorter neck or a "
+                   + "stronger servo on the real robot, or a move that does not ask the duck to lift "
+                   + "its own trunk unaided: a second duck, a rail to react against, a lever or ramp "
+                   + "placed first.",
         resolvableAbove: 0.011,
         brokenFlightSoundAbove: 0.180,
         episodes: 55_000,

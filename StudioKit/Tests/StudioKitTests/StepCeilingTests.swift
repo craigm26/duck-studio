@@ -22,7 +22,9 @@ final class StepCeilingTests: XCTestCase {
         XCTAssertTrue(c.bandVerdict.contains("finished at this scale, against a bar of 7 of 9"))
         XCTAssertTrue(c.bandVerdict.contains("at most 5 of 9 cells"))
         XCTAssertTrue(c.bandVerdict.contains("7.2 N against a 7.23 N body weight"))
-        XCTAssertTrue(c.bandVerdict.contains("a second duck, a wall or rail"))
+        XCTAssertTrue(c.bandVerdict.contains("a second duck, a rail to react against"))
+        XCTAssertTrue(c.bandVerdict.contains("40 mm neck link"))
+        XCTAssertTrue(c.bandVerdict.contains("6 of 9"))
         XCTAssertEqual(c.measuredOn, "2026-09-02")
         XCTAssertLessThan(c.editorRise, c.resolvableAbove)
         XCTAssertLessThan(c.resolvableAbove, c.attempts[0].rise)
@@ -94,7 +96,7 @@ final class StepCeilingTests: XCTestCase {
     func testTheFooterSentenceSaysEverythingAtOnce() {
         let s = StepCeiling.current.says
         for piece in ["In simulation only", "6 rounds", "55,000", "unreliable at every height",
-                      "The search is finished at this scale", "a shorter lever or a stronger neck servo",
+                      "The search is finished at this scale", "that shorter neck or a stronger servo",
                       "a beak-strut vault", "40 mm in 2 of 9", "60 mm in 5 of 9", "70 mm in 2 of 9",
                       "80 mm in 1 of 9", "one move scored at 2 heights",
                       "0 of 9 at 90 mm or taller", "11 of those 12 clears still upright fifty ticks later",

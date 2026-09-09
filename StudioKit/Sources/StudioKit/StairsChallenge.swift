@@ -15,7 +15,10 @@ import Foundation
 /// own head. Round six then measured why — the trunk's PEAK gets over the
 /// 95 mm bar in at most five of the nine cells, which bounds every landing law
 /// there could be — so the bar was never reachable at this scale, and the
-/// package publishes that negative result rather than hiding it.
+/// package publishes that negative result rather than hiding it. On 2026-09-07
+/// a variant robot with a 40 mm neck link (stock 50) reached a 6 of 9 ceiling
+/// on its own plant, past 5 for the first time and still short of 7; the
+/// leaderboard carries it in its own table because it is a different plant.
 ///
 /// EVERY NUMBER HERE IS SIMULATION AND NOTHING IN IT HAS RUN ON HARDWARE.
 /// `realDuckCaveat` is the sentence that has to appear wherever this app
@@ -46,7 +49,8 @@ public enum StairsChallenge {
     public static let barSaid =
         "The bar is 7 of the 9 core cells, cleared and still standing. Nothing has met it: "
       + "the record is 5 of 9 at a 60 mm rise, and round six measured the trunk's peak height "
-      + "as the reason 7 was never reachable at this scale."
+      + "as the reason 7 was never reachable at this scale. A robot with a 10 mm shorter "
+      + "neck link reached a 6 of 9 ceiling in simulation on 2026-09-07, still short of 7."
 
     /// THE CRITERION, VERBATIM AS `sim/climb_score.mjs` EXPORTS IT
     /// (`CRITERION_SENTENCE`, line 245). The bench sends its own copy back
