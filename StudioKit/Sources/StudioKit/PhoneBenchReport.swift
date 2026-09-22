@@ -32,6 +32,18 @@ public enum PhoneBenchReport {
     /// `BenchEndpoint.thisPhone` so it is one string and not two.
     public static let name = "This iPhone"
 
+    /// The same bench, named for the device it is actually inside.
+    ///
+    /// THE KIT CANNOT ASK WHICH DEVICE THIS IS — no UIKit here — so the app
+    /// tells it. Left as a function beside the constant rather than replacing
+    /// it, because `BenchEndpoint.thisPhone` is a static and the app renames
+    /// it where it already stamps the port. An iPad calling itself "This
+    /// iPhone" on the first screen was the kind of thing a screenshot catches
+    /// and a test cannot, until now.
+    public static func name(onPad: Bool) -> String {
+        onPad ? "This iPad" : name
+    }
+
     // MARK: - the premise this replaces
 
     /// The correction, in one sentence, for anywhere the old claim is quoted.

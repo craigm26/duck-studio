@@ -1,4 +1,5 @@
 import Foundation
+import UIKit   // UIDevice, to name the built-in bench for the device it is inside
 import Security
 import StudioKit
 
@@ -117,7 +118,9 @@ final class BenchStore: ObservableObject {
     /// carries `127.0.0.1:0`, which `resolved()` refuses with its own sentence;
     /// `servedOn` is what turns it into an address once the listener has one.
     private func recompose() {
-        benches = [BenchEndpoint.thisPhone.servedOn(port: phonePort)] + saved
+        var phone = BenchEndpoint.thisPhone.servedOn(port: phonePort)
+        phone.name = PhoneBenchReport.name(onPad: UIDevice.current.userInterfaceIdiom == .pad)
+        benches = [phone] + saved
     }
 
     /// The app's own bench came up on this port.

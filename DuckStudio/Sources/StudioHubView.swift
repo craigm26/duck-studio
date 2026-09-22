@@ -116,10 +116,15 @@ struct StudioHubView: View {
                 // among the ghost duck and the soccer stage put the only honest
                 // physics in the app behind the two screens that look most like
                 // capability and are not.
-                NavigationLink {
-                    place(.measure)
-                } label: {
-                    Label("Run on your network", systemImage: "wifi")
+                if detail.shows(.physicsBench) {
+                    NavigationLink {
+                        place(.measure)
+                    } label: {
+                        Label("Run on your network", systemImage: "wifi")
+                    }
+                } else {
+                    Text(DetailLevel.placeholder(for: .physicsBench))
+                        .font(.caption).foregroundStyle(.secondary)
                 }
                 // THE ONLY ROW IN THE APP THAT TRIES TO MAKE A NETWORK BETTER,
                 // and it is under Measure rather than under Author because
@@ -321,7 +326,7 @@ struct StudioHubView: View {
             SceneListView(store: scenes, models: models, benches: benches)
         case .draft:
             AutomationChatView(drafts: drafts, scenes: scenes, models: models,
-                               benches: benches, plans: plans)
+                               benches: benches, plans: plans, detail: detail)
         case .measure:
             RemoteRunView(model: model, scenes: scenes, drafts: drafts,
                           models: models, benches: benches)

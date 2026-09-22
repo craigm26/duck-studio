@@ -49,8 +49,8 @@ public enum FirstRun {
               title: "Then make one of your own",
               body: "Studio → Draft turns a sentence into keyframes you can fix by "
                   + "hand, or pose the robot joint by joint. What the stage draws is "
-                  + "what you ASKED for — a phone has no physics engine, so it is "
-                  + "never a promise about what the robot would do.",
+                  + "what you ASKED for — a preview runs no physics, so it is never "
+                  + "a promise about what the robot would do. Running it is.",
               tab: "Studio"),
         .init(id: "play",
               title: "There are modes to play in",

@@ -35,7 +35,10 @@ final class PipelineTests: XCTestCase {
         let pipeline = Pipeline.of(draft(), bench: nil, hasBench: true)
         let physics = pipeline.stages.first { $0.name == "Run in physics" }
         XCTAssertEqual(physics?.state, .waiting)
-        XCTAssertTrue(physics!.detail.contains("no physics engine on an iPhone"))
+        // The phone IS a bench now (PhoneBenchReport.premiseWasAboutABuild),
+        // so the stage must not say the iPhone has no physics engine.
+        XCTAssertTrue(physics!.detail.contains("a preview runs no physics"))
+        XCTAssertFalse(physics!.detail.contains("no physics engine on an iPhone"))
     }
 
     func testWithoutABenchTheStageSaysHowToGetOne() {

@@ -300,9 +300,9 @@ public struct Pipeline: Equatable, Sendable {
                 detail: bench.told))
         } else if hasBench {
             stages.append(Stage(name: "Run in physics", state: .waiting,
-                                detail: "Never run. The preview on this phone is what you asked "
-                                      + "for, not what the robot would do — there is no physics "
-                                      + "engine on an iPhone."))
+                                detail: "Never run. The preview is what you asked for, not what "
+                                      + "the robot would do — a preview runs no physics. This "
+                                      + "phone is a bench; run it here."))
         } else {
             stages.append(Stage(name: "Run in physics", state: .waiting,
                                 detail: "No bench configured. Point the app at a machine on your "

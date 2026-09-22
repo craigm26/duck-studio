@@ -142,7 +142,8 @@ struct BenchSettingsView: View {
         } label: {
             HStack(spacing: Theme.spacing(.tight)) {
                 VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
-                    Label(PhoneBenchReport.name, systemImage: "iphone")
+                    Label(PhoneBenchReport.name(onPad: UIDevice.current.userInterfaceIdiom == .pad),
+                          systemImage: UIDevice.current.userInterfaceIdiom == .pad ? "ipad" : "iphone")
                         .foregroundStyle(Theme.textPrimary)
                     Text(store.phonePort == 0 ? PhoneBenchReport.notListening
                                               : PhoneBenchReport.phoneRowNote)

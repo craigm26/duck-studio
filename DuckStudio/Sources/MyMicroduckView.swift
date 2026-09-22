@@ -496,7 +496,11 @@ struct MyMicroduckView: View {
             return DeviceCard.Who(name: "", nameCameFrom: .benchHost,
                                   colourway: .yellow, kind: .sim)
         }
-        return DeviceCard.Who.of(peer.identity, typed: benches.selected?.name)
+        // THE BUILT-IN BENCH WAS NEVER TYPED BY ANYBODY, and passing its name
+        // as `typed` made the card say "You named this one. It is whatever you
+        // typed in Manage benches" about a bench nobody can edit or delete.
+        let typed = benches.selected?.isThisPhone == true ? nil : benches.selected?.name
+        return DeviceCard.Who.of(peer.identity, typed: typed)
     }
 
     /// The charge row's source: a state when one has arrived, the identity's
@@ -631,6 +635,14 @@ struct MyMicroduckView: View {
                                                 body: data, transportFailed: false)
             if let alarm = DeviceCard.Alarm.of(diagnosis) { add(alarm) }
             health = try? DuckBench.readHealth(data)
+        } catch BenchEndpoint.Refusal.phoneBenchNotListening {
+            // NOT AN ALARM. In the first seconds after launch the bench inside
+            // the app has not been handed its port yet, and the generic catch
+            // below dressed that as "The duck refused: … (0)" under a warning
+            // triangle — the first thing a new owner read on the first screen.
+            // It is the same "nothing has happened yet" that `readState`
+            // already declines to alarm on. The bench arrives on its own and
+            // the next read finds it.
         } catch {
             add(alarm(for: error, address: bench.address))
         }

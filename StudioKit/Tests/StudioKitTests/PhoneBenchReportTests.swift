@@ -317,3 +317,14 @@ final class PhoneBenchReportTests: XCTestCase {
         XCTAssertEqual(PhoneBenchReport.name, BenchEndpoint.thisPhone.name)
     }
 }
+
+extension PhoneBenchReportTests {
+    /// An iPad calling itself "This iPhone" on its first screen was caught by a
+    /// screenshot, not a test. Now it is a test.
+    func testTheBenchIsNamedForTheDeviceItIsInside() {
+        XCTAssertEqual(PhoneBenchReport.name(onPad: false), "This iPhone")
+        XCTAssertEqual(PhoneBenchReport.name(onPad: true), "This iPad")
+        XCTAssertEqual(PhoneBenchReport.name(onPad: false), PhoneBenchReport.name,
+                       "the constant and the phone case must not drift apart")
+    }
+}

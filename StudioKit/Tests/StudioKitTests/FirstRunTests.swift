@@ -31,7 +31,11 @@ final class FirstRunTests: XCTestCase {
     /// preview is what you asked for, not what the robot would do.
     func testItRepeatsTheOneCaveatThatMatters() {
         let text = FirstRun.steps.map(\.body).joined(separator: " ")
-        XCTAssertTrue(text.contains("no physics engine"))
+        // NOT "a phone has no physics engine": the phone IS a bench now —
+        // PhoneBenchReport.premiseWasAboutABuild — and this card said the
+        // stale thing until a screenshot showed both claims on one screen.
+        XCTAssertTrue(text.contains("a preview runs no physics"))
+        XCTAssertFalse(text.contains("phone has no physics"))
         XCTAssertTrue(text.contains("ASKED"))
     }
 

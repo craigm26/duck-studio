@@ -144,8 +144,12 @@ struct SettingsView: View {
                 // NO "CONNECTED" OR "CHECKED" WORDING HERE. Settings links to
                 // the screen that can ask a bench for its health; it must not
                 // summarise a state nobody measured this launch.
-                Text("Machines on your network with physics on them. This phone has none, so "
-                   + "running a policy or a motion needs one.")
+                // "THIS PHONE HAS NONE" WAS TRUE OF A BUILD, NOT THE HARDWARE — the
+                // kit's own PhoneBenchReport says so, and this line went on
+                // contradicting it. There is always one bench: this phone.
+                Text("Where a policy or a motion actually runs. This phone is one bench — "
+                   + "MuJoCo runs inside the app. Add a machine on your network for a "
+                   + "second, faster one.")
                     .foregroundStyle(Theme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }

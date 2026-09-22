@@ -29,7 +29,8 @@ four or App Store Connect refuses the upload.
 
 ## What this app cannot do, said before anything else
 
-**A phone has no physics engine.** Nothing here runs MuJoCo. That single fact
+**A preview runs no physics.** MuJoCo does run on the phone — this phone is a
+bench, the same build a desk bench steps — but a preview is not a run. That fact
 shapes every screen:
 
 - The **bench is one honest step of the network**, not a loop. Feed it an

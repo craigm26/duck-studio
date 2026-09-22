@@ -1156,19 +1156,29 @@ struct PolicyDetailView: View {
                                             symbol: "arrow.triangle.merge")
                         }
                     }
-                    NavigationLink { RemoteRunView(model: model, scenes: scenes,
-                                                   drafts: drafts, models: models,
-                                                   benches: benches) } label: {
-                        secondaryAction("Run it on a bench", symbol: "wifi")
+                    if detail.shows(.physicsBench) {
+                        NavigationLink { RemoteRunView(model: model, scenes: scenes,
+                                                       drafts: drafts, models: models,
+                                                       benches: benches) } label: {
+                            secondaryAction("Run it on a bench", symbol: "wifi")
+                        }
+                    } else {
+                        Text(DetailLevel.placeholder(for: .physicsBench))
+                            .font(.caption).foregroundStyle(.secondary)
                     }
                     // WHERE A NETWORK LEAVES FOR EVERYBODY ELSE'S PHONE. The
                     // share button above hands over bytes; this puts the
                     // network, its manifest and a tagged card where the
                     // Community list on this very tab reads them back.
                     if entry.isRunnable {
-                        Button { presented = .publish } label: {
-                            secondaryAction("Publish it to Hugging Face",
-                                            symbol: "arrow.up.doc.on.clipboard")
+                        if detail.shows(.publishing) {
+                            Button { presented = .publish } label: {
+                                secondaryAction("Publish it to Hugging Face",
+                                                symbol: "arrow.up.doc.on.clipboard")
+                            }
+                        } else {
+                            Text(DetailLevel.placeholder(for: .publishing))
+                                .font(.caption).foregroundStyle(.secondary)
                         }
                     }
                     // THE PRESENT TENSE, UNDER THE TWO PAST ONES. Watch is what
@@ -1246,6 +1256,17 @@ struct PolicyDetailView: View {
                 }
             }
 
+            // THE TABLE IS FOR PEOPLE WHO TRAIN THESE. The verdict above it — "this
+            // is Microduck Studio's answer, not the robot's" — is for everybody and
+            // stays; what Simple withholds is the op sequence and the initializer
+            // dims, and it says so in the section's place.
+            if !detail.shows(.policyForensics) {
+                Section {
+                    Text(DetailLevel.placeholder(for: .policyForensics))
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                .listRowBackground(Theme.surfacePrimary)
+            } else {
             Section {
                 // THE STRUCTURE TABLE IS TELEMETRY IN THE STRICT SENSE THE
                 // DESIGN SYSTEM MEANS: a label that is the same on every policy
@@ -1263,6 +1284,7 @@ struct PolicyDetailView: View {
             }
             .listRowBackground(Theme.surfacePrimary)
             .listRowSeparatorTint(Theme.separator)
+            }
         }
         .scrollContentBackground(.hidden)
         .background(Theme.backgroundSecondary)

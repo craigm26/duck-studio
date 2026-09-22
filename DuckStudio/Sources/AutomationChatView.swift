@@ -175,6 +175,10 @@ struct AutomationChatView: View {
 
     private var knownIntents: Set<String> { Set(clips.keys) }
 
+    /// How much of the app to show. Optional and last: only the hub constructs
+    /// this screen, and a caller without one gets the installed default.
+    var detail: DetailStore? = nil
+
     var body: some View {
         VStack(spacing: 0) {
             List {
@@ -426,11 +430,16 @@ struct AutomationChatView: View {
                                     .font(.caption2)
                                     .foregroundStyle(refusal.isFatal ? Theme.refused : Theme.warning)
                             }
+                            if detail?.shows(.training) ?? true {
                             NavigationLink {
                                 TrainingRequestView(request: request)
                             } label: {
                                 Label("Open the request", systemImage: "doc.text")
                                     .font(.footnote)
+                            }
+                            } else {
+                                Text(DetailLevel.placeholder(for: .training))
+                                    .font(.caption2).foregroundStyle(.secondary)
                             }
                         }
 
