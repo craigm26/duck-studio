@@ -668,7 +668,7 @@ struct MyMicroduckView: View {
         do {
             let reply = try await peer.call(.state)
             if let refusal = reply.failure {
-                add(DeviceCard.Alarm.of(refusal))
+                if let alarm = DeviceCard.Alarm.of(refusal) { add(alarm) }
                 return
             }
             live = await peer.live
