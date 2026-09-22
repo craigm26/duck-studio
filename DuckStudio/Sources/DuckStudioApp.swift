@@ -169,6 +169,8 @@ struct DuckStudioApp: App {
     /// Which model writes drafts. One store, shared: Studio's Draft screen uses
     /// it and the Models screen edits it.
     @StateObject private var models = EndpointStore()
+    /// How much of the app to show, and whether the welcome has been seen.
+    @StateObject private var detail = DetailStore()
     /// Which benches this phone knows about. One store, shared, for the same
     /// reason `models` is: three screens send work to a bench, and a bench
     /// chosen on one of them is the bench the others should use.
@@ -282,7 +284,7 @@ struct DuckStudioApp: App {
                 // all — whether anything is wrong.
                 NavigationStack {
                     MyMicroduckView(model: model, scenes: scenes, drafts: drafts,
-                                    models: models, benches: benches)
+                                    models: models, benches: benches, detail: detail)
                 }
                     .tabItem { Label(AppTab.duck.title, systemImage: AppTab.duck.symbol) }
                     .tag(AppTab.duck)
@@ -300,7 +302,7 @@ struct DuckStudioApp: App {
                     // overwrites the shared one — two Settings screens
                     // disagreeing about one list.
                     DriveView(model: model, benches: benches, scenes: scenes, drafts: drafts,
-                              robot: robot, models: models)
+                              robot: robot, models: models, detail: detail)
                 }
                     .tabItem { Label(AppTab.control.title, systemImage: AppTab.control.symbol) }
                     .tag(AppTab.control)
@@ -311,7 +313,7 @@ struct DuckStudioApp: App {
                 // answers with.
                 NavigationStack {
                     PolicyListView(model: model, scenes: scenes, drafts: drafts,
-                                   models: models, benches: benches)
+                                   models: models, benches: benches, detail: detail)
                 }
                     .tabItem { Label(AppTab.behaviours.title, systemImage: AppTab.behaviours.symbol) }
                     .tag(AppTab.behaviours)
@@ -323,7 +325,7 @@ struct DuckStudioApp: App {
                 NavigationStack {
                     StudioHubView(model: model, scenes: scenes, drafts: drafts,
                                   models: models, benches: benches, plans: plans,
-                                  evals: evals, evalRunner: evalRunner)
+                                  evals: evals, evalRunner: evalRunner, detail: detail)
                 }
                     .tabItem { Label(AppTab.studio.title, systemImage: AppTab.studio.symbol) }
                     .tag(AppTab.studio)
@@ -336,7 +338,7 @@ struct DuckStudioApp: App {
                 // Hardware, motors, firmware, network and diagnostics: the
                 // things you look at when the answer on the first tab was "no".
                 NavigationStack {
-                    RobotView(benches: benches, models: models, library: model, robot: robot)
+                    RobotView(benches: benches, models: models, library: model, robot: robot, detail: detail)
                 }
                     .tabItem { Label(AppTab.robot.title, systemImage: AppTab.robot.symbol) }
                     .tag(AppTab.robot)
@@ -394,6 +396,23 @@ struct DuckStudioApp: App {
             // A policy handed over from Files, Mail, AirDrop or another app.
             // Declared in Info.plist as an IMPORTED type — ONNX is not this
             // app's format to own.
+            // THE WELCOME, ONCE. Only a genuinely empty container gets
+            // it — `DetailStore` marks an existing install as having had its
+            // first run already, because showing this on somebody's fortieth
+            // launch is the update introducing itself as a stranger.
+            // A constant binding would re-present on any swipe-down, so this
+            // writes through: dismissing the welcome ANY way — Skip, Start, or
+            // a flick downwards — counts as having seen it. Being asked twice
+            // because you swiped is worse than never being asked.
+            .sheet(isPresented: Binding(
+                get: { detail.shouldShowFirstRun },
+                set: { showing in
+                    if !showing, detail.shouldShowFirstRun {
+                        detail.finishFirstRun(choosing: nil)
+                    }
+                })) {
+                FirstRunView(detail: detail)
+            }
             .onOpenURL { Imports.open($0, model: model, drafts: drafts, plans: plans) }
             // THE 0.4 s SETTLE IS THE POINT AND ALSO THE HOLE. Both stores
             // batch writes so that a finger on a slider does not encode the

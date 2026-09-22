@@ -23,6 +23,9 @@ import StudioKit
 /// the five names are load-bearing; a gear in the same place on every root is
 /// findable without spending the one slot left.
 struct SettingsView: View {
+    /// How much of the app to show. Held by the app so every screen reads
+    /// one answer.
+    @ObservedObject var detail: DetailStore
     /// The one reader of `Theme.appearanceKey` had zero writers: the design
     /// run built the preference, its titles and its detail copy, and no
     /// screen offered it — so un-forcing dark made dark UNREACHABLE rather
@@ -98,6 +101,16 @@ struct SettingsView: View {
                 // not the primary one. A navigation row is a place to go, not
                 // the thing this screen is for, so it gets a coloured mark
                 // rather than a coloured sentence.
+                // HOW MUCH OF THE APP TO SHOW. First in Settings because it is
+                // the setting that changes what the other settings are for.
+                Picker("Detail", selection: $detail.level) {
+                    ForEach(DetailLevel.allCases) { Text($0.name).tag($0) }
+                }
+                .pickerStyle(.menu)
+                Text(detail.level.blurb).font(.caption).foregroundStyle(.secondary)
+                if let withheld = detail.level.withheldNote {
+                    Text(withheld).font(.caption2).foregroundStyle(.secondary)
+                }
                 NavigationLink { ModelSettingsView(store: models) } label: {
                     Label {
                         Text("Models").foregroundStyle(Theme.textPrimary)

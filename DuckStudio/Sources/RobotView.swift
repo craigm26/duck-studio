@@ -84,6 +84,10 @@ struct RobotView: View {
 
     // MARK: - the screen
 
+    /// How much of the app to show. Threaded by hand like every other store
+    /// here — no screen in this app reads one out of the environment.
+    @ObservedObject var detail: DetailStore
+
     var body: some View {
         List {
             hardwareSection
@@ -104,7 +108,7 @@ struct RobotView: View {
         // screen is one tap from the place that fixes it.
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                NavigationLink { SettingsView(models: models, benches: benches) } label: {
+                NavigationLink { SettingsView(detail: detail, models: models, benches: benches) } label: {
                     Image(systemName: "gear").accessibilityLabel(Text("Settings"))
                 }
             }

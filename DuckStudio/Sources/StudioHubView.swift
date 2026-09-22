@@ -63,6 +63,10 @@ struct StudioHubView: View {
     /// asked for. See `AppRouter.pendingStudio`.
     @EnvironmentObject private var router: AppRouter
 
+    /// How much of the app to show. Threaded by hand like every other store
+    /// here — no screen in this app reads one out of the environment.
+    @ObservedObject var detail: DetailStore
+
     var body: some View {
         List {
             Section {
@@ -292,7 +296,7 @@ struct StudioHubView: View {
         // whether they led to the same place. They did.
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                NavigationLink { SettingsView(models: models, benches: benches) } label: {
+                NavigationLink { SettingsView(detail: detail, models: models, benches: benches) } label: {
                     Image(systemName: "gear").accessibilityLabel(Text("Settings"))
                 }
             }

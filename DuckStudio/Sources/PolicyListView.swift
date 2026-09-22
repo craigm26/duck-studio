@@ -112,6 +112,10 @@ struct PolicyListView: View {
         model.library.entries.filter { !isReleased(model.standing(for: $0)) }
     }
 
+    /// Whether to offer the screens that only make sense if you train these
+    /// networks yourself.
+    @ObservedObject var detail: DetailStore
+
     var body: some View {
         List {
             if let message = model.lastImport {
@@ -185,7 +189,7 @@ struct PolicyListView: View {
             // here: it is Settings → Benches now, and still two taps from the
             // screens that actually run things.
             ToolbarItem(placement: .topBarTrailing) {
-                NavigationLink { SettingsView(models: models, benches: benches) } label: {
+                NavigationLink { SettingsView(detail: detail, models: models, benches: benches) } label: {
                     Image(systemName: "gear").accessibilityLabel(Text("Settings"))
                 }
             }
@@ -593,7 +597,8 @@ struct PolicyListView: View {
             PolicyDetailView(entry: entry, model: model,
                              library: model.library, benches: benches,
                              standing: model.standing(for: entry),
-                             scenes: scenes, drafts: drafts, models: models)
+                             scenes: scenes, drafts: drafts, models: models,
+                             detail: detail)
         } label: {
             rowContent(entry)
         }
@@ -937,6 +942,10 @@ struct PolicyDetailView: View {
         clips.values.filter { $0.policy == entry.fileName }.sorted { $0.name < $1.name }
     }
 
+    /// How much of the app to show. Threaded by hand like every other store
+    /// here — no screen in this app reads one out of the environment.
+    @ObservedObject var detail: DetailStore
+
     var body: some View {
         content
             .toolbar {
@@ -1117,10 +1126,20 @@ struct PolicyDetailView: View {
                         .buttonStyle(.primaryAction)
                         .listRowSeparator(.hidden)
                     }
-                    NavigationLink { BenchView(entry: entry, model: model,
-                                               store: scenes) } label: {
-                        secondaryAction("Probe this network",
-                                        symbol: "slider.horizontal.below.square.filled.and.square")
+                    // THE INSPECTOR, WHICH NOT EVERYBODY WANTS OPENED AT THEM.
+                    // Simple leaves the sentence rather than the row: a screen
+                    // that vanishes reads as a screen that was removed, and the
+                    // person who installed this app for the bench would be the
+                    // one to notice.
+                    if detail.shows(.networkInternals) {
+                        NavigationLink { BenchView(entry: entry, model: model,
+                                                   store: scenes) } label: {
+                            secondaryAction("Probe this network",
+                                            symbol: "slider.horizontal.below.square.filled.and.square")
+                        }
+                    } else {
+                        Text(DetailLevel.placeholder(for: .networkInternals))
+                            .font(.caption).foregroundStyle(.secondary)
                     }
                     // REMIX AND RUN, FROM THE POLICY YOU ARE LOOKING AT.
                     // Both existed and neither was reachable from here: blending

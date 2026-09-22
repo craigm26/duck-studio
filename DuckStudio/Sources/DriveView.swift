@@ -390,6 +390,14 @@ struct DriveView: View {
     /// The duck as last seen, or the home stance before the first answer.
     private var pose: StagePose { live?.stance ?? .home }
 
+    /// How much of the app to show. Optional like `models` above, because
+    /// this screen is presented from more than one place and not every caller
+    /// holds one; a caller that does not gets the installed default.
+    var detail: DetailStore?
+
+    private var settingsDetail: DetailStore { detail ?? ownDetail }
+    @StateObject private var ownDetail = DetailStore()
+
     var body: some View {
         // FULL-BLEED WHERE THERE IS A PICTURE, STACKED WHERE THERE IS NOT.
         //
@@ -473,7 +481,7 @@ struct DriveView: View {
             // only thing up here, because it is the state and the gear is the
             // door.
             ToolbarItem(placement: .topBarTrailing) {
-                NavigationLink { SettingsView(models: settingsModels, benches: benches) } label: {
+                NavigationLink { SettingsView(detail: settingsDetail, models: settingsModels, benches: benches) } label: {
                     Image(systemName: "gear").accessibilityLabel(Text("Settings"))
                 }
             }

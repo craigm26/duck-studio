@@ -106,6 +106,10 @@ struct MyMicroduckView: View {
 
     // MARK: - the screen
 
+    /// How much of the app to show. Read here so Settings can offer it and the
+    /// screens under it can ask.
+    @ObservedObject var detail: DetailStore
+
     var body: some View {
         List {
             bannerSection
@@ -122,7 +126,7 @@ struct MyMicroduckView: View {
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                NavigationLink { SettingsView(models: models, benches: benches) } label: {
+                NavigationLink { SettingsView(detail: detail, models: models, benches: benches) } label: {
                     Image(systemName: "gear").accessibilityLabel(Text("Settings"))
                 }
             }
