@@ -19,6 +19,7 @@ enum PadSheet: Identifiable {
     case talk
     case map(DuckPad.Control?)
     case sequences
+    case plan
 
     var id: String {
         switch self {
@@ -26,6 +27,7 @@ enum PadSheet: Identifiable {
         case .talk: return "talk"
         case .map(let control): return "map-\(control?.rawValue ?? "all")"
         case .sequences: return "sequences"
+        case .plan: return "plan"
         }
     }
 }

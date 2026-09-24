@@ -152,6 +152,12 @@ final class PadDesk: ObservableObject {
         return sequence
     }
 
+    /// Re-read the shelf from disk, for sequences kept by another screen.
+    func reloadShelf() {
+        store.reload()
+        sequences = store.sequences
+    }
+
     /// Keep a sequence that was written rather than driven.
     func add(_ sequence: DuckSequence) {
         store.save(sequence)

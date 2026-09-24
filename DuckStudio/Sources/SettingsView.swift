@@ -39,6 +39,10 @@ struct SettingsView: View {
     @State private var removed = false
     @State private var busy = false
     @State private var failure: String?
+    /// The feedback log's sharing choice. Its own instance, read from the same
+    /// keys every other one reads — see `FeedbackStore`.
+    @StateObject private var feedback = FeedbackStore()
+    @State private var exporting: URL?
 
     var body: some View {
         Form {
@@ -156,6 +160,32 @@ struct SettingsView: View {
             .listRowBackground(Theme.surfacePrimary)
 
             huggingFace
+
+            // WHAT A PERSON TEACHES THE APP, AND HOW FAR IT MAY GO. Last,
+            // because it changes nothing about how anything runs; it only
+            // decides whether a correction may ever leave this phone.
+            Section {
+                Picker(FeedbackLog.settingTitle, selection: $feedback.share) {
+                    ForEach(DuckFeedback.Share.allCases, id: \.self) { share in
+                        Text(FeedbackLog.settingChoice(share)).tag(share)
+                    }
+                }
+                .pickerStyle(.menu)
+                Text(FeedbackLog.exportLine(all: feedback.counts.all,
+                                            exportable: feedback.counts.exportable))
+                    .font(.caption.monospacedDigit()).foregroundStyle(Theme.textSecondary)
+                Button(FeedbackLog.exportButton) { exporting = feedback.exportFile() }
+                    .disabled(feedback.counts.exportable == 0)
+            } footer: {
+                Text(FeedbackLog.settingFooter)
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .listRowBackground(Theme.surfacePrimary)
+            .sheet(isPresented: Binding(get: { exporting != nil },
+                                        set: { if !$0 { exporting = nil } })) {
+                if let exporting { ShareSheet(items: [exporting]) { self.exporting = nil } }
+            }
         }
         // THE RECESSED GROUND UNDER THE CARDS, and it is what lets any coloured
         // word be set on this screen at all: `Palette` documents
