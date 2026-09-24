@@ -15,9 +15,10 @@ letting a model draft the keyframes for you to fix.
 And when a file will not load, find out why — with the op sequence, the
 parameter count, the layer widths and the input and output tensor names of what
 *was* in the file sitting underneath the refusal. `DuckPolicy.load` accepts
-exactly
-`Sub → Div → Gemm → Elu → Gemm → Elu → Gemm → Elu → Gemm` at 61→512→256→128→14
-with `transB=1` and refuses everything else with a reason. Microduck Studio shows the
+exactly one pattern, `Sub → Div → (Gemm → Elu)×k → Gemm` with `transB=1`: the
+shipped 61→512→256→128→14, or a distilled student with 1–4 narrower hidden
+layers (widths chaining 61 → … → 14, at most 1,024 wide and 1M parameters). It
+refuses everything else with a reason. Microduck Studio shows the
 reason and the structure together, which is the screen an RL person installs
 this app for.
 
