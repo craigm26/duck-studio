@@ -310,12 +310,15 @@ code under 2.5.2. The answer, which goes in the notes verbatim:
 > Microduck Studio does not execute downloaded code. It reads a fixed set of
 > numeric weights out of a file and multiplies them, using a forward pass
 > compiled into the binary. The app refuses to load any file whose structure is
-> not exactly the one architecture it supports — nine operations in a fixed
-> order at fixed widths (61→512→256→128→14). Any other graph, including one
-> differing by a single operation, is rejected at load with a message; there is
-> no interpreter and no code path that can run an arbitrary computation. The
-> file is data, and the app's most-used feature is the screen that explains why
-> a file was rejected.
+> not the one architecture it supports: a normaliser followed by one to four
+> dense layers with a fixed activation, in one fixed operation pattern, taking
+> exactly 61 inputs and producing exactly 14 outputs, with every layer at most
+> 1,024 wide and at most 1,000,000 weights in total (the shipped policies are
+> 61→512→256→128→14; smaller distilled ones use the same pattern). Any other
+> graph, including one differing by a single operation, is rejected at load
+> with a message; there is no interpreter and no code path that can run an
+> arbitrary computation. The file is data, and the app's most-used feature is
+> the screen that explains why a file was rejected.
 
 Pre-registered fallback, so this is a lookup and not a scramble: if the argument
 is not accepted, ship Files-app import only (an unambiguous user-initiated

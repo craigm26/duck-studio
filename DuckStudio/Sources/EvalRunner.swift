@@ -605,7 +605,7 @@ final class EvalRunner: ObservableObject {
         }) else { return policy.benchPolicyName }
         if entry.origin == .bundled { return entry.fileName }
         guard let file = PolicyStore.data(for: entry) else { return entry.fileName }
-        let bytes = try DuckPolicy.load(from: file).canonicalParameterBytes
+        let bytes = try DuckPolicy.load(from: file).canonicalIdentityBytes.bytes
         if embodiment.body == .thisPhoneBench {
             return try DuckBench.readUploaded(
                 await Self.ask(try DuckBench.uploadParameters(address, canonicalBytes: bytes),

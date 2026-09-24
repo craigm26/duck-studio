@@ -34,6 +34,23 @@ final class PolicyBlendTests: XCTestCase {
 
     // MARK: - the refusals
 
+    /// A 61-128-128-14 student and the alpha shape both load now, and share no
+    /// weight-for-weight correspondence: averaging them must be refused, with
+    /// both shapes named, before any arithmetic indexes one by the other.
+    func testPoliciesOfDifferentShapesAreRefusedNotAveraged() {
+        let student: P = (mean: [Float](repeating: 0, count: DuckObservation.length),
+                          std: [Float](repeating: 1, count: DuckObservation.length),
+                          layers: [(61, 128), (128, 128), (128, 14)].map { w in
+                              DuckPolicyWriter.Layer(weights: [Float](repeating: 0, count: w.0 * w.1),
+                                                     biases: [Float](repeating: 0, count: w.1),
+                                                     inputs: w.0, outputs: w.1)
+                          })
+        XCTAssertThrowsError(try PolicyBlend.mix([(policy(1), 0.5), (student, 0.5)])) {
+            XCTAssertEqual($0 as? PolicyBlend.Refusal,
+                           .differentShapes("61-512-256-128-14", "61-128-128-14"))
+        }
+    }
+
     func testOnePolicyIsNotABlend() {
         XCTAssertThrowsError(try PolicyBlend.mix([(policy(1), 1.0)])) {
             XCTAssertEqual($0 as? PolicyBlend.Refusal, .needsTwo)

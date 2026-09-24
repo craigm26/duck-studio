@@ -869,7 +869,7 @@ final class TuneRun: ObservableObject {
     /// how this was found in the first place.
     private func put(_ file: Data, address: DuckBench.Address,
                      token: String?) async throws -> String {
-        let bytes = try DuckPolicy.load(from: file).canonicalParameterBytes
+        let bytes = try DuckPolicy.load(from: file).canonicalIdentityBytes.bytes
         if host?.kind == .phone {
             return try DuckBench.readUploaded(
                 await ask(try DuckBench.uploadParameters(address, canonicalBytes: bytes),

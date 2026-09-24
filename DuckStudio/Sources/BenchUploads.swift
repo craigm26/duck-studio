@@ -30,7 +30,7 @@ enum BenchUploads {
         // name is what they see beside the sticks. The bench keeps the last
         // word on whether it is acceptable.
         let name = entry.title
-        let bytes = try DuckPolicy.load(from: file).canonicalParameterBytes
+        let bytes = try DuckPolicy.load(from: file).canonicalIdentityBytes.bytes
         let call: DuckBench.Call
         if host?.kind == .phone {
             call = try DuckBench.uploadParameters(address, canonicalBytes: bytes, name: name)

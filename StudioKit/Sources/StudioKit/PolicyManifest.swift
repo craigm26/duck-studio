@@ -49,6 +49,48 @@ public struct PolicyManifest: Equatable, Sendable {
         public let totalTrials: Int?
     }
 
+    /// A student measured against the network it was distilled from, in the
+    /// same evaluation — what craigm26/duckbatch writes into `eval.student`,
+    /// `eval.teacher_same_eval` and `training.teacher`.
+    ///
+    /// NUMBERS SIDE BY SIDE, NEVER ONE NUMBER ALONE. "0.46 falls a minute" means
+    /// nothing until the teacher's 0.14 from the same run sits next to it, so a
+    /// metric is only kept when both sides are present.
+    public struct Comparison: Equatable, Sendable {
+        /// Where the teacher came from, e.g.
+        /// `pollen-robotics/microduck-policies@1b56c39…/velstand.onnx`.
+        public let teacher: String?
+        /// How the student was made, e.g. "population DAgger distillation".
+        public let method: String?
+        /// Where it was measured, in the author's words ("mjlab …, domain
+        /// randomization and pushes on").
+        public let setting: String?
+        /// Metric name → (student, teacher), for every metric both sides report.
+        public let metrics: [String: Pair]
+        public struct Pair: Equatable, Sendable {
+            public let student: Double
+            public let teacher: Double
+        }
+    }
+
+    /// A decision model's reading of the comparison, if the publisher asked one.
+    ///
+    /// KEPT SEPARATE FROM THE NUMBERS BECAUSE IT IS NOT A MEASUREMENT. It is a
+    /// model's judgement over the numbers above, with the model named, and the
+    /// screen shows it as that. duckbatch writes it from Jev's 0–3 "gap to the
+    /// teacher" score, the one decision-model output that tracked quality in its
+    /// batches.
+    public struct Verdict: Equatable, Sendable {
+        /// The model that judged, e.g. "jev-latest".
+        public let model: String
+        /// Expected gap level, 0 (indistinguishable) … 3 (severe).
+        public let gap: Double
+        /// What each level means, lowest first, as the model was asked it.
+        public let levels: [String]
+        /// A sentence the publisher's code wrote from the numbers (not a model).
+        public let summary: String?
+    }
+
     public let schemaVersion: Int
     public let modelAPI: Int
     public let name: String
@@ -64,6 +106,8 @@ public struct PolicyManifest: Equatable, Sendable {
     public let controlHz: Double?
     public let training: Training?
     public let evaluation: Evaluation?
+    public let comparison: Comparison?
+    public let verdict: Verdict?
     /// Cautions the AUTHOR wrote into the file, as opposed to the ones
     /// `cautions` derives from the evaluation and training blocks.
     ///
@@ -97,7 +141,11 @@ public struct PolicyManifest: Equatable, Sendable {
 
         var command: Command?
         if let raw = root["command"] as? [String: Any] {
-            command = Command(twist: raw["twist"] as? [String] ?? [],
+            // A list of slot meanings, or one string describing them all:
+            // Pollen's own publisher writes a string ("unused (zeros)"), and
+            // reading only lists turned every such manifest's twist empty.
+            let twist = raw["twist"] as? [String] ?? (raw["twist"] as? String).map { [$0] } ?? []
+            command = Command(twist: twist,
                               head: raw["head"] as? String,
                               body: raw["body"] as? String,
                               idle: (raw["idle"] as? [Double]) ?? [])
@@ -123,6 +171,33 @@ public struct PolicyManifest: Equatable, Sendable {
                 totalTrials: [held, stepped, fell].compactMap { $0 }.isEmpty
                     ? nil : [held, stepped, fell].compactMap { $0 }.reduce(0, +))
         }
+        var comparison: Comparison?
+        if let raw = root["eval"] as? [String: Any],
+           let student = raw["student"] as? [String: Any],
+           let teacher = raw["teacher_same_eval"] as? [String: Any] {
+            var metrics: [String: Comparison.Pair] = [:]
+            for (key, value) in student {
+                if let s = (value as? NSNumber)?.doubleValue,
+                   let t = (teacher[key] as? NSNumber)?.doubleValue, s.isFinite, t.isFinite {
+                    metrics[key] = Comparison.Pair(student: s, teacher: t)
+                }
+            }
+            let trainingRaw = root["training"] as? [String: Any]
+            if !metrics.isEmpty {
+                comparison = Comparison(teacher: trainingRaw?["teacher"] as? String,
+                                        method: trainingRaw?["method"] as? String,
+                                        setting: raw["where"] as? String,
+                                        metrics: metrics)
+            }
+        }
+        var verdict: Verdict?
+        if let raw = root["verdict"] as? [String: Any],
+           let model = raw["model"] as? String,
+           let gap = (raw["gap"] as? NSNumber)?.doubleValue, gap.isFinite, (0...3).contains(gap) {
+            verdict = Verdict(model: model, gap: gap,
+                              levels: raw["levels"] as? [String] ?? [],
+                              summary: raw["summary"] as? String)
+        }
         return PolicyManifest(
             schemaVersion: schema,
             modelAPI: root["model_api"] as? Int ?? 1,
@@ -138,6 +213,8 @@ public struct PolicyManifest: Equatable, Sendable {
             controlHz: (root["robot"] as? [String: Any])?["control_hz"] as? Double,
             training: training,
             evaluation: evaluation,
+            comparison: comparison,
+            verdict: verdict,
             authorCautions: (root["cautions"] as? [String]) ?? [])
     }
 

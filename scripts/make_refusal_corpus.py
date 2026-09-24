@@ -160,9 +160,16 @@ def main() -> int:
         "observation_62_wide.onnx": build(obs=62),
         "output_13_actions.onnx": build(
             widths=[(61, 512), (512, 256), (256, 128), (128, 13)]),
-        "hidden_narrowed.onnx": build(
-            widths=[(61, 256), (256, 256), (256, 128), (128, 14)]),
+        # Hidden widths that do not chain: layer 1 takes 128 where layer 0
+        # gives 256. The refusal that replaced "any width but 512-256-128".
+        "hidden_chain_broken.onnx": build(
+            widths=[(61, 256), (128, 256), (256, 128), (128, 14)]),
     }
+    # NOT A REFUSAL SINCE DUCKKIT 1.36: a narrower student of the same graph
+    # loads (duckkit `DuckPolicy.shapeProblem`). Kept, and expected to load, so
+    # the corpus records the change rather than quietly losing the file.
+    cases["hidden_narrowed.onnx"] = build(
+        widths=[(61, 256), (256, 256), (256, 128), (128, 14)])
 
     # A control: built the same way, and it must LOAD. Without this the corpus
     # proves only that the builder emits unusable files.
@@ -182,7 +189,8 @@ def main() -> int:
         "gemm_without_transb.onnx": "unsupportedArchitecture (Gemm without transB=1)",
         "observation_62_wide.onnx": "shape",
         "output_13_actions.onnx": "shape",
-        "hidden_narrowed.onnx": "shape",
+        "hidden_chain_broken.onnx": "shape (layer 0 gives 256, layer 1 takes 128)",
+        "hidden_narrowed.onnx": "LOADS — a narrower student of the same graph (duckkit ≥ 1.36)",
         "synthetic_valid.onnx": "LOADS — the control",
     }
     for name in sorted(cases):

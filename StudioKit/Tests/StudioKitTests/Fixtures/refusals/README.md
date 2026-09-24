@@ -9,7 +9,8 @@ synthesized, so each one carries exactly one defect.
 | `extra_op_appended.onnx` | 791982 | unsupportedArchitecture (op sequence) |
 | `garbage.onnx` | 4096 | malformed |
 | `gemm_without_transb.onnx` | 791922 | unsupportedArchitecture (Gemm without transB=1) |
-| `hidden_narrowed.onnx` | 466338 | shape |
+| `hidden_chain_broken.onnx` | 335266 | shape (layer 0 gives 256, layer 1 takes 128) |
+| `hidden_narrowed.onnx` | 466338 | LOADS — a narrower student of the same graph (duckkit ≥ 1.36) |
 | `no_graph.onnx` | 18 | malformed (no graph in ModelProto) |
 | `observation_62_wide.onnx` | 794026 | shape |
 | `output_13_actions.onnx` | 791454 | shape |
