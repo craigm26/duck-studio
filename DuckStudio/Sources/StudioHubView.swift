@@ -226,6 +226,14 @@ struct StudioHubView: View {
                 } label: {
                     Label(EvalTask.rowTitle, systemImage: "checklist")
                 }
+                // A PERSON AS THE MEASURE. Two recorded walkers, one choice;
+                // under Measure because nothing is authored or trained here.
+                NavigationLink {
+                    RolloutPreferenceView()
+                } label: {
+                    Label(RolloutPreferenceWords.studioRow,
+                          systemImage: RolloutPreferenceWords.studioRowSymbol)
+                }
             } header: {
                 SectionHeading(text: "Measure")
             }
