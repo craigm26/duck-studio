@@ -20,8 +20,11 @@ packages:
     # 1.30.0 is the floor, not a preference: below it `DuckMove.pose(at:)`
     # answers the base pose for every non-positive time, which makes the
     # keyframe at 0.00 s unreachable — and every motion this app's editor
-    # writes starts there. StudioKit/Package.swift pins the same floor.
-    from: 1.31.1
+    # writes starts there. 1.36.0 raises it: below 1.36 `DuckPolicy.load`
+    # refuses distilled students of the alpha graph (61-128-128-14 and the
+    # like), so the community catalogue would offer them and fail on Add.
+    # StudioKit/Package.swift pins the same floor.
+    from: 1.36.0
   # The engine for a model downloaded onto the phone itself.
   #
   # WHY THIS PACKAGE. "A model on this phone" already existed and meant an

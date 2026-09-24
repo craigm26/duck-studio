@@ -267,6 +267,46 @@ struct CommunityPoliciesView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
 
+        // A DISTILLED POLICY AGAINST ITS TEACHER, measured in the same run.
+        // The sentences come from `PolicyComparisonSummary`, which writes them
+        // from the numbers with the same rules for every publisher; the gap
+        // comes first because a smaller network is only interesting next to
+        // what it gave up. The judge's line is set apart and labelled as a
+        // model's judgement — it is an opinion over these numbers, not a fifth
+        // number — and "in sim" stays in the words because none of it is a robot.
+        if let comparison = manifest.comparison {
+            let lines = PolicyComparisonSummary.lines(comparison)
+            if !lines.isEmpty || manifest.verdict != nil {
+                VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
+                    Text("Against its teacher")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(Theme.textPrimary)
+                    ForEach(lines, id: \.self) { line in
+                        Text(line)
+                            .font(.caption2)
+                            .foregroundStyle(Theme.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    if let verdict = manifest.verdict {
+                        Label(PolicyComparisonSummary.verdictLine(verdict), systemImage: "scalemass")
+                            .font(.caption2)
+                            .foregroundStyle(Theme.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityHint(Text("A decision model's judgement of the numbers above, not a measurement."))
+                    }
+                    if let teacher = comparison.teacher {
+                        Text("Teacher: \(teacher)")
+                            .font(.caption2)
+                            .foregroundStyle(Theme.textTertiary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .contain)
+            }
+        }
+
         // THE THREE NUMBERS THAT DECIDE WHETHER IT CAN BE DRIVEN, each as a
         // `TelemetryRow`. They were a single `caption2` line of three chips,
         // which at an accessibility size wrapped into a paragraph and reached

@@ -30,7 +30,10 @@ let package = Package(
         // ninth output by 1.07". `DuckTuner` is built on it, so the floor moves
         // with it rather than being left at a tag where the search would have
         // nowhere to put its answer.
-        .package(url: "https://github.com/craigm26/duckkit.git", from: "1.35.0")
+        // 1.36.0: `DuckPolicy.load` takes narrower students of the alpha
+        // graph, `PolicyBlend` depends on `shapeProblem`'s contract, and the
+        // refusal corpus's `hidden_narrowed.onnx` is expected to load.
+        .package(url: "https://github.com/craigm26/duckkit.git", from: "1.36.0")
     ],
     targets: [
         .target(

@@ -108,10 +108,20 @@ final class PolicyReportTests: XCTestCase {
                       "refusing to guess is the point, so say it")
     }
 
-    func testANarrowedHiddenLayerIsRefused() throws {
+    /// Refused until duckkit 1.36; now a narrower student of the same graph,
+    /// which is what a distilled policy is. It loads.
+    func testANarrowedStudentOfTheSameGraphLoads() throws {
         let r = try report("hidden_narrowed.onnx")
+        XCTAssertEqual(r.outcome, .runnable, r.reason)
+    }
+
+    /// What replaced "any width but the shipped one": hidden layers that do not
+    /// line up. Layer 0 gives 256, layer 1 takes 128.
+    func testHiddenLayersThatDoNotLineUpAreRefused() throws {
+        let r = try report("hidden_chain_broken.onnx")
         XCTAssertEqual(r.outcome, .refused)
-        XCTAssertFalse(r.reason.isEmpty)
+        XCTAssertTrue(r.reason.contains("256") || r.headline.contains("256"),
+                      "the refusal should name the widths that disagree: \(r.reason)")
     }
 
     // MARK: - the table
@@ -121,7 +131,7 @@ final class PolicyReportTests: XCTestCase {
     func testEveryRefusalCarriesTheStructureItObjectedTo() throws {
         for file in ["relu_instead_of_elu.onnx", "extra_op_appended.onnx",
                      "gemm_without_transb.onnx", "observation_62_wide.onnx",
-                     "output_13_actions.onnx", "hidden_narrowed.onnx"] {
+                     "output_13_actions.onnx", "hidden_chain_broken.onnx"] {
             let r = try report(file)
             XCTAssertEqual(r.outcome, .refused, file)
             XCTAssertFalse(r.reason.isEmpty, "\(file) needs a reason")

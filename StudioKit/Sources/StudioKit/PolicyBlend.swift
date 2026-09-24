@@ -67,6 +67,9 @@ public enum PolicyBlend {
         case needsTwo
         case sharesDoNotSum(Double)
         case negativeShare(String)
+        /// Two ingredients with different layer widths. Carries both shapes,
+        /// written as widths, e.g. "61-512-256-128-14" and "61-128-128-14".
+        case differentShapes(String, String)
 
         public var message: String {
             switch self {
@@ -81,12 +84,24 @@ public enum PolicyBlend {
                 return "\(name) has a negative share. Subtracting one network from another is a "
                      + "different operation with a different meaning, and nothing here has "
                      + "measured what it does to a duck."
+            case .differentShapes(let a, let b):
+                return "These networks are different shapes (\(a) and \(b)). A blend averages "
+                     + "matching weights, and a narrower student has no weight where the wider "
+                     + "network has one — there is nothing to average. Blend policies of the "
+                     + "same shape."
             }
         }
     }
 
-    /// Mix the parameters. Every ingredient must be the same architecture, and
-    /// `DuckPolicy` has already guaranteed that by loading them.
+    /// Mix the parameters. Every ingredient must be the same architecture.
+    ///
+    /// THAT USED TO BE FREE AND IS NOW CHECKED. Until duckkit's loader took
+    /// narrower students (61-128-128-14 and the like), everything that loaded
+    /// was 61-512-256-128-14, so any two loaded policies lined up weight for
+    /// weight. Now two loaded policies can differ, and averaging them would
+    /// index one network's weights by the other's widths — a crash at best, a
+    /// plausible-looking wrong network at worst. So the widths are compared
+    /// first and a mismatch is refused with both shapes named.
     public static func mix(
         _ policies: [(parameters: (mean: [Float], std: [Float], layers: [DuckPolicyWriter.Layer]),
                       share: Double)]
@@ -94,6 +109,13 @@ public enum PolicyBlend {
         guard policies.count >= 2 else { throw Refusal.needsTwo }
         let total = policies.reduce(0) { $0 + $1.share }
         guard abs(total - 1) < 1e-6 else { throw Refusal.sharesDoNotSum(total) }
+        func shape(_ layers: [DuckPolicyWriter.Layer]) -> String {
+            ([layers.first?.inputs ?? 0] + layers.map(\.outputs)).map(String.init).joined(separator: "-")
+        }
+        let first = shape(policies[0].parameters.layers)
+        for other in policies.dropFirst() where shape(other.parameters.layers) != first {
+            throw Refusal.differentShapes(first, shape(other.parameters.layers))
+        }
 
         func blend(_ pick: ((mean: [Float], std: [Float], layers: [DuckPolicyWriter.Layer])) -> [Float])
             -> [Float] {

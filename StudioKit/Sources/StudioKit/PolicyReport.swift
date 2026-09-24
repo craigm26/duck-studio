@@ -180,7 +180,7 @@ public struct PolicyReport: Equatable, Sendable {
                             "Something was appended after the final layer — often a squashing or scaling op added at export time. DuckGait applies the action scale and the travel limits itself, so that step has to come out of the graph.")
                 }
                 return ("This is not the alpha policy architecture. Expected \(expectedOps.joined(separator: ", )")); found \(found.joined(separator: ", ")).",
-                        "Every shipped Microduck policy is the same nine-operation graph. A different sequence means a different network, not a different build of the same one.")
+                        "Every shipped Microduck policy is the same nine-operation graph; a distilled student may have fewer or narrower hidden layers, but the pattern Sub, Div, then Gemm and Elu pairs, then a final Gemm is fixed. A different sequence means a different network, not a different build of the same one.")
             }
             return ("This is not the alpha policy architecture: \(detail).", nil)
 
@@ -196,7 +196,7 @@ public struct PolicyReport: Equatable, Sendable {
                         "There is no safe way to spread \(outputs) numbers across 14 joints, so the kit refuses rather than guessing which joint goes unmoved.")
             }
             return ("A layer width disagrees with the robot: \(detail).",
-                    "The architecture is fixed at 61 → 512 → 256 → 128 → 14. Every intermediate width is part of the contract, because the weights are read positionally.")
+                    "The ends are fixed at 61 in and 14 out. Hidden layers may be narrower than the shipped 512 → 256 → 128 (up to 1,024 wide, 1 to 4 of them), but each must take exactly what the one before gives, because the weights are read positionally.")
         }
     }
 
