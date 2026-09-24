@@ -253,9 +253,10 @@ public enum DuckBench {
     /// SENTENCE THIS APP WAS SHIPPING. `PhoneBenchReport.uploadNotWired` said
     /// "this bench cannot be handed a network", which is true of an `.onnx` and
     /// false of what the browser shell actually accepts. Its `makeSession`
-    /// refuses anything that is not exactly `FLOAT_COUNT * 4` bytes and hands
+    /// refuses bytes that are not a policy (`policyByteProblem`) and hands
     /// everything else to `policyforward.mjs` — which reads
-    /// `DuckPolicy.canonicalParameterBytes`, the same layout `DuckEvidence`
+    /// `DuckPolicy.canonicalIdentityBytes` (v1 for the alpha shape, shape-prefixed
+    /// `DPv2` for a student), the same bytes `DuckEvidence`
     /// fingerprints a policy by and the same layout the app already exports to
     /// serve the nine bundled networks to that shell. So `/upload` was never
     /// closed; it was closed to ONNX.

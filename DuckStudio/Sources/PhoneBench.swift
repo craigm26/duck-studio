@@ -158,7 +158,7 @@ final class PhoneBenchAssets: @unchecked Sendable {
         guard let policy = try? DuckPolicy.load(contentsOf: url) else { return false }
         try? FileManager.default.createDirectory(at: store, withIntermediateDirectories: true)
         do {
-            try policy.canonicalParameterBytes.write(to: out, options: .atomic)
+            try policy.canonicalIdentityBytes.bytes.write(to: out, options: .atomic)
             return true
         } catch {
             return false

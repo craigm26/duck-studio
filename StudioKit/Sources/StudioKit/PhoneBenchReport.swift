@@ -110,7 +110,8 @@ public enum PhoneBenchReport {
     /// the endpoint's intent. It is not what the endpoint does. `makeSession`
     /// in `duckbench-web.mjs` checks one thing — that the body is exactly
     /// `FLOAT_COUNT * 4` bytes — and hands everything that passes to
-    /// `policyforward.mjs`, which reads `DuckPolicy.canonicalParameterBytes`.
+    /// `policyforward.mjs`, which reads `DuckPolicy.canonicalIdentityBytes` — the
+    /// v1 parameter bytes for the alpha shape, shape-prefixed (`DPv2`) for a student.
     /// That is the same layout `DuckEvidence` fingerprints a policy by and the
     /// same layout this app already exports to serve the shell its nine
     /// bundled networks. So a network this app can LOAD, it can put on this

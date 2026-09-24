@@ -192,7 +192,7 @@ final class WeightSearchRun: ObservableObject {
     /// so it needs both.
     private func put(_ file: Data, address: DuckBench.Address,
                      token: String?, host: DuckBench.Health.Host?) async throws -> String {
-        let bytes = try DuckPolicy.load(from: file).canonicalParameterBytes
+        let bytes = try DuckPolicy.load(from: file).canonicalIdentityBytes.bytes
         if host?.kind == .phone {
             return try DuckBench.readUploaded(
                 await ask(try DuckBench.uploadParameters(address, canonicalBytes: bytes),
