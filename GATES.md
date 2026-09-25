@@ -54,8 +54,16 @@ service they signed into, and none of them is ours**:
   This line was missing while the paragraph above claimed to enumerate
   everything, and two hosts absent from a list of hosts is the kind of omission
   this document exists to not make,
-- a physics bench on the local network, at an address the person entered, which
+- a physics bench on the local network, at an address the person entered or a
+  machine they chose from what the launch browse found, which
   `DuckBench.Address` refuses to send anywhere that is not obviously local.
+  Since 2026-09-24 the app **browses** the local network for `_duckstudio._tcp`
+  for about three seconds as it opens (mDNS, which never leaves the network),
+  and asks each saved machine's bench and router health routes whether they
+  are up. A found machine is offered, never added without a tap, and a saved
+  one is followed to a new address only when its record proves it is the same
+  machine. So "an address the person typed" is now "an address the person
+  typed or tapped", and still never ours.
 
 No analytics, no SDK, no event stream, no per-user telemetry, and no endpoint
 this project controls — that is the claim, and it is still true. Every number

@@ -1,0 +1,17 @@
+[Unit]
+# This machine's _duckstudio._tcp record, so Duck Studio finds its bench and
+# router without anybody typing an address. See tools/advertise_machine.py.
+# Install: copy to ~/.config/systemd/user/, set ExecStart's paths, then
+#   systemctl --user daemon-reload && systemctl --user enable --now duckstudio-advertise
+Description=Duck Studio machine advertiser — _duckstudio._tcp for the bench and router
+After=network-online.target
+
+[Service]
+Type=simple
+# A python with `zeroconf` installed, and this repo's checkout.
+ExecStart=%h/venvs/duckbatch/bin/python %h/projects/duck-studio/tools/advertise_machine.py
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=default.target

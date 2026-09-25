@@ -27,6 +27,14 @@ struct PlanEditorView: View {
     let desk: PadDesk?
     let venue: DriveVenue
     let engage: () -> Void
+    /// The selected bench, whose machine is where the router is looked for
+    /// when no address has been typed. Nil from Studio.
+    var bench: BenchEndpoint? = nil
+
+    /// A typed address wins; otherwise the router on the bench's own machine.
+    private var routerBase: URL? {
+        feedback.routerURL ?? bench.flatMap(DuckMachine.routerURL(for:))
+    }
 
     @Environment(\.dismiss) private var dismiss
     @StateObject private var feedback = FeedbackStore()
@@ -107,7 +115,11 @@ struct PlanEditorView: View {
         } header: {
             SectionHeading(text: PlanEditorWords.routerHeading)
         } footer: {
-            Text(PlanEditorWords.routerFooter).foregroundStyle(Theme.textSecondary)
+            if feedback.routerURL == nil, let bench, let url = DuckMachine.routerURL(for: bench) {
+                Text(DuckMachine.usingRouter(on: bench.name, url)).foregroundStyle(Theme.textSecondary)
+            } else {
+                Text(PlanEditorWords.routerFooter).foregroundStyle(Theme.textSecondary)
+            }
         }
         .listRowBackground(Theme.surfacePrimary)
     }
@@ -116,12 +128,13 @@ struct PlanEditorView: View {
         let asked = typed.trimmingCharacters(in: .whitespaces)
         guard !asked.isEmpty, !thinking else { return }
         refusal = nil; kept = nil
-        guard !feedback.routerAddress.trimmingCharacters(in: .whitespaces).isEmpty else {
-            refusal = PlanEditorWords.noRouter
+        let typed = feedback.routerAddress.trimmingCharacters(in: .whitespaces)
+        if !typed.isEmpty, feedback.routerURL == nil {
+            refusal = PlanEditorWords.notAnAddress(feedback.routerAddress)
             return
         }
-        guard let base = feedback.routerURL else {
-            refusal = PlanEditorWords.notAnAddress(feedback.routerAddress)
+        guard let base = routerBase else {
+            refusal = PlanEditorWords.noRouter
             return
         }
         thinking = true

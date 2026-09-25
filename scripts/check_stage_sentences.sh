@@ -91,6 +91,8 @@ FILES=(
   PlanEditorView.swift
   FeedbackStore.swift
   RolloutPreferenceView.swift
+  MachineStore.swift
+  MachineDiscovery.swift
   TalkToTheDuckView.swift
   ControlShelfChips.swift
   # Build 58's weight search. Added with the files rather than after a review

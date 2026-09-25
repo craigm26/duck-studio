@@ -221,19 +221,21 @@ targets:
         # type, which rejects a host that is not obviously local precisely so a
         # typo cannot post a policy to a stranger.
         #
-        # NOTHING HERE BROWSES FOR A BENCH. You type its address, and that is
-        # still true: no target opens an NWBrowser. The one Bonjour type below
-        # is declared ahead of the browse that will use it, because iOS refuses
-        # a browse for an undeclared type SILENTLY — a failure that only shows
-        # up on a device. This comment used to say no Bonjour services were
-        # declared at all, directly above the key declaring one.
-        NSLocalNetworkUsageDescription: "Microduck Studio contacts a physics bench on your own network — only the address you type in, and only when you ask it to run something. It never looks for machines by itself and nothing about your policies or motions leaves your network."
+        # ONE BROWSE NOW, AND IT IS SAID. Since 2026-09-24 `MachineDiscovery`
+        # browses `_duckstudio._tcp` for a few seconds as the app opens, to
+        # find the computers running the bench or the plan router
+        # (tools/advertise_machine.py publishes it). Nothing it finds is added
+        # without a tap. iOS refuses a browse for an undeclared type SILENTLY,
+        # so every type browsed is in NSBonjourServices below.
+        NSLocalNetworkUsageDescription: "Microduck Studio looks on your own network for computers running its physics bench or plan router, so you can use them without typing an address, and contacts the ones you save. Nothing is added until you tap Add, and nothing about your policies or motions leaves your network."
         NSBonjourServices:
           # WHAT THE BRIDGE ADVERTISES (bridge/microduck-bridge.avahi.xml), so
           # this app can find the machine a robot's software runs on without
           # anybody typing an address. Declared here because iOS refuses a
           # browse for a type that is not listed, silently.
           - _robotd._tcp
+          # The bench and plan router's machine record; browsed at launch.
+          - _duckstudio._tcp
         # ATS BLOCKS PLAIN HTTP, AND A PI ON A DESK HAS NO CERTIFICATE. This
         # exception covers local addresses only; everything else in the app is
         # still held to HTTPS, which is what `ModelEndpoint`'s

@@ -54,18 +54,29 @@ public struct BenchEndpoint: Equatable, Sendable, Codable, Identifiable {
     /// never encoded.
     public var hasToken: Bool
     public var kind: Kind
+    /// The machine's own identity, from its `_duckstudio._tcp` record, when the
+    /// bench was found on the network rather than typed. OpenCastor's rule:
+    /// identity before address. A saved address is re-pointed only when this
+    /// same id answers somewhere else — never because something answered at an
+    /// address, which may simply have inherited the old DHCP lease.
+    public var machineID: String?
+    /// The plan router on the same machine, when its record said so.
+    public var routerPort: Int?
 
     /// Present only on an ARMED copy, on its way to a request. Never encoded.
     public var token: String?
 
     public init(id: UUID = UUID(), name: String, address: String,
                 hasToken: Bool = false, token: String? = nil,
-                kind: Kind = .network) {
+                kind: Kind = .network, machineID: String? = nil, routerPort: Int? = nil) {
         self.id = id; self.name = name; self.address = address
         self.hasToken = hasToken; self.token = token; self.kind = kind
+        self.machineID = machineID; self.routerPort = routerPort
     }
 
-    private enum CodingKeys: String, CodingKey { case id, name, address, hasToken, kind }
+    private enum CodingKeys: String, CodingKey {
+        case id, name, address, hasToken, kind, machineID, routerPort
+    }
 
     /// HAND-WRITTEN FOR ONE KEY. The synthesized decoder throws when `kind` is
     /// absent, and absent is what every record written before this field looks
@@ -78,6 +89,9 @@ public struct BenchEndpoint: Equatable, Sendable, Codable, Identifiable {
         address = try container.decode(String.self, forKey: .address)
         hasToken = try container.decode(Bool.self, forKey: .hasToken)
         kind = (try? container.decode(Kind.self, forKey: .kind)) ?? .network
+        // Absent on every bench saved before machines were remembered.
+        machineID = try? container.decodeIfPresent(String.self, forKey: .machineID)
+        routerPort = try? container.decodeIfPresent(Int.self, forKey: .routerPort)
         token = nil
     }
 

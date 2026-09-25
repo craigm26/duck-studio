@@ -232,6 +232,19 @@ final class BenchStore: ObservableObject {
         flush()
     }
 
+    /// Follow a saved bench to the address its machine now answers at.
+    ///
+    /// ONLY EVER CALLED WITH `DuckMachine.reconcile`'s `.moved`, which fires only
+    /// when the same machine identity was seen at the new host — so the token,
+    /// which is keyed by this bench's id, rightly moves with it.
+    func follow(_ id: UUID, to address: String, routerPort: Int?) {
+        guard let index = saved.firstIndex(where: { $0.id == id }) else { return }
+        saved[index].address = address
+        if let routerPort { saved[index].routerPort = routerPort }
+        recompose()
+        flush()
+    }
+
     /// The phone cannot be deleted, because an app with physics and no way to
     /// reach it is worse than an app with no physics.
     func delete(_ bench: BenchEndpoint) {
