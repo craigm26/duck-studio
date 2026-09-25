@@ -531,6 +531,9 @@ started, to a host you chose:
 - As the app opens: a few seconds of mDNS browsing on your network for computers
   running the bench or plan router, and a health check of each machine you have
   saved. A found machine is only offered; nothing is added until you tap Add.
+- If you sign in with Hugging Face on My Microduck: that sign-in (identity only),
+  and a listing of the Microducks your account owns from Pollen's rendezvous
+  (`pollen-robotics-reachy-mini-central.hf.space`). Nothing is sent to us.
 - A plan request to the plain-language router, at an address you typed (it runs
   on a computer you own — duckbatch's `scripts/route_server.py`).
 - Contributing feedback, only when you press Contribute: a pull request from

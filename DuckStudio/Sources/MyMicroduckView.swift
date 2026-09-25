@@ -111,11 +111,15 @@ struct MyMicroduckView: View {
     @ObservedObject var detail: DetailStore
     /// What the launch check found. See `MachineStore`.
     @ObservedObject var machines: MachineStore
+    /// Ducks listed through Pollen's rendezvous. See `RemoteReachStore`.
+    @ObservedObject var remote: RemoteReachStore
+    @Environment(\.webAuthenticationSession) private var webAuthentication
 
     var body: some View {
         List {
             bannerSection
             machinesSection
+            remoteSection
             deviceSection
             quickActionSection
             cameraSection
@@ -923,3 +927,48 @@ extension MyMicroduckView {
         .listRowBackground(Theme.surfacePrimary)
     }
 }
+
+// MARK: - from anywhere
+
+extension MyMicroduckView {
+    /// The account's Microducks, through Pollen's rendezvous — listed, not yet
+    /// driven. Stage 1 of docs/REMOTE-REACH.md.
+    @ViewBuilder var remoteSection: some View {
+        Section {
+            if remote.signedIn {
+                if remote.ducks.isEmpty {
+                    Text(RemoteReach.noDucks).font(.footnote).foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                ForEach(remote.ducks, id: \.peerID) { duck in
+                    Label(RemoteReach.line(duck), systemImage: "globe")
+                        .font(.footnote.monospacedDigit()).foregroundStyle(Theme.textPrimary)
+                }
+                if let session = remote.session {
+                    Text(RemoteReach.signedIn(until: session.expires))
+                        .font(.caption).foregroundStyle(Theme.textSecondary)
+                }
+                Button(RemoteReach.signOut) { remote.signOut() }
+                    .buttonStyle(.borderless)
+            } else {
+                Text(RemoteReach.explain).font(.footnote).foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button(RemoteReach.signIn) {
+                    Task { await remote.signIn(with: webAuthentication) }
+                }
+                .disabled(remote.busy)
+            }
+            if let line = remote.line {
+                Text(line).font(.caption).foregroundStyle(Theme.warning)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        } header: {
+            SectionHeading(text: RemoteReach.heading)
+        } footer: {
+            Text(RemoteReach.controlWaits).foregroundStyle(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .listRowBackground(Theme.surfacePrimary)
+    }
+}
+

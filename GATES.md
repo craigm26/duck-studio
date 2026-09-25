@@ -64,6 +64,12 @@ service they signed into, and none of them is ours**:
   one is followed to a new address only when its record proves it is the same
   machine. So "an address the person typed" is now "an address the person
   typed or tapped", and still never ours.
+- **Pollen's rendezvous** (`pollen-robotics-reachy-mini-central.hf.space`), added
+  2026-09-24, only after the person signs in with Hugging Face (`openid profile`
+  only, PKCE, its own Keychain slot) and only to list the Microducks their
+  account owns (`GET /api/robot-status`, which opens no session). A service the
+  person signed into, run by Pollen, never ours. Sending calls to a duck this
+  way waits for Pollen's answer to pollen-robotics/microduck#329.
 
 No analytics, no SDK, no event stream, no per-user telemetry, and no endpoint
 this project controls — that is the claim, and it is still true. Every number
