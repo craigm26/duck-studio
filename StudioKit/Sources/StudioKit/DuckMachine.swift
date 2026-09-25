@@ -64,6 +64,48 @@ public enum DuckMachine {
         public var benchAddress: String? { advert.benchPort.map { "\(host):\($0)" } }
     }
 
+    // MARK: - ducks
+
+    /// The bridge's record type (`bridge/microduck-bridge.avahi.xml`).
+    public static let duckServiceType = BridgeHandshake.bonjourType
+
+    /// A Microduck's bridge seen on the network.
+    ///
+    /// NOT A ONE-TAP CONNECTION, ON PURPOSE. The bridge refuses a client
+    /// without the token minted on the robot, and that token must never ride
+    /// an mDNS record. So a found duck fills in Robot > Bridge's address and
+    /// the person brings the token, once.
+    public struct FoundDuck: Equatable, Sendable {
+        /// From the record's `id`; nil from a bridge installed before it had one.
+        public let id: String?
+        public let name: String
+        public let host: String
+        public let port: Int
+        public init(id: String?, name: String, host: String, port: Int) {
+            self.id = id; self.name = name; self.host = host; self.port = port
+        }
+        public var address: String { "\(host):\(port)" }
+
+        /// Nil unless the record says it is a Microduck bridge: `_robotd._tcp`
+        /// is a generic enough name that something else could answer to it.
+        public static func read(txt: [String: String], name: String, host: String,
+                                port: Int) -> FoundDuck? {
+            guard txt["bridge"]?.hasPrefix("microduck-bridge/") == true, (1..<65536).contains(port)
+            else { return nil }
+            let id = txt["id"].flatMap { $0.isEmpty ? nil : $0 }
+            return FoundDuck(id: id, name: name, host: host, port: port)
+        }
+    }
+
+    public static func duckOffer(_ duck: FoundDuck) -> String {
+        "Found a Microduck on your network: \(duck.name) (bridge at \(duck.address))."
+    }
+    public static let useButton = "Use"
+    public static func duckFilledIn(_ duck: FoundDuck) -> String {
+        "Robot > Bridge now points at \(duck.address). Enter the robot's bridge token there to "
+      + "connect; it never travels in the network record."
+    }
+
     // MARK: - reconciling what is saved with what was seen
 
     public enum Action: Equatable, Sendable {

@@ -88,6 +88,30 @@ final class DuckMachineTests: XCTestCase {
         XCTAssertEqual(round.routerPort, 8771)
     }
 
+    // MARK: - ducks
+
+    func testABridgeRecordIsReadAsADuckWithItsIdentity() {
+        let duck = DuckMachine.FoundDuck.read(txt: ["bridge": "microduck-bridge/1", "id": "d-1"],
+                                              name: "Microduck bridge on yoshi", host: "192.168.68.40",
+                                              port: 8766)
+        XCTAssertEqual(duck?.id, "d-1")
+        XCTAssertEqual(duck?.address, "192.168.68.40:8766")
+    }
+
+    func testSomethingElseAnsweringToRobotdIsNotTakenForADuck() {
+        XCTAssertNil(DuckMachine.FoundDuck.read(txt: [:], name: "x", host: "h", port: 1))
+    }
+
+    func testABridgeInstalledBeforeIdentitiesIsStillFoundButCarriesNone() {
+        XCTAssertNil(DuckMachine.FoundDuck.read(txt: ["bridge": "microduck-bridge/1"], name: "x",
+                                                host: "h", port: 8766)?.id)
+    }
+
+    func testTheTokenIsNeverImpliedToComeFromTheNetwork() {
+        let duck = DuckMachine.FoundDuck(id: nil, name: "y", host: "h", port: 8766)
+        XCTAssertTrue(DuckMachine.duckFilledIn(duck).contains("never travels in the network record"))
+    }
+
     // MARK: - the words
 
     func testTheLaunchLineSaysEachServiceItChecked() {

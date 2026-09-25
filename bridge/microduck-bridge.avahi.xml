@@ -6,5 +6,6 @@
     <type>_robotd._tcp</type>
     <port>@PORT@</port>
     <txt-record>bridge=microduck-bridge/1</txt-record>
+    <txt-record>id=@ID@</txt-record>
   </service>
 </service-group>

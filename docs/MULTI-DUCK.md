@@ -1,6 +1,6 @@
 # More than one Microduck: real-world A/B first, then team plans
 
-Status: design, not built · 2026-09-24 · Written for Craig, from the Pi session
+Status: stages 1-2 built (2026-09-24) · stages 3-5 design · Written for Craig, from the Pi session
 
 Somebody can own two or more Microducks. This page proposes what Duck Studio does with that, in
 order, and pre-registers the one measurement that decides whether the first part is worth keeping.
@@ -58,8 +58,11 @@ writes it. No record carries a robot serial or name: "duck 1" is a position, not
 - has one **Stop both** button, always visible and larger than the answers;
 - refuses to start unless both ducks report standing and a battery above the bench's floor;
 - asks the person to confirm the floor is clear the first time in a session;
-- caps a run at 8 s, the length of the recorded pairs, and caps the speed at a third of the limit
-  until the person raises it.
+- caps a run at 8 s, the length of the recorded pairs. **Not** a speed cap of a third of the
+  limit, as this page first said: `alpha_walking` has a low-command dead band (measured on the
+  two-duck bench 2026-09-24: 1.5 cm in 8 s at vx 0.20, about 0.11 m/s at 0.25), so a cautious cap
+  would make every pair two ducks standing still. The commands are p001's, above the band, and the
+  safety is Stop both, the standing check and the clear floor.
 
 ### 3. Rehearse in the shared sim first
 

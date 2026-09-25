@@ -879,7 +879,7 @@ extension MyMicroduckView {
             if machines.checking && machines.statuses.isEmpty {
                 Label(DuckMachine.checking, systemImage: "antenna.radiowaves.left.and.right")
                     .font(.footnote).foregroundStyle(Theme.textSecondary)
-            } else if machines.statuses.isEmpty && machines.offers.isEmpty {
+            } else if machines.statuses.isEmpty && machines.offers.isEmpty && machines.ducks.isEmpty {
                 Text(DuckMachine.noneSaved)
                     .font(.footnote).foregroundStyle(Theme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -897,6 +897,16 @@ extension MyMicroduckView {
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer()
                     Button(DuckMachine.addButton) { machines.add(machine, to: benches) }
+                        .buttonStyle(.borderless)
+                }
+            }
+            ForEach(machines.ducks, id: \.address) { duck in
+                HStack {
+                    Text(DuckMachine.duckOffer(duck))
+                        .font(.footnote).foregroundStyle(Theme.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer()
+                    Button(DuckMachine.useButton) { machines.use(duck) }
                         .buttonStyle(.borderless)
                 }
             }
