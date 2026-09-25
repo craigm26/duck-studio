@@ -94,6 +94,7 @@ FILES=(
   MachineStore.swift
   MachineDiscovery.swift
   MultiDuckView.swift
+  RemoteReachStore.swift
   TalkToTheDuckView.swift
   ControlShelfChips.swift
   # Build 58's weight search. Added with the files rather than after a review

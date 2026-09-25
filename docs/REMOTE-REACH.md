@@ -1,6 +1,6 @@
 # Reaching a duck from anywhere: sign in with Hugging Face, talk through Pollen's rendezvous
 
-Status: design, not built · 2026-09-24 · Written for Craig, from the Pi session
+Status: stage 1 built (sign in and list, 2026-09-24) · stages 2-5 design · Written for Craig, from the Pi session
 
 Today Duck Studio reaches a duck only on the same network, through the bridge. Pollen's
 [`microduck-console`](https://huggingface.co/spaces/pollen-robotics/microduck-console) already
@@ -105,7 +105,9 @@ host, as they did for the router.
 
 - **A physical Microduck that has run `account login`.** Craig. Stage 1 cannot be verified
   without one; everything before that is kit code with recorded transcripts.
-- **An OAuth app for Duck Studio's sign-in.** Craig, on huggingface.co (the redirect URI is the
-  app's). The client id is public; PKCE needs no secret.
-- **Whether Pollen is content for a third-party client on their rendezvous.** Worth one message
-  before shipping. The service is public and token-authenticated, but it serves their fleet too.
+- ~~An OAuth app for Duck Studio's sign-in.~~ **Done 2026-09-24**: client id
+  `fa895e94-2e3c-464c-9c98-73f250e16c98`, redirect `duckstudio://oauth/callback`, scopes
+  `openid profile` (checked against Hugging Face's authorise endpoint).
+- **Whether Pollen is content for a third-party client on their rendezvous.** Asked in
+  pollen-robotics/microduck#329. Listing (stage 1) is read-only and opens no session; stage 2
+  (sending calls) waits for the answer.

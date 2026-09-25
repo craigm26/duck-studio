@@ -178,6 +178,8 @@ struct DuckStudioApp: App {
     /// Which saved machines answered this launch, and which were found on the
     /// network. Checked once as the app opens; see `MachineStore`.
     @StateObject private var machines = MachineStore()
+    /// The Hugging Face sign-in that lists ducks from anywhere (REMOTE-REACH.md).
+    @StateObject private var remote = RemoteReachStore()
     /// The evaluation logs on this phone, the ones it wrote and the ones it was
     /// handed. Held here rather than inside Studio's own screens because a
     /// shelf built when a screen appears is a shelf that forgets what is on it
@@ -288,7 +290,7 @@ struct DuckStudioApp: App {
                 NavigationStack {
                     MyMicroduckView(model: model, scenes: scenes, drafts: drafts,
                                     models: models, benches: benches, detail: detail,
-                                    machines: machines)
+                                    machines: machines, remote: remote)
                 }
                     .tabItem { Label(AppTab.duck.title, systemImage: AppTab.duck.symbol) }
                     .tag(AppTab.duck)
@@ -377,6 +379,9 @@ struct DuckStudioApp: App {
             // and router are up, and the network is browsed for machines
             // nobody has saved. Nothing is added without a tap.
             .task { await machines.check(benches) }
+            // Listing opens no session on the rendezvous; it runs only when
+            // somebody has signed in.
+            .task { await remote.list() }
             .environmentObject(router)
             // LARGE TITLES ARE THE DEFAULT AND THE ROOT DOES NOT IMPOSE THEM.
             // A `NavigationStack` root already gets a large title, so every tab

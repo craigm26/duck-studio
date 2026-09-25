@@ -32,7 +32,8 @@ enum BridgeTokenStore {
 }
 
 /// One generic-password item, by service and account. The two stores above
-/// are the only callers, and the only two names.
+/// and `RemoteReachStore` (the identity-only Hugging Face sign-in) are the
+/// callers, each under its own service name.
 enum KeychainSecret {
     static func save(_ token: String, service: String, account: String) {
         let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
