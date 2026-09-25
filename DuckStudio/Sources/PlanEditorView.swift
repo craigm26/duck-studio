@@ -30,6 +30,9 @@ struct PlanEditorView: View {
     /// The selected bench, whose machine is where the router is looked for
     /// when no address has been typed. Nil from Studio.
     var bench: BenchEndpoint? = nil
+    /// The models chosen in Settings, for planning with a model rather than
+    /// the router. Nil where no store was handed down; then only the router.
+    var models: EndpointStore? = nil
 
     /// A typed address wins; otherwise the router on the bench's own machine.
     private var routerBase: URL? {
@@ -46,6 +49,12 @@ struct PlanEditorView: View {
     @State private var refusal: String?
     @State private var thinking = false
     @State private var kept: String?
+    /// Who plans: the bench's router, or the model chosen in Settings.
+    @State private var useModel = false
+    /// Who planned the plan on screen, for its provenance and its records.
+    @State private var plannedBy: DuckIntentPlan.RouterIdentity = .decide
+    @State private var checkProgress: String?
+    @State private var checkResult: String?
 
     var body: some View {
         List {
@@ -69,7 +78,8 @@ struct PlanEditorView: View {
                     }
                     .listRowBackground(Theme.surfacePrimary)
                 }
-                routerSection
+                sourceSection
+                if !useModel { routerSection }
             }
             .scrollContentBackground(.hidden)
             .background(Theme.backgroundSecondary)
@@ -124,10 +134,109 @@ struct PlanEditorView: View {
         .listRowBackground(Theme.surfacePrimary)
     }
 
+    // MARK: - who plans
+
+    private var sourceSection: some View {
+        Section {
+            if models != nil {
+                Picker(PlanEditorWords.sourceHeading, selection: $useModel) {
+                    Text(PlanEditorWords.sourceRouter).tag(false)
+                    Text(PlanEditorWords.sourceModel).tag(true)
+                }
+                .pickerStyle(.segmented)
+            }
+            if useModel, let models {
+                Text(PlanEditorWords.usingModel(models.selected.name))
+                    .font(.footnote).foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button {
+                    Task { await check() }
+                } label: {
+                    Label(checkProgress ?? PlanEditorWords.checkButton, systemImage: "checklist")
+                }
+                .disabled(thinking || checkProgress != nil)
+                .frame(minHeight: DesignMetric.minimumTarget)
+                if let checkResult {
+                    Text(checkResult).font(.footnote.monospacedDigit()).foregroundStyle(Theme.measured)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            } else {
+                Text(PlanEditorWords.routerSourceFooter)
+                    .font(.footnote).foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        } header: {
+            SectionHeading(text: PlanEditorWords.sourceHeading)
+        } footer: {
+            if useModel { Text(PlanEditorWords.checkFooter).foregroundStyle(Theme.textSecondary) }
+        }
+        .listRowBackground(Theme.surfacePrimary)
+    }
+
+    /// The chosen model as a planner. `DraftEngine.ask` is the one door every
+    /// model goes through, so Apple's, a downloaded one and a server all plan
+    /// with the same prompt and are read by the same reader.
+    private func modelPlanner(_ models: EndpointStore) -> ModelIntentPlanner {
+        let endpoint = models.armed(models.selected)
+        let name = endpoint.model.isEmpty ? endpoint.name : endpoint.model
+        return ModelIntentPlanner(
+            identity: .init(model: name, revision: ModelIntentPlanner.promptSource),
+            ask: { instructions, prompt in
+                try await DraftEngine.ask(endpoint, kind: .motion, prompt: prompt, knownIntents: [],
+                                          instructions: instructions).json
+            })
+    }
+
+    /// p002 on this phone, one request at a time — a phone holds one model and
+    /// one answer at a time, and the time per answer is part of the result.
+    @MainActor private func check() async {
+        guard let models, checkProgress == nil else { return }
+        let planner = modelPlanner(models)
+        let requests = PlannerCheck.requests
+        var rows: [PlannerCheck.Row] = []
+        checkResult = nil
+        defer { checkProgress = nil }
+        for request in requests {
+            checkProgress = PlanEditorWords.checking(rows.count, of: requests.count)
+            let started = Date()
+            do {
+                let plan = try await planner.plan(for: request.text)
+                rows.append(PlannerCheck.score(request, plan: plan,
+                                               seconds: Date().timeIntervalSince(started)))
+            } catch let error as ModelIntentPlanner.ReadError {
+                rows.append(PlannerCheck.score(request, plan: nil, unreadable: error.message,
+                                               seconds: Date().timeIntervalSince(started)))
+            } catch {
+                // THE MODEL COULD NOT BE ASKED AT ALL — not loaded, too big, no
+                // Apple Intelligence. That is not a score, so say why and stop.
+                refusal = error.localizedDescription
+                return
+            }
+        }
+        checkResult = PlanEditorWords.checked(planner.identity.model,
+                                              PlannerCheck.summarise(rows).line)
+    }
+
     @MainActor private func propose() async {
         let asked = typed.trimmingCharacters(in: .whitespaces)
         guard !asked.isEmpty, !thinking else { return }
         refusal = nil; kept = nil
+        if useModel, let models {
+            thinking = true
+            defer { thinking = false }
+            let planner = modelPlanner(models)
+            let started = Date()
+            do {
+                plan = try await planner.plan(for: asked)
+                plannedBy = planner.identity
+                took = Date().timeIntervalSince(started)
+            } catch let error as ModelIntentPlanner.ReadError {
+                refusal = error.message
+            } catch {
+                refusal = error.localizedDescription
+            }
+            return
+        }
         let typed = feedback.routerAddress.trimmingCharacters(in: .whitespaces)
         if !typed.isEmpty, feedback.routerURL == nil {
             refusal = PlanEditorWords.notAnAddress(feedback.routerAddress)
@@ -149,6 +258,7 @@ struct PlanEditorView: View {
         let started = Date()
         do {
             plan = try await router.plan(for: asked)
+            plannedBy = router.identity
             took = Date().timeIntervalSince(started)
         } catch let error as DuckIntentPlan.ReadError {
             refusal = error.message
@@ -227,7 +337,7 @@ struct PlanEditorView: View {
         do {
             let sequence = try SequenceProposal(name: plan.request, moves: run.moves)
                 .resolve(named: plan.request,
-                         provenance: .drafted(model: DuckIntentPlan.RouterIdentity.decide.model,
+                         provenance: .drafted(model: plannedBy.model,
                                               asked: plan.request),
                          venue: venue, at: Date())
             if let desk {
@@ -239,7 +349,7 @@ struct PlanEditorView: View {
             } else {
                 ownShelf.save(sequence)
             }
-            feedback.append((try? plan.corrections(router: .decide, share: feedback.share,
+            feedback.append((try? plan.corrections(router: plannedBy, share: feedback.share,
                                                    client: FeedbackStore.client)) ?? [])
             if play { dismiss() } else { kept = PlanEditorWords.kept(sequence.name) }
         } catch let error as SequenceProposal.Unresolvable {

@@ -90,4 +90,24 @@ public enum PlanEditorWords {
     }
     public static let recorded =
         "What you kept, changed and discarded was written to this phone's feedback log."
+
+    // MARK: - planning with a model (ModelIntentPlanner)
+
+    public static let sourceHeading = "Who plans it"
+    public static let sourceRouter = "The router"
+    public static let sourceModel = "A model"
+    public static func usingModel(_ name: String) -> String {
+        "\(name) writes the whole plan — repeats and durations included — from duckbatch's p002 "
+      + "prompt. Choose which model in Settings. Apple's and a downloaded model run on this "
+      + "phone; a server address runs wherever it points."
+    }
+    public static let routerSourceFooter =
+        "The router labels one clause at a time and shows how sure it is of each label. It "
+      + "cannot count (\"three times\") or hold a step for a stated time."
+    public static let checkButton = "Check this model on p002's 30 requests"
+    public static func checking(_ done: Int, of total: Int) -> String { "Checking… \(done) of \(total)" }
+    public static func checked(_ model: String, _ line: String) -> String { "\(model): \(line)." }
+    public static let checkFooter =
+        "The same thirty requests and the same scoring as duckbatch's p002, put to this phone's "
+      + "choice of model. " + PlannerCheck.laptopReference
 }

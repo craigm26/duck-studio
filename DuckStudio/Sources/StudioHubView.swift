@@ -98,7 +98,7 @@ struct StudioHubView: View {
                 // edited here and kept as a sequence. It runs from Control, where
                 // the drive desk is; here it can only be kept.
                 NavigationLink {
-                    PlanEditorView(desk: nil, venue: .sim, engage: {})
+                    PlanEditorView(desk: nil, venue: .sim, engage: {}, models: models)
                 } label: {
                     Label(PlanEditorWords.studioRow, systemImage: PlanEditorWords.studioRowSymbol)
                 }

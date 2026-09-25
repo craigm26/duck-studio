@@ -1,0 +1,120 @@
+[
+ {
+  "reply": "{\"steps\": [{\"skill\": \"walk_forward\", \"speed\": \"slow\", \"head\": \"look_left\", \"sound\": \"none\", \"seconds\": 3, \"repeat\": 1}]}",
+  "steps": [
+   {
+    "skill": "walk_forward",
+    "speed": "slow",
+    "head": "look_left",
+    "sound": "none",
+    "seconds": 3.0,
+    "repeat": 1
+   }
+  ]
+ },
+ {
+  "reply": "Here is the plan:\n```json\n{\"steps\": [{\"skill\": \"peck_ground\", \"repeat\": 2}]}\n```",
+  "steps": [
+   {
+    "skill": "peck_ground",
+    "speed": "normal",
+    "head": "straight",
+    "sound": "none",
+    "seconds": 2.0,
+    "repeat": 2
+   }
+  ]
+ },
+ {
+  "reply": "{\"steps\": [{\"skill\": \"make_sound\", \"sound\": \"chirp\", \"seconds\": 0.1, \"repeat\": 9}]}",
+  "steps": [
+   {
+    "skill": "make_sound",
+    "speed": "normal",
+    "head": "straight",
+    "sound": "chirp",
+    "seconds": 0.5,
+    "repeat": 5
+   }
+  ]
+ },
+ {
+  "reply": "{\"steps\": [{\"skill\": \"walk_forward\", \"seconds\": 60}, {\"skill\": \"unsupported\"}]}",
+  "steps": [
+   {
+    "skill": "walk_forward",
+    "speed": "normal",
+    "head": "straight",
+    "sound": "none",
+    "seconds": 10.0,
+    "repeat": 1
+   },
+   {
+    "skill": "unsupported",
+    "speed": "normal",
+    "head": "straight",
+    "sound": "none",
+    "seconds": 2.0,
+    "repeat": 1
+   }
+  ]
+ },
+ {
+  "reply": "{\"steps\": [{\"skill\": \"fly\"}]}",
+  "refused": "skill 'fly' is not in the vocabulary"
+ },
+ {
+  "reply": "{\"steps\": [{\"skill\": \"walk_forward\", \"speed\": \"very fast\"}]}",
+  "refused": "speed 'very fast' is not in the vocabulary"
+ },
+ {
+  "reply": "{\"steps\": []}",
+  "refused": "no steps"
+ },
+ {
+  "reply": "I cannot help with that.",
+  "refused": "no JSON object in the reply"
+ },
+ {
+  "reply": "{\"steps\": [{\"skill\": \"turn_left\", \"seconds\": \"two\"}]}",
+  "refused": "seconds is not a number, or repeat is not a whole number"
+ },
+ {
+  "reply": "{\"steps\": [{\"skill\": \"turn_left\", \"repeat\": 2.5}]}",
+  "refused": "seconds is not a number, or repeat is not a whole number"
+ },
+ {
+  "reply": "<think>maybe {\"steps\": [{\"skill\": \"roll\"}]}</think>{\"steps\": [{\"skill\": \"stop\", \"seconds\": 1}]}",
+  "steps": [
+   {
+    "skill": "stop",
+    "speed": "normal",
+    "head": "straight",
+    "sound": "none",
+    "seconds": 1.0,
+    "repeat": 1
+   }
+  ]
+ },
+ {
+  "reply": "{\"steps\": [{\"skill\": \"walk_backward\", \"speed\": \"fast\"}, {\"skill\": \"make_sound\"}]}",
+  "steps": [
+   {
+    "skill": "walk_backward",
+    "speed": "fast",
+    "head": "straight",
+    "sound": "none",
+    "seconds": 2.0,
+    "repeat": 1
+   },
+   {
+    "skill": "make_sound",
+    "speed": "normal",
+    "head": "straight",
+    "sound": "none",
+    "seconds": 2.0,
+    "repeat": 1
+   }
+  ]
+ }
+]

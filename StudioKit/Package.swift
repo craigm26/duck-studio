@@ -54,7 +54,7 @@ let package = Package(
             // against the list the dataset publishes. `.copy` rather than
             // `.process`: processing is free to rewrite what it recognises,
             // and a rewritten intent file is a different intent.
-            resources: [.copy("Resources/StairsChallenge")]
+            resources: [.copy("Resources/StairsChallenge"), .copy("Resources/Planner")]
         ),
         .testTarget(
             name: "StudioKitTests",

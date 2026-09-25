@@ -111,9 +111,16 @@ public struct DuckIntentPlan: Equatable, Sendable {
         /// Movement steps only: how long it is held.
         public var seconds: Double
         public var discarded: Bool
+        /// Whether `confidence` means anything. A router scores every label; a
+        /// language model writing a whole plan (`ModelIntentPlanner`) scores
+        /// none, and an absent score read as 0 would flag every head of every
+        /// step — a screen that asks about everything asks about nothing. So a
+        /// planner's node says it was not measured, and is not flagged; the
+        /// person still sees the whole chain before anything moves.
+        public let measured: Bool
 
         public init(id: Int, clause: String, proposed: [String: String],
-                    confidence: [String: Double]) {
+                    confidence: [String: Double], measured: Bool = true) {
             self.id = id
             self.clause = clause
             self.proposed = proposed
@@ -121,6 +128,7 @@ public struct DuckIntentPlan: Equatable, Sendable {
             self.labels = proposed
             self.seconds = DuckIntentPlan.defaultSeconds
             self.discarded = false
+            self.measured = measured
         }
 
         public var action: String { labels["action"] ?? "unsupported" }
@@ -141,7 +149,8 @@ public struct DuckIntentPlan: Equatable, Sendable {
         /// Heads whose PROPOSED label was under the line, and still is as
         /// proposed. Once a person has chosen, it is theirs and not flagged.
         public var flagged: [Head] {
-            heads.filter { head in
+            guard measured else { return [] }
+            return heads.filter { head in
                 let key = head.rawValue
                 guard labels[key] == proposed[key] else { return false }
                 return (confidence[key] ?? 0) < DuckIntentPlan.autoAccept
