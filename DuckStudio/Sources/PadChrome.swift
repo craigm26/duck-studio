@@ -107,7 +107,8 @@ struct PadChrome: View {
                                   models: modelList)
             case .plan:
                 NavigationStack {
-                    PlanEditorView(desk: desk, venue: venue, engage: engage, bench: bench)
+                    PlanEditorView(desk: desk, venue: venue, engage: engage, bench: bench,
+                                   models: modelList)
                 }
             case .sequences:
                 NavigationStack {
