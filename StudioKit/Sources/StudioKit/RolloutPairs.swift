@@ -43,6 +43,11 @@ public struct RolloutPairs: Sendable {
     public let commandNames: [String]
     /// Per command, the policy pairs closest first.
     public let closeFirst: [String: [(a: String, b: String)]]
+    /// Per command, the envs worth showing. The exporter drops a slot where no
+    /// policy stepped under a moving command — the command never reached that
+    /// env, and two motionless ducks under "walk forward" ask a person nothing.
+    /// A file without the field is read as every env usable.
+    public let usableEnvs: [String: [Int]]
     private let clips: [String: [[[Double]]]]
 
     // MARK: - reading
@@ -113,12 +118,17 @@ public struct RolloutPairs: Sendable {
                 throw ReadError.missing("the clip of \(name) under \(command)")
             }
         }
+        var usableEnvs: [String: [Int]] = [:]
+        let rawUsable = top["usable_envs"] as? [String: [Int]]
+        for command in commands.keys {
+            usableEnvs[command] = (rawUsable?[command] ?? Array(0..<envs)).filter { (0..<envs).contains($0) }
+        }
         return RolloutPairs(
             batch: source["batch"] as? String ?? "p001",
             seed: source["seed"] as? Int ?? 0,
             hz: hz, seconds: top["seconds"] as? Double ?? 0, envs: envs,
             policies: policies, commands: commands, commandNames: commands.keys.sorted(),
-            closeFirst: closeFirst, clips: rawClips)
+            closeFirst: closeFirst, usableEnvs: usableEnvs, clips: rawClips)
     }
 
     // MARK: - drawing
@@ -217,7 +227,7 @@ public struct PreferenceDeck: Sendable {
 
     /// The (command, env, pair) at a position in the deck, before the side is drawn.
     public func slot(_ n: Int) -> (command: String, env: Int, a: String, b: String)? {
-        let commands = pairs.commandNames
+        let commands = pairs.commandNames.filter { !(pairs.usableEnvs[$0] ?? []).isEmpty }
         guard !commands.isEmpty else { return nil }
         let perRank = commands.count
         let rank = n / perRank
@@ -226,7 +236,8 @@ public struct PreferenceDeck: Sendable {
         let pair = order[rank % order.count]
         // ENVS ROTATE WITH EACH PASS OVER THE PAIRS, so the second time a pair
         // comes round it is in a different world rather than the same clip.
-        let env = (rank / order.count + n) % pairs.envs
+        let usable = pairs.usableEnvs[command] ?? []
+        let env = usable[(rank / order.count + n) % usable.count]
         return (command, env, pair.a, pair.b)
     }
 
