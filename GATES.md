@@ -18,7 +18,8 @@ one, it is that **every one of them goes to an address the person typed or a
 service they signed into, and none of them is ours**:
 
 - a language model endpoint, at a URL the person entered (Apple's on-device
-  model makes no request at all),
+  model makes no request at all), and likewise the plan editor's
+  plain-language router, at an address the person typed,
 - **the weights of a model being downloaded onto the phone**, from
   huggingface.co, unauthenticated like the other hub reads. This is the sixth,
   added when a model could first be run inside this app. Note what it costs the
@@ -33,9 +34,21 @@ service they signed into, and none of them is ours**:
   repository fails there with a plain 401 (checked 2026-08-30: an unauthenticated
   GET of a repository this account cannot see answers 401, not 404 — the hub does
   not leak existence). The person's own **write token** is
-  attached on exactly one path, publishing, by
-  `HuggingFacePublish.urlRequest(for:token:)`. This line used to say the token
-  went out on search as well; it does not,
+  attached on two paths, both through `HuggingFacePublish.urlRequest(for:token:)`:
+  publishing a motion to their own account, and — added 2026-09-24 —
+  **contributing feedback**: a pull request, opened from their account, on the
+  public community dataset `craigm26/microduck-feedback`. That second path is
+  the nearest this app comes to the project receiving anything, so its limits
+  are stated here: only records the person marked "Share with the community"
+  go, each once, only when they press Contribute; the form names the Hugging
+  Face account first; the records carry no name, account or device
+  identifier; and nothing reaches the dataset until a maintainer merges the
+  pull request. It goes to a service the person signed into, with their own
+  credential, and is optional, infrequent and not what the app is for, which
+  is why the label stays **Data Not Collected** under Apple's optional-
+  disclosure terms. If that reading is ever wrong, the label changes before
+  the feature ships again, not after. This line used to say the token went
+  out on search as well; it does not,
 - GitHub, unauthenticated, when the scan button is pressed: `api.github.com` for
   the catalogue listing and `raw.githubusercontent.com` for a file it offers.
   This line was missing while the paragraph above claimed to enumerate

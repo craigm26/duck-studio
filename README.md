@@ -528,6 +528,15 @@ started, to a host you chose:
 - The weights of a model you asked to download, from huggingface.co,
   unauthenticated. Up to three gigabytes, and the screen says the size first.
 - A run on a bench at a private address on your own network.
+- A plan request to the plain-language router, at an address you typed (it runs
+  on a computer you own — duckbatch's `scripts/route_server.py`).
+- Contributing feedback, only when you press Contribute: a pull request from
+  your own Hugging Face account on the public dataset
+  `craigm26/microduck-feedback`, holding only the records you marked "Share
+  with the community", each once. The form names your account first; the
+  records carry no name, account or device identifier. Corrections and
+  preferences otherwise stay on the phone, and the default is to keep them
+  there.
 
 `GATES.md`'s hard rule — no in-app analytics, Data Not Collected — still holds
 exactly. The sentence that used to sit beside it, "exactly one outbound request in

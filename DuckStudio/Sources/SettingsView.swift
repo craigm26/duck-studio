@@ -176,6 +176,27 @@ struct SettingsView: View {
                     .font(.caption.monospacedDigit()).foregroundStyle(Theme.textSecondary)
                 Button(FeedbackLog.exportButton) { exporting = feedback.exportFile() }
                     .disabled(feedback.counts.exportable == 0)
+                // THE COMMUNITY DATASET. Said in full before the button, because
+                // the pull request carries the person's username.
+                Text(CommunityFeedback.explain(pending: feedback.pendingContribution))
+                    .font(.caption).foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(feedback.account.map(CommunityFeedback.contributingAs)
+                     ?? CommunityFeedback.accountUnknown)
+                    .font(.caption.weight(.semibold)).foregroundStyle(Theme.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .task { await feedback.learnAccount(token: TokenStore.load()) }
+                Button(CommunityFeedback.button) {
+                    Task { await feedback.contribute(token: TokenStore.load()) }
+                }
+                .disabled(feedback.pendingContribution == 0 || feedback.contributing
+                          || feedback.account == nil)
+                if let line = feedback.contributionLine {
+                    Text(line)
+                        .font(.caption).foregroundStyle(Theme.measured)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             } footer: {
                 Text(FeedbackLog.settingFooter)
                     .foregroundStyle(Theme.textSecondary)
