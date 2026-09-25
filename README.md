@@ -528,6 +528,9 @@ started, to a host you chose:
 - The weights of a model you asked to download, from huggingface.co,
   unauthenticated. Up to three gigabytes, and the screen says the size first.
 - A run on a bench at a private address on your own network.
+- As the app opens: a few seconds of mDNS browsing on your network for computers
+  running the bench or plan router, and a health check of each machine you have
+  saved. A found machine is only offered; nothing is added until you tap Add.
 - A plan request to the plain-language router, at an address you typed (it runs
   on a computer you own — duckbatch's `scripts/route_server.py`).
 - Contributing feedback, only when you press Contribute: a pull request from

@@ -109,10 +109,13 @@ struct MyMicroduckView: View {
     /// How much of the app to show. Read here so Settings can offer it and the
     /// screens under it can ask.
     @ObservedObject var detail: DetailStore
+    /// What the launch check found. See `MachineStore`.
+    @ObservedObject var machines: MachineStore
 
     var body: some View {
         List {
             bannerSection
+            machinesSection
             deviceSection
             quickActionSection
             cameraSection
@@ -859,5 +862,54 @@ private struct AnyButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         make(configuration)
+    }
+}
+
+
+// MARK: - your machines
+
+extension MyMicroduckView {
+    /// What answered when the app opened, and what was found and not saved.
+    ///
+    /// MEASURED THIS LAUNCH, NOT REMEMBERED. Each line is what a probe saw a
+    /// moment ago; while the check runs it says so rather than showing
+    /// yesterday's answer.
+    @ViewBuilder var machinesSection: some View {
+        Section {
+            if machines.checking && machines.statuses.isEmpty {
+                Label(DuckMachine.checking, systemImage: "antenna.radiowaves.left.and.right")
+                    .font(.footnote).foregroundStyle(Theme.textSecondary)
+            } else if machines.statuses.isEmpty && machines.offers.isEmpty {
+                Text(DuckMachine.noneSaved)
+                    .font(.footnote).foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(machines.statuses, id: \.name) { status in
+                Label(DuckMachine.line(status),
+                      systemImage: status.bench == .answering ? "checkmark.circle" : "exclamationmark.circle")
+                    .font(.footnote.monospacedDigit())
+                    .foregroundStyle(status.bench == .answering ? Theme.textPrimary : Theme.warning)
+            }
+            ForEach(machines.offers, id: \.advert.id) { machine in
+                HStack {
+                    Text(DuckMachine.offer(machine))
+                        .font(.footnote).foregroundStyle(Theme.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer()
+                    Button(DuckMachine.addButton) { machines.add(machine, to: benches) }
+                        .buttonStyle(.borderless)
+                }
+            }
+            ForEach(machines.notes, id: \.self) { note in
+                Text(note).font(.caption).foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        } header: {
+            SectionHeading(text: DuckMachine.heading)
+        } footer: {
+            Text(DuckMachine.discoveryFooter).foregroundStyle(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .listRowBackground(Theme.surfacePrimary)
     }
 }

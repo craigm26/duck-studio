@@ -175,6 +175,9 @@ struct DuckStudioApp: App {
     /// reason `models` is: three screens send work to a bench, and a bench
     /// chosen on one of them is the bench the others should use.
     @StateObject private var benches = BenchStore()
+    /// Which saved machines answered this launch, and which were found on the
+    /// network. Checked once as the app opens; see `MachineStore`.
+    @StateObject private var machines = MachineStore()
     /// The evaluation logs on this phone, the ones it wrote and the ones it was
     /// handed. Held here rather than inside Studio's own screens because a
     /// shelf built when a screen appears is a shelf that forgets what is on it
@@ -284,7 +287,8 @@ struct DuckStudioApp: App {
                 // all — whether anything is wrong.
                 NavigationStack {
                     MyMicroduckView(model: model, scenes: scenes, drafts: drafts,
-                                    models: models, benches: benches, detail: detail)
+                                    models: models, benches: benches, detail: detail,
+                                    machines: machines)
                 }
                     .tabItem { Label(AppTab.duck.title, systemImage: AppTab.duck.symbol) }
                     .tag(AppTab.duck)
@@ -369,6 +373,10 @@ struct DuckStudioApp: App {
             // with a sentence of its own rather than something to hide behind a
             // spinner.
             .task { phoneBench.start(benches: benches) }
+            // CONNECT ON LAUNCH: every saved machine is asked whether its bench
+            // and router are up, and the network is browsed for machines
+            // nobody has saved. Nothing is added without a tap.
+            .task { await machines.check(benches) }
             .environmentObject(router)
             // LARGE TITLES ARE THE DEFAULT AND THE ROOT DOES NOT IMPOSE THEM.
             // A `NavigationStack` root already gets a large title, so every tab
