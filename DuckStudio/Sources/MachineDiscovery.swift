@@ -24,11 +24,19 @@ final class MachineDiscovery: @unchecked Sendable {
     private let queue = DispatchQueue(label: "duckstudio.machine-discovery")
     private var browser: NWBrowser?
     private var pending: [NWEndpoint: NWConnection] = [:]
-    private var found: [String: DuckMachine.Found] = [:]
+    /// One record as the browse saw it.
+    struct Record: Sendable {
+        let txt: [String: String]
+        let name: String
+        let host: String
+        let port: Int
+    }
+
+    private var found: [String: Record] = [:]
     private var finished = false
 
     /// Browse briefly. Short, because it runs as the app opens.
-    func discover(timeout: TimeInterval = 3.0) async -> (found: [DuckMachine.Found], ending: Ending) {
+    func discover(type: String, timeout: TimeInterval = 3.0) async -> (found: [Record], ending: Ending) {
         await withCheckedContinuation { continuation in
             queue.async {
                 self.found = [:]
@@ -43,18 +51,19 @@ final class MachineDiscovery: @unchecked Sendable {
                     self.pending = [:]
                     continuation.resume(returning: (results, ending))
                 }
-                let browser = NWBrowser(for: .bonjourWithTXTRecord(type: DuckMachine.serviceType,
-                                                                    domain: nil),
+                let browser = NWBrowser(for: .bonjourWithTXTRecord(type: type, domain: nil),
                                         using: NWParameters())
                 self.browser = browser
                 browser.browseResultsChangedHandler = { [weak self] results, _ in
                     guard let self else { return }
                     for result in results {
-                        guard case .bonjour(let record) = result.metadata,
-                              let advert = DuckMachine.Advert.read(txt: record.dictionary) else { continue }
-                        self.resolveHost(for: result.endpoint) { host in
-                            guard let host else { return }
-                            self.found[advert.id] = DuckMachine.Found(advert: advert, host: host)
+                        guard case .bonjour(let record) = result.metadata else { continue }
+                        var name = ""
+                        if case .service(let service, _, _, _) = result.endpoint { name = service }
+                        let txt = record.dictionary
+                        self.resolveHost(for: result.endpoint) { host, port in
+                            guard let host, let port else { return }
+                            self.found["\(name)|\(host)"] = Record(txt: txt, name: name, host: host, port: port)
                         }
                     }
                 }
@@ -72,7 +81,7 @@ final class MachineDiscovery: @unchecked Sendable {
     }
 
     /// Resolve a Bonjour endpoint to an IPv4 literal. Runs on `queue`.
-    private func resolveHost(for endpoint: NWEndpoint, completion: @escaping (String?) -> Void) {
+    private func resolveHost(for endpoint: NWEndpoint, completion: @escaping (String?, Int?) -> Void) {
         guard pending[endpoint] == nil else { return }
         let connection = NWConnection(to: endpoint, using: .tcp)
         pending[endpoint] = connection
@@ -81,7 +90,9 @@ final class MachineDiscovery: @unchecked Sendable {
             switch state {
             case .ready:
                 var host: String?
-                if case .hostPort(let h, _)? = connection.currentPath?.remoteEndpoint {
+                var port: Int?
+                if case .hostPort(let h, let p)? = connection.currentPath?.remoteEndpoint {
+                    port = Int(p.rawValue)
                     switch h {
                     case .ipv4(let address): host = "\(address)".components(separatedBy: "%").first
                     // IPv4 ONLY. The advertiser publishes v4, and a v6 literal
@@ -92,11 +103,11 @@ final class MachineDiscovery: @unchecked Sendable {
                     @unknown default: host = nil
                     }
                 }
-                completion(host)
+                completion(host, port)
                 connection.cancel()
                 self.pending[endpoint] = nil
             case .failed, .cancelled:
-                completion(nil)
+                completion(nil, nil)
                 self.pending[endpoint] = nil
             default:
                 break

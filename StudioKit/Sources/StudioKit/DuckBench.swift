@@ -1151,6 +1151,12 @@ public enum DuckBench {
         /// bench's is the one that decides what happens.
         public var graspables: [Graspable] = []
 
+        /// The ducks in this bench's world, by the names every call accepts as
+        /// `duck`. One on an ordinary bench; `scene_multiduck.mjb` has two
+        /// (huey and dewey) in one world, one clock. Empty from an older bench
+        /// that does not list them, which is the same as one unnamed duck.
+        public var ducks: [String] = []
+
         /// WHERE THE PHYSICS ACTUALLY RAN, when the bench is new enough to say.
         ///
         /// `duck-bench/5` added this and nothing older has it, so it is
@@ -1249,7 +1255,7 @@ public enum DuckBench {
         }
         if let error = root["error"] as? String { throw ReadError.bench(error) }
         guard let bench = root["bench"] as? String else { throw ReadError.notJSON }
-        return Health(bench: bench,
+        var health = Health(bench: bench,
                       plant: root["plant"] as? String ?? "unstated",
                       plantName: root["plantName"] as? String,
                       plantDigest: root["plantDigest"] as? String,
@@ -1264,6 +1270,8 @@ public enum DuckBench {
                           return Health.Graspable(name: name, kilograms: mass)
                       },
                       host: readHost(root["host"]))
+        health.ducks = (root["ducks"] as? [[String: Any]] ?? []).compactMap { $0["name"] as? String }
+        return health
     }
 
     /// The `host` block, or nil when the bench did not send one.

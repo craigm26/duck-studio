@@ -234,6 +234,14 @@ struct StudioHubView: View {
                     Label(RolloutPreferenceWords.studioRow,
                           systemImage: RolloutPreferenceWords.studioRowSymbol)
                 }
+                // THE SAME QUESTION ON TWO DUCKS AT ONCE, crossed so the duck
+                // cannot be what is preferred. A two-duck bench today; two
+                // robots when there are two robots (docs/MULTI-DUCK.md).
+                NavigationLink {
+                    MultiDuckView(model: model, benches: benches)
+                } label: {
+                    Label(MultiDuck.studioRow, systemImage: MultiDuck.studioRowSymbol)
+                }
             } header: {
                 SectionHeading(text: "Measure")
             }

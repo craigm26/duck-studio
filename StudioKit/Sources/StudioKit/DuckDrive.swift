@@ -311,15 +311,18 @@ public enum DuckDrive {
     /// Refusing here rather than at each caller's door is what makes the whole
     /// package safe instead of one path through it.
     public static func intent(_ address: DuckBench.Address, _ twist: Twist,
-                              hold: Double = holdSeconds) throws -> DuckBench.Call {
+                              hold: Double = holdSeconds, duck: String? = nil) throws -> DuckBench.Call {
         // NaN ONLY, NOT `!isFinite`. An infinity clamps correctly —
         // `min(max(.infinity, 0.02), 2)` is 2 — and the bench is happy to be
         // told a thousand and bound it. Refusing everything out of range would
         // refuse what the bench itself accepts; refusing a NaN refuses the one
         // value the clamp lets through.
         guard !hold.isNaN else { throw Refusal.holdIsNotASecond(hold) }
-        let body: [String: Any] = ["vx": twist.vx, "vy": twist.vy, "vyaw": twist.vyaw,
+        var body: [String: Any] = ["vx": twist.vx, "vy": twist.vy, "vyaw": twist.vyaw,
                                    "hold": min(max(hold, 0.02), 2)]
+        // A NAMED DUCK, ON A BENCH WITH MORE THAN ONE. Absent means the first
+        // duck, which is what every single-duck caller has always meant.
+        if let duck { body["duck"] = duck }
         return DuckBench.Call(method: "POST",
                               url: URL(string: "\(address.base)/intent")!,
                               body: try JSONSerialization.data(withJSONObject: body))
@@ -333,8 +336,9 @@ public enum DuckDrive {
     /// falling over, that is a fact about the policy and this is how you find
     /// it out.
     public static func stop(_ address: DuckBench.Address,
-                            settle: Double = 0.5) throws -> DuckBench.Call {
-        let body: [String: Any] = ["settle": min(max(settle, 0.02), 5)]
+                            settle: Double = 0.5, duck: String? = nil) throws -> DuckBench.Call {
+        var body: [String: Any] = ["settle": min(max(settle, 0.02), 5)]
+        if let duck { body["duck"] = duck }
         return DuckBench.Call(method: "POST",
                               url: URL(string: "\(address.base)/stop")!,
                               body: try JSONSerialization.data(withJSONObject: body))
@@ -342,18 +346,21 @@ public enum DuckDrive {
 
     /// Swap which network is driving, without restarting the world.
     public static func load(_ address: DuckBench.Address,
-                            policy: String) throws -> DuckBench.Call {
-        let body: [String: Any] = ["policy": policy]
+                            policy: String, duck: String? = nil) throws -> DuckBench.Call {
+        var body: [String: Any] = ["policy": policy]
+        if let duck { body["duck"] = duck }
         return DuckBench.Call(method: "POST",
                               url: URL(string: "\(address.base)/policy")!,
                               body: try JSONSerialization.data(withJSONObject: body))
     }
 
     /// Put the duck back where it started.
-    public static func reset(_ address: DuckBench.Address) throws -> DuckBench.Call {
-        DuckBench.Call(method: "POST",
-                       url: URL(string: "\(address.base)/reset")!,
-                       body: try JSONSerialization.data(withJSONObject: [String: Any]()))
+    public static func reset(_ address: DuckBench.Address, duck: String? = nil) throws -> DuckBench.Call {
+        var body: [String: Any] = [:]
+        if let duck { body["duck"] = duck }
+        return DuckBench.Call(method: "POST",
+                              url: URL(string: "\(address.base)/reset")!,
+                              body: try JSONSerialization.data(withJSONObject: body))
     }
 
     // MARK: - what comes back

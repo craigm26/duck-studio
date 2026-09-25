@@ -19,10 +19,13 @@ final class MachineStore: ObservableObject {
 
     @Published private(set) var statuses: [DuckMachine.Status] = []
     @Published private(set) var offers: [DuckMachine.Found] = []
+    /// Microduck bridges seen on the network.
+    @Published private(set) var ducks: [DuckMachine.FoundDuck] = []
     @Published private(set) var notes: [String] = []
     @Published private(set) var checking = false
 
     private let discovery = MachineDiscovery()
+    private let duckDiscovery = MachineDiscovery()
     private static let timeout: TimeInterval = 3
 
     /// Run once as the app opens, and again whenever somebody asks.
@@ -33,7 +36,9 @@ final class MachineStore: ObservableObject {
         notes = []
         let saved = benches.benches.filter { !$0.isThisPhone }.map { benches.armed($0) }
 
-        async let browse = discovery.discover(timeout: Self.timeout)
+        async let browse = discovery.discover(type: DuckMachine.serviceType, timeout: Self.timeout)
+        async let duckBrowse = duckDiscovery.discover(type: DuckMachine.duckServiceType,
+                                                      timeout: Self.timeout)
         var answered = Set<UUID>()
         var fresh: [DuckMachine.Status] = []
         await withTaskGroup(of: (BenchEndpoint, Bool, Bool).self) { group in
@@ -51,8 +56,14 @@ final class MachineStore: ObservableObject {
                                                 router: routerUp ? .answering : .silent))
             }
         }
-        let (found, ending) = await browse
+        let (records, ending) = await browse
         if ending == .permissionLikelyOff { notes.append(DuckMachine.permissionOff) }
+        let found = records.compactMap { record in
+            DuckMachine.Advert.read(txt: record.txt).map { DuckMachine.Found(advert: $0, host: record.host) }
+        }
+        ducks = await duckBrowse.found.compactMap {
+            DuckMachine.FoundDuck.read(txt: $0.txt, name: $0.name, host: $0.host, port: $0.port)
+        }
 
         var newOffers: [DuckMachine.Found] = []
         for action in DuckMachine.reconcile(saved: saved, answered: answered, found: found) {
@@ -81,6 +92,13 @@ final class MachineStore: ObservableObject {
         offers.removeAll { $0.advert.id == machine.advert.id }
         statuses.append(DuckMachine.Status(name: bench.name, bench: .answering,
                                            router: machine.advert.routerPort == nil ? .notRun : .answering))
+    }
+
+    /// Point Robot > Bridge at a found duck. The token stays the person's to enter.
+    func use(_ duck: DuckMachine.FoundDuck) {
+        UserDefaults.standard.set(duck.host, forKey: "bridge.host")
+        UserDefaults.standard.set(duck.port, forKey: "bridge.port")
+        notes.append(DuckMachine.duckFilledIn(duck))
     }
 
     // MARK: - the probes

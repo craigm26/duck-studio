@@ -33,6 +33,15 @@ if [ ! -f "$TOKEN_FILE" ]; then
 fi
 chmod 600 "$TOKEN_FILE"
 
+# A STABLE IDENTITY FOR THE ADVERT, so Duck Studio can tell this robot from
+# another one and follow it to a new address (identity before address, the
+# OpenCastor rule). Random, minted once, and says nothing about the owner.
+ID_FILE="$(dirname "$TOKEN_FILE")/id"
+if [ ! -f "$ID_FILE" ]; then
+  python3 -c "import uuid;print(uuid.uuid4())" > "$ID_FILE"
+fi
+BRIDGE_ID="$(cat "$ID_FILE")"
+
 if command -v systemctl >/dev/null 2>&1; then
   mkdir -p "$HOME/.config/systemd/user"
   sed -e "s|@BIN@|$PREFIX/bin/microduck-bridge|" \
@@ -49,7 +58,8 @@ else
 fi
 
 if [ -d /etc/avahi/services ] && [ -w /etc/avahi/services ]; then
-  sed "s|@PORT@|$PORT|" "$HERE/microduck-bridge.avahi.xml" > /etc/avahi/services/microduck-bridge.service
+  sed -e "s|@PORT@|$PORT|" -e "s|@ID@|$BRIDGE_ID|" \
+      "$HERE/microduck-bridge.avahi.xml" > /etc/avahi/services/microduck-bridge.service
   echo "advertised as _robotd._tcp on $PORT"
 else
   echo "not advertised: /etc/avahi/services is not writable. The app can still"
