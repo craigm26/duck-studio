@@ -39,7 +39,7 @@ final class FeedbackLogTests: XCTestCase {
 
     func testTheSettingOffersEveryChoiceInWordsAndSaysNothingIsSentAutomatically() {
         XCTAssertEqual(Set(DuckFeedback.Share.allCases.map(FeedbackLog.settingChoice)).count, 3)
-        XCTAssertTrue(FeedbackLog.settingFooter.contains("nothing is ever sent automatically"))
+        XCTAssertTrue(FeedbackLog.settingFooter.contains("Nothing is ever sent automatically"))
         XCTAssertEqual(FeedbackLog.exportLine(all: 1, exportable: 0),
                        "1 record on this phone, 0 of them allowed to leave it.")
     }

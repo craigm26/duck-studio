@@ -52,14 +52,15 @@ public enum FeedbackLog {
         switch share {
         case .local: return "Keep on this phone"
         case .research: return "May be used for research"
-        case .public: return "May be published"
+        case .public: return "Share with the community"
         }
     }
     public static let settingFooter =
         "When you correct a plan or choose between two ducks, the app writes down what you "
-      + "chose. It stays on this phone. Exporting sends only the records you allowed to leave, "
-      + "and nothing is ever sent automatically. A record carries no name, account or device "
-      + "identifier."
+      + "chose. It stays on this phone. Exporting sends only the records you allowed to leave; "
+      + "contributing sends only records shared with the community, as a pull request on the "
+      + "community dataset from your own Hugging Face account. Nothing is ever sent "
+      + "automatically. A record carries no name, account or device identifier."
     public static func exportLine(all: Int, exportable: Int) -> String {
         let records = all == 1 ? "record" : "records"
         return "\(all) \(records) on this phone, \(exportable) of them allowed to leave it."
