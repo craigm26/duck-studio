@@ -120,6 +120,22 @@ final class RolloutPairsTests: XCTestCase {
         XCTAssertEqual(sides, [.aLeft, .bLeft])
     }
 
+    func testAFileWithoutUsableEnvsShowsEveryEnv() throws {
+        XCTAssertEqual(try pairs().usableEnvs["fwd"], [0, 1])
+    }
+
+    func testTheDeckNeverShowsASlotTheExporterDropped() throws {
+        let json = Self.tiny().replacingOccurrences(
+            of: #""clips":"#, with: #""usable_envs": {"fwd": [1], "turn": []}, "clips":"#)
+        var deck = PreferenceDeck(try pairs(json))
+        var rng = Fixed(value: 0)
+        for _ in 0..<8 {
+            let s = try XCTUnwrap(deck.next(using: &rng))
+            XCTAssertEqual(s.command, "fwd", "a command with no usable env is skipped")
+            XCTAssertEqual(s.env, 1)
+        }
+    }
+
     // MARK: - the record
 
     func testPickingTheLeftDuckRecordsTheNetworkThatWasOnTheLeft() throws {
@@ -167,6 +183,9 @@ final class RolloutPairsTests: XCTestCase {
                        "sha256:da820b718aa8bdb3317c018afba3ad3f461e0cf42256811c204dc005546ec4a3",
                        "duckkit's recorded official value")
         XCTAssertTrue(p.closeFirst.values.allSatisfy { $0.count == 6 }, "every pair of four, per command")
+        XCTAssertFalse(p.usableEnvs["fwd_025"]?.contains(3) ?? true,
+                       "env 3 never received a moving command in p001")
+        XCTAssertEqual(p.usableEnvs["stand"], [0, 1, 2, 3])
     }
 
     func testTheBundledFirstFrameIsThePolicysOwnStandingPoseWithTheMouthShut() throws {
