@@ -21,6 +21,13 @@ Verify with a python-zeroconf browse, NOT `avahi-browse`: on a host running avah
 split port 5353 and avahi-browse shows nothing, while the record is on the wire (measured for
 OpenCastor, 2026-08-14).
 
+ONE RECORD PER BENCH, SO A SECOND BENCH IS A SECOND RUNNER. A machine that serves two benches (the
+Pi's ordinary one on :8770 and a two-duck world on :8799) runs this twice, with its own identity
+file and name for the second, and `DUCK_ROUTER_PORT=0` so the router is listed once:
+
+    DUCK_BENCH_PORT=8799 DUCK_ROUTER_PORT=0 DUCK_MACHINE_NAME="robot (two ducks)" \
+    DUCK_MACHINE_ID_FILE=~/.config/duckstudio/machine-id-two-ducks python3 tools/advertise_machine.py
+
 Needs `zeroconf` (pip). Runs as a user unit; see tools/duckstudio-advertise.service.
 """
 
@@ -45,7 +52,8 @@ log = logging.getLogger("duckstudio.advertise")
 
 
 def machine_id() -> str:
-    path = Path.home() / ".config" / "duckstudio" / "machine-id"
+    path = Path(os.environ.get("DUCK_MACHINE_ID_FILE",
+                               str(Path.home() / ".config" / "duckstudio" / "machine-id"))).expanduser()
     if path.exists() and path.read_text().strip():
         return path.read_text().strip()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -95,13 +103,14 @@ def main() -> int:
 
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
-    log.info("machine %s (%s), probing bench :%d and router :%d", name, ident, bench_port, router_port)
+    log.info("machine %s (%s), probing bench :%d%s", name, ident, bench_port,
+             f" and router :{router_port}" if router_port else "")
 
     while not stopping:
         txt = {"id": ident, "name": name, "kind": KIND, "v": "1"}
         if answers(bench_port):
             txt["bench_port"] = str(bench_port)
-        if answers(router_port):
+        if router_port and answers(router_port):
             txt["router_port"] = str(router_port)
         addrs = addresses()
         # The SRV port is the bench's when there is one, else the router's: a browse needs a port
@@ -112,9 +121,13 @@ def main() -> int:
             tuple(sorted((k.decode(), v.decode()) for k, v in current.properties.items())),
             tuple(sorted(current.parsed_addresses())), current.port)
         if port and addrs and wanted != have:
+            # THE SERVER IS THIS MACHINE'S HOSTNAME, NOT THE DISPLAY NAME. "robot (two ducks)" is a
+            # fine thing to show a person and not a DNS label; the instance name can carry spaces,
+            # the host record cannot.
+            host = socket.gethostname().split(".")[0]
             info = ServiceInfo(SERVICE, f"{name}-{ident[:8]}.{SERVICE}",
                                addresses=[socket.inet_aton(a) for a in addrs], port=port,
-                               properties=txt, server=f"{name}.local.")
+                               properties=txt, server=f"{host}.local.")
             if current is not None:
                 zc.unregister_service(current)
             zc.register_service(info)
