@@ -67,6 +67,9 @@ struct PadChrome: View {
                     chip(PadPilot.sayItChip, glyph: "text.bubble", on: false) {
                         sheet = .talk
                     }
+                    chip(PlanEditorWords.chip, glyph: PlanEditorWords.studioRowSymbol, on: false) {
+                        sheet = .plan
+                    }
                     chip("Sequences", glyph: "list.bullet.rectangle", on: false) {
                         sheet = .sequences
                     }
@@ -102,11 +105,18 @@ struct PadChrome: View {
             case .talk:
                 TalkToTheDuckView(desk: desk, venue: venue, engage: engage,
                                   models: modelList)
+            case .plan:
+                NavigationStack {
+                    PlanEditorView(desk: desk, venue: venue, engage: engage)
+                }
             case .sequences:
                 NavigationStack {
                     SequenceListView(desk: desk, play: { play($0) },
                                      bench: bench, token: token, library: library)
                 }
+                // A PLAN KEPT FROM STUDIO IS A FILE THIS DESK HAS NOT READ, so the
+                // shelf is re-read whenever it is opened.
+                .onAppear { desk.reloadShelf() }
             case .map:
                 // The map is edited from the list under the stage, not from the
                 // chrome: a fourteen-row editor does not belong on a picture.

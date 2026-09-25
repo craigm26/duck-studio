@@ -94,6 +94,14 @@ struct StudioHubView: View {
                 } label: {
                     Label("Draft with words", systemImage: "text.bubble")
                 }
+                // A PLAN, NOT A MOTION: steps a router proposed from a sentence,
+                // edited here and kept as a sequence. It runs from Control, where
+                // the drive desk is; here it can only be kept.
+                NavigationLink {
+                    PlanEditorView(desk: nil, venue: .sim, engage: {})
+                } label: {
+                    Label(PlanEditorWords.studioRow, systemImage: PlanEditorWords.studioRowSymbol)
+                }
                 // A FOURTH WAY TO WRITE A MOTION: stand in front of the
                 // camera, or play a video, and let a body-pose model read
                 // the keyframes off a person. Under Author because what

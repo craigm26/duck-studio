@@ -88,6 +88,8 @@ FILES=(
   SequenceKeepSheet.swift
   SequenceListView.swift
   SequenceStore.swift
+  PlanEditorView.swift
+  FeedbackStore.swift
   TalkToTheDuckView.swift
   ControlShelfChips.swift
   # Build 58's weight search. Added with the files rather than after a review
