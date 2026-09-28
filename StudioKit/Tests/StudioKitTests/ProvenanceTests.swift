@@ -119,4 +119,25 @@ final class ProvenanceTests: XCTestCase {
     func testTheLongFormNamesThisApp() {
         XCTAssertTrue(Provenance.independence.hasPrefix("Microduck Studio is"))
     }
+
+    // MARK: - Pollen's ask, and where they are
+
+    /// POLLEN'S WORD, NEGATED, NOT SOFTENED. They asked (microduck#329) that
+    /// this app say it is not the "official" one; "unofficial" is still the
+    /// word nothing here may lean on.
+    func testTheHeadlineSaysNotTheOfficialApp() {
+        XCTAssertEqual(Provenance.notOfficialTitle, "This is not the official Microduck app")
+        XCTAssertFalse(Provenance.notOfficialTitle.lowercased().contains("unofficial"))
+    }
+
+    /// The two links go to Pollen's own pages, over HTTPS, robot first.
+    func testTheLinksAreTheRobotThenTheCompany() {
+        XCTAssertEqual(Provenance.links.map(\.url.absoluteString),
+                       ["https://pollen-robotics.com/microduck/", "https://pollen-robotics.com/"])
+        for link in Provenance.links {
+            XCTAssertEqual(link.url.scheme, "https")
+            XCTAssertEqual(link.url.host, "pollen-robotics.com")
+            XCTAssertTrue(link.title.contains("Pollen Robotics"))
+        }
+    }
 }

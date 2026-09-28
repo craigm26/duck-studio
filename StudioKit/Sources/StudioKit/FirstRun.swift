@@ -31,7 +31,18 @@ public enum FirstRun {
 
     /// Kept in one place so the copy is testable and cannot drift from what the
     /// app can actually do.
+    ///
+    /// THE FIRST CARD SAYS WHOSE APP THIS IS NOT. Pollen Robotics are building
+    /// the official Microduck app and asked that this one not be mistaken for
+    /// it (pollen-robotics/microduck#329). Somebody opening an app named after
+    /// the robot is exactly the person who would assume otherwise, and the
+    /// first screen is the one screen every one of them sees. The view draws
+    /// `Provenance.links` under it.
     public static let steps: [Step] = [
+        .init(id: "not-official",
+              title: Provenance.notOfficialTitle,
+              body: Provenance.independence,
+              tab: nil),
         .init(id: "no-duck",
               title: "You probably do not have a Microduck yet",
               body: "Pollen's first deliveries are around Christmas 2026. Nearly "
@@ -85,5 +96,8 @@ public enum FirstRun {
     /// Bumping this shows the run again after a release that changes what the
     /// steps say. It is a number rather than a Bool so a future change can
     /// re-introduce it without resetting anybody's detail choice.
-    public static let currentVersion = 1
+    ///
+    /// 2: the "not the official app" card, shown once to everybody who saw
+    /// version 1 without it.
+    public static let currentVersion = 2
 }

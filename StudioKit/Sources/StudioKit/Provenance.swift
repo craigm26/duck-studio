@@ -55,4 +55,41 @@ public enum Provenance {
     /// is already full of their robot's name.
     public static let independenceShort =
         "An independent project. Not made by, endorsed by, or affiliated with Pollen Robotics."
+
+    /// The headline over the claim, where the claim gets a screen of its own.
+    ///
+    /// "OFFICIAL" IS POLLEN'S WORD, AND THE REASON IT IS HERE. Pollen Robotics
+    /// asked (pollen-robotics/microduck#329, 2026-09-28) that this app make
+    /// clear it is not the "official" one: they are building their own. The
+    /// three denials above say so to a careful reader; a person who opens the
+    /// app wondering "is this Pollen's app?" deserves the answer in the words
+    /// they asked it in. It is a plain negation of "official", never the
+    /// adjective "unofficial", for the reason `independence` gives.
+    public static let notOfficialTitle = "This is not the official Microduck app"
+
+    /// Where Pollen's own robot and company are, for a reader who came
+    /// looking for them.
+    ///
+    /// A DISCLAIMER THAT NAMES A COMPANY AND GIVES NO WAY TO REACH IT sends the
+    /// reader to a search engine, which is where they find this app again. The
+    /// links are the two pages Pollen publish for exactly this reader: the
+    /// company, and the robot.
+    public struct Link: Equatable, Sendable, Identifiable {
+        public let title: String
+        public let url: URL
+        public var id: String { url.absoluteString }
+    }
+
+    /// Pollen Robotics' own site.
+    public static let pollenSite = Link(
+        title: "Pollen Robotics",
+        url: URL(string: "https://pollen-robotics.com/")!)
+
+    /// Pollen's page for the Microduck robot itself.
+    public static let microduckPage = Link(
+        title: "Microduck, by Pollen Robotics",
+        url: URL(string: "https://pollen-robotics.com/microduck/")!)
+
+    /// Both, in the order a reader wants them: the robot, then who makes it.
+    public static let links = [microduckPage, pollenSite]
 }
