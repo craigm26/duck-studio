@@ -527,7 +527,7 @@ struct StudioHubView: View {
             // seven rows here would be seven doors into one room.
             GhostDuckView()
         case "soccer":
-            DuckSoccerView()
+            DuckSoccerView(library: model, drafts: drafts, benches: benches)
         case "sounds":
             DuckSoundsView()
         case "room":

@@ -165,6 +165,55 @@ public enum DuckSoccer {
     /// Board soccer: the ball rebounds off the perimeter, like foosball, so a
     /// carpet match never stops for throw-ins. The goals are openings in the
     /// end boards.
+    /// What a team's own moves do: how long a shot or a pass holds the duck,
+    /// and what Special is. THE PLAYER'S LOADOUT LANDS HERE: a shot clip that
+    /// lasts 1.4 s holds the duck for 1.4 s, and a Special recorded in physics
+    /// carries the duck as far as the recording did. `standard` reproduces the
+    /// engine's timings before loadouts existed, tick for tick.
+    public struct Moves: Equatable, Sendable {
+        public struct Special: Equatable, Sendable {
+            /// Metres along the heading, over `duration` seconds. Zero is a move
+            /// played on the spot.
+            public let distance: Double
+            public let duration: Double
+            public let cooldown: Double
+            public init(distance: Double, duration: Double, cooldown: Double = 2.0) {
+                self.distance = min(max(distance, 0), 1.2)
+                self.duration = min(max(duration, 0.3), 5.0)
+                self.cooldown = max(cooldown, 0.5)
+            }
+        }
+        public var shootLock: Double
+        public var passLock: Double
+        /// Nil: the gear's own roll (the measured roulade on legs; nothing on skates).
+        public var special: Special?
+
+        public init(shootLock: Double = 0.9, passLock: Double = 0.9, special: Special? = nil) {
+            self.shootLock = min(max(shootLock, 0.3), 2.5)
+            self.passLock = min(max(passLock, 0.3), 2.5)
+            self.special = special
+        }
+
+        public static let standard = Moves()
+    }
+
+    /// How hard the other team plays. It paces the CPU team only; your
+    /// team-mates always play at full pace.
+    public enum Difficulty: String, Equatable, Sendable, CaseIterable {
+        case easy, normal, hard
+        public var title: String {
+            switch self { case .easy: return "Easy"; case .normal: return "Normal"; case .hard: return "Hard" }
+        }
+        /// The fraction of stick the CPU team uses. NORMAL IS THE GAME AS IT
+        /// ALWAYS PLAYED, so the engine's tuned dynamics are the default.
+        public var pace: Double {
+            switch self { case .easy: return 0.6; case .normal, .hard: return 1.0 }
+        }
+        public var sprints: Bool { self != .easy }
+        /// Hard: the CPU team sprints whenever it is moving with purpose.
+        public var alwaysSprints: Bool { self == .hard }
+    }
+
     public struct Pitch: Equatable, Sendable {
         /// Metres, along x. Home defends −x, away defends +x.
         public let length: Double
@@ -225,6 +274,12 @@ public enum DuckSoccer {
         /// Seconds until this duck may kick again. While above ~cooldown−0.9
         /// the kick clip is still playing.
         public var kickRecovery: Double = 0
+        /// Seconds the current shot or pass still holds the duck.
+        public var actionLock: Double = 0
+        /// Whether the last strike was a pass (so the right clip is drawn).
+        public var lastKickWasPass = false
+        /// The Special being played, fixed when it started.
+        public var rollSpec: Moves.Special?
         /// Seconds into the current roll, or nil when not rolling.
         public var rollElapsed: Double?
         /// Seconds until the next roll is allowed — a roll is a commitment,
@@ -313,6 +368,19 @@ public enum DuckSoccer {
 
         /// How many kickoffs have happened, driving the lineup variation.
         public var kickoffCount: Int = 0
+        /// Each team's moves. The CPU team keeps `standard`.
+        public var moves: [Team: Moves] = [.home: .standard, .away: .standard]
+        /// How hard the CPU team plays.
+        public var difficulty: Difficulty = .normal
+
+        /// What Special is for this team, if anything.
+        public func special(for team: Team) -> Moves.Special? {
+            if let custom = moves[team]?.special { return custom }
+            return capabilities.canRoll
+                ? Moves.Special(distance: capabilities.rollDistance,
+                                duration: capabilities.rollDuration, cooldown: 2.0)
+                : nil
+        }
 
         /// A fresh match at kickoff.
         public init(pitch: Pitch = .livingRoom,
@@ -450,8 +518,13 @@ public enum DuckSoccer {
                 if player.id == controlled, let human = controls[player.id] {
                     resolved[player.id] = human
                 } else {
-                    resolved[player.id] = cpuControl(for: player,
-                                                     humanActive: humanActive)
+                    var cpu = cpuControl(for: player, humanActive: humanActive)
+                    if humanActive, player.team == .away {
+                        cpu.stick = cpu.stick * difficulty.pace
+                        if !difficulty.sprints { cpu.sprint = false }
+                        if difficulty.alwaysSprints, cpu.stick.length > 0.5 { cpu.sprint = true }
+                    }
+                    resolved[player.id] = cpu
                 }
             }
 
@@ -511,15 +584,18 @@ public enum DuckSoccer {
             // takes NO input — a real roll is a commitment.
             if var elapsed = player.rollElapsed {
                 elapsed += dt
-                if elapsed >= capabilities.rollDuration {
+                let spec = player.rollSpec ?? special(for: player.team)
+                    ?? Moves.Special(distance: 0, duration: 1)
+                if elapsed >= spec.duration {
                     player.rollElapsed = nil
-                    player.rollRecovery = 2.0
+                    player.rollSpec = nil
+                    player.rollRecovery = spec.cooldown
                     player.motion = .standing
                 } else {
                     player.rollElapsed = elapsed
                     player.position = player.position
                         + Vec2(cos(player.heading), sin(player.heading))
-                        * (capabilities.rollDistance / capabilities.rollDuration * dt)
+                        * (spec.distance / spec.duration * dt)
                     player.position.x = min(max(player.position.x, -pitch.halfLength),
                                             pitch.halfLength)
                     player.position.y = min(max(player.position.y, -pitch.halfWidth),
@@ -531,8 +607,9 @@ public enum DuckSoccer {
             player.rollRecovery = max(player.rollRecovery - dt, 0)
 
             // A kick roots the duck for the clip's length.
-            if player.kickRecovery > capabilities.kickCooldown - 0.9 {
-                player.kickRecovery -= dt
+            if player.actionLock > 0 {
+                player.actionLock -= dt
+                player.kickRecovery = max(player.kickRecovery - dt, 0)
                 player.motion = .kicking
                 return
             }
@@ -540,9 +617,10 @@ public enum DuckSoccer {
 
             // The skill button: start the roll. Only from upright motion, off
             // cooldown, on a plant whose roll is measured.
-            if control.special, capabilities.canRoll, player.rollRecovery <= 0,
+            if control.special, let spec = special(for: player.team), player.rollRecovery <= 0,
                player.kickRecovery <= 0 {
                 player.rollElapsed = 0
+                player.rollSpec = spec
                 player.motion = .rolling
                 return
             }
@@ -655,7 +733,12 @@ public enum DuckSoccer {
             ball.velocity = Vec2(cos(player.heading), sin(player.heading))
                 * (pass && !wants ? capabilities.passBallSpeed
                                   : capabilities.kickBallSpeed)
-            player.kickRecovery = capabilities.kickCooldown
+            let isPass = pass && !wants
+            let lock = isPass ? (moves[player.team]?.passLock ?? 0.9)
+                              : (moves[player.team]?.shootLock ?? 0.9)
+            player.actionLock = lock
+            player.lastKickWasPass = isPass
+            player.kickRecovery = max(capabilities.kickCooldown, lock + 0.2)
             player.motion = .kicking
             return .kick(by: player.id)
         }
@@ -776,9 +859,10 @@ public enum DuckSoccer {
                 // spells), so the tight gate stays until a better trigger is
                 // designed rather than loosened.
                 let toBall = ball.position - player.position
-                if capabilities.canRoll, player.rollRecovery <= 0,
-                   toBall.length > capabilities.rollDistance + 0.12,
-                   toBall.length < capabilities.rollDistance + 0.45,
+                if let spec = special(for: player.team), spec.distance > 0.1,
+                   player.rollRecovery <= 0,
+                   toBall.length > spec.distance + 0.12,
+                   toBall.length < spec.distance + 0.45,
                    abs(angleDelta(from: player.heading, to: toBall.heading)) < 0.15,
                    ball.velocity.length < 0.05 {
                     return Control(special: true)
@@ -824,8 +908,9 @@ public enum DuckSoccer {
             // measured matches — the chaser is simply never that far from a
             // slow ball — and widening it froze matches for minutes.)
             let gap = target - player.position
-            if capabilities.canRoll, player.rollRecovery <= 0,
-               gap.length > capabilities.rollDistance + 0.2,
+            if let spec = special(for: player.team), spec.distance > 0.1,
+               player.rollRecovery <= 0,
+               gap.length > spec.distance + 0.2,
                abs(angleDelta(from: player.heading, to: gap.heading)) < 0.3 {
                 return Control(special: true)
             }

@@ -28,376 +28,337 @@ import DuckEvidence
 struct DuckSoccerView: View {
 
     @StateObject private var referee = SoccerReferee()
-    /// The setup dialog fronts every match — venue, theme, gear, half length,
-    /// celebration — and the game only starts when it says so.
-    @State private var showingSetup = true
+    @StateObject private var moves = SoccerMovesStore()
+    @ObservedObject var library: LibraryModel
+    @ObservedObject var drafts: DraftStore
+    @ObservedObject var benches: BenchStore
+
+    /// Where the person is: choosing a match, or playing one.
+    @State private var inLobby = true
     @State private var startRequested = false
+    @State private var resetRequested = false
 
     var body: some View {
         ZStack {
-            SoccerContainer(referee: referee, startRequested: $startRequested)
+            SoccerContainer(referee: referee, startRequested: $startRequested,
+                            resetRequested: $resetRequested)
                 .ignoresSafeArea()
 
-            VStack {
-                if referee.isPlaced {
-                    scoreboard
+            if referee.isPlaced && !inLobby {
+                VStack {
+                    hud
+                    Spacer()
+                    if !referee.isOver && !referee.isPaused { controls }
                 }
-                Spacer()
-                if referee.isPlaced {
-                    controls
-                } else if !showingSetup {
-                    placementNote
+                if let toast = referee.toast {
+                    ToastView(toast: toast).allowsHitTesting(false)
                 }
+                if referee.isPaused { pauseMenu }
+                if referee.isOver { results }
+            } else if !inLobby {
+                placementNote
             }
-        }
-        .sheet(isPresented: $showingSetup) {
-            SoccerSetupSheet(referee: referee) {
-                showingSetup = false
-                referee.status = referee.venue == .ar
-                    ? "Point at the floor and tap to lay out the pitch."
-                    : "Welcome to \(referee.theme.name)."
-                startRequested = true
-            }
-            .interactiveDismissDisabled()
+
+            if inLobby { lobby }
         }
         .navigationTitle("Duck soccer")
         .navigationBarTitleDisplayMode(.inline)
-        // NO GOAL-CELEBRATION PICKER, and no empty `.toolbar` left standing
-        // where it was. It offered one option and told people to "author a
-        // motion in Microduck Studio and open the .duckmove here to celebrate
-        // with it" — which this build cannot do: `CelebrationStore.importFile(at:)`
-        // has no caller anywhere, no .duckmove is bundled, and `LibraryModel`
-        // routes that extension to drafts. So `imported` is permanently empty
-        // and the sentence was instructions for a door that does not exist. A
-        // setting that cannot be set is not a placement problem; it comes out
-        // until the import is real. `CelebrationStore` stays: its readers are
-        // correct code with a nil input, and the roulade still plays.
-        .alert("Not exportable", isPresented: $referee.showingRefusal) {
-            Button("I see", role: .cancel) {}
-        } message: { Text(referee.refusalExplanation) }
+        .toolbar(inLobby ? .visible : .hidden, for: .navigationBar)
+        .statusBarHidden(!inLobby)
     }
 
-    /// The match, drawn the way this design system draws a match: one word for
-    /// what the game is doing, one row per number that changes, and the
-    /// referee's own sentence under them.
-    ///
-    /// EVERY NUMBER HERE MOVES, WHICH IS WHY EVERY ONE IS A `TelemetryRow`. The
-    /// score, the clock and the chain head are the three things on this screen a
-    /// person watches change, and that component's whole claim is exactly that
-    /// distinction — tabular figures for a value, SF for the label that names
-    /// it, and the pair stacked rather than truncated when the text is enlarged.
-    /// The old scoreboard set "YOU 3" and "4 CPU" as one monospaced title with
-    /// the team carried by a raw `.yellow` and a raw `.cyan`: a colour doing a
-    /// word's job, between the only two teams on the pitch, for a distinction
-    /// roughly one man in twelve cannot make (SC 1.4.1). The words "You" and
-    /// "CPU" are now the labels, and no colour is asked to say which is which.
-    ///
-    /// THE CHAIN HEAD IS TELEMETRY AND NOT DECORATION. It changes on every goal,
-    /// which is the entire reason it is on the glass — the record is being
-    /// written while you play — so it is a value beside a label like the rest.
-    ///
-    /// AN OPAQUE CARD OVER A LIVE PICTURE, the same decision `DriveView`,
-    /// `SlalomView` and `DuckGolfView` all make about their readouts: on
-    /// `.ultraThinMaterial` the contrast of every word here was whatever the
-    /// grass, the carpet or a duck happened to be that frame, which is to say it
-    /// was never checked by anything. `surfacePrimary` is one of the four
-    /// grounds `PaletteTests` proves every text token against at 4.5:1.
-    private var scoreboard: some View {
-        VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
-            // A WORD, NOT A `StateBadge`. A match phase is not a `RobotState`:
-            // the badge would have spoken "You score, Active" and "Half time,
-            // Idle" — a robot's four-word vocabulary bolted onto football — and
-            // it would have been Duck Orange for the whole of play, on the one
-            // screen that has just declared orange means "moves your duck". The
-            // phase is carried by the word alone, in the ink every other label
-            // here uses.
-            Text(matchWord)
-                .font(.headline)
-                .foregroundStyle(Theme.textPrimary)
-            HStack(alignment: .top, spacing: Theme.spacing(.standard)) {
-                TelemetryRow(label: "You", value: "\(referee.homeGoals)")
-                TelemetryRow(label: "CPU", value: "\(referee.awayGoals)")
+    // MARK: - the lobby
+
+    private var lobby: some View {
+        SoccerLobby(referee: referee, moves: moves, library: library, drafts: drafts,
+                    benches: benches) {
+            Task {
+                await moves.prepare(library: library, drafts: drafts, benches: benches)
+                referee.moves = moves.moves
+                referee.customClips = moves.clips
+                referee.saveSettings()
+                inLobby = false
+                if referee.isPlaced { resetRequested = true }
+                referee.status = referee.venue == .ar
+                    ? "Point at the floor and tap to lay out the pitch." : ""
+                startRequested = true
             }
-            TelemetryRow(label: "Match clock", value: referee.clockText)
-            TelemetryRow(label: "Chain head", value: referee.chainHeadPrefix)
-            Text(referee.status)
-                .font(.footnote)
-                .foregroundStyle(Theme.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(Theme.spacing(.snug))
-        .frame(maxWidth: SoccerMetric.scoreboardWidth, alignment: .leading)
-        .background(Theme.surfacePrimary, in: panel)
-        .overlay(panel.strokeBorder(Theme.separator,
-                                    lineWidth: SoccerMetric.hairlineStroke))
+        .transition(.opacity)
+    }
+
+    // MARK: - during play
+
+    /// One pill: the score and the clock, and a pause button beside it.
+    private var hud: some View {
+        HStack(spacing: Theme.spacing(.snug)) {
+            HStack(spacing: 10) {
+                Text("YOU").font(.caption.weight(.heavy)).foregroundStyle(.yellow)
+                Text("\(referee.homeGoals)  –  \(referee.awayGoals)")
+                    .font(.title3.weight(.bold).monospacedDigit())
+                Text("CPU").font(.caption.weight(.heavy)).foregroundStyle(.teal)
+                Divider().frame(height: 18)
+                Text(referee.clockText).font(.subheadline.monospacedDigit())
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 14).padding(.vertical, 8)
+            .background(.black.opacity(0.55), in: Capsule())
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(Text("Score: you \(referee.homeGoals), CPU \(referee.awayGoals). "
+                                     + referee.clockText))
+            Button {
+                referee.isPaused = true
+            } label: {
+                Image(systemName: "pause.fill")
+                    .font(.headline).foregroundStyle(.white)
+                    .frame(width: 44, height: 44)
+                    .background(.black.opacity(0.55), in: Circle())
+            }
+            .accessibilityLabel(Text("Pause"))
+        }
         .padding(.top, Theme.spacing(.tight))
     }
 
-    /// The one sentence on screen before a pitch exists — the instruction for
-    /// the only thing a person can do here, so it gets a real ground rather than
-    /// a blur over a camera feed.
     private var placementNote: some View {
-        Text(referee.status)
-            .font(.footnote)
-            .foregroundStyle(Theme.textPrimary)
-            .multilineTextAlignment(.center)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(Theme.spacing(.snug))
-            .background(Theme.surfacePrimary, in: panel)
-            .overlay(panel.strokeBorder(Theme.separator,
-                                        lineWidth: SoccerMetric.hairlineStroke))
-            .padding(.horizontal, Theme.spacing(.standard))
-            .padding(.bottom, Theme.spacing(.loose))
-            .accessibilityLabel(Text("Pitch placement"))
-            .accessibilityValue(Text(referee.status))
-    }
-
-    private var panel: RoundedRectangle {
-        RoundedRectangle(cornerRadius: Theme.radius(SoccerMetric.panel),
-                         style: .continuous)
-    }
-
-    /// What the match is doing, in a word.
-    ///
-    /// THE TEAM IS IN THE WORD, which is where the yellow and the cyan went. A
-    /// goal and a full-time whistle both belong to somebody, and "You score" is
-    /// a readout a person can hear as well as glance at; a coloured numeral was
-    /// neither. The kickoff phase names its team too, because whose kickoff it
-    /// is decides whether your stick is about to do anything.
-    private var matchWord: String {
-        guard referee.isPlaced else { return "Placing" }
-        switch referee.phase {
-        case .kickoff(let team, _):
-            return team == .home ? "Your kick off" : "CPU kick off"
-        case .playing:
-            return "Playing"
-        case .goal(let team, _, _):
-            return team == .home ? "You score" : "CPU score"
-        case .halfTime:
-            return "Half time"
-        case .fullTime:
-            return finalWord
+        VStack(spacing: Theme.spacing(.snug)) {
+            Spacer()
+            Text(referee.status)
+                .font(.footnote)
+                .foregroundStyle(.white)
+                .multilineTextAlignment(.center)
+                .padding(Theme.spacing(.snug))
+                .background(.black.opacity(0.6), in: Capsule())
+            Button("Back to the lobby") { backToLobby() }
+                .buttonStyle(.bordered).tint(.white)
+                .padding(.bottom, Theme.spacing(.loose))
         }
+        .accessibilityLabel(Text("Pitch placement"))
     }
 
-    /// Who won, in three words or fewer. The long version is in
-    /// `referee.status` underneath; this is the one a glance gets.
-    private var finalWord: String {
-        if referee.homeGoals > referee.awayGoals { return "You win" }
-        if referee.awayGoals > referee.homeGoals { return "CPU win" }
-        return "Full time draw"
-    }
-
-    /// A game controller, because that is what a football game is played on:
-    /// stick on the left, the face pads on the right. Every hold button uses a
-    /// zero-distance drag gesture, NOT a Button — a SwiftUI Button fires on
-    /// TOUCH-UP, so the first version's kick registered only when the finger
-    /// left the screen and then for a single engine tick, which played exactly
-    /// like a kick button that does nothing. `HoldButton` carries the rest of
-    /// that argument, and what it takes from `PrimaryActionStyle` instead.
     private var controls: some View {
         HStack(alignment: .bottom) {
             JoystickView { vector in referee.stick = vector }
-
             Spacer()
-
-            if referee.isOver {
-                VStack(spacing: Theme.spacing(.tight)) {
-                    // NOT ORANGE, AND THAT IS THE POINT OF THE RULE. Everything
-                    // orange on this screen moves a duck; this one opens an
-                    // alert that explains why a match of ten simulations cannot
-                    // be called evidence. It keeps the stock `.bordered` shape
-                    // and takes the app's tint, which `MicroduckTheme` sets to
-                    // `Theme.actionSecondary` — the orange INK, at 4.52:1 on
-                    // cream, because a tint sets words rather than filling a
-                    // shape. `.large` is what carries it past the forty-four
-                    // point floor without this file writing that number down.
-                    Button("Export as evidence") { referee.attemptExport() }
-                        .buttonStyle(.bordered)
-                        .controlSize(.large)
-                        .accessibilityHint(Text("Tries to sign this match out as evidence. A practice match refuses, and says why."))
-                    // IT PUTS TEN DUCKS BACK ON THE HALFWAY LINE, so it is the
-                    // sixty-point variant, exactly like "Run it again" in
-                    // Slalom and "Next hole" in Golf.
-                    Button("Rematch") { referee.kickoff() }
-                        .buttonStyle(.primaryActionMoves)
-                        .accessibilityHint(Text("Puts all ten ducks back on the halfway line and starts a new match at the same settings."))
-                }
-            } else if referee.gamepadConnected {
-                gamepadLegend
-            } else {
-                thumbCluster
-            }
+            if !referee.gamepadConnected { thumbCluster }
         }
         .padding(.horizontal, Theme.spacing(.loose))
         .padding(.bottom, Theme.spacing(.loose))
     }
 
-    /// The controller has the buttons; the screen keeps only the legend, so
-    /// nothing competes with the pad in hand.
-    ///
-    /// A CARD RATHER THAN A BLUR, for the reason the scoreboard is: this is five
-    /// button names over a moving picture, and on `.ultraThinMaterial` their
-    /// contrast was the pitch's.
-    private var gamepadLegend: some View {
-        Label("A pass · B shoot · Y roulade/crouch · L1 switch · R2 sprint",
-              systemImage: "gamecontroller.fill")
-            .font(.caption)
-            .foregroundStyle(Theme.textSecondary)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(Theme.spacing(.snug))
-            .background(Theme.surfacePrimary, in: panel)
-            .overlay(panel.strokeBorder(Theme.separator,
-                                        lineWidth: SoccerMetric.hairlineStroke))
-            .accessibilityLabel(Text("Controller buttons"))
-            .accessibilityValue(Text("A passes, B shoots, Y is the roulade or crouch, L1 switches duck, R2 sprints."))
+    private func name(_ slot: SoccerLoadout.Slot) -> String? {
+        moves.clips[slot] == nil ? nil : moves.loadout[slot]?.name
     }
 
-    /// The FIFA cluster, thumb-shaped: SHOOT outside where the thumb rests,
-    /// PASS beside it, the skill below, SPRINT above them, SWITCH on top — the
-    /// L1 of a screen. ROULADE holds the prime bottom spot: it is the signature
-    /// move, the measured forward roll, and it earned the thumb's resting place.
-    /// (Roulade: French for "roll", and Pollen's own name for the clip.)
-    ///
-    /// FIVE HUES BECAME ONE, AND THE HIERARCHY IS NOW SIZE AND WORD. These pads
-    /// were white, orange, cyan, yellow and purple — five sampled colours, none
-    /// of them in the palette, four of them filling a shape with a value that no
-    /// contrast test has ever seen. `DriveView` states the rule this screen now
-    /// follows: everything orange moves the duck and nothing else is orange. So
-    /// the four pads that command your duck are Duck Orange and differ by
-    /// diameter, and SWITCH — which commands nothing, it hands the stick to a
-    /// different duck — keeps a quiet surface. That is the same live/quiet pair
-    /// `DriveView` draws across its pad, and it survives colour blindness,
-    /// because the word on each pad was always doing the work.
-    ///
-    /// ALL FIVE CLEAR SIXTY POINTS. SWITCH was fifty and SPRINT fifty-six; the
-    /// person pressing either is watching a duck, not the glass.
     private var thumbCluster: some View {
         VStack(alignment: .trailing, spacing: Theme.spacing(.tight)) {
-            HoldButton(label: "SWITCH", size: SoccerMetric.switchPad,
-                       role: .redirects,
-                       hint: "Hands your stick to the team-mate nearest the ball.") {
-                if $0 { referee.requestSwitch = true }
-            }
-            HoldButton(label: "SPRINT", size: SoccerMetric.sprintPad,
-                       role: .commands,
-                       hint: "Held, your duck moves at the top speed its gear was measured at.") {
-                referee.sprintHeld = $0
+            HStack(spacing: Theme.spacing(.snug)) {
+                HoldButton(label: "SWITCH", size: SoccerMetric.switchPad, role: .redirects,
+                           hint: "Hands your stick to the team-mate nearest the ball.") {
+                    if $0 { referee.requestSwitch = true }
+                }
+                HoldButton(label: "SPRINT", size: SoccerMetric.switchPad, role: .redirects,
+                           hint: "Held, your duck moves at its top speed.") {
+                    referee.sprintHeld = $0
+                }
             }
             HStack(spacing: Theme.spacing(.snug)) {
-                HoldButton(label: "PASS", size: SoccerMetric.passPad,
-                           role: .commands,
-                           hint: "Held, your duck plays the ball to a team-mate.") {
+                HoldButton(label: "PASS", size: SoccerMetric.passPad, role: .commands,
+                           hint: "Held, your duck plays the ball forward, softly.",
+                           subtitle: name(.pass), cooldown: referee.strikeCooldown) {
                     referee.passHeld = $0
                 }
-                HoldButton(label: "SHOOT", size: SoccerMetric.shootPad,
-                           role: .commands,
-                           hint: "Held, your duck strikes the ball at the CPU goal.") {
+                HoldButton(label: "SHOOT", size: SoccerMetric.shootPad, role: .commands,
+                           hint: "Held, your duck strikes the ball hard, the way it is facing.",
+                           subtitle: name(.shoot), cooldown: referee.strikeCooldown,
+                           ready: referee.ballInRange) {
                     referee.kickHeld = $0
                 }
             }
-            // On legs the roulade; on wheels Pollen's crouch-glide trick — each
-            // the special move its policy set has.
-            HoldButton(label: referee.wearing == .legs ? "ROULADE" : "CROUCH",
-                       size: SoccerMetric.specialPad,
-                       role: .commands,
-                       hint: referee.wearing == .legs
-                           ? "Held, your duck rolls forward — the measured roulade, faster than running."
-                           : "Held, your duck drops into the recorded roller crouch.") {
-                referee.specialHeld = $0
+            if referee.hasSpecial {
+                HoldButton(label: "SPECIAL", size: SoccerMetric.specialPad, role: .commands,
+                           hint: "Held, your duck does its Special move.",
+                           subtitle: name(.special) ?? (referee.wearing == .legs ? "Roulade" : nil),
+                           cooldown: referee.specialCooldown) {
+                    referee.specialHeld = $0
+                }
             }
         }
     }
+
+    // MARK: - paused, and over
+
+    private var pauseMenu: some View {
+        ZStack {
+            Color.black.opacity(0.55).ignoresSafeArea()
+            VStack(spacing: Theme.spacing(.snug)) {
+                Text("Paused").font(.largeTitle.weight(.bold)).foregroundStyle(.white)
+                Button { referee.isPaused = false } label: {
+                    Text("Resume").frame(maxWidth: 240)
+                }
+                .buttonStyle(.primaryActionMoves)
+                Button { referee.isPaused = false; referee.kickoff() } label: {
+                    Text("Restart").frame(maxWidth: 240)
+                }
+                .buttonStyle(.bordered).tint(.white)
+                Button { backToLobby() } label: {
+                    Text("Lobby").frame(maxWidth: 240)
+                }
+                .buttonStyle(.bordered).tint(.white)
+                controlsLegend.padding(.top, Theme.spacing(.snug))
+            }
+            .padding()
+        }
+    }
+
+    private var controlsLegend: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Controls").font(.caption.weight(.bold))
+            Text("Stick: move · SHOOT: strike · PASS: soft ball · SPECIAL: your move · "
+               + "SWITCH: take the duck nearest the ball")
+            Text("Controller: B shoot · A pass · Y special · L1 switch · R2 sprint")
+        }
+        .font(.caption)
+        .foregroundStyle(.white.opacity(0.85))
+        .frame(maxWidth: 320, alignment: .leading)
+    }
+
+    private var results: some View {
+        ZStack {
+            Color.black.opacity(0.6).ignoresSafeArea()
+            VStack(spacing: Theme.spacing(.snug)) {
+                Text(resultWord).font(.largeTitle.weight(.heavy)).foregroundStyle(.white)
+                Text("\(referee.homeGoals) – \(referee.awayGoals)")
+                    .font(.system(size: 56, weight: .bold).monospacedDigit())
+                    .foregroundStyle(.white)
+                HStack(spacing: Theme.spacing(.loose)) {
+                    stat("Your shots", referee.homeShots)
+                    stat("CPU shots", referee.awayShots)
+                    stat("Your goals", referee.homeGoals)
+                }
+                Button { referee.kickoff() } label: { Text("Rematch").frame(maxWidth: 240) }
+                    .buttonStyle(.primaryActionMoves)
+                Button { backToLobby() } label: { Text("Lobby").frame(maxWidth: 240) }
+                    .buttonStyle(.bordered).tint(.white)
+            }
+            .padding()
+        }
+    }
+
+    private func stat(_ title: String, _ value: Int) -> some View {
+        VStack(spacing: 2) {
+            Text("\(value)").font(.title2.weight(.bold).monospacedDigit())
+            Text(title).font(.caption)
+        }
+        .foregroundStyle(.white)
+    }
+
+    private var resultWord: String {
+        if referee.homeGoals > referee.awayGoals { return "You win!" }
+        if referee.awayGoals > referee.homeGoals { return "CPU wins" }
+        return "Draw"
+    }
+
+    private func backToLobby() {
+        referee.isPaused = false
+        resetRequested = true
+        withAnimation { inLobby = true }
+    }
 }
 
-/// The team talk before kickoff: everything about the match, decided in one
-/// place, before a single entity exists.
-private struct SoccerSetupSheet: View {
+/// A big word in the middle of the pitch for a moment: GOAL!, Half time.
+private struct ToastView: View {
+    let toast: SoccerReferee.Toast
+    @State private var shown = false
+
+    var body: some View {
+        Text(toast.text)
+            .font(.system(size: toast.big ? 64 : 34, weight: .heavy))
+            .foregroundStyle(toast.colour)
+            .shadow(color: .black.opacity(0.6), radius: 6)
+            .scaleEffect(shown ? 1 : 0.6)
+            .opacity(shown ? 1 : 0)
+            .onAppear { withAnimation(.spring(response: 0.35, dampingFraction: 0.6)) { shown = true } }
+            .id(toast.id)
+            .accessibilityHidden(true)
+    }
+}
+
+/// Choosing a match: where, what the duck wears, how long, how hard, and
+/// your moves. Everything is remembered for next time.
+private struct SoccerLobby: View {
     @ObservedObject var referee: SoccerReferee
+    @ObservedObject var moves: SoccerMovesStore
+    @ObservedObject var library: LibraryModel
+    @ObservedObject var drafts: DraftStore
+    @ObservedObject var benches: BenchStore
     let onStart: () -> Void
-    /// Soccer's venue switch is its own control rather than `VenuePicker` — it
-    /// says "Stadium" where the games say "Stage" — so it carries its own copy
-    /// of the door.
     @State private var door = CameraDoor.availability
 
-    /// EVERY CONTROL HERE IS THE STOCK ONE, which is a decision and not a
-    /// shortcut. A segmented `Picker` already announces its label and its
-    /// selected value, already grows with Dynamic Type, and already works under
-    /// Switch Control and Voice Control; a hand-rolled row of capsules would
-    /// have to be given all four back and would get one of them wrong. So the
-    /// design work here is the GROUND under them — the palette's surfaces
-    /// instead of the system's grey — and a caption under each switch saying
-    /// what the choice will cost, which is the one thing a stock picker cannot
-    /// know. A CAPTION, NOT AN ACCESSIBILITY HINT: a segmented picker is a
-    /// container whose children are the segments, and a label or hint set on
-    /// the container is handed down to every segment — so "Venue" would have
-    /// replaced "Stadium" and "Your floor (AR)" as what each segment is called,
-    /// and the hint would most likely never have been spoken at all. The
-    /// visible sentence reaches everyone, VoiceOver included.
     var body: some View {
-        NavigationStack {
-            Form {
+            List {
                 Section {
-                    Picker("Venue", selection: $referee.venue) {
-                        Text("Stadium").tag(SoccerReferee.Venue.stadium)
-                        Text("Your floor (AR)").tag(SoccerReferee.Venue.ar)
+                    Button { onStart() } label: {
+                        HStack {
+                            Image(systemName: "soccerball")
+                            Text(moves.preparing ?? (referee.venue == .ar ? "Place the pitch" : "Kick off"))
+                        }
+                        .font(.title3.weight(.bold))
+                        .frame(maxWidth: .infinity, minHeight: 52)
                     }
-                    .pickerStyle(.segmented)
-                    // A segmented control cannot disable one segment, so the
-                    // whole switch goes inert — which is honest, because with
-                    // the carpet gone there is one venue and no choice — and
-                    // the reason sits under it instead of arriving in a dialog
-                    // after a tap that did nothing.
-                    .disabled(!door.canOfferAR)
-                    if let refusal = door.refusal(for: .venue) {
-                        Text(refusal).font(.caption)
-                            .foregroundStyle(Theme.textSecondary)
-                    }
-                    if referee.venue == .stadium {
-                        Picker("Stadium", selection: $referee.theme) {
-                            ForEach(SoccerTheme.stadiums) { theme in
-                                Text(theme.name).tag(theme)
+                    .buttonStyle(.primaryActionMoves)
+                    .disabled(moves.preparing != nil)
+                    .listRowBackground(Color.clear)
+                }
+
+                Section {
+                    NavigationLink {
+                        SoccerMovesView(store: moves, library: library, drafts: drafts)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Your moves").font(.headline)
+                            ForEach(SoccerLoadout.Slot.allCases) { slot in
+                                HStack(spacing: 8) {
+                                    Image(systemName: slot.symbol).frame(width: 20)
+                                        .foregroundStyle(Theme.actionPrimary)
+                                    Text(slot.title).font(.subheadline)
+                                    Spacer()
+                                    Text(moves.loadout[slot]?.name ?? slot.standard)
+                                        .font(.subheadline)
+                                        .foregroundStyle(moves.loadout[slot] == nil
+                                                         ? Theme.textTertiary : Theme.textPrimary)
+                                        .lineLimit(1)
+                                }
                             }
                         }
-                        Text("A whole palette, not an accent — pastel sherbet, the grid-sunset nineties, bowling-alley carpet, Saturday cartoon.")
-                            .font(.caption)
-                            .foregroundStyle(Theme.textSecondary)
-                    } else {
-                        Text("The camera pitch on your carpet: point at the floor and tap to place it, facing the way you look.")
-                            .font(.caption)
-                            .foregroundStyle(Theme.textSecondary)
+                        .padding(.vertical, 4)
                     }
-                } header: {
-                    SectionHeading(text: "Where")
                 }
                 .listRowBackground(Theme.surfacePrimary)
 
                 Section {
-                    Picker("Gear", selection: $referee.wearing) {
+                    Picker("Where", selection: $referee.venue) {
+                        Text("Stadium").tag(SoccerReferee.Venue.stadium)
+                        Text("Your floor").tag(SoccerReferee.Venue.ar)
+                    }
+                    .pickerStyle(.segmented)
+                    .disabled(!door.canOfferAR)
+                    if referee.venue == .stadium {
+                        Picker("Stadium", selection: $referee.theme) {
+                            ForEach(SoccerTheme.stadiums) { Text($0.name).tag($0) }
+                        }
+                    }
+                    Picker("Your duck wears", selection: $referee.wearing) {
                         Text("Legs").tag(SoccerReferee.Gear.legs)
                         Text("Skates").tag(SoccerReferee.Gear.skates)
                     }
-                    .pickerStyle(.segmented)
-                    Text(referee.wearing == .legs
-                         ? "Walks 0.11 m/s, sprints 0.15, and can ROULADE — the measured forward roll, faster than running."
-                         : "Pollen's roller blades: glides 0.45 m/s, tops out at 0.6, propelled by the real swizzle recorded from the roller policy — and the CROUCH trick instead of a roulade. Speeds are the older rollers scene's; its training-parameter rebuild is pending.")
-                        .font(.caption)
-                        .foregroundStyle(Theme.textSecondary)
-                } header: {
-                    SectionHeading(text: "Your duck wears")
-                }
-                .listRowBackground(Theme.surfacePrimary)
-
-                Section {
-                    Picker("Half length", selection: $referee.halfLength) {
-                        Text("1 min").tag(60.0)
-                        Text("2 min").tag(120.0)
-                        Text("5 min").tag(300.0)
+                    Picker("Match", selection: $referee.halfLength) {
+                        Text("2 min").tag(60.0)
+                        Text("4 min").tag(120.0)
+                        Text("10 min").tag(300.0)
                     }
-                    .pickerStyle(.segmented)
-                    Text("Seconds of play in each of the two halves. A match is twice this.")
-                        .font(.caption)
-                        .foregroundStyle(Theme.textSecondary)
+                    Picker("CPU team", selection: $referee.difficulty) {
+                        ForEach(DuckSoccer.Difficulty.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }
                 } header: {
                     SectionHeading(text: "Match")
                 }
@@ -405,71 +366,16 @@ private struct SoccerSetupSheet: View {
 
                 if GamepadInput.shared.isConnected {
                     Section {
-                        // `Theme.success` because a paired controller is a good
-                        // thing that has already happened — the same token
-                        // `DriveView` sets its own "controller connected" line
-                        // in, so the two screens say it the same way.
-                        Label("Controller connected — A pass · B shoot · Y roulade/crouch · L1 switch · R2 sprint",
-                              systemImage: "gamecontroller.fill")
-                            .font(.footnote)
+                        Label("Controller connected", systemImage: "gamecontroller.fill")
                             .foregroundStyle(Theme.success)
-                            .accessibilityLabel(Text("Controller connected"))
-                            .accessibilityValue(Text("A passes, B shoots, Y is the roulade or crouch, L1 switches duck, R2 sprints."))
                     }
                     .listRowBackground(Theme.surfacePrimary)
                 }
-
-                Section {
-                    // IT STARTS TEN DUCKS MOVING, so it is the sixty-point
-                    // variant rather than `.borderedProminent` at whatever
-                    // height that happened to be. The row's own background is
-                    // cleared because the capsule is the surface here: a
-                    // `surfacePrimary` card behind an orange capsule would put a
-                    // second corner radius nobody chose around it.
-                    Button {
-                        onStart()
-                    } label: {
-                        Text(referee.venue == .ar ? "Place the pitch" : "Kick off")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.primaryActionMoves)
-                    .accessibilityHint(Text(referee.venue == .ar
-                        ? "Opens the camera so you can tap the floor and lay the pitch out."
-                        : "Kicks off in \(referee.theme.name)."))
-                    .listRowBackground(Color.clear)
-                }
             }
-            // THE FORM SITS ON THE PALETTE'S RECESSED GROUND, NOT THE SYSTEM'S
-            // GREY, and every row on a real `surfacePrimary` card above it —
-            // which is what `DriveView` does with its list and why no word in
-            // either screen is ever set on a ground the palette says is short of
-            // 4.5:1. The section's own corner is the system's: a `Form` will not
-            // be told its radius, and hand-rolling one to win a corner would
-            // cost the four things the stock control does correctly.
             .scrollContentBackground(.hidden)
             .background(Theme.backgroundSecondary)
-            .navigationTitle("Match setup")
-            .navigationBarTitleDisplayMode(.inline)
-        }
-        // The selection is put back rather than left pointing at a pitch that
-        // cannot be laid: `start(venue:theme:)` refuses `.ar` when the door is
-        // shut, and a refusal there would leave a match with no world in it.
-        .onAppear { coerce() }
+        .onAppear { if !door.canOfferAR { referee.venue = .stadium } }
         .refreshingCameraDoor($door)
-        .onChange(of: door) { _, _ in coerce() }
-        .presentationDetents([.large])
-        // THE SHEET'S OWN CORNER, ON THE SCALE. `Palette.Radius.sheet` is the
-        // step the design system reserves for exactly this shape; left alone,
-        // the sheet takes UIKit's own radius, which is a number nothing in this
-        // app chose. The rows inside it keep the system's grouped corner —
-        // a `Form` cannot be told its radius, and hand-rolling one to win that
-        // corner would cost the label, the value, the Dynamic Type and the
-        // Switch Control support a stock `Picker` already has.
-        .presentationCornerRadius(Theme.radius(SoccerMetric.sheet))
-    }
-
-    private func coerce() {
-        if !door.canOfferAR && referee.venue != .stadium { referee.venue = .stadium }
     }
 }
 
@@ -524,17 +430,29 @@ private struct HoldButton: View {
     /// What somebody being read to is told the press will do. Required rather
     /// than defaulted: a pad whose whole face is one word needs the sentence.
     let hint: String
+    /// The name of YOUR skill on this button, under the label.
+    var subtitle: String? = nil
+    /// 0 when ready, up to 1 while cooling down; drawn as a ring.
+    var cooldown: Double = 0
+    /// The ball is in reach: the button glows.
+    var ready = false
     let onChange: (Bool) -> Void
 
     @State private var down = false
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
-        Text(label)
+        VStack(spacing: 0) {
+            Text(label)
+                .font(size >= SoccerMetric.shootPad ? .headline : .caption.bold())
+            if let subtitle {
+                Text(subtitle).font(.system(size: 9, weight: .semibold))
+                    .padding(.horizontal, 4)
+            }
+        }
             // Only the largest pad earns a headline. The rest are caption-bold,
             // which is what fits a word like ROULADE inside a circle a thumb
             // can cover.
-            .font(size >= SoccerMetric.shootPad ? .headline : .caption.bold())
             // THE WORD STOPS GROWING AT THE LARGEST NON-ACCESSIBILITY SIZE, and
             // that is the whole of how a fixed pad survives Dynamic Type. The
             // pad cannot grow with its word — five of them share a phone's width
@@ -555,6 +473,20 @@ private struct HoldButton: View {
             .frame(width: size, height: size)
             .background(fill)
             .overlay(edge)
+            .overlay {
+                if cooldown > 0.01 {
+                    Circle().trim(from: 0, to: cooldown)
+                        .stroke(Color.black.opacity(0.45),
+                                style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                        .padding(3)
+                }
+            }
+            .overlay {
+                if ready && cooldown <= 0.01 {
+                    Circle().stroke(Color.green, lineWidth: 4).padding(-3)
+                }
+            }
             // The whole square, not just the glyph: a face button's target is
             // its pad. Stated rather than inherited, because the hit area of a
             // gesture on a `Text` is the one thing here worth being explicit
@@ -570,7 +502,7 @@ private struct HoldButton: View {
                     })
             .accessibilityElement(children: .ignore)
             .accessibilityAddTraits(.isButton)
-            .accessibilityLabel(Text(label))
+            .accessibilityLabel(Text(subtitle.map { "\(label), \($0)" } ?? label))
             .accessibilityValue(Text(down ? "Held" : "Released"))
             .accessibilityHint(Text(hint))
             .accessibilityAction {
@@ -647,6 +579,69 @@ final class SoccerReferee: ObservableObject {
     @Published var theme: SoccerTheme = .pastel
     /// Seconds per half, from the setup dialog.
     @Published var halfLength: Double = 120
+    @Published var difficulty: DuckSoccer.Difficulty = .normal
+    /// Play stops; nothing ticks until resumed.
+    @Published var isPaused = false {
+        didSet { if !isPaused { accumulatorReset = true } }
+    }
+    /// A big word in the middle of the pitch, for a moment.
+    struct Toast: Equatable {
+        let id = UUID()
+        let text: String
+        let colour: Color
+        let big: Bool
+    }
+    @Published var toast: Toast?
+    @Published var homeShots = 0
+    @Published var awayShots = 0
+    /// 0 when your duck can strike, up to 1 while it recovers.
+    @Published var strikeCooldown: Double = 0
+    @Published var specialCooldown: Double = 0
+    /// Your duck is facing the ball, close enough to strike it.
+    @Published var ballInRange = false
+    /// Which duck is yours right now; the pitch draws its marker from this.
+    @Published private(set) var controlledID: String?
+    /// When control last moved to another duck, for the marker's pulse.
+    private(set) var switchedAt: CFTimeInterval = 0
+    /// Your moves, resolved before kick-off.
+    var moves: DuckSoccer.Moves = .standard
+    var customClips: [SoccerLoadout.Slot: DuckIntentClip] = [:]
+    var hasSpecial: Bool {
+        moves.special != nil || wearing.capabilities.canRoll
+    }
+    private var accumulatorReset = false
+    private var toastTask: Task<Void, Never>?
+
+    init() {
+        let d = UserDefaults.standard
+        if let v = d.string(forKey: "soccer.venue").flatMap(Venue.init(rawValue:)) { venue = v }
+        if let g = d.string(forKey: "soccer.gear").flatMap(Gear.init(rawValue:)) { wearing = g }
+        if let t = d.string(forKey: "soccer.theme"),
+           let found = SoccerTheme.stadiums.first(where: { $0.name == t }) { theme = found }
+        if d.double(forKey: "soccer.half") > 0 { halfLength = d.double(forKey: "soccer.half") }
+        if let x = d.string(forKey: "soccer.difficulty").flatMap(DuckSoccer.Difficulty.init(rawValue:)) {
+            difficulty = x
+        }
+    }
+
+    func saveSettings() {
+        let d = UserDefaults.standard
+        d.set(venue.rawValue, forKey: "soccer.venue")
+        d.set(wearing.rawValue, forKey: "soccer.gear")
+        d.set(theme.name, forKey: "soccer.theme")
+        d.set(halfLength, forKey: "soccer.half")
+        d.set(difficulty.rawValue, forKey: "soccer.difficulty")
+    }
+
+    func show(_ text: String, colour: Color = .white, big: Bool = false, for seconds: Double = 1.6) {
+        let t = Toast(text: text, colour: colour, big: big)
+        toast = t
+        toastTask?.cancel()
+        toastTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: UInt64(seconds * 1e9))
+            if !Task.isCancelled, toast == t { toast = nil }
+        }
+    }
 
     enum Gear: String { case legs, skates
         var capabilities: DuckSoccer.Capabilities { self == .legs ? .measured : .skates }
@@ -704,19 +699,27 @@ final class SoccerReferee: ObservableObject {
         accumulator = 0
         match = DuckSoccer.Match(capabilities: wearing.capabilities,
                                  halfLength: halfLength)
+        match.moves[.home] = moves
+        match.difficulty = difficulty
+        homeShots = 0; awayShots = 0
+        isPaused = false
+        controlledID = match.controlled
+        switchedAt = CACurrentMediaTime()
         record = DuckSoccerMatch(participantRRNs: Self.rrns, isPractice: true)
         record.append(.kickoff(atMs: Self.nowMs()))
         isOver = false
         homeGoals = 0; awayGoals = 0
         phase = match.phase
         refreshChain()
-        status = "Kick off. Your duck wears the bright ring."
+        status = ""
+        show("Kick off")
     }
 
     /// Advance the match by however much render time has passed, in exact
     /// 50 Hz engine ticks.
     func tick(dt: Double) {
-        guard isPlaced, !isOver else { return }
+        guard isPlaced, !isOver, !isPaused else { return }
+        if accumulatorReset { accumulator = 0; accumulatorReset = false }
         // A paired controller wins over touch whenever one is connected —
         // holding a phone AND thumbing its screen is the fallback, not the
         // preference.
@@ -748,6 +751,13 @@ final class SoccerReferee: ObservableObject {
             match.switchControl()
             requestSwitch = false
         }
+        // THE MARKER FOLLOWS CONTROL, and says so when it moves: a pulse on
+        // the pitch and a tap in the hand.
+        if match.controlled != controlledID {
+            controlledID = match.controlled
+            switchedAt = CACurrentMediaTime()
+            UISelectionFeedbackGenerator().selectionChanged()
+        }
         let step = 1.0 / 50.0
         accumulator += min(dt, 0.25)
         var events: [DuckSoccer.Event] = []
@@ -766,21 +776,45 @@ final class SoccerReferee: ObservableObject {
                 record.append(.goal(scorerRRN: rrn, atMs: Self.nowMs(),
                                     judgedBy: "engine-geometry"))
                 refreshChain()
-                status = team == .home ? "GOAL — you score!" : "CPU scores."
+                if team == .home {
+                    show("GOAL!", colour: .yellow, big: true, for: 2.6)
+                    UINotificationFeedbackGenerator().notificationOccurred(.success)
+                } else {
+                    show("CPU scores", colour: .teal, for: 2.2)
+                    UINotificationFeedbackGenerator().notificationOccurred(.warning)
+                }
             case .halfTime:
-                status = "Half time."
+                show("Half time", for: 2.4)
             case .fullTime:
                 record.append(.finalWhistle(atMs: Self.nowMs()))
                 refreshChain()
                 isOver = true
                 status = finalWords()
             case .whistle:
-                status = "Play."
-            case .kick, .roll:
-                break
+                status = ""
+            case .kick(let by):
+                if by.hasPrefix("home") { homeShots += 1 } else { awayShots += 1 }
+                if by == match.controlled {
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                }
+            case .roll(let by):
+                if by == match.controlled {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                }
             }
         }
 
+        if let me = match.players.first(where: { $0.id == match.controlled }) {
+            let recovery = max(match.capabilities.kickCooldown, 0.001)
+            let strike = min(me.kickRecovery / recovery, 1)
+            if abs(strike - strikeCooldown) > 0.02 { strikeCooldown = strike }
+            let special = min(me.rollRecovery / 2.0, 1)
+            if abs(special - specialCooldown) > 0.02 { specialCooldown = special }
+            let toBall = match.ball.position - me.position
+            let reach = toBall.length <= match.capabilities.kickRange * 1.6
+                && abs(DuckSoccer.angleDelta(from: me.heading, to: toBall.heading)) < 1.1
+            if reach != ballInRange { ballInRange = reach }
+        }
         homeGoals = match.score[.home] ?? 0
         awayGoals = match.score[.away] ?? 0
         phase = match.phase
@@ -1048,6 +1082,7 @@ struct JoystickView: View {
 private struct SoccerContainer: UIViewRepresentable {
     @ObservedObject var referee: SoccerReferee
     @Binding var startRequested: Bool
+    @Binding var resetRequested: Bool
 
     func makeUIView(context: Context) -> ARView {
         // The view starts BLANK — no session, no world — because the venue is
@@ -1061,6 +1096,13 @@ private struct SoccerContainer: UIViewRepresentable {
     }
 
     func updateUIView(_ view: ARView, context: Context) {
+        if resetRequested {
+            let coordinator = context.coordinator
+            DispatchQueue.main.async {
+                resetRequested = false
+                coordinator.teardown()
+            }
+        }
         if startRequested {
             // Deferred: start() publishes referee state (kickoff), and
             // publishing from inside a view update is undefined behaviour.
@@ -1128,6 +1170,13 @@ final class SoccerCoordinator: NSObject, ARSessionDelegate {
     private var stadiumCamera = StadiumCamera()
     private var cameraEntity: PerspectiveCamera?
     private var lastPinch: CGFloat = 1
+    /// Every duck's ring, and what it last showed, so a ring is only
+    /// re-coloured when its state changes.
+    private var rings: [String: ModelEntity] = [:]
+    private var ringState: [String: Int] = [:]
+    /// The arrow over YOUR duck: bright, bobbing, and it follows every switch.
+    private var marker: ModelEntity?
+    private var gesturesAdded = false
 
     func attach(to view: ARView, referee: SoccerReferee) {
         self.view = view
@@ -1219,10 +1268,13 @@ final class SoccerCoordinator: NSObject, ARSessionDelegate {
         anchor.addChild(camera)
         cameraEntity = camera
 
-        view.addGestureRecognizer(UIPanGestureRecognizer(
-            target: self, action: #selector(orbit)))
-        view.addGestureRecognizer(UIPinchGestureRecognizer(
-            target: self, action: #selector(zoom)))
+        if !gesturesAdded {
+            gesturesAdded = true
+            view.addGestureRecognizer(UIPanGestureRecognizer(
+                target: self, action: #selector(orbit)))
+            view.addGestureRecognizer(UIPinchGestureRecognizer(
+                target: self, action: #selector(zoom)))
+        }
 
         buildPitch(on: anchor)
         buildStadiumDressing(on: anchor)
@@ -1292,6 +1344,21 @@ final class SoccerCoordinator: NSObject, ARSessionDelegate {
                 anchor.addChild(stand)
             }
         }
+    }
+
+    /// Take the pitch down so the lobby can start a different match: another
+    /// venue, other gear (other ducks), other moves.
+    func teardown() {
+        if let pitch { view?.scene.removeAnchor(pitch) }
+        if venue == .ar { view?.session.pause() }
+        pitch = nil; ball = nil; ducks = [:]; rings = [:]; ringState = [:]; marker = nil
+        walkPhase = [:]; kickStart = [:]; lastDrawn = [:]; rollAnchor = [:]
+        wheelSpin = [:]; skatePhase = [:]; crouchStart = [:]
+        cameraEntity = nil
+        view?.cameraMode = .nonAR
+        view?.environment.background = .color(.black)
+        referee?.isPlaced = false
+        referee?.isOver = false
     }
 
     func detach() {
@@ -1431,14 +1498,25 @@ final class SoccerCoordinator: NSObject, ARSessionDelegate {
             anchor.addChild(duck)
             ducks[player.id] = duck
 
-            let isYou = player.id == match.controlled
             let tint: UIColor = player.team == .home ? .systemYellow : .systemTeal
             let ring = ModelEntity(
                 mesh: .generatePlane(width: 0.16, depth: 0.16, cornerRadius: 0.08),
-                materials: [UnlitMaterial(color: tint.withAlphaComponent(isYou ? 0.9 : 0.35))])
+                materials: [UnlitMaterial(color: tint.withAlphaComponent(0.3))])
             ring.position = SIMD3<Float>(0, 0.003, 0)
             duck.addChild(ring)
+            rings[player.id] = ring
         }
+
+        // THE "YOU" MARKER: a bright diamond over your duck's head. It is its
+        // own entity on the pitch, not a child of any duck, so a switch moves
+        // it rather than leaving it behind.
+        let diamond = ModelEntity(mesh: .generateBox(size: 0.045),
+                                  materials: [UnlitMaterial(color: .systemYellow)])
+        diamond.orientation = simd_quatf(angle: .pi / 4, axis: SIMD3<Float>(1, 0, 0))
+            * simd_quatf(angle: .pi / 4, axis: SIMD3<Float>(0, 0, 1))
+        anchor.addChild(diamond)
+        marker = diamond
+        ringState = [:]
 
         walk = try? DuckTrajectory.bundled(.walk)
         stand = try? DuckTrajectory.bundled(.stand)
@@ -1543,7 +1621,8 @@ final class SoccerCoordinator: NSObject, ARSessionDelegate {
             // A kick is a kick on wheels too: everything above the ankles is
             // the same robot, and the engine roots the kicker for 0.9 s.
             if kickStart[player.id] == nil { kickStart[player.id] = now }
-            if let kick = kickLeft, let start = kickStart[player.id] {
+            let strike = yours(player.lastKickWasPass ? .pass : .shoot, player) ?? kickLeft
+            if let kick = strike, let start = kickStart[player.id] {
                 duck.apply(jointAngles: kick.pose(at: now - start).jointAngles, wheelSpin: spin)
             }
         case .walking, .rolling:
@@ -1598,6 +1677,54 @@ final class SoccerCoordinator: NSObject, ARSessionDelegate {
     /// measured the result: 29% foot-slide on sprinting ducks and striding on
     /// the spot while pivoting — the exact artifact this docstring claimed the
     /// design prevented.
+    /// Make your duck unmistakable: a bright, pulsing ring under it (green
+    /// when the ball is in reach), a bobbing diamond over its head that pops
+    /// when control switches, and team-mates' rings dimmed.
+    private func drawYou(match: DuckSoccer.Match) {
+        let now = CACurrentMediaTime()
+        let sinceSwitch = now - (referee?.switchedAt ?? 0)
+        let inReach = referee?.ballInRange ?? false
+        for player in match.players {
+            guard let ring = rings[player.id] else { continue }
+            let mine = player.id == match.controlled
+            let state = mine ? (inReach ? 2 : 1) : (player.team == .home ? 3 : 4)
+            if ringState[player.id] != state {
+                ringState[player.id] = state
+                let colour: UIColor
+                switch state {
+                case 1: colour = UIColor.systemYellow
+                case 2: colour = UIColor.systemGreen
+                case 3: colour = UIColor.systemYellow.withAlphaComponent(0.22)
+                default: colour = UIColor.systemTeal.withAlphaComponent(0.3)
+                }
+                ring.model?.materials = [UnlitMaterial(color: colour)]
+            }
+            if mine {
+                // A slow breath, and a big pop right after a switch.
+                let pop = sinceSwitch < 0.5 ? Float(1 - sinceSwitch / 0.5) * 1.2 : 0
+                let breathe = Float(0.12 * sin(now * 5))
+                ring.scale = SIMD3<Float>(repeating: 1.7 + breathe + pop)
+            } else {
+                ring.scale = SIMD3<Float>(repeating: 1)
+            }
+        }
+        if let marker, let me = match.players.first(where: { $0.id == match.controlled }) {
+            marker.isEnabled = true
+            let bob = Float(0.015 * sin(now * 4))
+            let pop = sinceSwitch < 0.4 ? Float(1 - sinceSwitch / 0.4) * 1.5 : 0
+            marker.position = SIMD3<Float>(Float(me.position.x), 0.36 + bob,
+                                           Float(-me.position.y))
+            marker.scale = SIMD3<Float>(repeating: 1 + pop)
+        } else {
+            marker?.isEnabled = false
+        }
+    }
+
+    /// Your clip for this moment, when your team has one.
+    private func yours(_ slot: SoccerLoadout.Slot, _ player: DuckSoccer.Player) -> DuckIntentClip? {
+        player.team == .home ? referee?.customClips[slot] : nil
+    }
+
     private func draw(match: DuckSoccer.Match, dt: Double) {
         if let ball {
             ball.position = SIMD3<Float>(Float(match.ball.position.x), 0.02,
@@ -1605,6 +1732,7 @@ final class SoccerCoordinator: NSObject, ARSessionDelegate {
         }
         guard let walk, let stand else { return }
         let clipSpeed = max(walk.deltaX / (Double(walk.frames.count) / walk.hz), 0.01)
+        drawYou(match: match)
 
         // Who is celebrating, and how far into the roll they are.
         var celebration: (id: String, at: Double)?
@@ -1638,6 +1766,13 @@ final class SoccerCoordinator: NSObject, ARSessionDelegate {
             // anchor drew the NEXT roll from the previous roll's start.
             if player.rollElapsed == nil { rollAnchor[player.id] = nil }
 
+            // YOUR SPECIAL ON SKATES: the engine carries the duck the clip's
+            // distance; the clip's joints are what it does on the way.
+            if duck.variant == .rollers, player.motion == .rolling,
+               let mine = yours(.special, player), let elapsed = player.rollElapsed {
+                duck.apply(jointAngles: mine.pose(at: elapsed).jointAngles)
+                continue
+            }
             if duck.variant == .rollers {
                 drawSkater(duck, player: player, match: match, signed: signed,
                            travelled: travelled, dt: dt, celebration: celebration)
@@ -1651,6 +1786,13 @@ final class SoccerCoordinator: NSObject, ARSessionDelegate {
             // poses smoothstepped between keyframes, so it plays through
             // DuckMove.pose(at:), the same arithmetic the editor previews.
             if let celebration, celebration.id == player.id {
+                if let mine = yours(.celebrate, player) {
+                    let clipPose = mine.pose(at: celebration.at.truncatingRemainder(
+                        dividingBy: max(mine.duration, 0.1)))
+                    duck.apply(jointAngles: clipPose.jointAngles)
+                    walkPhase[player.id] = 0
+                    continue
+                }
                 if player.team == .home,
                    let move = CelebrationStore.shared.chosen?.move {
                     duck.apply(jointAngles: move.pose(at: celebration.at))
@@ -1682,7 +1824,7 @@ final class SoccerCoordinator: NSObject, ARSessionDelegate {
                 // engine's straight line does not, so the handover to the
                 // standing pose carries that small snap. A blend over the
                 // last tenths of a second is the obvious next step.
-                if let roll = roulade, let elapsed = player.rollElapsed {
+                if let roll = yours(.special, player) ?? roulade, let elapsed = player.rollElapsed {
                     let anchor = rollAnchor[player.id] ?? {
                         let fresh = (x: player.position.x, y: player.position.y,
                                      heading: player.heading)
@@ -1705,7 +1847,8 @@ final class SoccerCoordinator: NSObject, ARSessionDelegate {
                 if kickStart[player.id] == nil {
                     kickStart[player.id] = CACurrentMediaTime()
                 }
-                if let kick = kickLeft, let start = kickStart[player.id] {
+                let strike = yours(player.lastKickWasPass ? .pass : .shoot, player) ?? kickLeft
+                if let kick = strike, let start = kickStart[player.id] {
                     duck.apply(jointAngles: kick.pose(at: CACurrentMediaTime() - start)
                         .jointAngles)
                 }
