@@ -84,4 +84,15 @@ final class RemoteReachTests: XCTestCase {
         }
         XCTAssertTrue(RemoteReach.ListError.signInAgain.message.contains("says nothing about whether your duck is there"))
     }
+
+    /// Pollen asked (microduck#329) that a third-party client on their
+    /// rendezvous name itself; this one names itself, its version, and says it
+    /// is not theirs.
+    func testTheRendezvousRequestCarriesOurOwnUserAgent() {
+        let request = RemoteReach.statusRequest(token: "t", version: "1.4")
+        let agent = request.value(forHTTPHeaderField: "User-Agent")
+        XCTAssertEqual(agent, "MicroduckStudio/1.4 (independent third-party iOS app; +https://microduckstudio.com)")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer t")
+        XCTAssertEqual(request.url?.host, "pollen-robotics-reachy-mini-central.hf.space")
+    }
 }
