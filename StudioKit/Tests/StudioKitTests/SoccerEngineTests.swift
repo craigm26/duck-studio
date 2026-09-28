@@ -592,3 +592,52 @@ extension SoccerEngineTests {
         XCTAssertLessThan(cpuRolls, 40, "and does not degenerate into roll spam")
     }
 }
+
+extension SoccerEngineTests {
+
+    /// Standard moves are the engine as it was: a shot holds the duck 0.9 s
+    /// and the next strike waits for the 1.6 s cooldown.
+    func testStandardMovesKeepTheOldTimings() {
+        XCTAssertEqual(S.Moves.standard.shootLock, 0.9)
+        XCTAssertEqual(S.Moves.standard.passLock, 0.9)
+        XCTAssertNil(S.Moves.standard.special)
+        XCTAssertEqual(S.Difficulty.normal.pace, 1.0, "normal is the game as it always played")
+    }
+
+    /// A Special from your loadout makes skates able to do something, and
+    /// carries the duck the distance the clip carried it.
+    func testACustomSpecialWorksOnSkatesAndCarriesItsDistance() {
+        var match = S.Match(capabilities: .skates)
+        XCTAssertNil(match.special(for: .home), "skates have no roll of their own")
+        match.moves[.home] = S.Moves(special: .init(distance: 0.4, duration: 2.0))
+        XCTAssertEqual(match.special(for: .home)?.distance, 0.4)
+        XCTAssertNil(match.special(for: .away), "the CPU team keeps its own")
+        // Let kickoff pass, then hold Special once.
+        for _ in 0..<100 { _ = match.advance(dt: dt, controls: ["home-3": S.Control()]) }
+        let start = match.players.first { $0.id == "home-3" }!.position
+        var rolled = false
+        for i in 0..<150 {
+            let events = match.advance(dt: dt, controls: ["home-3": S.Control(special: i == 0)])
+            if events.contains(.roll(by: "home-3")) { rolled = true }
+        }
+        XCTAssertTrue(rolled)
+        let end = match.players.first { $0.id == "home-3" }!.position
+        XCTAssertEqual((end - start).length, 0.4, accuracy: 0.12)
+    }
+
+    /// Clamps keep a loadout from breaking the game.
+    func testMovesAreClamped() {
+        let m = S.Moves(shootLock: 99, passLock: 0, special: .init(distance: 9, duration: 0))
+        XCTAssertEqual(m.shootLock, 2.5)
+        XCTAssertEqual(m.passLock, 0.3)
+        XCTAssertEqual(m.special?.distance, 1.2)
+        XCTAssertEqual(m.special?.duration, 0.3)
+    }
+
+    /// Easy slows the CPU team; your team-mates are never slowed.
+    func testEasyPacesOnlyTheCPUTeam() {
+        XCTAssertLessThan(S.Difficulty.easy.pace, 1)
+        XCTAssertFalse(S.Difficulty.easy.sprints)
+        XCTAssertTrue(S.Difficulty.hard.alwaysSprints)
+    }
+}
