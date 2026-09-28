@@ -48,13 +48,14 @@ struct DuckSoccerView: View {
                 VStack {
                     hud
                     Spacer()
-                    if !referee.isOver && !referee.isPaused { controls }
+                    if !referee.isOver && !referee.isPaused && !referee.practiceDone { controls }
                 }
                 if let toast = referee.toast {
                     ToastView(toast: toast).allowsHitTesting(false)
                 }
                 if referee.isPaused { pauseMenu }
                 if referee.isOver { results }
+                if referee.practiceDone { practiceResults }
             } else if !inLobby {
                 placementNote
             }
@@ -71,20 +72,24 @@ struct DuckSoccerView: View {
 
     private var lobby: some View {
         SoccerLobby(referee: referee, moves: moves, library: library, drafts: drafts,
-                    benches: benches) {
-            Task {
-                await moves.prepare(library: library, drafts: drafts, benches: benches)
-                referee.moves = moves.moves
-                referee.customClips = moves.clips
-                referee.saveSettings()
-                inLobby = false
-                if referee.isPlaced { resetRequested = true }
-                referee.status = referee.venue == .ar
-                    ? "Point at the floor and tap to lay out the pitch." : ""
-                startRequested = true
-            }
-        }
+                    benches: benches) { begin() }
         .transition(.opacity)
+    }
+
+    /// Get the moves ready, take down any pitch, and lay out a fresh one for
+    /// whatever the lobby chose: a match, or a drill.
+    private func begin() {
+        Task {
+            await moves.prepare(library: library, drafts: drafts, benches: benches)
+            referee.moves = moves.moves
+            referee.customClips = moves.clips
+            referee.saveSettings()
+            inLobby = false
+            if referee.isPlaced { resetRequested = true }
+            referee.status = referee.venue == .ar
+                ? "Point at the floor and tap to lay out the pitch." : ""
+            startRequested = true
+        }
     }
 
     // MARK: - during play
@@ -92,6 +97,17 @@ struct DuckSoccerView: View {
     /// One pill: the score and the clock, and a pause button beside it.
     private var hud: some View {
         HStack(spacing: Theme.spacing(.snug)) {
+            if let drill = referee.drill {
+                HStack(spacing: 10) {
+                    Image(systemName: drill.symbol)
+                    Text(drill.title).font(.subheadline.weight(.bold))
+                    Divider().frame(height: 18)
+                    Text(referee.practiceLine).font(.subheadline.monospacedDigit())
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 14).padding(.vertical, 8)
+                .background(.black.opacity(0.55), in: Capsule())
+            } else {
             HStack(spacing: 10) {
                 Text("YOU").font(.caption.weight(.heavy)).foregroundStyle(.yellow)
                 Text("\(referee.homeGoals)  –  \(referee.awayGoals)")
@@ -106,6 +122,7 @@ struct DuckSoccerView: View {
             .accessibilityElement(children: .combine)
             .accessibilityLabel(Text("Score: you \(referee.homeGoals), CPU \(referee.awayGoals). "
                                      + referee.clockText))
+            }
             Button {
                 referee.isPaused = true
             } label: {
@@ -244,6 +261,39 @@ struct DuckSoccerView: View {
         }
     }
 
+    private var practiceResults: some View {
+        ZStack {
+            Color.black.opacity(0.6).ignoresSafeArea()
+            VStack(spacing: Theme.spacing(.snug)) {
+                if let drill = referee.drill {
+                    Text(drill.title).font(.title.weight(.heavy)).foregroundStyle(.white)
+                    StarRow(count: referee.practiceStars, size: 40)
+                    Text(referee.practiceLine).font(.headline).foregroundStyle(.white)
+                    Text("Best: \(SoccerReferee.bestStars(drill)) of 3 stars")
+                        .font(.subheadline).foregroundStyle(.white.opacity(0.8))
+                    Button { referee.kickoff() } label: { Text("Try again").frame(maxWidth: 240) }
+                        .buttonStyle(.primaryActionMoves)
+                    if let next = nextDrill(after: drill) {
+                        Button {
+                            referee.drill = next
+                            begin()
+                        } label: { Text("Next: \(next.title)").frame(maxWidth: 240) }
+                            .buttonStyle(.bordered).tint(.white)
+                    }
+                    Button { backToLobby() } label: { Text("Lobby").frame(maxWidth: 240) }
+                        .buttonStyle(.bordered).tint(.white)
+                }
+            }
+            .padding()
+        }
+    }
+
+    private func nextDrill(after d: SoccerPractice.Drill) -> SoccerPractice.Drill? {
+        let all = SoccerPractice.Drill.allCases
+        guard let i = all.firstIndex(of: d), i + 1 < all.count else { return nil }
+        return all[i + 1]
+    }
+
     private func stat(_ title: String, _ value: Int) -> some View {
         VStack(spacing: 2) {
             Text("\(value)").font(.title2.weight(.bold).monospacedDigit())
@@ -262,6 +312,23 @@ struct DuckSoccerView: View {
         referee.isPaused = false
         resetRequested = true
         withAnimation { inLobby = true }
+    }
+}
+
+/// Three stars, filled up to `count`.
+private struct StarRow: View {
+    let count: Int
+    var size: CGFloat = 14
+    var body: some View {
+        HStack(spacing: size * 0.2) {
+            ForEach(0..<3) { i in
+                Image(systemName: i < count ? "star.fill" : "star")
+                    .font(.system(size: size))
+                    .foregroundStyle(i < count ? Color.yellow : Color.secondary)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("\(count) of 3 stars"))
     }
 }
 
@@ -297,10 +364,19 @@ private struct SoccerLobby: View {
     var body: some View {
             List {
                 Section {
+                    Picker("Mode", selection: Binding(
+                        get: { referee.drill == nil ? 0 : 1 },
+                        set: { referee.drill = $0 == 0 ? nil : (referee.drill ?? .penalties) })) {
+                        Text("Match").tag(0)
+                        Text("Practice").tag(1)
+                    }
+                    .pickerStyle(.segmented)
+                    .listRowBackground(Color.clear)
                     Button { onStart() } label: {
                         HStack {
-                            Image(systemName: "soccerball")
-                            Text(moves.preparing ?? (referee.venue == .ar ? "Place the pitch" : "Kick off"))
+                            Image(systemName: referee.drill?.symbol ?? "soccerball")
+                            Text(moves.preparing ?? (referee.venue == .ar ? "Place the pitch"
+                                 : referee.drill.map { "Start: \($0.title)" } ?? "Kick off"))
                         }
                         .font(.title3.weight(.bold))
                         .frame(maxWidth: .infinity, minHeight: 52)
@@ -308,6 +384,36 @@ private struct SoccerLobby: View {
                     .buttonStyle(.primaryActionMoves)
                     .disabled(moves.preparing != nil)
                     .listRowBackground(Color.clear)
+                }
+
+                if referee.drill != nil {
+                    Section {
+                        ForEach(SoccerPractice.Drill.allCases) { d in
+                            Button { referee.drill = d } label: {
+                                HStack(spacing: 12) {
+                                    Image(systemName: d.symbol).frame(width: 28)
+                                        .foregroundStyle(Theme.actionPrimary)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(d.title).font(.headline).foregroundStyle(Theme.textPrimary)
+                                        Text(d.blurb).font(.caption).foregroundStyle(Theme.textSecondary)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
+                                    Spacer()
+                                    VStack(alignment: .trailing, spacing: 4) {
+                                        StarRow(count: SoccerReferee.bestStars(d), size: 11)
+                                        if referee.drill == d {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .foregroundStyle(Theme.actionPrimary)
+                                        }
+                                    }
+                                }
+                                .padding(.vertical, 2)
+                            }
+                        }
+                    } header: {
+                        SectionHeading(text: "Skill challenges")
+                    }
+                    .listRowBackground(Theme.surfacePrimary)
                 }
 
                 Section {
@@ -672,6 +778,25 @@ final class SoccerReferee: ObservableObject {
     /// The whole game.
     private(set) var match = DuckSoccer.Match()
 
+    /// PRACTICE: when a drill is chosen, the pitch runs it instead of a match.
+    @Published var drill: SoccerPractice.Drill?
+    private(set) var practice: SoccerPractice?
+    @Published var practiceLine = ""
+    @Published var practiceDone = false
+    /// Stars earned this run, and the best ever per drill.
+    @Published var practiceStars = 0
+    static func bestStars(_ d: SoccerPractice.Drill) -> Int {
+        UserDefaults.standard.integer(forKey: "soccer.practice.\(d.rawValue)")
+    }
+    /// What the pitch draws for the drill: cones, rings, the finish, the lit half.
+    var drillProps: [SoccerPractice.Prop] { practice?.props ?? [] }
+    var litCorner: ClosedRange<Double>? { practice?.litCorner }
+    /// Changes whenever the drill's props change, so the pitch redraws them.
+    var drillSignature: String {
+        guard let p = practice else { return "" }
+        return "\(p.drill.rawValue)-\(p.attempt)-" + p.props.map { $0.done ? "1" : "0" }.joined()
+    }
+
     /// Ten ghosts, identifiable as ghosts in the record itself — a simulated
     /// player must be marked in the data, not only by the flag beside it.
     static let rrns: [String] = DuckSoccer.Team.allCases.flatMap { team in
@@ -697,6 +822,22 @@ final class SoccerReferee: ObservableObject {
         specialHeld = false
         requestSwitch = false
         accumulator = 0
+        practiceDone = false
+        practiceStars = 0
+        if let drill {
+            let p = SoccerPractice(drill, capabilities: wearing.capabilities, moves: moves)
+            practice = p
+            match = p.match
+            practiceLine = p.progress
+            isOver = false
+            isPaused = false
+            controlledID = match.controlled
+            switchedAt = CACurrentMediaTime()
+            phase = match.phase
+            show(drill.title)
+            return
+        }
+        practice = nil
         match = DuckSoccer.Match(capabilities: wearing.capabilities,
                                  halfLength: halfLength)
         match.moves[.home] = moves
@@ -760,6 +901,38 @@ final class SoccerReferee: ObservableObject {
         }
         let step = 1.0 / 50.0
         accumulator += min(dt, 0.25)
+        if var p = practice {
+            while accumulator >= step {
+                accumulator -= step
+                if let outcome = p.advance(dt: step, control: control) {
+                    switch outcome {
+                    case .success(let words):
+                        show(words, colour: .yellow, big: true, for: 1.6)
+                        UINotificationFeedbackGenerator().notificationOccurred(.success)
+                    case .miss(let words):
+                        show(words, colour: .white, for: 1.6)
+                        UINotificationFeedbackGenerator().notificationOccurred(.warning)
+                    case .finished:
+                        break
+                    }
+                }
+            }
+            practice = p
+            match = p.match
+            practiceLine = p.progress
+            phase = match.phase
+            if p.isFinished, !practiceDone {
+                practiceDone = true
+                practiceLine = p.summary
+                practiceStars = p.stars
+                let key = "soccer.practice.\(p.drill.rawValue)"
+                if p.stars > UserDefaults.standard.integer(forKey: key) {
+                    UserDefaults.standard.set(p.stars, forKey: key)
+                }
+            }
+            updateCooldowns()
+            return
+        }
         var events: [DuckSoccer.Event] = []
         while accumulator >= step {
             accumulator -= step
@@ -804,6 +977,16 @@ final class SoccerReferee: ObservableObject {
             }
         }
 
+        updateCooldowns()
+        homeGoals = match.score[.home] ?? 0
+        awayGoals = match.score[.away] ?? 0
+        phase = match.phase
+        let seconds = Int(match.clock)
+        clockText = "H\(match.half) \(seconds / 60):\(String(format: "%02d", seconds % 60))"
+    }
+
+    /// The button rings and the in-reach glow, from your duck's state.
+    private func updateCooldowns() {
         if let me = match.players.first(where: { $0.id == match.controlled }) {
             let recovery = max(match.capabilities.kickCooldown, 0.001)
             let strike = min(me.kickRecovery / recovery, 1)
@@ -815,11 +998,6 @@ final class SoccerReferee: ObservableObject {
                 && abs(DuckSoccer.angleDelta(from: me.heading, to: toBall.heading)) < 1.1
             if reach != ballInRange { ballInRange = reach }
         }
-        homeGoals = match.score[.home] ?? 0
-        awayGoals = match.score[.away] ?? 0
-        phase = match.phase
-        let seconds = Int(match.clock)
-        clockText = "H\(match.half) \(seconds / 60):\(String(format: "%02d", seconds % 60))"
     }
 
     private func finalWords() -> String {
@@ -1177,6 +1355,9 @@ final class SoccerCoordinator: NSObject, ARSessionDelegate {
     /// The arrow over YOUR duck: bright, bobbing, and it follows every switch.
     private var marker: ModelEntity?
     private var gesturesAdded = false
+    /// The drill's cones, rings, finish and lit half, redrawn when they change.
+    private var drillLayer: Entity?
+    private var drillShown = ""
 
     func attach(to view: ARView, referee: SoccerReferee) {
         self.view = view
@@ -1276,13 +1457,14 @@ final class SoccerCoordinator: NSObject, ARSessionDelegate {
                 target: self, action: #selector(zoom)))
         }
 
+        referee.kickoff()
         buildPitch(on: anchor)
         buildStadiumDressing(on: anchor)
         view.scene.addAnchor(anchor)
         pitch = anchor
         referee.isPlaced = true
         lastTick = CACurrentMediaTime()
-        referee.kickoff()
+        // kicked off before the build, so the ducks are the drill's
     }
 
     /// A failed session — camera access denied is the common one — says so
@@ -1352,6 +1534,7 @@ final class SoccerCoordinator: NSObject, ARSessionDelegate {
         if let pitch { view?.scene.removeAnchor(pitch) }
         if venue == .ar { view?.session.pause() }
         pitch = nil; ball = nil; ducks = [:]; rings = [:]; ringState = [:]; marker = nil
+        drillLayer = nil; drillShown = ""
         walkPhase = [:]; kickStart = [:]; lastDrawn = [:]; rollAnchor = [:]
         wheelSpin = [:]; skatePhase = [:]; crouchStart = [:]
         cameraEntity = nil
@@ -1402,12 +1585,13 @@ final class SoccerCoordinator: NSObject, ARSessionDelegate {
             transform.columns.3 = SIMD4<Float>(position.x, position.y, position.z, 1)
         }
         let anchor = AnchorEntity(world: transform)
+        referee.kickoff()
         buildPitch(on: anchor)
         view.scene.addAnchor(anchor)
         pitch = anchor
         referee.isPlaced = true
         lastTick = CACurrentMediaTime()
-        referee.kickoff()
+        // kicked off before the build, so the ducks are the drill's
     }
 
     // MARK: - building the world
@@ -1446,11 +1630,36 @@ final class SoccerCoordinator: NSObject, ARSessionDelegate {
         }
 
         // Centre line and spot.
-        let centre = ModelEntity(
-            mesh: .generateBox(width: 0.004, height: 0.002, depth: halfW * 2),
-            materials: [line])
-        centre.position = SIMD3<Float>(0, 0.001, 0)
-        anchor.addChild(centre)
+        // A PROPER PITCH: every marking a real one has, scaled from 105 m and
+        // fitted around this game's goals (the kit's `markings()`).
+        let marks = spec.markings()
+        for (a, b) in marks.lines {
+            let dx = Float(b.x - a.x), dy = Float(b.y - a.y)
+            let length = (dx * dx + dy * dy).squareRoot()
+            guard length > 0.0005 else { continue }
+            let stripe = ModelEntity(mesh: .generateBox(width: length + 0.004, height: 0.002, depth: 0.006),
+                                     materials: [line])
+            stripe.position = SIMD3<Float>(Float(a.x + b.x) / 2, 0.001, -Float(a.y + b.y) / 2)
+            stripe.orientation = simd_quatf(angle: atan2(-dy, dx) * -1, axis: SIMD3<Float>(0, 1, 0))
+            anchor.addChild(stripe)
+        }
+        for spot in marks.spots {
+            let dot = ModelEntity(mesh: .generatePlane(width: 0.018, depth: 0.018, cornerRadius: 0.009),
+                                  materials: [line])
+            dot.position = SIMD3<Float>(Float(spot.x), 0.0015, -Float(spot.y))
+            anchor.addChild(dot)
+        }
+        for corner in marks.corners {
+            let pole = ModelEntity(mesh: .generateBox(width: 0.004, height: 0.10, depth: 0.004),
+                                   materials: [UnlitMaterial(color: .white)])
+            pole.position = SIMD3<Float>(Float(corner.x), 0.05, -Float(corner.y))
+            let flag = ModelEntity(mesh: .generateBox(width: 0.028, height: 0.02, depth: 0.002),
+                                   materials: [UnlitMaterial(color: theme.awayGoal)])
+            flag.position = SIMD3<Float>(Float(corner.x) + (corner.x > 0 ? -0.016 : 0.016), 0.09,
+                                         -Float(corner.y))
+            anchor.addChild(pole)
+            anchor.addChild(flag)
+        }
 
         // Two goals: posts, crossbar, net panel. Home defends −x (yours),
         // the CPUs defend +x.
@@ -1470,13 +1679,35 @@ final class SoccerCoordinator: NSObject, ARSessionDelegate {
                 materials: [frame])
             bar.position = SIMD3<Float>(Float(x), height, 0)
             anchor.addChild(bar)
+            // A REAL-LOOKING GOAL: back, sides and roof of netting, and the
+            // frame's back posts, rather than one tinted block.
             let depth = Float(spec.goalDepth)
-            let panel = ModelEntity(
-                mesh: .generateBox(width: depth, height: height, depth: mouthHalf * 2),
-                materials: [net])
-            panel.position = SIMD3<Float>(Float(x) + (x > 0 ? depth : -depth) / 2,
-                                          height / 2, 0)
-            anchor.addChild(panel)
+            let out: Float = x > 0 ? 1 : -1
+            var mesh = UnlitMaterial(color: UIColor(white: 1, alpha: 0.28))
+            mesh.blending = .transparent(opacity: 0.28)
+            let back = ModelEntity(mesh: .generateBox(width: 0.002, height: height, depth: mouthHalf * 2),
+                                   materials: [mesh])
+            back.position = SIMD3<Float>(Float(x) + out * depth, height / 2, 0)
+            anchor.addChild(back)
+            let roof = ModelEntity(mesh: .generateBox(width: depth, height: 0.002, depth: mouthHalf * 2),
+                                   materials: [mesh])
+            roof.position = SIMD3<Float>(Float(x) + out * depth / 2, height, 0)
+            anchor.addChild(roof)
+            for z in [-mouthHalf, mouthHalf] {
+                let side = ModelEntity(mesh: .generateBox(width: depth, height: height, depth: 0.002),
+                                       materials: [mesh])
+                side.position = SIMD3<Float>(Float(x) + out * depth / 2, height / 2, z)
+                anchor.addChild(side)
+                let backPost = ModelEntity(mesh: .generateBox(width: 0.008, height: height, depth: 0.008),
+                                           materials: [frame])
+                backPost.position = SIMD3<Float>(Float(x) + out * depth, height / 2, z)
+                anchor.addChild(backPost)
+            }
+            // Tinted strip on the goal line, the team's colour.
+            let tintBar = ModelEntity(mesh: .generateBox(width: 0.006, height: 0.003, depth: mouthHalf * 2),
+                                      materials: [net])
+            tintBar.position = SIMD3<Float>(Float(x), 0.002, 0)
+            anchor.addChild(tintBar)
         }
 
         let ballEntity = ModelEntity(mesh: .generateSphere(radius: 0.02),
@@ -1720,6 +1951,52 @@ final class SoccerCoordinator: NSObject, ARSessionDelegate {
         }
     }
 
+    /// Practice props: orange cones, target rings, a finish line, and the
+    /// lit half of the goal.
+    private func drawDrill() {
+        guard let referee, let pitch, referee.drillSignature != drillShown else { return }
+        drillShown = referee.drillSignature
+        drillLayer?.removeFromParent()
+        let layer = Entity()
+        for prop in referee.drillProps {
+            let at = SIMD3<Float>(Float(prop.position.x), 0, -Float(prop.position.y))
+            switch prop.kind {
+            case .cone:
+                let cone = ModelEntity(mesh: .generateBox(width: 0.022, height: 0.05, depth: 0.022,
+                                                          cornerRadius: 0.006),
+                                       materials: [UnlitMaterial(color: prop.done
+                                            ? UIColor.systemGreen : UIColor.systemOrange)])
+                cone.position = at + SIMD3<Float>(0, 0.025, 0)
+                layer.addChild(cone)
+            case .ring:
+                let r = Float(prop.radius)
+                let disc = ModelEntity(mesh: .generatePlane(width: r * 2, depth: r * 2, cornerRadius: r),
+                                       materials: [UnlitMaterial(color: UIColor.systemYellow
+                                            .withAlphaComponent(0.35))])
+                disc.position = at + SIMD3<Float>(0, 0.002, 0)
+                layer.addChild(disc)
+            case .finish:
+                let bar = ModelEntity(mesh: .generateBox(width: 0.012, height: 0.002,
+                                                         depth: Float(prop.radius) * 2),
+                                      materials: [UnlitMaterial(color: .systemYellow)])
+                bar.position = at + SIMD3<Float>(0, 0.002, 0)
+                layer.addChild(bar)
+            }
+        }
+        if let lit = referee.litCorner {
+            let spec = DuckSoccer.Pitch.livingRoom
+            let width = Float(lit.upperBound - lit.lowerBound)
+            let glow = ModelEntity(mesh: .generateBox(width: 0.004, height: 0.2, depth: width),
+                                   materials: [UnlitMaterial(color: UIColor.systemYellow
+                                        .withAlphaComponent(0.45))])
+            glow.position = SIMD3<Float>(Float(spec.halfLength) + 0.01, 0.1,
+                                         -Float(lit.lowerBound + lit.upperBound) / 2)
+            layer.addChild(glow)
+        }
+        pitch.addChild(layer)
+        drillLayer = layer
+    }
+
     /// Your clip for this moment, when your team has one.
     private func yours(_ slot: SoccerLoadout.Slot, _ player: DuckSoccer.Player) -> DuckIntentClip? {
         player.team == .home ? referee?.customClips[slot] : nil
@@ -1733,6 +2010,7 @@ final class SoccerCoordinator: NSObject, ARSessionDelegate {
         guard let walk, let stand else { return }
         let clipSpeed = max(walk.deltaX / (Double(walk.frames.count) / walk.hz), 0.01)
         drawYou(match: match)
+        drawDrill()
 
         // Who is celebrating, and how far into the roll they are.
         var celebration: (id: String, at: Double)?
