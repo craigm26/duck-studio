@@ -12,29 +12,18 @@ final class FirstRunTests: XCTestCase {
         XCTAssertEqual(first?.body, Provenance.independence)
     }
 
-    /// Everybody who saw the run without that card sees it once more.
-    func testTheRunIsShownAgainToAnybodyWhoSawVersionOne() {
-        XCTAssertTrue(FirstRun.shouldShow(seenVersion: 1))
-    }
-
-    /// THE SECOND LINE HAS TO ADMIT THERE IS NO ROBOT. An app that starts with
-    /// "pair your Microduck" fails for every person who has it today, because
-    /// Pollen's first deliveries are around Christmas 2026.
-    func testItOpensByAdmittingTheRobotDoesNotExistYet() {
-        let first = FirstRun.steps.dropFirst().first
-        XCTAssertEqual(first?.id, "no-duck")
-        XCTAssertTrue(first!.body.contains("Christmas 2026"))
-        XCTAssertTrue(first!.title.lowercased().contains("not have"))
-    }
-
-    /// And then says what works anyway, or the first card is just bad news.
-    func testTheFirstCardAlsoSaysWhatWorksWithoutOne() {
-        XCTAssertTrue(FirstRun.steps[1].body.contains("without one"))
+    /// Then straight to playing, admitting there is probably no robot yet and
+    /// saying it does not matter.
+    func testTheSecondCardSendsYouToPlayWithoutARobot() {
+        let play = FirstRun.steps[1]
+        XCTAssertEqual(play.tab, "Play")
+        XCTAssertTrue(play.body.contains("Christmas 2026"))
+        XCTAssertTrue(play.body.contains("without one"))
     }
 
     /// Every step that names a tab has to name one that exists.
     func testEveryNamedTabIsARealTab() {
-        let real = Set(["My Microduck", "Control", "Behaviours", "Studio", "Robot"])
+        let real = Set(["Play", "Learn", "Behaviours", "Studio", "My Microduck"])
         for step in FirstRun.steps {
             guard let tab = step.tab else { continue }
             XCTAssertTrue(real.contains(tab), "\(tab) is not a tab")
@@ -45,17 +34,18 @@ final class FirstRunTests: XCTestCase {
     /// preview is what you asked for, not what the robot would do.
     func testItRepeatsTheOneCaveatThatMatters() {
         let text = FirstRun.steps.map(\.body).joined(separator: " ")
-        // NOT "a phone has no physics engine": the phone IS a bench now —
-        // PhoneBenchReport.premiseWasAboutABuild — and this card said the
-        // stale thing until a screenshot showed both claims on one screen.
-        XCTAssertTrue(text.contains("a preview runs no physics"))
+        XCTAssertTrue(text.contains("A preview runs no physics"))
         XCTAssertFalse(text.contains("phone has no physics"))
         XCTAssertTrue(text.contains("ASKED"))
     }
 
-    func testTheStepsAreOrderedForSomebodyWithNothing() {
-        XCTAssertEqual(FirstRun.steps.map(\.id),
-                       ["not-official", "no-duck", "watch", "make", "play", "arrives"])
+    /// THREE CARDS. It was six and a question; a person who wants to drive a
+    /// duck should be driving it after three swipes.
+    func testTheStepsAreShortAndOrdered() {
+        XCTAssertEqual(FirstRun.steps.map(\.id), ["not-official", "play", "learn"])
+        for step in FirstRun.steps.dropFirst() {
+            XCTAssertLessThan(step.body.split(separator: " ").count, 40, step.id)
+        }
     }
 
     func testStepIdsAreUniqueAndNothingIsEmpty() {
@@ -69,16 +59,8 @@ final class FirstRunTests: XCTestCase {
     /// It asks once and never again, whichever way somebody leaves it.
     func testItIsShownOnceAndThenNot() {
         XCTAssertTrue(FirstRun.shouldShow(seenVersion: nil))
-        XCTAssertTrue(FirstRun.shouldShow(seenVersion: 0))
+        XCTAssertTrue(FirstRun.shouldShow(seenVersion: 2))
         XCTAssertFalse(FirstRun.shouldShow(seenVersion: FirstRun.currentVersion))
         XCTAssertFalse(FirstRun.shouldShow(seenVersion: FirstRun.currentVersion + 1))
-    }
-
-    /// The detail question explains itself. Asking somebody to pick a mode
-    /// without saying why is how they pick wrong and blame the app.
-    func testTheDetailQuestionSaysWhyItIsBeingAsked() {
-        XCTAssertTrue(FirstRun.detailWhy.contains("train"))
-        XCTAssertTrue(FirstRun.detailWhy.contains("own the robot"))
-        XCTAssertTrue(FirstRun.detailWhy.contains("Settings"))
     }
 }

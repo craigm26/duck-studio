@@ -357,7 +357,7 @@ public enum StageViewport {
       + "the controls, and the pad has to stay where a thumb can reach it. On a taller screen "
       + "this control appears."
 
-    // MARK: - the Control tab's floating chrome
+    // MARK: - the Play tab's floating chrome
 
     /// The drawer handle, as what a press DOES.
     public static let drawerOpenSaid  = "Show the controls"

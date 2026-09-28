@@ -27,15 +27,22 @@ struct ControlShelfChips: View {
     let openMotions: () -> Void
     let pose: () -> Void
     let mimic: () -> Void
+    /// Simple keeps the two chips that play something: Motions and Mimic.
+    /// Choosing a scene and posing joints by hand are building, not playing.
+    var simple = false
 
     var body: some View {
         HStack(spacing: Theme.spacing(.tight)) {
-            chip(ControlShelf.sceneChip, detail: ControlShelf.standingSaid(standing),
-                 glyph: "square.stack.3d.up", act: openScene)
+            if !simple {
+                chip(ControlShelf.sceneChip, detail: ControlShelf.standingSaid(standing),
+                     glyph: "square.stack.3d.up", act: openScene)
+            }
             chip(ControlShelf.motionsChip, detail: nil,
                  glyph: "figure.walk.motion", act: openMotions)
-            chip(ControlShelf.poseChip, detail: posing ? ControlShelf.posingNow : nil,
-                 glyph: "hand.draw", act: pose)
+            if !simple {
+                chip(ControlShelf.poseChip, detail: posing ? ControlShelf.posingNow : nil,
+                     glyph: "hand.draw", act: pose)
+            }
             // THE FOURTH CHIP. A pose from the camera rather than from a
             // finger; everything after that is the pose bar's own doors.
             chip(ControlShelf.mimicChip, detail: mimicking ? ControlShelf.mimickingNow : nil,

@@ -77,8 +77,14 @@ see "Run it somewhere with physics," below.
 
 ## The five tabs
 
-The app opens on **My Microduck**, and every tab is useful with no network, no
-account and no robot.
+The app opens on **Play**, and every tab is useful with no network, no account
+and no robot. **Play · Learn · Behaviours · Studio · My Microduck.**
+
+**Simple and Everything.** A new install starts in **Simple**: drive the duck,
+play its moves, make motions, and nothing else. Training tools, network
+internals, diagnostics and the long explanations under each screen wait for
+**Everything**, which the last lesson on Learn turns on (or Settings → Detail).
+Anybody updating from an earlier build keeps Everything.
 
 Five is the ceiling: iPhone folds a sixth tab into "More", where a tab is
 somewhere people do not go, so anything arriving after this lives inside one of
@@ -96,8 +102,17 @@ Nobody has a Microduck yet — Pollen's first deliveries are around Christmas 20
 — so today this tab is mostly honest about being unable to find one, and it says
 that in a sentence rather than by showing an empty card.
 
-**Control.** The movement pad, the action buttons, live telemetry and the layers
-under them. The pads stay pressable against a bench that cannot honour them and
+**Learn.** A nine-step path from driving to training: drive it, play a move,
+every move is a network, how Microduck learns (reinforcement learning in mjlab;
+61 inputs, 14 joints, 50 Hz), judge two walks, make a motion, measure it, tune
+a network, and show every tool. Each lesson is two sentences and a button that
+opens the real screen.
+
+**Play** (was Control). The movement pad, the action buttons, live telemetry
+and the layers under them. Pushing a stick starts the duck on a bench; on a
+real robot Drive stays a deliberate press. In Simple the buttons carry the
+move's name ("Roulade", "Ground pick") and the controls that do nothing on a
+bench are left off. The pads stay pressable against a bench that cannot honour them and
 answer with the reason, which is how somebody learns that the mouth is servo
 nine and no network drives it; the present-or-absent rule lives on My
 Microduck's Drive button, which appears only when the link carries the call.
@@ -175,10 +190,9 @@ refusal. A drafted motion opens immediately in the 3D editor with every keyframe
 where the sentence put it, which is how somebody learns this robot's joints
 without reading a manual.
 
-**Robot.** The machine rather than its behaviour: hardware, motors, firmware,
-network and diagnostics. This is the tab with the least behind it today, because
-almost everything on it needs a robot on the floor to be worth reading, and it
-says which rows those are instead of drawing them dead.
+**Robot details** (was the Robot tab, now a row on My Microduck). The machine
+rather than its behaviour: published specifications for everybody; motors,
+firmware, network, capabilities and the pairing spike under Everything.
 
 ---
 

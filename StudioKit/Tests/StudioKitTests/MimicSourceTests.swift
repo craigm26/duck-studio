@@ -91,7 +91,7 @@ final class MimicSourceTests: XCTestCase {
         XCTAssertTrue(Mimic.recordSaid.contains("thirty seconds"))
         XCTAssertEqual(Mimic.kept("Mimic 2"),
                        "Kept as Mimic 2. It is in Studio with the other motions, and on the "
-                     + "Control tab's Motions chip.")
+                     + "Play tab's Motions chip.")
         XCTAssertEqual(Mimic.tracking(posesPerSecond: 14.6), "Tracking · 15 poses a second")
         XCTAssertTrue(Mimic.screenReadingFailed("It was refused.").contains("It was refused."))
         XCTAssertTrue(Mimic.videoAndYouTubeAreInStudio.contains("Studio"))

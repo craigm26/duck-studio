@@ -31,8 +31,17 @@ final class DetailStore: ObservableObject {
         // app has no stored level, and `installedDefault` is Everything, so the
         // screens they installed it for are exactly where they left them.
         let stored = UserDefaults.standard.string(forKey: Self.levelKey)
-        level = stored.flatMap(DetailLevel.init(rawValue:)) ?? .installedDefault
         let seen = UserDefaults.standard.object(forKey: Self.seenKey) as? Int
+        // A FRESH CONTAINER STARTS SIMPLE; ANYBODY ALREADY HOLDING THE APP KEEPS
+        // EVERYTHING. "Already holding" is either mark an earlier build left:
+        // a stored level or a first run seen.
+        let fresh = stored == nil && seen == nil
+        level = stored.flatMap(DetailLevel.init(rawValue:))
+            ?? (fresh ? .newInstallDefault : .installedDefault)
+        // WRITTEN BACK AT ONCE, because screens that do not hold this store
+        // (Motions, Play) read the level straight from the key with
+        // `@AppStorage`, and `didSet` does not run inside `init`.
+        UserDefaults.standard.set(level.rawValue, forKey: Self.levelKey)
         seenFirstRun = seen
         // A PERSON WHO ALREADY HAS THE APP HAS ALREADY HAD THEIR FIRST RUN.
         // Showing the welcome to somebody on their fortieth launch, just

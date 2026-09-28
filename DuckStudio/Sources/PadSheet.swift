@@ -1,7 +1,7 @@
 import Foundation
 import StudioKit
 
-/// Which sheet the Control tab's chrome is showing, if any.
+/// Which sheet the Play tab's chrome is showing, if any.
 ///
 /// ONE `Identifiable` ENUM AND ONE `.sheet(item:)`, WHICH IS THE POINT. The
 /// alternative is four `@State private var showingX = false` and four

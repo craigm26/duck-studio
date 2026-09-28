@@ -25,6 +25,12 @@ final class DetailLevelTests: XCTestCase {
         XCTAssertEqual(DetailLevel.installedDefault, .full)
     }
 
+    /// A FRESH install starts Simple: driving and playing first, and the Learn
+    /// path is the way to everything else.
+    func testANewInstallStartsSimple() {
+        XCTAssertEqual(DetailLevel.newInstallDefault, .simple)
+    }
+
     /// Hiding a screen silently is how somebody concludes a feature was
     /// removed. Simple has to name what it is holding back AND the way back.
     func testSimpleNamesWhatItHidesAndWhereTheSwitchIs() {

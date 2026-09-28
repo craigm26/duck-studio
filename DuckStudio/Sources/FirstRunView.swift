@@ -10,18 +10,16 @@ import StudioKit
 /// here was recorded in physics on a bigger machine and replays without
 /// hardware.
 ///
-/// IT ENDS BY ASKING HOW MUCH TO SHOW, ONCE. The app was built for people who
-/// train these networks and grew into one for people who own the robot, and
-/// neither is the right default for the other. Skipping is allowed and lands on
-/// Everything, which is what the app has always been.
+/// THREE CARDS AND NO QUESTION. A new install starts Simple and the Learn tab
+/// is the way to everything else, so nothing needs deciding before the duck
+/// can be driven.
 struct FirstRunView: View {
     @ObservedObject var detail: DetailStore
     @Environment(\.dismiss) private var dismiss
 
     @State private var page = 0
-    @State private var chosen: DetailLevel?
 
-    private var cards: Int { FirstRun.steps.count + 1 }
+    private var cards: Int { FirstRun.steps.count }
 
     var body: some View {
         NavigationStack {
@@ -29,7 +27,6 @@ struct FirstRunView: View {
                 ForEach(Array(FirstRun.steps.enumerated()), id: \.element.id) { index, step in
                     stepCard(step).tag(index)
                 }
-                detailCard.tag(FirstRun.steps.count)
             }
             .tabViewStyle(.page)
             .indexViewStyle(.page(backgroundDisplayMode: .always))
@@ -41,7 +38,7 @@ struct FirstRunView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     if page == cards - 1 {
-                        Button("Start") { finish(chosen) }.fontWeight(.semibold)
+                        Button("Start") { finish(nil) }.fontWeight(.semibold)
                     } else {
                         Button("Next") { withAnimation { page += 1 } }
                     }
@@ -70,39 +67,6 @@ struct FirstRunView: View {
         }
         .padding(.horizontal, 28)
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var detailCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Spacer(minLength: 0)
-            Text(FirstRun.detailQuestion).font(.title2.weight(.semibold))
-            Text(FirstRun.detailWhy).font(.footnote).foregroundStyle(.secondary)
-            ForEach(DetailLevel.allCases) { level in
-                Button {
-                    chosen = level
-                } label: {
-                    HStack(alignment: .top, spacing: 12) {
-                        Image(systemName: chosen == level
-                              ? "largecircle.fill.circle" : "circle")
-                            .foregroundStyle(.tint)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(level.name).font(.headline)
-                            Text(level.blurb).font(.caption)
-                                .foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                    .padding(12)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
-                }
-                .buttonStyle(.plain)
-            }
-            Text("Settings → Detail changes it any time.")
-                .font(.caption2).foregroundStyle(.secondary)
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 24)
     }
 
     private func finish(_ level: DetailLevel?) {

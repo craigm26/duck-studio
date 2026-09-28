@@ -36,6 +36,12 @@ public enum DetailLevel: String, Codable, CaseIterable, Sendable, Identifiable {
     /// it has always had until somebody chooses otherwise.
     public static let installedDefault = DetailLevel.full
 
+    /// What a FRESH install starts on: Simple. Nobody holding the app loses a
+    /// screen (they keep `installedDefault`); somebody opening it for the first
+    /// time starts on driving and playing, and the Learn tab's last lesson is
+    /// the way to everything else.
+    public static let newInstallDefault = DetailLevel.simple
+
     public var name: String {
         switch self {
         case .simple: return "Simple"
@@ -46,11 +52,9 @@ public enum DetailLevel: String, Codable, CaseIterable, Sendable, Identifiable {
     public var blurb: String {
         switch self {
         case .simple:
-            return "Drive the duck, play with it, record motions. The screens that "
-                 + "take a neural network apart stay out of the way."
+            return "Drive, play and make motions. Training tools and diagnostics stay hidden."
         case .full:
-            return "Every screen, including the observation editor, the z-scores, "
-                 + "the sensitivity ranking and the structural dump behind a refused file."
+            return "Every screen, including network internals, training tools and diagnostics."
         }
     }
 
@@ -71,6 +75,12 @@ public enum DetailLevel: String, Codable, CaseIterable, Sendable, Identifiable {
         case training
         /// Pushing a policy or a motion to Hugging Face.
         case publishing
+        /// The robot's wire-level screens: capabilities, firmware digests,
+        /// joint grids, the pairing spike.
+        case diagnostics
+        /// Paragraphs that explain how something works, under a screen that
+        /// works without them.
+        case notes
 
         public var id: String { rawValue }
 
@@ -82,13 +92,15 @@ public enum DetailLevel: String, Codable, CaseIterable, Sendable, Identifiable {
             case .physicsBench: return "Physics bench"
             case .training: return "Training requests"
             case .publishing: return "Publishing"
+            case .diagnostics: return "Diagnostics"
+            case .notes: return "Long explanations"
             }
         }
     }
 
     /// Whether this level shows that surface.
     ///
-    /// SIMPLE HIDES FIVE THINGS AND NO MORE. Not the Control tab, not the
+    /// SIMPLE HIDES FIVE THINGS AND NO MORE. Not the Play tab, not the
     /// modes, not drafting a motion from a sentence, not the scenes — those are
     /// for anybody with a duck. The line is drawn at screens that are only
     /// legible if you already know what a policy is.
@@ -107,13 +119,12 @@ public enum DetailLevel: String, Codable, CaseIterable, Sendable, Identifiable {
     public var withheldNote: String? {
         guard self == .simple else { return nil }
         let names = Surface.allCases.map(\.name)
-        return "Simple is not showing: " + names.joined(separator: ", ")
-             + ". Settings → Detail turns them back on."
+        return "Hidden in Simple: " + names.joined(separator: ", ")
+             + ". Learn's last lesson or Settings → Detail turns them on."
     }
 
     /// The sentence a hidden section leaves in its place, naming itself.
     public static func placeholder(for surface: Surface) -> String {
-        "\(surface.name) is hidden while Detail is set to Simple. "
-        + "Settings → Detail shows it again."
+        "\(surface.name) is hidden in Simple. Settings → Detail shows it."
     }
 }

@@ -21,7 +21,7 @@ import Foundation
 /// and the mapping is in one place, below.
 ///
 /// WHAT IT REPLACES. On a bench, "which networks does this thing hold" is
-/// `GET /health`, and the Control tab has always read it there. A robot has no
+/// `GET /health`, and the Play tab has always read it there. A robot has no
 /// such endpoint and never will: `robotd` owns its policy slots and reports
 /// them exactly once, here, because they are constant for the life of the
 /// process. So this is the honest answer to the same question over a link to

@@ -3,7 +3,7 @@ import DuckEvidence
 
 /// What this phone's pad is wired to, laid over the table `padd` ships.
 ///
-/// THE PAD STOPPED BEING A GATE AND BECAME A MAP. Before this, the Control tab
+/// THE PAD STOPPED BEING A GATE AND BECAME A MAP. Before this, the Play tab
 /// refused to drive until somebody picked a policy out of a list, because
 /// `/health` says what a bench HOLDS and never says what it has LOADED. That
 /// refusal was honest and it was also the wrong shape: a bench always has
@@ -87,15 +87,20 @@ public struct DuckPadMap: Equatable, Sendable {
         public let isLive: Bool
         /// Whether this is the person's choice rather than the shipped one.
         public let isCustom: Bool
+        /// The move's own name, for the face of the button ("Roulade",
+        /// "Ground pick", a sequence's name). Nil for a control that does
+        /// nothing here, which Simple does not draw.
+        public let name: String?
 
         public init(control: DuckPad.Control, onTheRobot: String, caption: String,
-                    detail: String, isLive: Bool, isCustom: Bool) {
+                    detail: String, isLive: Bool, isCustom: Bool, name: String? = nil) {
             self.control = control
             self.onTheRobot = onTheRobot
             self.caption = caption
             self.detail = detail
             self.isLive = isLive
             self.isCustom = isCustom
+            self.name = name
         }
     }
 
@@ -250,33 +255,40 @@ public struct DuckPadMap: Equatable, Sendable {
         var live = true
         var caption: String
         var here_: String
+        var name: String?
         switch here {
         case .loadSlot(let slot):
+            name = slot.title
             caption = "Load \(slot.title.lowercased())"
             here_ = "Loads the network filling \(slot.title.lowercased()) on this bench."
         case .play(let id, let then):
-            let name = naming(id) ?? ""
+            let sequence = naming(id) ?? ""
+            name = sequence
             if let then {
-                caption = "Play \(name), then \(then.title.lowercased())"
-                here_ = "Plays the sequence \(name), then loads the network filling "
+                caption = "Play \(sequence), then \(then.title.lowercased())"
+                here_ = "Plays the sequence \(sequence), then loads the network filling "
                       + "\(then.title.lowercased()) on this bench."
             } else {
-                caption = "Play \(name)"
-                here_ = "Plays the sequence \(name)."
+                caption = "Play \(sequence)"
+                here_ = "Plays the sequence \(sequence)."
             }
         case .run(let id):
-            let name = namingMotion(id) ?? ""
-            caption = "Run \(name)"
-            here_ = "Runs the motion \(name) once on the bench. Driving stops while it runs "
+            let motion = namingMotion(id) ?? ""
+            name = motion
+            caption = "Run \(motion)"
+            here_ = "Runs the motion \(motion) once on the bench. Driving stops while it runs "
                   + "and the sticks come back after."
         case .drive:
             caption = "Drive"
+            name = caption
             here_ = "Feeds the velocity twist."
         case .stop:
             caption = "Stop"
+            name = caption
             here_ = "Stops — zeroes the command and lets the duck settle under it."
         case .reset:
             caption = "Reset"
+            name = caption
             here_ = "Puts the duck back on its feet."
         case .notYet(let why):
             live = false
@@ -290,7 +302,8 @@ public struct DuckPadMap: Equatable, Sendable {
         let detail = robot == "—" ? here_ : "\(here_) On the robot: \(robot)."
         return Shown(control: control, onTheRobot: robot, caption: caption,
                      detail: detail, isLive: live,
-                     isCustom: here != DuckPadMap.shipped(for: control))
+                     isCustom: here != DuckPadMap.shipped(for: control),
+                     name: live ? name : nil)
     }
 
     // MARK: - editing

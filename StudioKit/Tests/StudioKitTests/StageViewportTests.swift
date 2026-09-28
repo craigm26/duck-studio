@@ -32,7 +32,7 @@ final class StageViewportTests: XCTestCase {
     /// would be, not as the one that ships (that is `shippedChrome`). The Stop
     /// bar is in neither — it is a `safeAreaInset` outside the stage.
     private let padUpChrome = StageViewport.Chrome.column.over(top: 96, bottom: 208)
-    /// The chrome the Control tab actually lays out on a 393 x 740 glass at
+    /// The chrome the Play tab actually lays out on a 393 x 740 glass at
     /// the default text size: the venue switch, the 44-point caption row and
     /// the chip row (about 176) at the top; the compact pad with its face
     /// buttons folded two by two and the drawer handle (about 256) at the
@@ -305,7 +305,7 @@ final class StageViewportTests: XCTestCase {
           + "size they really are — a 250 mm robot in a 2.9 m world — so the way to see it closer "
           + "is to walk closer, or to tap the floor nearer to you to put it down again.")
         XCTAssertFalse(DriveVenue.arHasNoZoom.contains("bigger"),
-                       "the Control tab has no size control to send anybody to")
+                       "the Play tab has no size control to send anybody to")
         XCTAssertTrue(DriveVenue.arHasNoZoom.contains("walk closer"))
         XCTAssertTrue(DriveVenue.arHasNoZoom.contains("2.9 m"))
         XCTAssertTrue(DriveVenue.arIsNot.contains("2.9 m"))

@@ -43,49 +43,18 @@ public enum FirstRun {
               title: Provenance.notOfficialTitle,
               body: Provenance.independence,
               tab: nil),
-        .init(id: "no-duck",
-              title: "You probably do not have a Microduck yet",
-              body: "Pollen's first deliveries are around Christmas 2026. Nearly "
-                  + "everything here works without one: every motion in the app was "
-                  + "recorded in MuJoCo on a bigger machine, and it replays on a "
-                  + "drawing of the robot at true scale.",
-              tab: nil),
-        .init(id: "watch",
-              title: "Start by watching one move",
-              body: "Behaviours holds the policies Pollen trained and the motions "
-                  + "they produced. Open one and play it. The duck you are looking "
-                  + "at is 25 cm tall, standing on a floor drawn to the same scale.",
-              tab: "Behaviours"),
-        .init(id: "make",
-              title: "Then make one of your own",
-              body: "Studio → Draft turns a sentence into keyframes you can fix by "
-                  + "hand, or pose the robot joint by joint. What the stage draws is "
-                  + "what you ASKED for — a preview runs no physics, so it is never "
-                  + "a promise about what the robot would do. Running it is.",
-              tab: "Studio"),
         .init(id: "play",
-              title: "There are modes to play in",
-              body: "Studio → Modes: soccer on your carpet, a ghost duck at true "
-                  + "scale, a room you scan yourself. The ones that need a robot on "
-                  + "the floor are not listed until there is one.",
-              tab: "Studio"),
-        .init(id: "arrives",
-              title: "When yours arrives",
-              body: "Control drives it — sticks, a pad of your own motions, and a "
-                  + "camera that reads your pose onto the duck. Until then it drives "
-                  + "the drawing, which behaves the same except for being weightless.",
-              tab: "Control"),
+              title: "Start by playing",
+              body: "Pollen's first Microducks ship around Christmas 2026, and everything here "
+                  + "works without one: Play drives a duck drawn at true scale, in real physics, "
+                  + "right on this phone.",
+              tab: "Play"),
+        .init(id: "learn",
+              title: "Learn the rest when you want to",
+              body: "Learn walks from driving, to how Pollen trains a move, to making and "
+                  + "measuring your own. A preview runs no physics: it shows what you ASKED for.",
+              tab: "Learn"),
     ]
-
-    /// The question the last card asks, with the two answers.
-    public static let detailQuestion =
-        "How much of the app do you want in front of you?"
-
-    /// Why it is asked at all, in a sentence under the question.
-    public static let detailWhy =
-        "Microduck Studio started as a tool for people who train these networks and "
-        + "grew into one for people who own the robot. Neither is the default for the "
-        + "other, so it asks once. Settings → Detail changes it any time."
 
     /// Whether the app should offer this. `false` once somebody has seen it,
     /// whichever way they left.
@@ -99,5 +68,8 @@ public enum FirstRun {
     ///
     /// 2: the "not the official app" card, shown once to everybody who saw
     /// version 1 without it.
-    public static let currentVersion = 2
+    ///
+    /// 3: three cards for the Play / Learn layout, and no detail question
+    /// (a new install starts Simple; Learn's last lesson is the way out).
+    public static let currentVersion = 3
 }

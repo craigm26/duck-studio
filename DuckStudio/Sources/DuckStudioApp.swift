@@ -17,62 +17,41 @@ import StudioKit
 /// also accepts the raw value so a run can say `-tab studio` and not have to
 /// know what number Studio is this week.
 enum AppTab: String, CaseIterable, Identifiable {
-    case duck, control, behaviours, studio, robot
+    // PLAY FIRST, AND THE APP OPENS ON IT. Somebody who installed an app for a
+    // robot wants to move the robot; everything else is a step on the Learn
+    // path. The raw values are the old ones where the tab is the same place, so
+    // `-tab control` still reaches it. Robot is not a tab any more: it is one
+    // row inside My Microduck, where the same bench is already described.
+    case control, learn, behaviours, studio, duck
 
     var id: String { rawValue }
 
-    /// What the tab bar says. "My Microduck" rather than "Duck": the first tab
-    /// is about the one robot this phone is paired to, and the possessive is
-    /// the difference between that and a catalogue of ducks.
     var title: String {
         switch self {
-        case .duck: return "My Microduck"
-        case .control: return "Control"
+        case .control: return "Play"
+        case .learn: return "Learn"
         case .behaviours: return "Behaviours"
         case .studio: return "Studio"
-        case .robot: return "Robot"
+        case .duck: return "My Microduck"
         }
     }
 
-    /// The SF Symbol beside the word. Every one of these is a system symbol, so
-    /// it scales with Dynamic Type and carries the tint without an asset.
     var symbol: String {
         switch self {
-        case .duck: return "bird"
         case .control: return "gamecontroller"
+        case .learn: return "graduationcap"
         case .behaviours: return "brain.head.profile"
         case .studio: return "wand.and.stars"
-        case .robot: return "wrench.and.screwdriver"
+        case .duck: return "bird"
         }
     }
 }
 
-/// The six places inside Studio another tab is allowed to name.
-///
-/// A ROUTE IS A PLACE, NOT A SCREEN. These are rows on the Studio root —
-/// Motions, Scenes, Draft with words, Run on your network, the Challenges and
-/// Run a formal evaluation — and they are spelled as cases rather than as view
-/// builders so that the sender does not have to know which view a row opens, or
-/// hold the seven stores and the one runner that view wants. `StudioHubView`
-/// already holds all eight; it is the only place that should be naming
-/// `AutomationChatView`.
-///
-/// SIX AND NOT EVERY SCREEN IN THE APP, deliberately. A destination that no
-/// other tab has ever asked to reach is a destination nobody can prove works,
-/// and this enum is the list of the ones that are actually sent to. It grows
-/// when a caller appears, not before — `challenges` arrived with one, the row
-/// in the Behaviours root's discover section, which is the second door onto the
-/// challenges and the reason they are addressable by name at all, and
-/// `evaluations` arrived the same way, with the fourth row in that same
-/// section.
-///
-/// IT IS `challenges` AND NOT `stairs`, since build 46. The place behind this
-/// case used to be the stairs screen and is now the list of the two challenges;
-/// a case still called `stairs` would have named one of them as if it were the
-/// destination, which is the kind of stale address a router is worst at.
 enum StudioDestination: String, Identifiable, Hashable, CaseIterable {
     case motions, scenes, draft, measure, challenges, evaluations
-    /// Mimic a person. Arrived with its caller: the Control tab's Mimic bar
+    /// The two Learn sends somebody to that had no route before.
+    case tune, preference
+    /// Mimic a person. Arrived with its caller: the Play tab's Mimic bar
     /// offers only the camera and sends a person here for a video or a
     /// YouTube clip.
     case mimic
@@ -84,7 +63,7 @@ enum StudioDestination: String, Identifiable, Hashable, CaseIterable {
 ///
 /// A SCREEN THAT SENDS SOMEBODY SOMEWHERE MUST BE ABLE TO ACTUALLY SEND THEM.
 /// The seven questions the first tab answers end in an action — "drive it" is
-/// the Control tab, "install one" is Behaviours — and before this existed the
+/// the Play tab, "install one" is Behaviours — and before this existed the
 /// only honest thing a card could do was name the tab and hope. A sentence that
 /// tells a person to go and tap a tab is a sentence the app could have obeyed
 /// itself.
@@ -116,7 +95,7 @@ enum StudioDestination: String, Identifiable, Hashable, CaseIterable {
     /// re-push the same screen the next time the Studio tab was selected.
     @Published var pendingStudio: StudioDestination?
 
-    init(tab: AppTab = .duck) {
+    init(tab: AppTab = .control) {
         self.tab = tab
     }
 
@@ -203,7 +182,7 @@ struct DuckStudioApp: App {
 
     /// THE ONE OPEN LINK TO A ROBOT, held here for the reason `evalRunner` is:
     /// it outlives every screen that can see it. A bridge connected on the
-    /// Robot tab is the link the Control tab drives, and walking between the
+    /// Robot tab is the link the Play tab drives, and walking between the
     /// two must not close a socket to a machine with a duck standing on it.
     /// See `BridgeLink`.
     @StateObject private var robot = BridgeLink()
@@ -252,13 +231,13 @@ struct DuckStudioApp: App {
     /// shoots the first.
     static var launchTab: AppTab {
         let args = ProcessInfo.processInfo.arguments
-        guard let i = args.firstIndex(of: "-tab"), i + 1 < args.count else { return .duck }
+        guard let i = args.firstIndex(of: "-tab"), i + 1 < args.count else { return .control }
         let asked = args[i + 1]
         if let n = Int(asked) {
-            guard AppTab.allCases.indices.contains(n) else { return .duck }
+            guard AppTab.allCases.indices.contains(n) else { return .control }
             return AppTab.allCases[n]
         }
-        return AppTab(rawValue: asked) ?? .duck
+        return AppTab(rawValue: asked) ?? .control
     }
 
     var body: some Scene {
@@ -282,41 +261,19 @@ struct DuckStudioApp: App {
             // other job for it — the slider fill and the standalone marker — is
             // reachable in SwiftUI.
             TabView(selection: $router.tab) {
-                // 1. WHICH DUCK, AND IS IT ALRIGHT. Everything about the one
-                // robot this phone is paired to, in the order somebody asks:
-                // name, lens, battery, what it is doing, whether it can be
-                // driven, what can be launched, and — above all of it or not at
-                // all — whether anything is wrong.
                 NavigationStack {
-                    MyMicroduckView(model: model, scenes: scenes, drafts: drafts,
-                                    models: models, benches: benches, detail: detail,
-                                    machines: machines, remote: remote)
-                }
-                    .tabItem { Label(AppTab.duck.title, systemImage: AppTab.duck.symbol) }
-                    .tag(AppTab.duck)
-
-                // 2. THE ONE SCREEN THAT MOVES A ROBOT. It was reached through
-                // a menu on a list of files, which is three taps from launch
-                // for the thing somebody holding a Microduck opens the app to
-                // do. `duck-ipc-proto` calls what this sends an intent — the
-                // opposite of what this app's Motions once called one, which is
-                // why the word went back to Pollen and the motions kept theirs.
-                NavigationStack {
-                    // `models:` IS PASSED, so the Control gear opens the SAME
-                    // Settings the other four roots open. Without it DriveView
-                    // falls back to a second EndpointStore whose flush
-                    // overwrites the shared one — two Settings screens
-                    // disagreeing about one list.
                     DriveView(model: model, benches: benches, scenes: scenes, drafts: drafts,
                               robot: robot, models: models, detail: detail)
                 }
                     .tabItem { Label(AppTab.control.title, systemImage: AppTab.control.symbol) }
                     .tag(AppTab.control)
 
-                // 3. WHAT THE ROBOT KNOWS HOW TO DO. Installed policies,
-                // Pollen's catalogue, what the community has published, and the
-                // probe that opens one up and shows the fourteen numbers it
-                // answers with.
+                NavigationStack {
+                    LearnView(detail: detail)
+                }
+                    .tabItem { Label(AppTab.learn.title, systemImage: AppTab.learn.symbol) }
+                    .tag(AppTab.learn)
+
                 NavigationStack {
                     PolicyListView(model: model, scenes: scenes, drafts: drafts,
                                    models: models, benches: benches, detail: detail)
@@ -324,10 +281,6 @@ struct DuckStudioApp: App {
                     .tabItem { Label(AppTab.behaviours.title, systemImage: AppTab.behaviours.symbol) }
                     .tag(AppTab.behaviours)
 
-                // 4. WHAT YOU MAKE. Motions, scenes, drafting with words, the
-                // bench you measure on, and the modes that used to be their own
-                // apps. Four tabs became one because they are all the same
-                // verb: authoring something and seeing what physics does to it.
                 NavigationStack {
                     StudioHubView(model: model, scenes: scenes, drafts: drafts,
                                   models: models, benches: benches, plans: plans,
@@ -336,18 +289,13 @@ struct DuckStudioApp: App {
                     .tabItem { Label(AppTab.studio.title, systemImage: AppTab.studio.symbol) }
                     .tag(AppTab.studio)
 
-                // 5. THE FIFTH AND LAST TAB, AND THAT IS A HARD CEILING. iPhone
-                // shows five before it folds the rest into "More", where a tab
-                // is somewhere people do not go. Anything that arrives after
-                // this has to live inside one of the five.
-                //
-                // Hardware, motors, firmware, network and diagnostics: the
-                // things you look at when the answer on the first tab was "no".
                 NavigationStack {
-                    RobotView(benches: benches, models: models, library: model, robot: robot, detail: detail)
+                    MyMicroduckView(model: model, scenes: scenes, drafts: drafts,
+                                    models: models, benches: benches, detail: detail,
+                                    machines: machines, remote: remote, robot: robot)
                 }
-                    .tabItem { Label(AppTab.robot.title, systemImage: AppTab.robot.symbol) }
-                    .tag(AppTab.robot)
+                    .tabItem { Label(AppTab.duck.title, systemImage: AppTab.duck.symbol) }
+                    .tag(AppTab.duck)
             }
             // THE ROUTER IS INJECTED ON THE TAB VIEW, WHICH IS THE ONLY PLACE
             // EVERY TAB IS DOWNSTREAM OF. A card on My Microduck that says

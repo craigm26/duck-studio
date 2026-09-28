@@ -113,18 +113,31 @@ struct MyMicroduckView: View {
     @ObservedObject var machines: MachineStore
     /// Ducks listed through Pollen's rendezvous. See `RemoteReachStore`.
     @ObservedObject var remote: RemoteReachStore
+    /// For the Robot details row: the Robot screen lives here now, one tap in.
+    @ObservedObject var robot: BridgeLink
     @Environment(\.webAuthenticationSession) private var webAuthentication
 
     var body: some View {
+        // THE DUCK FIRST, THEN WHAT IT CAN DO, THEN WHERE IT LIVES. What used to
+        // sit above the duck (machine discovery, remote sign-in) is below it;
+        // the camera note and the pairing spike are diagnostics, shown only
+        // when Detail is Everything.
         List {
             bannerSection
-            machinesSection
-            remoteSection
             deviceSection
             quickActionSection
-            cameraSection
-            connectionSection
+            robotSection
+            if detail.shows(.notes) || machines.hasSomethingToSay {
+                machinesSection
+            }
+            if detail.shows(.training) || remote.signedIn {
+                remoteSection
+            }
             benchSection
+            if detail.shows(.diagnostics) {
+                cameraSection
+                connectionSection
+            }
         }
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
@@ -221,12 +234,14 @@ struct MyMicroduckView: View {
                 // belong in `TelemetryRow`'s monospaced value column, where it
                 // wrapped into five lines of code-font prose. The same shape
                 // as the presence line above it.
-                Text(charge(peer).says)
-                    .font(.footnote)
-                    .foregroundStyle(Theme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityLabel(Text("Battery"))
-                    .accessibilityValue(Text(charge(peer).says))
+                if detail.shows(.notes) {
+                    Text(charge(peer).says)
+                        .font(.footnote)
+                        .foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityLabel(Text("Battery"))
+                        .accessibilityValue(Text(charge(peer).says))
+                }
                 doingRow
                 driveRow(peer)
             } else {
@@ -265,13 +280,15 @@ struct MyMicroduckView: View {
                         .font(.caption.weight(.medium))
                         .foregroundStyle(Theme.textSecondary)
                 }
-                Text(peer.address.base)
-                    .font(.system(.footnote, design: .monospaced))
-                    .foregroundStyle(Theme.textTertiary)
-                Text(who.nameCameFrom.says)
-                    .font(.caption)
-                    .foregroundStyle(Theme.textTertiary)
-                    .fixedSize(horizontal: false, vertical: true)
+                if detail.shows(.diagnostics) {
+                    Text(peer.address.base)
+                        .font(.system(.footnote, design: .monospaced))
+                        .foregroundStyle(Theme.textTertiary)
+                    Text(who.nameCameFrom.says)
+                        .font(.caption)
+                        .foregroundStyle(Theme.textTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
         .accessibilityElement(children: .combine)
@@ -293,14 +310,16 @@ struct MyMicroduckView: View {
         VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
             StateBadge(text: DeviceCard.Doing.word(upright: live?.upright, running: false),
                        state: live == nil ? .offline : .idle)
-            Text(BenchPeer.theWorldOnlyMovesWhenAsked)
-                .font(.caption)
-                .foregroundStyle(Theme.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
+            if detail.shows(.notes) {
+                Text(BenchPeer.theWorldOnlyMovesWhenAsked)
+                    .font(.caption)
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             // WHAT THE STATE STREAM SAID, ONCE IT HAS SAID ANYTHING. For a bench
             // that is the sentence about assembly; for a real duck it would be
             // the first thing the state did not carry, in the kit's words.
-            if let latest {
+            if detail.shows(.notes), let latest {
                 Text(peer?.identity.kind == .sim
                      ? BenchPeer.benchStateIsSynthesised
                      : (DeviceCard.Posture.of(latest, running: false).missing.first ?? ""))
@@ -330,7 +349,7 @@ struct MyMicroduckView: View {
             }
             .buttonStyle(.primaryActionMoves)
             .accessibilityLabel(Text("Drive"))
-            .accessibilityHint(Text("Opens the Control tab, where the sticks are"))
+            .accessibilityHint(Text("Opens the Play tab, where the sticks are"))
         } else if let reason = control.reason {
             Text(reason)
                 .font(.footnote)
@@ -375,7 +394,8 @@ struct MyMicroduckView: View {
     @ViewBuilder private var quickActionSection: some View {
         Section {
             if actions.isEmpty {
-                Text(DuckQuickActions.noneInstalled)
+                Text(detail.shows(.notes) ? DuckQuickActions.noneInstalled
+                                          : "No moves on this bench yet.")
                     .font(.footnote)
                     .foregroundStyle(Theme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -422,6 +442,27 @@ struct MyMicroduckView: View {
     // MARK: - below the fold
 
     /// The camera the design asks for and this build cannot draw.
+    /// The robot itself: finding one, and the hardware screen that used to be
+    /// its own tab.
+    private var robotSection: some View {
+        Section {
+            NavigationLink {
+                RobotView(benches: benches, models: models, library: model,
+                          robot: robot, detail: detail)
+            } label: {
+                Label("Robot details", systemImage: "wrench.and.screwdriver")
+            }
+            .frame(minHeight: DesignMetric.minimumTarget)
+            NavigationLink { FindDuckView() } label: {
+                Label("Find a duck", systemImage: "antenna.radiowaves.left.and.right")
+            }
+            .frame(minHeight: DesignMetric.minimumTarget)
+        } header: {
+            SectionHeading(text: "Robot")
+        }
+        .listRowBackground(Theme.surfacePrimary)
+    }
+
     private var cameraSection: some View {
         Section {
             Text(DeviceCard.noCameraYet)
@@ -439,10 +480,6 @@ struct MyMicroduckView: View {
     /// The two doors that open onto hardware.
     private var connectionSection: some View {
         Section {
-            NavigationLink { FindDuckView() } label: {
-                Label("Find a duck", systemImage: "antenna.radiowaves.left.and.right")
-            }
-            .frame(minHeight: DesignMetric.minimumTarget)
             NavigationLink { PairingSpikeView() } label: {
                 Label("Run the pairing spike", systemImage: "bolt.horizontal")
             }
@@ -722,7 +759,7 @@ struct MyMicroduckView: View {
             // and the word after it is `DeviceCard.Doing`'s, so neither half is
             // a sentence invented in a view — and the claim it makes is only
             // what the bench answered with.
-            // RECORDED ON THE STORE, so the Control tab's picker shows this
+            // RECORDED ON THE STORE, so the Play tab's picker shows this
             // policy when it opens instead of loading the first name it sees.
             benches.noteLoaded(filename, on: armed.id)
             lastAction = "\(title): "
@@ -921,8 +958,10 @@ extension MyMicroduckView {
         } header: {
             SectionHeading(text: DuckMachine.heading)
         } footer: {
-            Text(DuckMachine.discoveryFooter).foregroundStyle(Theme.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
+            if detail.shows(.notes) {
+                Text(DuckMachine.discoveryFooter).foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .listRowBackground(Theme.surfacePrimary)
     }
@@ -965,8 +1004,10 @@ extension MyMicroduckView {
         } header: {
             SectionHeading(text: RemoteReach.heading)
         } footer: {
-            Text(RemoteReach.controlWaits).foregroundStyle(Theme.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
+            if detail.shows(.notes) {
+                Text(RemoteReach.controlWaits).foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .listRowBackground(Theme.surfacePrimary)
     }

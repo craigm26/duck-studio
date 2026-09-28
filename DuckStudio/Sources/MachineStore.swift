@@ -22,6 +22,12 @@ final class MachineStore: ObservableObject {
     /// Microduck bridges seen on the network.
     @Published private(set) var ducks: [DuckMachine.FoundDuck] = []
     @Published private(set) var notes: [String] = []
+
+    /// Whether the section has anything beyond "nothing found yet": Simple
+    /// draws it only then.
+    var hasSomethingToSay: Bool {
+        !statuses.isEmpty || !offers.isEmpty || !ducks.isEmpty
+    }
     @Published private(set) var checking = false
 
     private let discovery = MachineDiscovery()
