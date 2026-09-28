@@ -61,10 +61,10 @@ public enum Learn {
                   + "50 times a second.",
               symbol: "graduationcap", button: nil, go: nil),
         .init(id: "judge",
-              title: "Judge two walks",
-              body: "A reward is a judgement written as numbers. Watch two trained walkers side by "
-                  + "side and pick the better one.",
-              symbol: "rectangle.split.1x2", button: "Compare two walkers", go: .preference),
+              title: "Be the judge",
+              body: "A reward is a judgement written as numbers. In Compare you watch two and pick "
+                  + "the better: RLHF's human feedback, with training done off the phone.",
+              symbol: "rectangle.split.1x2", button: "Open Compare", go: .preference),
         .init(id: "make",
               title: "Make a motion",
               body: "Pose the duck, copy a person with the camera, or describe a move in words. "

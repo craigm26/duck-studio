@@ -167,8 +167,7 @@ struct StudioHubView: View {
                 NavigationLink {
                     place(.preference)
                 } label: {
-                    Label(RolloutPreferenceWords.studioRow,
-                          systemImage: RolloutPreferenceWords.studioRowSymbol)
+                    Label(CompareWords.studioRow, systemImage: CompareWords.studioRowSymbol)
                 }
             } header: {
                 SectionHeading(text: "Make")
@@ -383,7 +382,7 @@ struct StudioHubView: View {
         case .tune:
             TuneView(library: model, benches: benches, models: models)
         case .preference:
-            RolloutPreferenceView()
+            CompareHubView(library: model, drafts: drafts, benches: benches)
         }
     }
 

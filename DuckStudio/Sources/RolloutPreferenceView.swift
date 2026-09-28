@@ -24,6 +24,8 @@ import StudioKit
 struct RolloutPreferenceView: View {
 
     @StateObject private var feedback = FeedbackStore()
+    /// Compare's tally, told about every pick made here.
+    var onPick: (() -> Void)? = nil
     @State private var pairs: RolloutPairs?
     @State private var deck: PreferenceDeck?
     @State private var showing: RolloutPairs.Showing?
@@ -160,6 +162,7 @@ struct RolloutPreferenceView: View {
                                           share: feedback.share, client: FeedbackStore.client) {
             feedback.append([record])
             answered += 1
+            onPick?()
         }
         reasons = []
         self.showing = deck?.next()
