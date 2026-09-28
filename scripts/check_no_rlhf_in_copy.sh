@@ -1,5 +1,13 @@
 #!/bin/bash
-# THE WORD THIS APP DOES NOT SAY. The loop is edit, score, keep.
+# RLHF ONLY WITH WHAT IT MEANS HERE; "REWARD MODEL" NEVER AS A CLAIM.
+#
+# CHANGED 2026-09-28, at Craig's decision for Compare: the app may say "RLHF",
+# but only in a string that also says "human feedback" (or "human-feedback"),
+# because what the phone does is the human-feedback half: it collects picks.
+# Training happens off the phone. A bare "RLHF" on a button would still read as
+# "this phone trains", which is still false, so a bare one still fails.
+#
+# The original reasoning, kept because it still holds for everything else:
 #
 # "RLHF" names a training method with a gradient in it. Nothing in this app
 # computes a gradient, learns a weight, or trains anything: the tuner searches
@@ -75,18 +83,19 @@ for tree in "$ROOT/DuckStudio/Sources" "$ROOT/StudioKit/Sources"; do
     kept=$(printf '%s\n' "$hits" \
       | grep -v '^[0-9]*: *///' \
       | grep -vE '(no|not a) reward model' \
+      | grep -vE '[Hh]uman[- ]feedback' \
       || true)
     if [ -n "$kept" ]; then
       echo "FORBIDDEN: product copy in ${file#$ROOT/} says a word this app does not say."
       printf '%s\n' "$kept"
-      echo "  The loop is edit, score, keep. Say that instead."
+      echo "  RLHF may appear only beside \"human feedback\": the phone collects picks, it trains nothing."
       status=1
     fi
   done < <(find "$tree" -name '*.swift' -type f | sort)
 done
 
 if [ $status -eq 0 ]; then
-  echo "check_no_rlhf_in_copy: clean — $scanned files, no shipped string says RLHF"
+  echo "check_no_rlhf_in_copy: clean — $scanned files, every RLHF says human feedback"
   echo "  and no string claims a reward model."
 fi
 exit $status

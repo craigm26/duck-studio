@@ -594,3 +594,31 @@ public struct DuckSequenceRun: Equatable, Sendable {
         return .command(twist)
     }
 }
+
+extension DuckSequence {
+    /// The same drive with every command scaled by `speed` and every moment
+    /// by `time`, clamped to the pad's own limits, as a NEW sequence. For
+    /// Compare's "Improve by choosing": variants a person picks between.
+    public func scaled(speed: Double, time: Double, naming name: String) -> DuckSequence {
+        func clamp(_ v: Double, _ low: Double, _ high: Double) -> Double { min(max(v, low), high) }
+        let scaledSteps = steps.map { step in
+            Step(atSim: step.atSim * time,
+                 twist: DuckDrive.Twist(
+                    vx: clamp(step.twist.vx * speed, -DuckDrive.maxBackward, DuckDrive.maxForward),
+                    vy: clamp(step.twist.vy * speed, -DuckDrive.maxSideways, DuckDrive.maxSideways),
+                    vyaw: clamp(step.twist.vyaw * speed, -DuckDrive.maxTurn, DuckDrive.maxTurn)),
+                 policySaid: step.policySaid)
+        }
+        return DuckSequence(id: UUID(), name: name, steps: scaledSteps, provenance: provenance,
+                            wallSeconds: wallSeconds * time, recordedAt: recordedAt, venue: venue)
+    }
+
+    /// The digest Compare identifies a sequence by: its steps, not its name.
+    public var compareDigest: String {
+        let text = steps.map {
+            String(format: "%.3f:%.4f,%.4f,%.4f:", $0.atSim, $0.twist.vx, $0.twist.vy,
+                   $0.twist.vyaw) + ($0.policySaid ?? "")
+        }.joined(separator: ";")
+        return Compare.digest(of: Data(text.utf8))
+    }
+}
