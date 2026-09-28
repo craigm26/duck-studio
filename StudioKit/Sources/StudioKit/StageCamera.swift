@@ -160,7 +160,7 @@ public enum StageCamera {
                                cameraSaid, followingSaid, fixedSaid]
 
     /// The near stop of a range nobody fitted to the glass: the editor's, and
-    /// the Control tab's while the camera is Fixed. It claims nothing about
+    /// the Play tab's while the camera is Fixed. It claims nothing about
     /// where the robot is drawn, because nothing measured that.
     public static let nearStopSaid =
         "That is as close as this stage goes. It stops at 200 mm."

@@ -1,6 +1,6 @@
 import Foundation
 
-/// The two things the Control tab reaches for that live in Studio: a MOTION
+/// The two things the Play tab reaches for that live in Studio: a MOTION
 /// somebody authored, and a SCENE somebody built.
 ///
 /// WHY THEY BELONG ON THIS TAB AT ALL. Studio is where a motion is written and

@@ -174,7 +174,7 @@ public enum DriveVenue: String, CaseIterable, Identifiable, Sendable {
     /// WHAT THIS SENTENCE USED TO SAY, AND WHY IT NO LONGER SAYS IT. It read
     /// "No stick here yet, and the reason is the link", and named Bluetooth as
     /// the only transport this app had working code for. That was true for as
-    /// long as the Control tab's drive loop was typed to a bench. It is not
+    /// long as the Play tab's drive loop was typed to a bench. It is not
     /// true now: the bridge in this repo has relayed robotd's socket to TCP
     /// since build 46, `LinePeer` speaks the vocabulary over it, and the loop
     /// takes `any DuckPeer`. Bluetooth still does not carry driving and that

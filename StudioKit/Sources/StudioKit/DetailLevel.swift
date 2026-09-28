@@ -100,7 +100,7 @@ public enum DetailLevel: String, Codable, CaseIterable, Sendable, Identifiable {
 
     /// Whether this level shows that surface.
     ///
-    /// SIMPLE HIDES FIVE THINGS AND NO MORE. Not the Control tab, not the
+    /// SIMPLE HIDES FIVE THINGS AND NO MORE. Not the Play tab, not the
     /// modes, not drafting a motion from a sentence, not the scenes — those are
     /// for anybody with a duck. The line is drawn at screens that are only
     /// legible if you already know what a policy is.

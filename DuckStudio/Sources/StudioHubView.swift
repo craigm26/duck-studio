@@ -70,6 +70,57 @@ struct StudioHubView: View {
     var body: some View {
         List {
             Section {
+                // THE BENCH MODE IS SKIPPED HERE BECAUSE MEASURE HOLDS IT. Its
+                // row and the Measure row open the same `RemoteRunView`, and
+                // two doors into one room, on one screen, is how a person ends
+                // up wondering which of them is the real one. The catalogue is
+                // NOT filtered in the kit: `LabCatalogueTests` pins
+                // `LabCatalogue.usable` to exactly ["bench", "ghost", "soccer",
+                // "room", "sounds"] against `destination(_:)` below, which
+                // still answers all five — so the mapping stays provable and
+                // only the drawing skips one.
+                //
+                // `listed()` RATHER THAN `modes`, WHICH IS THE RELEASE GATE.
+                // The catalogue still holds Trials, Bobsled, Deck and Diary
+                // with their reasons; `ReleaseGates.showUnfinishedModes` is
+                // false in a shipped build, so this list is the rows a person
+                // can open. A row nobody can open is placeholder content to App
+                // Review however honestly it explains itself, and the honest
+                // sentence is worth more to a developer reading the source than
+                // to a person holding the phone. Flip the gate to see them.
+                ForEach(LabCatalogue.listed().filter { $0.id != "bench" }) { mode in
+                    row(mode)
+                }
+            } header: {
+                SectionHeading(text: "Play")
+            } footer: {
+                // THE HONESTY SENTENCE IS SET IN A TOKEN AND COMES FROM THE
+                // KIT. It is the sentence that says nothing here is talking to
+                // a robot, which makes it the most load-bearing text on the
+                // tab; `.secondary` resolved it against whatever UIKit felt was
+                // behind it, while `Theme.textSecondary` is a value
+                // `PaletteTests` proves at 4.5:1 on every ground this app sets
+                // words on.
+                //
+                // `modesPreamble` RATHER THAN `preamble`, because the sentence
+                // used to name "the Lab" and there is no Lab any more. A screen
+                // naming the wrong container is a screen making a claim it
+                // cannot support.
+                // BOTH SENTENCES, because `rationale` — why three apps became
+                // these rows — is product copy a test guards, and the screen
+                // that folded here was the only one that drew it.
+                // SIMPLE STOPS AT THE CARDS: they say what each mode is.
+                if detail.shows(.notes) {
+                    VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
+                        Text(LabCatalogue.modesPreamble)
+                        Text(LabCatalogue.rationale)
+                    }
+                        .foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            Section {
                 NavigationLink {
                     place(.motions)
                 } label: {
@@ -111,189 +162,156 @@ struct StudioHubView: View {
                 } label: {
                     Label(Mimic.studioRow, systemImage: Mimic.studioRowSymbol)
                 }
+                // THE ONE MEASURING SCREEN THAT NEEDS NO BENCH AND NO VOCABULARY:
+                // two walks, pick the better one. It is Learn's "Judge two walks".
+                NavigationLink {
+                    place(.preference)
+                } label: {
+                    Label(RolloutPreferenceWords.studioRow,
+                          systemImage: RolloutPreferenceWords.studioRowSymbol)
+                }
             } header: {
-                SectionHeading(text: "Author")
+                SectionHeading(text: "Make")
             }
             .listRowBackground(Theme.surfacePrimary)
 
-            Section {
-                // THE SAME SCREEN THE "bench" MODE USED TO OPEN, which is why
-                // that mode is skipped below rather than drawn twice. It is up
-                // here because measuring is not a mode you play with: it is the
-                // one thing on this tab that runs a real solver, and burying it
-                // among the ghost duck and the soccer stage put the only honest
-                // physics in the app behind the two screens that look most like
-                // capability and are not.
-                if detail.shows(.physicsBench) {
+            // TRAINING TOOLS WAIT FOR EVERYTHING. In Simple the section is one
+            // row pointing at the Learn path, which explains them in order and
+            // ends by turning them on.
+            if detail.shows(.training) {
+                Section {
+                    // THE SAME SCREEN THE "bench" MODE USED TO OPEN, which is why
+                    // that mode is skipped below rather than drawn twice. It is up
+                    // here because measuring is not a mode you play with: it is the
+                    // one thing on this tab that runs a real solver, and burying it
+                    // among the ghost duck and the soccer stage put the only honest
+                    // physics in the app behind the two screens that look most like
+                    // capability and are not.
                     NavigationLink {
                         place(.measure)
                     } label: {
                         Label("Run on your network", systemImage: "wifi")
                     }
-                } else {
-                    Text(DetailLevel.placeholder(for: .physicsBench))
-                        .font(.caption).foregroundStyle(.secondary)
+                    // THE ONLY ROW IN THE APP THAT TRIES TO MAKE A NETWORK BETTER,
+                    // and it is under Measure rather than under Author because
+                    // what it actually does is measure — twenty-eight numbers, a
+                    // few hundred times, against a reward read out of Pollen's own
+                    // training config. Nothing is authored and nothing is trained.
+                    //
+                    // NOT A `StudioDestination`. The cases there are the
+                    // places another tab can send somebody to by name, and nothing
+                    // routes here: this is a door off Measure and not a fifth room
+                    // with an address. Adding a case for a screen no router names
+                    // would be widening a type to describe a wish.
+                    NavigationLink {
+                        place(.tune)
+                    } label: {
+                        Label("Tune it on this phone", systemImage: "slider.horizontal.3")
+                    }
+                    // THE SAME BENCH, THE WHOLE NETWORK. Tune folds twenty-eight
+                    // numbers onto what the network already says; this moves the
+                    // 197,774 numbers the network is made of, which is the
+                    // difference between trimming a policy and training one.
+                    // Measured on the desk bench before this row existed: 16.9%
+                    // further under the command it searched, with 99% of what it
+                    // could do under commands it never saw still intact.
+                    //
+                    // NOT A `StudioDestination`, for the reason the two rows around
+                    // it give: nothing routes here by name.
+                    NavigationLink {
+                        WeightSearchView(library: model, benches: benches)
+                    } label: {
+                        Label("Search its weights on this phone", systemImage: "brain")
+                    }
+                    // THE OTHER SEARCH, AND THE ONE MOST PEOPLE MEAN. Tune searches
+                    // a NETWORK — twenty-eight numbers folded into a last layer.
+                    // This searches a MOVE: the poses and times of an authored
+                    // keyframe track, scored on the challenge's own grid. They
+                    // cannot share a screen, because one needs a base policy in
+                    // front of it and the other needs a move, so the second is its
+                    // own door here and a pointer on the first.
+                    //
+                    // NOT A `StudioDestination`, for the same reason Tune is not:
+                    // nothing routes here by name. A case for a screen no router
+                    // names would be widening a type to describe a wish.
+                    NavigationLink {
+                        MoveSearchView(benches: benches, models: models)
+                    } label: {
+                        Label("Search a move's keyframes", systemImage: "magnifyingglass")
+                    }
+                    // THE ONE PLACE IN THE APP WHERE A NUMBER THIS PHONE PRODUCES
+                    // CAN BE THE SAME NUMBER SOMEBODY ELSE PUBLISHED. It is under
+                    // Measure and not under Author because nothing here is
+                    // authored: the entrants are a published corpus and what these
+                    // screens do is score one of them, on the audit's own grid,
+                    // through the audit's own episode function.
+                    //
+                    // ONE ROW FOR BOTH CHALLENGES, since build 46. The stairs and
+                    // the ball are the same habit — open a published entrant, edit
+                    // it, score it, keep what helps — and two rows here would have
+                    // made them two habits. The row opens the list; the list opens
+                    // either one.
+                    //
+                    // A `StudioDestination`, unlike Tune, because a second door
+                    // names it: the Behaviours root's discover section routes here
+                    // by name. See `AppRouter.pendingStudio`.
+                    NavigationLink {
+                        place(.challenges)
+                    } label: {
+                        Label(Challenge.listTitle, systemImage: "trophy")
+                    }
+                    // THE SIXTH DOOR UNDER MEASURE, AND THE ONLY ONE THAT ENDS IN A
+                    // FILE SOMEBODY ELSE'S TOOL READS. Tune, the weight search and
+                    // the move search all end on this phone; a challenge ends in a
+                    // submission this project's own harness re-scores. This ends in
+                    // an EvalLog v1, which is inspect-robots' format, so a number
+                    // measured here can be read by a program that has never heard
+                    // of this app.
+                    //
+                    // NOT A SIXTH TAB, AND THE ANSWER IS ALREADY WRITTEN DOWN. The
+                    // comment on the fifth tab in `DuckStudioApp` says five is a
+                    // HARD CEILING, because iPhone folds anything past it into
+                    // "More", where a tab is somewhere people do not go. Anything
+                    // that arrives after that has to live inside one of the five,
+                    // and measuring is what this section is.
+                    //
+                    // A `StudioDestination`, like the challenges and unlike Tune,
+                    // because a second door names it: the Behaviours root's
+                    // discover section routes here by name. See
+                    // `AppRouter.pendingStudio`.
+                    NavigationLink {
+                        place(.evaluations)
+                    } label: {
+                        Label(EvalTask.rowTitle, systemImage: "checklist")
+                    }
+                    // A PERSON AS THE MEASURE. Two recorded walkers, one choice;
+                    // under Measure because nothing is authored or trained here.
+                    // THE SAME QUESTION ON TWO DUCKS AT ONCE, crossed so the duck
+                    // cannot be what is preferred. A two-duck bench today; two
+                    // robots when there are two robots (docs/MULTI-DUCK.md).
+                    NavigationLink {
+                        MultiDuckView(model: model, benches: benches)
+                    } label: {
+                        Label(MultiDuck.studioRow, systemImage: MultiDuck.studioRowSymbol)
+                    }
+                } header: {
+                    SectionHeading(text: "Train and measure")
                 }
-                // THE ONLY ROW IN THE APP THAT TRIES TO MAKE A NETWORK BETTER,
-                // and it is under Measure rather than under Author because
-                // what it actually does is measure — twenty-eight numbers, a
-                // few hundred times, against a reward read out of Pollen's own
-                // training config. Nothing is authored and nothing is trained.
-                //
-                // NOT A `StudioDestination`. The cases there are the
-                // places another tab can send somebody to by name, and nothing
-                // routes here: this is a door off Measure and not a fifth room
-                // with an address. Adding a case for a screen no router names
-                // would be widening a type to describe a wish.
-                NavigationLink {
-                    TuneView(library: model, benches: benches, models: models)
-                } label: {
-                    Label("Tune it on this phone", systemImage: "slider.horizontal.3")
+                .listRowBackground(Theme.surfacePrimary)
+            } else {
+                Section {
+                    Button {
+                        router.go(to: .learn)
+                    } label: {
+                        Label("Training and measuring tools", systemImage: "graduationcap")
+                    }
+                } footer: {
+                    Text("Learn explains them one at a time, then turns them on.")
+                        .foregroundStyle(Theme.textSecondary)
                 }
-                // THE SAME BENCH, THE WHOLE NETWORK. Tune folds twenty-eight
-                // numbers onto what the network already says; this moves the
-                // 197,774 numbers the network is made of, which is the
-                // difference between trimming a policy and training one.
-                // Measured on the desk bench before this row existed: 16.9%
-                // further under the command it searched, with 99% of what it
-                // could do under commands it never saw still intact.
-                //
-                // NOT A `StudioDestination`, for the reason the two rows around
-                // it give: nothing routes here by name.
-                NavigationLink {
-                    WeightSearchView(library: model, benches: benches)
-                } label: {
-                    Label("Search its weights on this phone", systemImage: "brain")
-                }
-                // THE OTHER SEARCH, AND THE ONE MOST PEOPLE MEAN. Tune searches
-                // a NETWORK — twenty-eight numbers folded into a last layer.
-                // This searches a MOVE: the poses and times of an authored
-                // keyframe track, scored on the challenge's own grid. They
-                // cannot share a screen, because one needs a base policy in
-                // front of it and the other needs a move, so the second is its
-                // own door here and a pointer on the first.
-                //
-                // NOT A `StudioDestination`, for the same reason Tune is not:
-                // nothing routes here by name. A case for a screen no router
-                // names would be widening a type to describe a wish.
-                NavigationLink {
-                    MoveSearchView(benches: benches, models: models)
-                } label: {
-                    Label("Search a move's keyframes", systemImage: "magnifyingglass")
-                }
-                // THE ONE PLACE IN THE APP WHERE A NUMBER THIS PHONE PRODUCES
-                // CAN BE THE SAME NUMBER SOMEBODY ELSE PUBLISHED. It is under
-                // Measure and not under Author because nothing here is
-                // authored: the entrants are a published corpus and what these
-                // screens do is score one of them, on the audit's own grid,
-                // through the audit's own episode function.
-                //
-                // ONE ROW FOR BOTH CHALLENGES, since build 46. The stairs and
-                // the ball are the same habit — open a published entrant, edit
-                // it, score it, keep what helps — and two rows here would have
-                // made them two habits. The row opens the list; the list opens
-                // either one.
-                //
-                // A `StudioDestination`, unlike Tune, because a second door
-                // names it: the Behaviours root's discover section routes here
-                // by name. See `AppRouter.pendingStudio`.
-                NavigationLink {
-                    place(.challenges)
-                } label: {
-                    Label(Challenge.listTitle, systemImage: "trophy")
-                }
-                // THE SIXTH DOOR UNDER MEASURE, AND THE ONLY ONE THAT ENDS IN A
-                // FILE SOMEBODY ELSE'S TOOL READS. Tune, the weight search and
-                // the move search all end on this phone; a challenge ends in a
-                // submission this project's own harness re-scores. This ends in
-                // an EvalLog v1, which is inspect-robots' format, so a number
-                // measured here can be read by a program that has never heard
-                // of this app.
-                //
-                // NOT A SIXTH TAB, AND THE ANSWER IS ALREADY WRITTEN DOWN. The
-                // comment on the fifth tab in `DuckStudioApp` says five is a
-                // HARD CEILING, because iPhone folds anything past it into
-                // "More", where a tab is somewhere people do not go. Anything
-                // that arrives after that has to live inside one of the five,
-                // and measuring is what this section is.
-                //
-                // A `StudioDestination`, like the challenges and unlike Tune,
-                // because a second door names it: the Behaviours root's
-                // discover section routes here by name. See
-                // `AppRouter.pendingStudio`.
-                NavigationLink {
-                    place(.evaluations)
-                } label: {
-                    Label(EvalTask.rowTitle, systemImage: "checklist")
-                }
-                // A PERSON AS THE MEASURE. Two recorded walkers, one choice;
-                // under Measure because nothing is authored or trained here.
-                NavigationLink {
-                    RolloutPreferenceView()
-                } label: {
-                    Label(RolloutPreferenceWords.studioRow,
-                          systemImage: RolloutPreferenceWords.studioRowSymbol)
-                }
-                // THE SAME QUESTION ON TWO DUCKS AT ONCE, crossed so the duck
-                // cannot be what is preferred. A two-duck bench today; two
-                // robots when there are two robots (docs/MULTI-DUCK.md).
-                NavigationLink {
-                    MultiDuckView(model: model, benches: benches)
-                } label: {
-                    Label(MultiDuck.studioRow, systemImage: MultiDuck.studioRowSymbol)
-                }
-            } header: {
-                SectionHeading(text: "Measure")
+                .listRowBackground(Theme.surfacePrimary)
             }
-            .listRowBackground(Theme.surfacePrimary)
 
-            Section {
-                // THE BENCH MODE IS SKIPPED HERE BECAUSE MEASURE HOLDS IT. Its
-                // row and the Measure row open the same `RemoteRunView`, and
-                // two doors into one room, on one screen, is how a person ends
-                // up wondering which of them is the real one. The catalogue is
-                // NOT filtered in the kit: `LabCatalogueTests` pins
-                // `LabCatalogue.usable` to exactly ["bench", "ghost", "soccer",
-                // "room", "sounds"] against `destination(_:)` below, which
-                // still answers all five — so the mapping stays provable and
-                // only the drawing skips one.
-                //
-                // `listed()` RATHER THAN `modes`, WHICH IS THE RELEASE GATE.
-                // The catalogue still holds Trials, Bobsled, Deck and Diary
-                // with their reasons; `ReleaseGates.showUnfinishedModes` is
-                // false in a shipped build, so this list is the rows a person
-                // can open. A row nobody can open is placeholder content to App
-                // Review however honestly it explains itself, and the honest
-                // sentence is worth more to a developer reading the source than
-                // to a person holding the phone. Flip the gate to see them.
-                ForEach(LabCatalogue.listed().filter { $0.id != "bench" }) { mode in
-                    row(mode)
-                }
-            } header: {
-                SectionHeading(text: "Modes")
-            } footer: {
-                // THE HONESTY SENTENCE IS SET IN A TOKEN AND COMES FROM THE
-                // KIT. It is the sentence that says nothing here is talking to
-                // a robot, which makes it the most load-bearing text on the
-                // tab; `.secondary` resolved it against whatever UIKit felt was
-                // behind it, while `Theme.textSecondary` is a value
-                // `PaletteTests` proves at 4.5:1 on every ground this app sets
-                // words on.
-                //
-                // `modesPreamble` RATHER THAN `preamble`, because the sentence
-                // used to name "the Lab" and there is no Lab any more. A screen
-                // naming the wrong container is a screen making a claim it
-                // cannot support.
-                // BOTH SENTENCES, because `rationale` — why three apps became
-                // these rows — is product copy a test guards, and the screen
-                // that folded here was the only one that drew it.
-                VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
-                    Text(LabCatalogue.modesPreamble)
-                    Text(LabCatalogue.rationale)
-                }
-                    .foregroundStyle(Theme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
         }
         // THE LIST SITS ON THE PALETTE'S RECESSED GROUND, NOT THE SYSTEM'S
         // GREY, and every card on it keeps a real `surfacePrimary` under its
@@ -362,6 +380,10 @@ struct StudioHubView: View {
                          scenes: scenes, evals: evals, runner: evalRunner)
         case .mimic:
             PoseCaptureView(drafts: drafts, scenes: scenes, models: models, benches: benches)
+        case .tune:
+            TuneView(library: model, benches: benches, models: models)
+        case .preference:
+            RolloutPreferenceView()
         }
     }
 

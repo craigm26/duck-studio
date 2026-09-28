@@ -398,6 +398,18 @@ struct DriveView: View {
     private var settingsDetail: DetailStore { detail ?? ownDetail }
     @StateObject private var ownDetail = DetailStore()
 
+    /// THE STORED LEVEL, OBSERVED. `detail` is a plain reference (optional,
+    /// see above), so a change made in Settings would not redraw this screen;
+    /// the key `DetailStore` writes does. Empty until something is chosen,
+    /// when the store's own starting level answers.
+    @AppStorage("duckstudio.detailLevel") private var detailRaw = ""
+
+    /// Simple: the pad and the moves, without the authoring chips, the
+    /// readout layers or the paragraphs in the drawer.
+    private var isSimple: Bool {
+        (DetailLevel(rawValue: detailRaw) ?? settingsDetail.level) == .simple
+    }
+
     var body: some View {
         // FULL-BLEED WHERE THERE IS A PICTURE, STACKED WHERE THERE IS NOT.
         //
@@ -451,10 +463,10 @@ struct DriveView: View {
         .task(id: robotLinkKey) { await askTheRobotToTalk() }
         // THE TAB'S NAME, NOT THE VERB. This screen was pushed from a menu row
         // that said "Drive one live", so the bar repeated the row that opened
-        // it. It is the Control tab's root now: the tab bar below says Control
+        // it. It is the Play tab's root now: the tab bar below says Control
         // and the bar above has to say the same word, or the app has two names
         // for one place.
-        .navigationTitle("Control")
+        .navigationTitle("Play")
         // INLINE, DELIBERATELY, AND THIS IS THE ONE DISPLAY-MODE DECISION IN
         // THE APP WORTH WRITING DOWN. A large title is 34pt of type plus its
         // padding — call it 52 points of bar — and it is the FIRST thing under
@@ -794,6 +806,19 @@ struct DriveView: View {
             // free: a released pad is already centred, and a real controller
             // is unaffected because `sticks` prefers `pad.sticks` off-centre.
             .onChange(of: drawerIsUp) { _, _ in touchSticks = .centred }
+            // PUSH A STICK AND THE DUCK GOES. Drive used to be a separate tap
+            // before either stick did anything, which is the first thing a
+            // person tries and the first thing that did nothing. Only on a
+            // bench (Sim, Your floor): a real robot keeps walking on its last
+            // twist until a deadman, so starting it stays a deliberate press.
+            // `engageLoop` is the same door the face buttons use, so a load
+            // in flight is handled the way it already is.
+            .onChange(of: sticks) { _, now in
+                guard venue != .real, !running, somethingToDrive,
+                      posed == nil, !mimicking, playback == nil,
+                      !DuckDrive.twist(for: now).standsStill else { return }
+                engageLoop()
+            }
             // AND WHENEVER SOMETHING ELSE PUTS THE RANGE BACK. `readWorld` ends
             // on `orbit.frame(nil)` — the build-46 black-stage fix, untouched —
             // which resets the range along with the framing, so without this the
@@ -1138,11 +1163,16 @@ struct DriveView: View {
                                               posedJoint = nil
                                           }
                                       },
-                                      mimic: { mimicking ? stopMimic() : startMimic() })
-                    PadChrome(desk: desk, venue: venue, bench: bench, token: token,
-                              lastAction: $lastAction,
-                              engage: { engageLoop() },
-                              library: model, models: settingsModels)
+                                      mimic: { mimicking ? stopMimic() : startMimic() },
+                                      simple: isSimple)
+                    // RECORD, SAY IT, PLAN IT, SEQUENCES: authoring from the pad.
+                    // Everything only; Simple is for driving and playing.
+                    if !isSimple {
+                        PadChrome(desk: desk, venue: venue, bench: bench, token: token,
+                                  lastAction: $lastAction,
+                                  engage: { engageLoop() },
+                                  library: model, models: settingsModels)
+                    }
                 }
                 .padding(.horizontal, Theme.spacing(.hairline))
             }
@@ -1751,7 +1781,7 @@ struct DriveView: View {
     /// The front door says what the duck is doing too, and two screens holding
     /// their own copies of "On its side" is two screens that drift the day one
     /// of them is reworded — the front door would say one thing about the same
-    /// robot the Control tab says another about. The strings moved to StudioKit
+    /// robot the Play tab says another about. The strings moved to StudioKit
     /// where a test can read them letter by letter; what is left here is the
     /// arithmetic that picks one, which is unchanged line for line.
     private var duckWord: String {
@@ -1964,15 +1994,25 @@ struct DriveView: View {
     /// right size are wider than a phone. The clusters stack instead: shoulders
     /// above, sticks, faces, dpad, and the two system buttons that do nothing
     /// here at the bottom. Order within each cluster is `padd`'s.
-    private func padButton(_ control: DuckPad.Control) -> some View {
+    @ViewBuilder private func padButton(_ control: DuckPad.Control) -> some View {
         let shown = desk.map.shown(for: control, naming: desk.name(ofSequence:),
                                    namingMotion: desk.name(ofMotion:))
+        // SIMPLE DRAWS ONLY WHAT MOVES THE DUCK, NAMED FOR WHAT IT DOES. The
+        // dead controls stay pressable under Everything, where a tester wants
+        // the sentence they produce; somebody playing wants "Roulade", not "X".
+        if !isSimple || shown.isLive {
+            padButtonBody(control, shown: shown)
+        }
+    }
+
+    private func padButtonBody(_ control: DuckPad.Control, shown: DuckPadMap.Shown) -> some View {
         let isLive = shown.isLive
+        let label = isSimple ? (shown.name ?? control.face) : control.face
         return Group {
             if isLive {
-                padPress(control).buttonStyle(.primaryActionPad)
+                padPress(control, label: label).buttonStyle(.primaryActionPad)
             } else {
-                padPress(control).buttonStyle(DeadControlStyle())
+                padPress(control, label: label).buttonStyle(DeadControlStyle())
             }
         }
         // A PRESS THAT CAME FROM THE CONTROLLER, DRAWN LIKE A PRESS. The style
@@ -1982,7 +2022,7 @@ struct DriveView: View {
         // is private; the two have to feel like one press.
         .brightness(pad.lastPressed == control ? DriveMetric.pressDelta : 0)
         .animation(Theme.motion(reduced: reduceMotion), value: pad.lastPressed)
-        .accessibilityLabel(Text(control.face))
+        .accessibilityLabel(Text(shown.name.map { "\($0), \(control.face)" } ?? control.face))
         .accessibilityHint(Text(shown.detail))
         // A REMAPPED CONTROL SAYS SO WITHOUT A WORD ON THE PICTURE. Four points
         // in the measured colour, and the sentence itself is in `shown.detail`
@@ -1996,14 +2036,14 @@ struct DriveView: View {
         }
     }
 
-    private func padPress(_ control: DuckPad.Control) -> some View {
+    private func padPress(_ control: DuckPad.Control, label: String) -> some View {
         Button { Task { await press(control) } } label: {
             // `fixedSize` IS THE GUARANTEE, not the padding. A label that a
             // layout may compress is a label that can be clipped to a stroke,
             // which is what "LB" and then "Y" both came out as; this makes the
             // text refuse to shrink, so a column too narrow for the buttons
             // folds them instead of gutting them.
-            Text(control.face).lineLimit(1).fixedSize()
+            Text(label).lineLimit(1).fixedSize()
         }
     }
 
@@ -2135,12 +2175,16 @@ struct DriveView: View {
                     .accessibilityHint(Text(StageViewport.chromeFloatsSaid))
                 }
                 .listRowBackground(Theme.surfacePrimary)
-                Section {
-                    layerChips
-                        .listRowInsets(EdgeInsets())
-                        .listRowBackground(Color.clear)
-                } header: {
-                    SectionHeading(text: StageViewport.drawerLayersSaid)
+                // THE READOUT LAYERS (joints, limits, link, telemetry) ARE
+                // DIAGNOSTICS. Simple drives without them.
+                if !isSimple {
+                    Section {
+                        layerChips
+                            .listRowInsets(EdgeInsets())
+                            .listRowBackground(Color.clear)
+                    } header: {
+                        SectionHeading(text: StageViewport.drawerLayersSaid)
+                    }
                 }
 
                 Section {
@@ -2156,24 +2200,28 @@ struct DriveView: View {
                 } header: {
                     SectionHeading(text: StageViewport.drawerPadRestSaid)
                 } footer: {
-                    Text(DuckDrive.says(twist))
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(Theme.textSecondary)
+                    if !isSimple {
+                        Text(DuckDrive.says(twist))
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(Theme.textSecondary)
+                    }
                 }
 
-                Section {
-                    // THE BENCH'S OWN DISTINCTION, WORTH REPEATING. Stopping is
-                    // something the policy does; resetting is something done TO
-                    // it. A policy that cannot stop without falling is a fact
-                    // about that policy, and teleporting it upright would hide
-                    // exactly the failure worth seeing.
-                    Text("Stop zeroes the command and lets the duck settle under it — if it falls over stopping, that is the policy. Reset puts it back on its feet, which is not something a robot can do for itself.")
-                        .font(.footnote)
-                        .foregroundStyle(Theme.textSecondary)
-                } header: {
-                    SectionHeading(text: "Stop and Reset")
+                if !isSimple {
+                    Section {
+                        // THE BENCH'S OWN DISTINCTION, WORTH REPEATING. Stopping is
+                        // something the policy does; resetting is something done TO
+                        // it. A policy that cannot stop without falling is a fact
+                        // about that policy, and teleporting it upright would hide
+                        // exactly the failure worth seeing.
+                        Text("Stop zeroes the command and lets the duck settle under it — if it falls over stopping, that is the policy. Reset puts it back on its feet, which is not something a robot can do for itself.")
+                            .font(.footnote)
+                            .foregroundStyle(Theme.textSecondary)
+                    } header: {
+                        SectionHeading(text: "Stop and Reset")
+                    }
+                    .listRowBackground(Theme.surfacePrimary)
                 }
-                .listRowBackground(Theme.surfacePrimary)
 
                 Section {
                     Picker("Bench", selection: Binding(
@@ -2190,45 +2238,53 @@ struct DriveView: View {
                     // guard lives in `DuckPadMap.toPost`, which is consulted for
                     // the automatic locomotion load and nothing else, so a
                     // deliberate pick from the editor is never swallowed.
-                    PadMapSection(desk: desk, policies: health?.policies ?? [],
-                                  swap: { name in flight = Task { await swap(to: name) } },
-                                  play: { id in
-                                      desk.play(id, thenLoading: nil,
-                                                among: health?.policies ?? [], face: "")
-                                      engageLoop()
-                                  },
-                                  bench: bench, token: token, library: model,
-                                  host: health?.host,
-                                  landed: { _ in Task { await refreshHealth() } })
+                    if !isSimple {
+                        PadMapSection(desk: desk, policies: health?.policies ?? [],
+                                      swap: { name in flight = Task { await swap(to: name) } },
+                                      play: { id in
+                                          desk.play(id, thenLoading: nil,
+                                                    among: health?.policies ?? [], face: "")
+                                          engageLoop()
+                                      },
+                                      bench: bench, token: token, library: model,
+                                      host: health?.host,
+                                      landed: { _ in Task { await refreshHealth() } })
+                    }
                     NavigationLink { BenchSettingsView(store: benches) } label: {
                         Label("Manage benches", systemImage: "gearshape")
                     }
                 } footer: {
-                    Text(DuckDrive.hotSwapWorksBecause)
-                        .foregroundStyle(Theme.textSecondary)
-                }
-                .listRowBackground(Theme.surfacePrimary)
-
-                Section {
-                    if let name = pad.name {
-                        Label(DuckPad.connected(name), systemImage: "gamecontroller.fill")
-                            .font(.footnote).foregroundStyle(Theme.success)
-                    } else {
-                        Text(DuckPad.noPad).font(.footnote)
+                    if !isSimple {
+                        Text(DuckDrive.hotSwapWorksBecause)
                             .foregroundStyle(Theme.textSecondary)
                     }
-                } header: {
-                    SectionHeading(text: "Controller")
                 }
                 .listRowBackground(Theme.surfacePrimary)
 
-                Section {
-                    Text(DuckDrive.thisIsNotARobot)
-                        .font(.footnote).foregroundStyle(Theme.textSecondary)
-                    Text(DuckDrive.intentMeansACommandHere)
-                        .font(.caption).foregroundStyle(Theme.textSecondary)
+                if !isSimple || pad.name != nil {
+                    Section {
+                        if let name = pad.name {
+                            Label(DuckPad.connected(name), systemImage: "gamecontroller.fill")
+                                .font(.footnote).foregroundStyle(Theme.success)
+                        } else {
+                            Text(DuckPad.noPad).font(.footnote)
+                                .foregroundStyle(Theme.textSecondary)
+                        }
+                    } header: {
+                        SectionHeading(text: "Controller")
+                    }
+                    .listRowBackground(Theme.surfacePrimary)
                 }
-                .listRowBackground(Theme.surfacePrimary)
+
+                if !isSimple {
+                    Section {
+                        Text(DuckDrive.thisIsNotARobot)
+                            .font(.footnote).foregroundStyle(Theme.textSecondary)
+                        Text(DuckDrive.intentMeansACommandHere)
+                            .font(.caption).foregroundStyle(Theme.textSecondary)
+                    }
+                    .listRowBackground(Theme.surfacePrimary)
+                }
             }
         }
         // THE LIST SITS ON THE PALETTE'S RECESSED GROUND, NOT THE SYSTEM'S GREY.
@@ -2886,7 +2942,11 @@ struct DriveView: View {
     /// had" would be the bench's sentence read out over hardware, which is the
     /// exact habit `BenchPeer.theWorldOnlyMovesWhenAsked` warns about.
     private var pauseHint: String {
-        guard running else { return "Starts the loop that sends the sticks to the duck." }
+        guard running else {
+            return venue == .real
+                ? "Starts the loop that sends the sticks to the duck."
+                : "Starts the loop. Pushing a stick starts it too."
+        }
         return venue == .real
             ? "Stops sending twists. The robot keeps walking on the last one until a deadman "
             + "zeroes it — press Stop to zero it now."
@@ -3107,7 +3167,7 @@ struct DriveView: View {
     /// `makePeer` threw out of `requireBench` and the one `report` already knows
     /// how to put on the glass.
     /// - Returns: `any DuckPeer` — see the `peer` accessor for why this is the
-    ///   change the Control tab existed without for its whole life.
+    ///   change the Play tab existed without for its whole life.
     ///
     /// THE ROBOT VENUE BUILDS NOTHING. A bench peer is cheap and local and can
     /// be constructed on demand from an address somebody typed; a robot link is

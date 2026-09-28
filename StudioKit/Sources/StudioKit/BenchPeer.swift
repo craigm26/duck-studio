@@ -269,7 +269,7 @@ public actor BenchPeer: DuckPeer {
                 return "policy.install puts a file on a robot's disk, through the bridge on its "
                      + "computer, and a bench is not that. A bench takes a network through "
                      + "/upload, under a name, for as long as it runs — which is what putting one "
-                     + "of your networks on this bench does from the Control tab."
+                     + "of your networks on this bench does from the Play tab."
             case .nothingToSubscribeTo:
                 return "robot.subscribe turns a connection into a stream of states a robot pushes "
                      + "at its loop rate. A bench pushes nothing: it answers every request with "

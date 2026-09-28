@@ -300,4 +300,14 @@ final class DuckPadMapTests: XCTestCase {
         XCTAssertTrue(DuckPadMap.sticksAreAlwaysMapped.contains("Drive works without picking"))
         XCTAssertTrue(DuckPadMap.mapLivesOnThisPhone.contains("not on the bench"))
     }
+
+    /// THE BUTTON SAYS WHAT IT DOES. X is the roll and A the pick-up; a letter
+    /// alone told nobody that. A control that does nothing here has no name,
+    /// so Simple can leave it off the pad.
+    func testLiveControlsCarryTheMoveNameAndDeadOnesDoNot() {
+        let map = DuckPadMap.defaults(in: .walk)
+        XCTAssertEqual(map.shown(for: .x, naming: { _ in nil }).name, "Roulade")
+        XCTAssertEqual(map.shown(for: .a, naming: { _ in nil }).name, "Ground pick")
+        XCTAssertNil(map.shown(for: .y, naming: { _ in nil }).name)
+    }
 }

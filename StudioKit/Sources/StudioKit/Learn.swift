@@ -35,7 +35,7 @@ public enum Learn {
     public static let title = "Learn"
 
     public static let intro =
-        "From driving the duck to changing how it moves, one step at a time."
+        "From driving to training, one step at a time"
 
     public static let lessons: [Lesson] = [
         .init(id: "drive",

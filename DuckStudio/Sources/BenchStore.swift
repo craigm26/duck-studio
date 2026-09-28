@@ -71,7 +71,7 @@ final class BenchStore: ObservableObject {
     /// bench HOLDS and nothing else, so the only thing that knows what is on
     /// the servos is whichever screen last posted `/policy` — and there are
     /// two of those now, the Control picker and My Microduck's quick actions.
-    /// Kept here so the Control tab, opening after a quick action, can show
+    /// Kept here so the Play tab, opening after a quick action, can show
     /// that policy in its picker WITHOUT posting a swap that would undo it.
     /// Not persisted: a bench restarted between launches holds whatever it
     /// holds, and a record that outlived the bench would be a guess.

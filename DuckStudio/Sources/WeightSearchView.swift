@@ -171,7 +171,7 @@ struct WeightSearchView: View {
     private var transport: some View {
         HStack {
             // STOP IS NEVER DISABLED, and a stopped run keeps what it has —
-            // the same rule the Control tab's Stop lives under.
+            // the same rule the Play tab's Stop lives under.
             if run.isRunning {
                 Button(WeightSearch.stopSaid) { run.stop() }
                     .buttonStyle(.primaryActionMoves)

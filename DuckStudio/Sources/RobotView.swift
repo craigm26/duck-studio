@@ -89,30 +89,35 @@ struct RobotView: View {
     @ObservedObject var detail: DetailStore
 
     var body: some View {
+        // THE PUBLISHED FACTS FOR EVERYBODY; THE WIRE FOR EVERYTHING. Motors,
+        // firmware, network, the capability table and the pairing spike are
+        // diagnostics: legible to somebody debugging a link, noise to somebody
+        // who wants to know how tall the duck is.
         List {
             hardwareSection
-            motorSection
-            firmwareSection
-            networkSection
-            capabilitySection
-            diagnosticsSection
+            if detail.shows(.diagnostics) {
+                motorSection
+                firmwareSection
+                networkSection
+                capabilitySection
+                diagnosticsSection
+            } else {
+                Section {
+                    Text("Motors, firmware, network and the robot's capabilities show when "
+                       + "Detail is set to Everything.")
+                        .font(.footnote)
+                        .foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .listRowBackground(Theme.surfacePrimary)
+            }
         }
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .background(Theme.backgroundPrimary)
-        .navigationTitle("Robot")
+        .navigationTitle("Robot details")
         .navigationBarTitleDisplayMode(.large)
-        // ONE GEAR, ONCE PER TAB ROOT, SAME PLACE AND SAME WORD as the other
-        // four. Settings is reachable from every tab because it is where the
-        // benches live, and a person who has just read "no bench" on this
-        // screen is one tap from the place that fixes it.
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                NavigationLink { SettingsView(detail: detail, models: models, benches: benches) } label: {
-                    Image(systemName: "gear").accessibilityLabel(Text("Settings"))
-                }
-            }
-        }
+        // NO GEAR: this is pushed from My Microduck now, whose root has one.
         // ONE ENTRY POINT FOR BOTH ARRIVALS, exactly as the front door does it:
         // `.task(id:)` runs on appear AND whenever the key changes, and cancels
         // the previous run rather than racing it.
@@ -139,34 +144,38 @@ struct RobotView: View {
             // their source, and the note under the mass says which is which.
             TelemetryRow(label: "Height", value: "\(DuckPublishedSpecs.heightCentimetres)", unit: "cm")
             TelemetryRow(label: "Mass", value: "\(DuckPublishedSpecs.massGrams)", unit: "g")
-            Text(DuckPublishedSpecs.massNote)
-                .font(.footnote)
-                .foregroundStyle(Theme.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
+            if detail.shows(.notes) {
+                Text(DuckPublishedSpecs.massNote)
+                    .font(.footnote)
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             TelemetryRow(label: "Sensors", value: DuckPublishedSpecs.sensors)
             Text(DuckPublishedSpecs.source)
                 .font(.caption)
                 .foregroundStyle(Theme.textTertiary)
 
-            SectionHeading(text: "This robot")
-            // NAME, SERIAL AND UPTIME ARE `DuckLink.SystemInfo`'S THREE FIELDS
-            // AND NONE OF THEM CAN ARRIVE HERE. `system.info` is a Bluetooth
-            // call, this screen has no scanner, and the only place in the app
-            // that makes that call is the pairing spike. Drawing three empty
-            // rows would be an empty card; drawing three dashes would be a
-            // robot that answered with nothing. So the kit's own paragraph
-            // about the shortcut this app takes goes here instead, and the
-            // spike is one tap away.
-            Text(DuckLink.identifierIsNotAnIdentity)
-                .font(.footnote)
-                .foregroundStyle(Theme.textPrimary)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityLabel(Text("Name, serial and uptime"))
-                .accessibilityValue(Text(DuckLink.identifierIsNotAnIdentity))
-            NavigationLink { PairingSpikeView() } label: {
-                Label("Run the pairing spike", systemImage: "bolt.horizontal")
+            if detail.shows(.diagnostics) {
+                SectionHeading(text: "This robot")
+                // NAME, SERIAL AND UPTIME ARE `DuckLink.SystemInfo`'S THREE FIELDS
+                // AND NONE OF THEM CAN ARRIVE HERE. `system.info` is a Bluetooth
+                // call, this screen has no scanner, and the only place in the app
+                // that makes that call is the pairing spike. Drawing three empty
+                // rows would be an empty card; drawing three dashes would be a
+                // robot that answered with nothing. So the kit's own paragraph
+                // about the shortcut this app takes goes here instead, and the
+                // spike is one tap away.
+                Text(DuckLink.identifierIsNotAnIdentity)
+                    .font(.footnote)
+                    .foregroundStyle(Theme.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel(Text("Name, serial and uptime"))
+                    .accessibilityValue(Text(DuckLink.identifierIsNotAnIdentity))
+                NavigationLink { PairingSpikeView() } label: {
+                    Label("Run the pairing spike", systemImage: "bolt.horizontal")
+                }
+                .frame(minHeight: DesignMetric.minimumTarget)
             }
-            .frame(minHeight: DesignMetric.minimumTarget)
         } header: {
             SectionHeading(text: "Hardware")
         }

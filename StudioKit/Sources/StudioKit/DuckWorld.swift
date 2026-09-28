@@ -387,7 +387,7 @@ public struct DuckWorld: Equatable, Sendable {
     /// stacked inside each other and read back scattered from eleven metres
     /// under the floor to a metre and a half above it (measured on the Pi
     /// bench, 2026-09-02). Framing those put the camera nineteen metres from
-    /// a point six metres underground and the Control tab went black. A
+    /// a point six metres underground and the Play tab went black. A
     /// world somebody asked for has its steps where it laid them; only those
     /// are worth pointing a camera at, and only the ones above the floor.
     public var framing: DuckScene.Framing? {

@@ -9,7 +9,7 @@ import StudioKit
 /// `.onnx` through onnxruntime and wants the canonical parameter bytes beside
 /// it for `/tune`; the phone bench has no ONNX reader and takes ONLY the
 /// canonical bytes. `WeightSearchRun.put` documents the finding. This is that
-/// branch with a name on it, so the Control tab can put a kept network on
+/// branch with a name on it, so the Play tab can put a kept network on
 /// whichever bench it is standing on and get back the name the bench will
 /// answer to.
 ///

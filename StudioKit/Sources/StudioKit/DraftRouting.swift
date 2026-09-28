@@ -179,7 +179,7 @@ public enum DraftRouting {
     /// `DuckPadMap`/`PadPilot` read a driving sentence against measurements the
     /// same way `Retrieval` reads a fetching one, so the old "one kind of
     /// request" was a sentence the app had outgrown. Nothing in the pad track
-    /// prints this — the Control tab prints `DuckTalk.withoutAModel` — but the
+    /// prints this — the Play tab prints `DuckTalk.withoutAModel` — but the
     /// Draft tab does, and a Draft tab telling somebody the app can do one
     /// thing when it can do two is a smaller claim than the truth.
     public static let needsAModel =

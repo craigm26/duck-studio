@@ -115,7 +115,7 @@ public enum BridgeDrive {
              + "died."
     }
 
-    /// What the Control tab is NOT drawing on this link, said where the picture
+    /// What the Play tab is NOT drawing on this link, said where the picture
     /// would have been.
     ///
     /// THE ABSENCE HAS TO BE EXPLAINED OR IT READS AS A BUG. Every other venue
@@ -186,15 +186,15 @@ public enum BridgeDrive {
     /// The door from the screen that opens the link to the screen that uses it.
     ///
     /// A PERSON WHO HAS JUST CONNECTED A ROBOT IS ONE TAP FROM DRIVING IT, and
-    /// the alternative — find the Control tab, notice it has a venue switch,
+    /// the alternative — find the Play tab, notice it has a venue switch,
     /// switch it to Robot — is a route nobody would guess from here.
     public static let driveOnControl =
-        "This link is what the Control tab drives. Switch that tab to Robot and the sticks send "
+        "This link is what the Play tab drives. Switch that tab to Robot and the sticks send "
       + "robot.move down this connection."
 
     /// What Disconnect actually costs, said on the button's own row.
     public static let disconnectEndsDriving =
-        "There is one link, so disconnecting here ends driving on the Control tab as well. The "
+        "There is one link, so disconnecting here ends driving on the Play tab as well. The "
       + "robot stops: the bridge sends robot.stop when this app goes quiet, and robotd zeroes a "
       + "twist older than its own deadman."
 

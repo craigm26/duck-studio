@@ -128,7 +128,10 @@ struct PolicyListView: View {
             if model.library.entries.isEmpty {
                 Section { emptyLibrary }
             }
-            retrain
+            // RETRAIN IS A TRAINING TOOL: Learn's path leads to it.
+            if detail.shows(.training) {
+                retrain
+            }
             discover
             independence
         }
@@ -160,7 +163,7 @@ struct PolicyListView: View {
             // LIBRARY AND BELONGS TO NO SINGLE POLICY IN IT.
             //
             // Drive, "find a real duck" and "run on your network" are gone,
-            // and not to another menu: driving is the Control tab, finding a
+            // and not to another menu: driving is the Play tab, finding a
             // duck is My Microduck → Connection, and a bench run is Studio →
             // Measure on a bench. Pollen's catalogue is gone too — it is a row
             // in Discover at the foot of this screen, where the community one
@@ -308,9 +311,9 @@ struct PolicyListView: View {
                 if index == 0 {
                     VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
                         runnableFraction
-                        sectionFootnote(shelf.footnote)
+                        if detail.shows(.notes) { sectionFootnote(shelf.footnote) }
                     }
-                } else {
+                } else if detail.shows(.notes) {
                     sectionFootnote(shelf.footnote)
                 }
             }
@@ -441,84 +444,90 @@ struct PolicyListView: View {
                      detail: "Networks other people trained and published on Hugging Face, each with the manifest that says what its command block means.",
                      symbol: "person.2")
             }
-            .listRowBackground(cardSegment(first: false, last: false))
-            Button {
-                router.go(to: .studio, then: .challenges)
-            } label: {
-                // A BUTTON IN A LIST DRAWS NO CHEVRON, so it is put back by
-                // hand. The row leads out of this tab entirely, which is more
-                // of a journey than the two catalogue rows above it and not
-                // less, and a row that looks inert beside two that look
-                // tappable reads as a heading rather than as a door.
-                HStack(alignment: .center, spacing: Theme.spacing(.tight)) {
-                    VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
-                        Label {
-                            Text(Challenge.listTitle)
-                                .font(.subheadline.weight(.medium))
-                                .foregroundStyle(Theme.textPrimary)
-                        } icon: {
-                            Image(systemName: "trophy")
-                                .foregroundStyle(Theme.actionSecondary)
+            // COMMUNITY CLOSES THE CARD IN SIMPLE; challenges and formal
+            // evaluations are measuring tools, and join it under Everything.
+            .listRowBackground(cardSegment(first: false, last: !detail.shows(.training)))
+            if detail.shows(.training) {
+                Button {
+                    router.go(to: .studio, then: .challenges)
+                } label: {
+                    // A BUTTON IN A LIST DRAWS NO CHEVRON, so it is put back by
+                    // hand. The row leads out of this tab entirely, which is more
+                    // of a journey than the two catalogue rows above it and not
+                    // less, and a row that looks inert beside two that look
+                    // tappable reads as a heading rather than as a door.
+                    HStack(alignment: .center, spacing: Theme.spacing(.tight)) {
+                        VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
+                            Label {
+                                Text(Challenge.listTitle)
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundStyle(Theme.textPrimary)
+                            } icon: {
+                                Image(systemName: "trophy")
+                                    .foregroundStyle(Theme.actionSecondary)
+                            }
+                            ForEach(Challenge.allCases) { challenge in
+                                Text("\(challenge.name) — \(challenge.oneSentence)")
+                                    .font(.caption)
+                                    .foregroundStyle(Theme.textSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
                         }
-                        ForEach(Challenge.allCases) { challenge in
-                            Text("\(challenge.name) — \(challenge.oneSentence)")
+                        .padding(.vertical, Theme.spacing(.hairline))
+                        Spacer(minLength: Theme.spacing(.tight))
+                        Image(systemName: "chevron.right")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(Theme.textTertiary)
+                            // The row already says where it goes; a screen reader
+                            // announcing "chevron" adds nothing.
+                            .accessibilityHidden(true)
+                    }
+                }
+                .listRowBackground(cardSegment(first: false, last: false))
+                Button {
+                    router.go(to: .studio, then: .evaluations)
+                } label: {
+                    // THE CHALLENGES ROW'S SHAPE, COPIED RATHER THAN SHARED. Two
+                    // rows that leave this tab and one helper that draws neither of
+                    // them is the arrangement that would have to grow an argument
+                    // for the chevron; the shape is eleven lines and the helper is
+                    // used by the two rows above, where it is right.
+                    HStack(alignment: .center, spacing: Theme.spacing(.tight)) {
+                        VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
+                            Label {
+                                Text(EvalTask.rowTitle)
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundStyle(Theme.textPrimary)
+                            } icon: {
+                                Image(systemName: "checklist")
+                                    .foregroundStyle(Theme.actionSecondary)
+                            }
+                            // THE SAME SENTENCE THE SCREEN ITSELF OPENS WITH.
+                            // `EvalTask.doorDetail` forwards to
+                            // `whatAnEvaluationIs`, which is what `EvalListView`
+                            // draws as its preamble, so this door cannot describe
+                            // the place differently from the place.
+                            Text(EvalTask.doorDetail)
                                 .font(.caption)
                                 .foregroundStyle(Theme.textSecondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
+                        .padding(.vertical, Theme.spacing(.hairline))
+                        Spacer(minLength: Theme.spacing(.tight))
+                        Image(systemName: "chevron.right")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(Theme.textTertiary)
+                            .accessibilityHidden(true)
                     }
-                    .padding(.vertical, Theme.spacing(.hairline))
-                    Spacer(minLength: Theme.spacing(.tight))
-                    Image(systemName: "chevron.right")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(Theme.textTertiary)
-                        // The row already says where it goes; a screen reader
-                        // announcing "chevron" adds nothing.
-                        .accessibilityHidden(true)
                 }
+                .listRowBackground(cardSegment(first: false, last: true))
             }
-            .listRowBackground(cardSegment(first: false, last: false))
-            Button {
-                router.go(to: .studio, then: .evaluations)
-            } label: {
-                // THE CHALLENGES ROW'S SHAPE, COPIED RATHER THAN SHARED. Two
-                // rows that leave this tab and one helper that draws neither of
-                // them is the arrangement that would have to grow an argument
-                // for the chevron; the shape is eleven lines and the helper is
-                // used by the two rows above, where it is right.
-                HStack(alignment: .center, spacing: Theme.spacing(.tight)) {
-                    VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
-                        Label {
-                            Text(EvalTask.rowTitle)
-                                .font(.subheadline.weight(.medium))
-                                .foregroundStyle(Theme.textPrimary)
-                        } icon: {
-                            Image(systemName: "checklist")
-                                .foregroundStyle(Theme.actionSecondary)
-                        }
-                        // THE SAME SENTENCE THE SCREEN ITSELF OPENS WITH.
-                        // `EvalTask.doorDetail` forwards to
-                        // `whatAnEvaluationIs`, which is what `EvalListView`
-                        // draws as its preamble, so this door cannot describe
-                        // the place differently from the place.
-                        Text(EvalTask.doorDetail)
-                            .font(.caption)
-                            .foregroundStyle(Theme.textSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .padding(.vertical, Theme.spacing(.hairline))
-                    Spacer(minLength: Theme.spacing(.tight))
-                    Image(systemName: "chevron.right")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(Theme.textTertiary)
-                        .accessibilityHidden(true)
-                }
-            }
-            .listRowBackground(cardSegment(first: false, last: true))
         } header: {
             SectionHeading(text: "Discover behaviours people have published")
         } footer: {
-            sectionFootnote("Neither catalogue fetches anything until you ask: the address is printed first and the scan is a button. What decides whether a downloaded network can be driven here is its manifest, not whose repository it sat in. The challenges are in Studio, and nothing in them has been run on hardware.")
+            if detail.shows(.notes) {
+                sectionFootnote("Neither catalogue fetches anything until you ask: the address is printed first and the scan is a button. What decides whether a downloaded network can be driven here is its manifest, not whose repository it sat in. The challenges are in Studio, and nothing in them has been run on hardware.")
+            }
         }
         .listRowSeparatorTint(Theme.separator)
     }
@@ -675,7 +684,11 @@ struct PolicyListView: View {
                 // glance; the full digest is on the detail screen,
                 // because a truncated hash is a weaker claim and the
                 // place it is VERIFIED should show the whole thing.
-                Text(entry.shortIdentity).font(.caption2.monospaced())
+                // THE FINGERPRINT IS A NETWORK INTERNAL; a person picking a
+                // move needs the name and whose it is.
+                if detail.shows(.networkInternals) {
+                    Text(entry.shortIdentity).font(.caption2.monospaced())
+                }
                 Text(entry.origin.label).font(.caption2)
             }
             .foregroundStyle(Theme.textTertiary)
@@ -710,10 +723,14 @@ struct PolicyListView: View {
                 // else shows nothing, rather than this app printing its own
                 // architecture in the space reserved for a policy's claim about
                 // itself.
-                TelemetryRow(label: "Shape",
-                             value: "\(manifest.observationLength) → \(manifest.actionLength)")
-                if let scale = declaredScales[entry.id] {
-                    TelemetryRow(label: "Action scale", value: scaleText(scale))
+                // THE AUTHOR'S CAVEATS STAY FOR EVERYBODY; the shape and the
+                // scale are network internals.
+                if detail.shows(.networkInternals) {
+                    TelemetryRow(label: "Shape",
+                                 value: "\(manifest.observationLength) → \(manifest.actionLength)")
+                    if let scale = declaredScales[entry.id] {
+                        TelemetryRow(label: "Action scale", value: scaleText(scale))
+                    }
                 }
                 caveats(manifest)
             }
@@ -1209,7 +1226,7 @@ struct PolicyDetailView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityHint(Text("Opens the Control tab."))
+                    .accessibilityHint(Text("Opens the Play tab."))
                 } footer: {
                     // TWO DIFFERENT SCREENS, AND THE ADVICE DIFFERS. With a
                     // recording in hand the bench is optional; without one — a

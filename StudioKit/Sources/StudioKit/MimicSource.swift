@@ -237,7 +237,7 @@ public enum Mimic {
       + "while it records."
 
     public static func kept(_ name: String) -> String {
-        "Kept as \(name). It is in Studio with the other motions, and on the Control tab's "
+        "Kept as \(name). It is in Studio with the other motions, and on the Play tab's "
       + "Motions chip."
     }
 
@@ -257,7 +257,7 @@ public enum Mimic {
     public static let linkField = "Paste a YouTube link"
     public static let load = "Load"
 
-    /// On the Control tab, where only the camera is offered.
+    /// On the Play tab, where only the camera is offered.
     public static let videoAndYouTubeAreInStudio =
         "A video or a YouTube clip is read in Studio, where there is room for a player."
     public static let openStudio = "Open Mimic in Studio"

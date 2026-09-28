@@ -354,7 +354,7 @@ final class BridgeDriveWireTests: XCTestCase {
     /// The two doors between the screen that opens the link and the one that
     /// uses it, both of which name the consequence rather than just the place.
     func testTheTwoLinkDoorsNameWhatTheyCost() {
-        XCTAssertTrue(BridgeDrive.driveOnControl.contains("Control tab"))
+        XCTAssertTrue(BridgeDrive.driveOnControl.contains("Play tab"))
         XCTAssertTrue(BridgeDrive.driveOnControl.contains("robot.move"))
         XCTAssertTrue(BridgeDrive.disconnectEndsDriving.contains("one link"))
         XCTAssertTrue(BridgeDrive.disconnectEndsDriving.contains("robot.stop"))

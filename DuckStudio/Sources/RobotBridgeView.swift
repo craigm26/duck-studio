@@ -9,7 +9,7 @@ import StudioKit
 /// WHY THIS SCREEN EXISTS, AND WHAT CHANGED UNDER IT. `bridge/microduck-bridge.py`
 /// has relayed robotd's socket to TCP since build 46. This screen was the first
 /// door in the app that reached a real duck's disk, and it used to be the only
-/// one that dialled the bridge at all — the Control tab's drive loop was typed
+/// one that dialled the bridge at all — the Play tab's drive loop was typed
 /// to a bench, so nothing else could. That is no longer true: the loop takes
 /// `any DuckPeer`, and the link this screen opens is the link that tab drives.
 ///
@@ -103,7 +103,7 @@ struct RobotBridgeView: View {
                     }
                     // THE DOOR TO THE THING THIS LINK IS NOW FOR. A person who
                     // has just connected a robot is one tap from driving it,
-                    // and the alternative — finding the Control tab and
+                    // and the alternative — finding the Play tab and
                     // switching its venue — is a route nobody would guess.
                     Label(BridgeDrive.driveOnControl, systemImage: "gamecontroller")
                         .font(.footnote).foregroundStyle(Theme.textSecondary)

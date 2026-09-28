@@ -10,7 +10,7 @@ import DuckKit
 /// correct for a screen whose only job is to put one file on a disk and leave.
 /// It is wrong the moment a second screen drives the same robot: connecting on
 /// the Robot tab and then walking to Control would have destroyed the
-/// connection on the way, and the Control tab would have had to dial its own —
+/// connection on the way, and the Play tab would have had to dial its own —
 /// two sockets to one `robotd`, whose command slot is last-writer-wins, which
 /// `intents.rs` says produces "a robot that obeys neither".
 ///
@@ -65,7 +65,7 @@ import DuckKit
     var isConnected: Bool { client != nil }
 
     /// The peer, as the vocabulary rather than as a socket. THE TYPE THE DRIVE
-    /// LOOP TAKES: `any DuckPeer`, so nothing on the Control tab has to know
+    /// LOOP TAKES: `any DuckPeer`, so nothing on the Play tab has to know
     /// this is a bridge rather than a bench.
     var peer: (any DuckPeer)? { client?.peer }
 

@@ -76,7 +76,7 @@ public enum PlanEditorWords {
     public static let runButton = "Run it"
     public static let keepButton = "Keep as a sequence"
     public static let runNeedsBench =
-        "Plans run from the Control tab, against the simulator or a bench. Keep this one and it "
+        "Plans run from the Play tab, against the simulator or a bench. Keep this one and it "
       + "will be on the Sequences shelf there."
     public static func thenSkill(_ name: String) -> String {
         "Then load \(name) when the moves finish."
