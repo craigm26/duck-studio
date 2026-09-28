@@ -373,6 +373,28 @@ public enum DuckSoccer {
         /// How hard the CPU team plays.
         public var difficulty: Difficulty = .normal
 
+        /// SHOOT ASSIST, for the human's duck only. The strike reaches 0.10 m,
+        /// less than the duck's own body, and the ball never moves when a duck
+        /// walks into it, so "press SHOOT beside the ball" used to do nothing at
+        /// all. With the assist a press is remembered for `strikeMemory`
+        /// seconds, and while it is, a duck within `assistReach` of the ball
+        /// with the stick idle walks to it and strikes the moment it is in
+        /// reach. Moving the stick always wins. The CPU never gets it.
+        public var assist = true
+        /// Long enough to walk 0.3 m at the duck's pace; any real stick
+        /// movement cancels it.
+        public static let strikeMemory = 3.0
+        public static let assistReach = 0.45
+        public private(set) var strikeBuffer = 0.0
+        public private(set) var bufferedPass = false
+
+        /// Whether the duck could strike the ball right now.
+        public func canStrike(_ player: Player) -> Bool {
+            let toBall = ball.position - player.position
+            return toBall.length <= capabilities.kickRange
+                && abs(angleDelta(from: player.heading, to: toBall.heading)) < 1.1
+        }
+
         /// What Special is for this team, if anything.
         public func special(for team: Team) -> Moves.Special? {
             if let custom = moves[team]?.special { return custom }
@@ -515,7 +537,26 @@ public enum DuckSoccer {
             var resolved: [String: Control] = [:]
             let humanActive = controlled.flatMap { controls[$0] } != nil
             for player in players {
-                if player.id == controlled, let human = controls[player.id] {
+                if player.id == controlled, var human = controls[player.id] {
+                    if assist {
+                        if human.kick || human.pass {
+                            strikeBuffer = Self.strikeMemory
+                            bufferedPass = human.pass && !human.kick
+                        } else if human.stick.length > 0.5 {
+                            strikeBuffer = 0
+                        } else {
+                            strikeBuffer = max(strikeBuffer - dt, 0)
+                        }
+                        if strikeBuffer > 0 {
+                            human.kick = !bufferedPass
+                            human.pass = bufferedPass
+                            let toBall = ball.position - player.position
+                            if !canStrike(player), human.stick.length < 0.2,
+                               toBall.length < Self.assistReach, player.kickRecovery <= 0 {
+                                human.stick = toBall.normalized
+                            }
+                        }
+                    }
                     resolved[player.id] = human
                 } else {
                     var cpu = cpuControl(for: player, humanActive: humanActive)
@@ -554,6 +595,7 @@ public enum DuckSoccer {
                                        pass: resolved[player.id]?.pass ?? false,
                                        dt: dt) {
                     events.append(event)
+                    if player.id == controlled { strikeBuffer = 0 }
                 }
                 players[index] = player
             }

@@ -641,3 +641,51 @@ extension SoccerEngineTests {
         XCTAssertTrue(S.Difficulty.hard.alwaysSprints)
     }
 }
+
+extension SoccerEngineTests {
+
+    /// SHOOT ASSIST: one tap with the ball 0.3 m ahead walks the duck to it
+    /// and strikes, which used to do nothing at all.
+    func testATapOfShootFromAFewStepsAwayStillStrikes() {
+        var match = S.Match()
+        match.players = [S.Player(team: .home, number: 3, role: .striker,
+                                  position: .init(-0.3, 0), heading: 0)]
+        match.ball = S.Ball(position: .init(0, 0))
+        match.phase = .playing
+        var kicked = false
+        for i in 0..<300 {
+            let events = match.advance(dt: dt, controls: ["home-3": S.Control(kick: i < 3)])
+            if events.contains(.kick(by: "home-3")) { kicked = true; break }
+        }
+        XCTAssertTrue(kicked, "a tap commits the duck to going and striking")
+        XCTAssertEqual(match.strikeBuffer, 0, "the strike used the press up")
+    }
+
+    /// Moving the stick cancels it, and a ball out of assist reach is left alone.
+    func testTheStickCancelsTheAssistAndFarBallsAreLeftAlone() {
+        var match = S.Match()
+        match.players = [S.Player(team: .home, number: 3, role: .striker,
+                                  position: .init(-0.8, 0), heading: 0)]
+        match.ball = S.Ball(position: .init(0, 0))
+        match.phase = .playing
+        for i in 0..<200 {
+            let events = match.advance(dt: dt, controls: ["home-3": S.Control(kick: i < 3)])
+            XCTAssertFalse(events.contains(.kick(by: "home-3")))
+        }
+        match.players[0].position = .init(-0.2, 0)
+        _ = match.advance(dt: dt, controls: ["home-3": S.Control(kick: true)])
+        _ = match.advance(dt: dt, controls: ["home-3": S.Control(stick: .init(0, 1))])
+        XCTAssertEqual(match.strikeBuffer, 0)
+    }
+
+    func testCanStrikeIsTheKickRule() {
+        var match = S.Match()
+        match.ball = S.Ball(position: .init(0, 0))
+        let near = S.Player(team: .home, number: 3, role: .striker, position: .init(-0.08, 0), heading: 0)
+        let beside = S.Player(team: .home, number: 3, role: .striker, position: .init(-0.13, 0), heading: 0)
+        let facingAway = S.Player(team: .home, number: 3, role: .striker, position: .init(-0.08, 0), heading: .pi)
+        XCTAssertTrue(match.canStrike(near))
+        XCTAssertFalse(match.canStrike(beside))
+        XCTAssertFalse(match.canStrike(facingAway))
+    }
+}

@@ -183,12 +183,14 @@ struct DuckSoccerView: View {
                            hint: "Held, your duck plays the ball forward, softly.",
                            subtitle: name(.pass), cooldown: referee.strikeCooldown) {
                     referee.passHeld = $0
+                    if $0 { referee.strikePressed() }
                 }
                 HoldButton(label: "SHOOT", size: SoccerMetric.shootPad, role: .commands,
-                           hint: "Held, your duck strikes the ball hard, the way it is facing.",
+                           hint: "Your duck walks to the ball if it is a few steps away, then strikes it hard.",
                            subtitle: name(.shoot), cooldown: referee.strikeCooldown,
                            ready: referee.ballInRange) {
                     referee.kickHeld = $0
+                    if $0 { referee.strikePressed() }
                 }
             }
             if referee.hasSpecial {
@@ -986,6 +988,17 @@ final class SoccerReferee: ObservableObject {
     }
 
     /// The button rings and the in-reach glow, from your duck's state.
+    /// A strike pressed with the ball too far for the assist to walk to:
+    /// say so, gently, instead of doing nothing.
+    func strikePressed() {
+        guard let me = match.players.first(where: { $0.id == match.controlled }) else { return }
+        let far = (match.ball.position - me.position).length > DuckSoccer.Match.assistReach
+        if far {
+            UIImpactFeedbackGenerator(style: .soft).impactOccurred(intensity: 0.5)
+            show("Get closer to the ball", for: 1.2)
+        }
+    }
+
     private func updateCooldowns() {
         if let me = match.players.first(where: { $0.id == match.controlled }) {
             let recovery = max(match.capabilities.kickCooldown, 0.001)
@@ -993,9 +1006,9 @@ final class SoccerReferee: ObservableObject {
             if abs(strike - strikeCooldown) > 0.02 { strikeCooldown = strike }
             let special = min(me.rollRecovery / 2.0, 1)
             if abs(special - specialCooldown) > 0.02 { specialCooldown = special }
-            let toBall = match.ball.position - me.position
-            let reach = toBall.length <= match.capabilities.kickRange * 1.6
-                && abs(DuckSoccer.angleDelta(from: me.heading, to: toBall.heading)) < 1.1
+            // THE GLOW IS THE STRIKE RULE ITSELF: it used to light at 1.6 times
+            // the reach, promising a kick the engine would not make.
+            let reach = match.canStrike(me)
             if reach != ballInRange { ballInRange = reach }
         }
     }
