@@ -1,5 +1,11 @@
 # Microduck Studio
 
+> **This is not the official Microduck app.** Microduck Studio is an independent project. It is
+> not made by, endorsed by, or affiliated with Pollen Robotics. Microduck is their robot; this is
+> an independent owner's app for it. For the robot itself, see
+> [Microduck, by Pollen Robotics](https://pollen-robotics.com/microduck/) and
+> [Pollen Robotics](https://pollen-robotics.com/).
+
 A bench for Microduck reinforcement-learning policies and the motions they
 produce, on a phone.
 
