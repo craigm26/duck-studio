@@ -88,6 +88,13 @@ struct StudioHubView: View {
                 // Review however honestly it explains itself, and the honest
                 // sentence is worth more to a developer reading the source than
                 // to a person holding the phone. Flip the gate to see them.
+                // TRAIN A DUCK TO SHOOT, FIRST IN PLAY: it is the one mode here
+                // that runs real physics end to end, from walking to a goal.
+                NavigationLink {
+                    place(.shoot)
+                } label: {
+                    Label(ShootWords.studioRow, systemImage: ShootWords.studioRowSymbol)
+                }
                 ForEach(LabCatalogue.listed().filter { $0.id != "bench" }) { mode in
                     row(mode)
                 }
@@ -383,6 +390,8 @@ struct StudioHubView: View {
             TuneView(library: model, benches: benches, models: models)
         case .preference:
             CompareHubView(library: model, drafts: drafts, benches: benches)
+        case .shoot:
+            ShootLabView(benches: benches)
         }
     }
 

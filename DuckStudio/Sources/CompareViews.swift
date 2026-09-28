@@ -206,6 +206,11 @@ struct DuelStage: View {
     let left: DuckIntentClip
     let right: DuckIntentClip
     let caption: String
+    /// A ball on each side, one [x, y, z] per frame, when the thing judged
+    /// moved one (Train a duck to shoot). Nil draws no ball.
+    var balls: (left: [[Double]], right: [[Double]])? = nil
+    /// A pitch to draw behind both.
+    var pitch: Shoot.Pitch? = nil
     let answer: (DuckFeedback.Choice, [DuckFeedback.Reason]) -> Void
 
     @State private var playhead: TimeInterval = 0
@@ -217,8 +222,8 @@ struct DuelStage: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 1) {
-                side(left, label: CompareWords.left, orbit: $orbitLeft)
-                side(right, label: CompareWords.right, orbit: $orbitRight)
+                side(left, label: CompareWords.left, ball: balls?.left, orbit: $orbitLeft)
+                side(right, label: CompareWords.right, ball: balls?.right, orbit: $orbitRight)
             }
             .frame(maxHeight: .infinity)
             TransportBar(duration: max(left.duration, right.duration),
@@ -252,10 +257,17 @@ struct DuelStage: View {
         .background(Theme.backgroundPrimary)
     }
 
-    private func side(_ clip: DuckIntentClip, label: String,
+    private func side(_ clip: DuckIntentClip, label: String, ball: [[Double]]?,
                       orbit: Binding<OrbitState>) -> some View {
-        DuckStage(pose: .at(clip.pose(at: min(playhead, clip.duration))),
-                  environment: clip.environment, orbit: orbit)
+        let t = min(playhead, clip.duration)
+        let at = ball.flatMap { path -> SIMD2<Double>? in
+            guard !path.isEmpty else { return nil }
+            let i = min(Int(t * clip.hz), path.count - 1)
+            return SIMD2(path[i][0], path[i][1])
+        }
+        return DuckStage(pose: .at(clip.pose(at: t)), environment: clip.environment,
+                         props: at.map { [ShootBall.prop(at: $0)] } ?? [],
+                         orbit: orbit, rolling: at, pitch: pitch)
             .overlay(alignment: .topLeading) {
                 Text(label)
                     .font(.caption.weight(.bold))
@@ -568,5 +580,18 @@ struct ImproveView: View {
                                               : "That version could not be kept."
             }
         }
+    }
+}
+
+
+/// The ball a shot moves, as the stage's one kind of prop that can roll.
+enum ShootBall {
+    static let id = UUID(uuidString: "5B0C0000-0000-4000-8000-000000000001")!
+    static func prop(at p: SIMD2<Double>) -> DuckScene.Prop {
+        // A FIXED id and a fixed first position, so the stage builds the ball
+        // once and `rolling` moves it; a prop whose fields change every frame
+        // would be rebuilt every frame.
+        DuckScene.Prop(id: id, name: "ball", shape: .ball, x: 0, y: 0, grams: 30,
+                       thicknessMillimetres: 100, length: 0.10)
     }
 }

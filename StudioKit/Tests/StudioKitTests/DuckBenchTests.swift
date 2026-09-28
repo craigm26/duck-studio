@@ -534,6 +534,7 @@ final class DuckBenchTests: XCTestCase {
                                 cell: BallChallenge.Grid.fallback[0]),
             DuckBench.chaseGrid(address),
             DuckBench.world(address),
+            try Shoot.call(address, cell: Shoot.coreCells[0], params: .defaults),
             try DuckBench.setWorld(address,
                                    DuckWorld.plan(for: DuckScene.staircase(count: 4, rise: 0.060,
                                                                           run: 0.28, start: 0.12),
@@ -553,7 +554,9 @@ final class DuckBenchTests: XCTestCase {
         // entry 404s on the bench the app carries — which is how `/tune`
         // shipped, once.
         XCTAssertTrue(DuckBench.routes.contains("/world"))
-        XCTAssertEqual(DuckBench.routes.count, 16)
+        XCTAssertTrue(DuckBench.routes.contains("/shoot"))
+        XCTAssertTrue(DuckBench.routes.contains("/shoot/grid"))
+        XCTAssertEqual(DuckBench.routes.count, 18)
     }
 
     // MARK: - a run that carries the world it ran in

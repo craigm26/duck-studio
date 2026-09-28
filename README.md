@@ -182,6 +182,34 @@ steps, and the editor says so when you raise it past that. That ceiling is a
 simulation result, not a robot's — nobody has put a Microduck on a step, because
 none has shipped.
 
+**Train a duck to shoot** (Studio → Play, and a Learn lesson). The end-to-end
+answer to "how do I get the duck to walk to a ball and kick it into a net":
+Pollen ships a walker that cannot kick and kicks that cannot walk (trained on a
+ball 9 cm from the toe; 0/14 on the ball challenge). The shot is the join, a
+controller on the bench (`POST /shoot`, duckbench `sim/shoot_score.mjs`) that
+drives Pollen's networks closed-loop at 50 Hz: approach a spot behind the ball,
+align to the goal, dribble it closer, creep in, swap to the kick network,
+recover. Six steps on one screen, all real physics on this phone:
+
+1. The pitch: goals and lines drawn over the canon plant; the goal is a scored
+   line (ball centre past x = 1.30 m, inside the posts, under the bar), so the
+   plant and its digest are unchanged.
+2. A kick alone: Pollen's kick where the duck stands, kicking the air.
+3. A hand-written shooter: every number a first guess.
+4. Train it: `Shoot.Search`, a (1+3) search over the controller's eleven numbers,
+   scored by goals on five ball spots, tested on all nine. This is search, not
+   reinforcement learning; the networks never change. A labelled head start is
+   the same search's result on a Pi bench.
+5. Judge the style: hand-written vs trained shots side by side, with the ball
+   and the goal drawn; the pick is a Compare `preference` record of kind `shooter`.
+6. Test it with a camera: the trained shooter seeing only a 26° field of view,
+   with noise.
+
+Measured on the Pi's bench, nine core spots: hand-written 1/9, head start 4/9,
+head start with the camera only 4/9. The shot is sensitive: rounding the head
+start's numbers to three decimals took it from 6/9 to 4/9, which is why a
+shooter is scored over many spots.
+
 **Compare** (Studio). Be the judge: watch two, pick the better one. This is
 RLHF's human feedback, and only that: every pick is a labelled `duck-feedback/0`
 `preference` record on the phone, and training on shared picks happens off the

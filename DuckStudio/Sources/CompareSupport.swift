@@ -85,6 +85,8 @@ import StudioKit
                                   digest: Compare.digest(of: Data(trackText(draft).utf8)),
                                   source: .yours, key: draft.id.uuidString)
             }
+        case .shooter:
+            return []   // shooters are compared from Train a duck to shoot, not picked here
         case .sequence:
             return sequences.sequences.filter { $0.benchPolicy != nil }.map { seq in
                 Compare.Contender(kind: .sequence, name: seq.name, digest: seq.compareDigest,
@@ -175,6 +177,8 @@ import StudioKit
             let outcome = try DuckBench.readOutcome(data, when: Date())
             return try DuckBench.readPerformedClip(data, named: draft.name, laid: outcome.laid)
 
+        case .shooter:
+            throw Failure.said("A shooter is compared from Train a duck to shoot.")
         case .sequence:
             guard let seq = sequences.sequences.first(where: { $0.id.uuidString == contender.key })
                     ?? Self.transient[contender.key] else {

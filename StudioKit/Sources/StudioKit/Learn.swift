@@ -18,7 +18,7 @@ public enum Learn {
     /// Where a lesson's button goes. The app maps each case to a tab or a
     /// screen; the kit only names them.
     public enum Go: String, Sendable, CaseIterable {
-        case play, behaviours, preference, motions, challenges, tune, everything
+        case play, behaviours, preference, motions, challenges, tune, shoot, everything
     }
 
     public struct Lesson: Equatable, Sendable, Identifiable {
@@ -75,6 +75,11 @@ public enum Learn {
               body: "This phone runs MuJoCo, the physics engine Pollen trains in. A challenge "
                   + "scores a move over many tries instead of one good take.",
               symbol: "trophy", button: "Open Challenges", go: .challenges),
+        .init(id: "shoot",
+              title: "Train a duck to shoot",
+              body: "Walk to a ball, line up, kick it into a goal. Build the controller that joins "
+                  + "Pollen's walker to its kick, then train its numbers on goals scored.",
+              symbol: "soccerball", button: "Open the pitch", go: .shoot),
         .init(id: "tune",
               title: "Tune a network",
               body: "A phone cannot train from scratch, but it can nudge a trained network and keep "
