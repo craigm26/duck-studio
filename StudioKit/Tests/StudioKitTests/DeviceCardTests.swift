@@ -315,9 +315,11 @@ final class DeviceCardTests: XCTestCase {
 
     /// THE DUCK'S OWN REFUSAL KEEPS ITS CODE, because a refusal by number is
     /// what somebody quotes in a bug report.
-    func testADuckRefusalKeepsItsCode() {
+    func testADuckRefusalKeepsItsCode() throws {
         let failure = DuckReply.Failure(code: -32_601, message: "unknown method")
-        let alarm = DeviceCard.Alarm.of(failure)
+        // `of(_ failure:)` is optional now — nil only for the phone bench's
+        // not-listening reply; a real refusal still unwraps.
+        let alarm = try XCTUnwrap(DeviceCard.Alarm.of(failure))
         XCTAssertEqual(alarm.sentence, failure.says)
         XCTAssertTrue(alarm.sentence.contains("-32601"), alarm.sentence)
         XCTAssertEqual(alarm.source, .duckRefusal)
@@ -380,5 +382,22 @@ final class DeviceCardTests: XCTestCase {
         XCTAssertTrue(DeviceCard.noCameraYet.contains("too slow and too constrained"))
         XCTAssertTrue(DuckLink.whatThisCanDo.contains("too slow and too constrained"))
         XCTAssertFalse(DeviceCard.noCameraYet.isEmpty)
+    }
+}
+
+extension DeviceCardTests {
+    /// The first thing a new owner read, on the first screen, was "The duck
+    /// refused: This phone's bench is still coming up … (0)" under a warning
+    /// triangle — and it stayed above a card saying "Answering". A bench that
+    /// has not bound its port yet is not a refusal.
+    func testABenchStillComingUpIsNotAnAlarm() {
+        let notYet = DuckReply.Failure(code: 0, message: PhoneBenchReport.notListening)
+        XCTAssertTrue(notYet.isNotListeningYet)
+        XCTAssertNil(DeviceCard.Alarm.of(notYet))
+        // A real refusal from a duck still is one.
+        let real = DuckReply.Failure(code: 7, message: "policy not loaded")
+        XCTAssertFalse(real.isNotListeningYet)
+        XCTAssertEqual(DeviceCard.Alarm.of(real)?.severity, .warning)
+        XCTAssertEqual(DeviceCard.Alarm.of(real)?.sentence, "The duck refused: policy not loaded (7)")
     }
 }

@@ -130,9 +130,22 @@ public enum RemoteReach {
 
     public static let rendezvous = URL(string: "https://pollen-robotics-reachy-mini-central.hf.space")!
 
-    public static func statusRequest(token: String) -> URLRequest {
+    /// How this app names itself to the rendezvous.
+    ///
+    /// POLLEN ASKED FOR IT. The rendezvous is theirs and work in progress; they
+    /// said a third-party client is welcome "as long as it stays reasonable"
+    /// and asked that it set the User-Agent (pollen-robotics/microduck#329,
+    /// 2026-09-28), so a request from here is never mistaken for their own app
+    /// and they can tell us apart if our traffic ever stops being reasonable.
+    /// The address is where they can find out who we are.
+    public static func userAgent(version: String) -> String {
+        "MicroduckStudio/\(version) (independent third-party iOS app; +https://microduckstudio.com)"
+    }
+
+    public static func statusRequest(token: String, version: String) -> URLRequest {
         var request = URLRequest(url: rendezvous.appendingPathComponent("api/robot-status"))
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue(userAgent(version: version), forHTTPHeaderField: "User-Agent")
         request.timeoutInterval = 15
         return request
     }

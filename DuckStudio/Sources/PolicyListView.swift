@@ -551,11 +551,17 @@ struct PolicyListView: View {
         Section {
             // `StudioKit.` SPELLED OUT: this file has a private `Provenance` of its
             // own, and the bare name resolves to it — Theme.swift said so in advance.
-            sectionFootnote(StudioKit.Provenance.independence)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .fixedSize(horizontal: false, vertical: true)
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
+            VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
+                Text(StudioKit.Provenance.notOfficialTitle)
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Theme.textPrimary)
+                sectionFootnote(StudioKit.Provenance.independence)
+                    .fixedSize(horizontal: false, vertical: true)
+                ProvenanceLinks().padding(.top, Theme.spacing(.hairline))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
         }
     }
 

@@ -3,11 +3,25 @@ import XCTest
 
 final class FirstRunTests: XCTestCase {
 
-    /// THE OPENING LINE HAS TO ADMIT THERE IS NO ROBOT. An app that starts with
+    /// THE FIRST CARD SAYS THIS IS NOT POLLEN'S APP, in their word, with the
+    /// whole claim under it — pollen-robotics/microduck#329.
+    func testItOpensBySayingThisIsNotTheOfficialApp() {
+        let first = FirstRun.steps.first
+        XCTAssertEqual(first?.id, "not-official")
+        XCTAssertEqual(first?.title, Provenance.notOfficialTitle)
+        XCTAssertEqual(first?.body, Provenance.independence)
+    }
+
+    /// Everybody who saw the run without that card sees it once more.
+    func testTheRunIsShownAgainToAnybodyWhoSawVersionOne() {
+        XCTAssertTrue(FirstRun.shouldShow(seenVersion: 1))
+    }
+
+    /// THE SECOND LINE HAS TO ADMIT THERE IS NO ROBOT. An app that starts with
     /// "pair your Microduck" fails for every person who has it today, because
     /// Pollen's first deliveries are around Christmas 2026.
     func testItOpensByAdmittingTheRobotDoesNotExistYet() {
-        let first = FirstRun.steps.first
+        let first = FirstRun.steps.dropFirst().first
         XCTAssertEqual(first?.id, "no-duck")
         XCTAssertTrue(first!.body.contains("Christmas 2026"))
         XCTAssertTrue(first!.title.lowercased().contains("not have"))
@@ -15,7 +29,7 @@ final class FirstRunTests: XCTestCase {
 
     /// And then says what works anyway, or the first card is just bad news.
     func testTheFirstCardAlsoSaysWhatWorksWithoutOne() {
-        XCTAssertTrue(FirstRun.steps[0].body.contains("without one"))
+        XCTAssertTrue(FirstRun.steps[1].body.contains("without one"))
     }
 
     /// Every step that names a tab has to name one that exists.
@@ -41,7 +55,7 @@ final class FirstRunTests: XCTestCase {
 
     func testTheStepsAreOrderedForSomebodyWithNothing() {
         XCTAssertEqual(FirstRun.steps.map(\.id),
-                       ["no-duck", "watch", "make", "play", "arrives"])
+                       ["not-official", "no-duck", "watch", "make", "play", "arrives"])
     }
 
     func testStepIdsAreUniqueAndNothingIsEmpty() {

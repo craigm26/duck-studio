@@ -609,7 +609,7 @@ struct MyMicroduckView: View {
             let greeting = try await peer.call(.hello)
             lastReplyAt = Date()
             if let refusal = greeting.failure {
-                add(DeviceCard.Alarm.of(refusal))
+                if let alarm = DeviceCard.Alarm.of(refusal) { add(alarm) }
                 return
             }
         } catch {
@@ -668,7 +668,7 @@ struct MyMicroduckView: View {
         do {
             let reply = try await peer.call(.state)
             if let refusal = reply.failure {
-                add(DeviceCard.Alarm.of(refusal))
+                if let alarm = DeviceCard.Alarm.of(refusal) { add(alarm) }
                 return
             }
             live = await peer.live

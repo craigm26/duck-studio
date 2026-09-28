@@ -589,6 +589,10 @@ public struct DuckReply: Equatable, Sendable {
         /// this package, and phrased the same way `DuckLink.LinkError` phrases
         /// it so one app does not have two voices for one event.
         public var says: String { "The duck refused: \(message) (\(code))" }
+
+        /// The phone bench, still binding its port, answering before it is
+        /// ready. Not a refusal in any sense a person should be alarmed by.
+        public var isNotListeningYet: Bool { message == PhoneBenchReport.notListening }
     }
 
     /// The id this answers. Nil when the reply carried none — which is itself

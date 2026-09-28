@@ -659,8 +659,16 @@ public enum DeviceCard {
         /// The duck itself saying no, in `DuckReply.Failure.says` — which
         /// carries the code alongside the message, because a refusal by number
         /// is what somebody quotes in a bug report.
-        public static func of(_ failure: DuckReply.Failure) -> Alarm {
-            Alarm(severity: .warning, sentence: failure.says, source: .duckRefusal)
+        /// Optional for one reason: in the first second after launch the bench
+        /// inside the app answers every request with `PhoneBenchReport.notListening`
+        /// as an error body, and the peer reads that as a code-0 refusal. Raised
+        /// as an alarm it read "The duck refused: … (0)" under a warning triangle
+        /// — the first thing a new owner saw — and stayed there above a card
+        /// saying "Answering", because alarms clear only on the next pull. It is
+        /// the same "nothing has happened yet" `of(_ diagnosis:)` returns nil for.
+        public static func of(_ failure: DuckReply.Failure) -> Alarm? {
+            guard !failure.isNotListeningYet else { return nil }
+            return Alarm(severity: .warning, sentence: failure.says, source: .duckRefusal)
         }
     }
 

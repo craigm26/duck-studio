@@ -108,6 +108,11 @@ host, as they did for the router.
 - ~~An OAuth app for Duck Studio's sign-in.~~ **Done 2026-09-24**: client id
   `fa895e94-2e3c-464c-9c98-73f250e16c98`, redirect `duckstudio://oauth/callback`, scopes
   `openid profile` (checked against Hugging Face's authorise endpoint).
-- **Whether Pollen is content for a third-party client on their rendezvous.** Asked in
-  pollen-robotics/microduck#329. Listing (stage 1) is read-only and opens no session; stage 2
-  (sending calls) waits for the answer.
+- ~~Whether Pollen is content for a third-party client on their rendezvous.~~ **Answered
+  2026-09-28** in pollen-robotics/microduck#329 by Pierre Rouanet: yes, "as long as it stays
+  reasonable". The API is work in progress and may change, though it has been stable for weeks.
+  Two asks, both done in build 71: every rendezvous request sends
+  `User-Agent: MicroduckStudio/<version> (independent third-party iOS app; +https://microduckstudio.com)`
+  (`RemoteReach.userAgent`), and the app says plainly that it is not the official Microduck app,
+  which Pollen are building (`Provenance.notOfficialTitle`, first-run card, Settings, Behaviours).
+  Stage 2 (sending calls) is unblocked on permission; it still waits on a physical duck.

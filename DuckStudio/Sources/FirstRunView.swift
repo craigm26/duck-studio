@@ -61,6 +61,11 @@ struct FirstRunView: View {
             }
             Text(step.title).font(.title2.weight(.semibold))
             Text(step.body).font(.callout).foregroundStyle(.secondary)
+            // POLLEN'S OWN PAGES UNDER THE CARD THAT SAYS THIS IS NOT THEIR APP,
+            // for the person who opened it looking for them.
+            if step.id == "not-official" {
+                ProvenanceLinks()
+            }
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 28)
@@ -103,5 +108,23 @@ struct FirstRunView: View {
     private func finish(_ level: DetailLevel?) {
         detail.finishFirstRun(choosing: level)
         dismiss()
+    }
+}
+
+/// Pollen Robotics' pages for the robot and the company, as tappable rows.
+///
+/// ONE VIEW, THREE PLACES — the first-run card, Settings → About and the foot
+/// of Behaviours — so the addresses are the kit's (`Provenance.links`, pinned
+/// by `swift test`) and no screen can quietly point somewhere else.
+struct ProvenanceLinks: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(Provenance.links) { link in
+                Link(destination: link.url) {
+                    Label(link.title, systemImage: "arrow.up.right.square")
+                        .font(.subheadline.weight(.medium))
+                }
+            }
+        }
     }
 }

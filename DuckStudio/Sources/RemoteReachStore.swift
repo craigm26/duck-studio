@@ -76,7 +76,10 @@ final class RemoteReachStore: ObservableObject {
         }
         do {
             let (data, response) = try await URLSession.shared.data(
-                for: RemoteReach.statusRequest(token: session.accessToken))
+                for: RemoteReach.statusRequest(
+                    token: session.accessToken,
+                    version: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString")
+                        as? String ?? "0"))
             ducks = try RemoteReach.ducks(from: data,
                                           status: (response as? HTTPURLResponse)?.statusCode ?? 0)
         } catch let error as RemoteReach.ListError {

@@ -46,6 +46,20 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            // WHOSE APP THIS IS NOT, FIRST. Settings is where somebody looks
+            // for "About", and Pollen Robotics asked (microduck#329) that
+            // nobody take this for their official app.
+            Section {
+                Text(StudioKit.Provenance.independence)
+                    .font(.footnote).foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                ProvenanceLinks()
+                    .padding(.vertical, Theme.spacing(.hairline))
+            } header: {
+                SectionHeading(text: StudioKit.Provenance.notOfficialTitle)
+            }
+            .listRowBackground(Theme.surfacePrimary)
+
             // BOTH SALVAGE NOTICES, AT THE TOP. Each store keeps a count of
             // rows it could not read, and each used to be drawn only on its own
             // screen — so the notice that something you configured is gone was
