@@ -43,6 +43,20 @@ private let hairlineStroke = DesignMetric.hairlineStroke
 /// body text owes. The two greys clear it — secondary 6.24:1, tertiary 4.59:1
 /// in light — so the only text allowed outside a card on this screen is grey
 /// text, and every coloured word in the design lives on a card.
+/// A footnote that explains how something works, which Simple leaves out.
+/// Messages about what just happened stay `sectionFootnote`; this is only for
+/// the paragraphs a screen works without.
+private struct Explainer: View {
+    let text: String
+    @AppStorage("duckstudio.detailLevel") private var detailRaw = ""
+    init(_ text: String) { self.text = text }
+    var body: some View {
+        if DetailLevel(rawValue: detailRaw) != .simple {
+            sectionFootnote(text)
+        }
+    }
+}
+
 private func sectionFootnote(_ text: String) -> some View {
     Text(text)
         .font(.footnote)
@@ -175,7 +189,7 @@ struct IntentListView: View {
     var body: some View {
         List {
             Section {
-                sectionFootnote("Motions recorded in MuJoCo from the trained policies, because the policy cannot run live on a phone. Playing one shows what the robot did; it does not re-run the network.")
+                Explainer("Motions recorded in MuJoCo from the trained policies, because the policy cannot run live on a phone. Playing one shows what the robot did; it does not re-run the network.")
                     .cardRow(first: true, last: true)
             }
 
@@ -215,7 +229,7 @@ struct IntentListView: View {
                 } header: {
                     SectionHeading(text: "Authored moves")
                 } footer: {
-                    sectionFootnote("A keyframe track riding on a standing policy as offsets — searched against a prop rather than trained. These are the ones most likely to fail, and the posture each ends in says whether it did.")
+                    Explainer("A keyframe track riding on a standing policy as offsets — searched against a prop rather than trained. These are the ones most likely to fail, and the posture each ends in says whether it did.")
                 }
             }
             if !model.importedClips.isEmpty {
@@ -240,7 +254,7 @@ struct IntentListView: View {
                     // would put an unverified number on a card.
                     SectionHeading(text: "Brought in")
                 } footer: {
-                    sectionFootnote("Motions from a .duckintent file — sent to you, or kept from your own bench. One that carries a digest names the policy it was recorded from, so you can check whether you hold the same network; a bench recording carries none, and its card says so.")
+                    Explainer("Motions from a .duckintent file — sent to you, or kept from your own bench. One that carries a digest names the policy it was recorded from, so you can check whether you hold the same network; a bench recording carries none, and its card says so.")
                 }
             }
             if !shared.isEmpty {
@@ -470,7 +484,7 @@ struct IntentListView: View {
         } header: {
             SectionHeading(text: "Written here")
         } footer: {
-            sectionFootnote("Poses and times, interpolated. A preview is what you asked the robot for, not what it would do; a run on a bench — this iPhone's or one on your network — is what physics does with it. Every authored move already in this app was written the same way, and all four stair ones get up their flight 0 times in 16.\n\nFetch something is different: it writes no poses at all. Retrieval composes policies the robot already has — walk, ground pick, and the one servo no network drives — so a sentence there becomes a plan, not a keyframe track.")
+            Explainer("Poses and times, interpolated. A preview is what you asked the robot for, not what it would do; a run on a bench — this iPhone's or one on your network — is what physics does with it. Every authored move already in this app was written the same way, and all four stair ones get up their flight 0 times in 16.\n\nFetch something is different: it writes no poses at all. Retrieval composes policies the robot already has — walk, ground pick, and the one servo no network drives — so a sentence there becomes a plan, not a keyframe track.")
         }
     }
 
@@ -559,7 +573,7 @@ struct IntentListView: View {
         } header: {
             SectionHeading(text: "Sim to real")
         } footer: {
-            sectionFootnote("What has actually happened to each motion. A preview is NOT a run: it draws what you asked for. Run it on a bench — this iPhone's or one on your network — and this becomes a real result the draft keeps.")
+            Explainer("What has actually happened to each motion. A preview is NOT a run: it draws what you asked for. Run it on a bench — this iPhone's or one on your network — and this becomes a real result the draft keeps.")
         }
     }
 
@@ -1217,7 +1231,7 @@ struct IntentPlayerView: View {
             }
             .tint(Theme.actionSecondary)
         } footer: {
-            sectionFootnote("Sends a .duckintent file — the frames, the postures, and the digest of the policy it was recorded from. The digest lets whoever receives it check they hold the same network; it does not say who made the motion, because a signature nobody can anchor would not tell them that either.")
+            Explainer("Sends a .duckintent file — the frames, the postures, and the digest of the policy it was recorded from. The digest lets whoever receives it check they hold the same network; it does not say who made the motion, because a signature nobody can anchor would not tell them that either.")
         }
         .listRowBackground(Theme.surfacePrimary)
 
@@ -1301,7 +1315,7 @@ struct IntentPlayerView: View {
         } header: {
             SectionHeading(text: String(format: "Right now — %.2f s", playhead))
         } footer: {
-            sectionFootnote("Scrub the transport and these follow. The sign is the direction: positive is toward the joint's positive travel, and the achieved motion is shown, not the command — a clamped servo is doing something different from what it was told.")
+            Explainer("Scrub the transport and these follow. The sign is the direction: positive is toward the joint's positive travel, and the achieved motion is shown, not the command — a clamped servo is doing something different from what it was told.")
         }
         .listRowBackground(Theme.surfacePrimary)
 
@@ -1310,7 +1324,7 @@ struct IntentPlayerView: View {
         } header: {
             SectionHeading(text: "Over the whole run")
         } footer: {
-            sectionFootnote("Travel is how far the joint moved in total; deviation is how far from the home pose it got. They answer different questions — a gait travels a long way without ever going far — and the bar is the deviation against the room that joint actually has.")
+            Explainer("Travel is how far the joint moved in total; deviation is how far from the home pose it got. They answer different questions — a gait travels a long way without ever going far — and the bar is the deviation against the room that joint actually has.")
         }
         .listRowBackground(Theme.surfacePrimary)
 

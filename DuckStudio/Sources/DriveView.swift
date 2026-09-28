@@ -3048,7 +3048,9 @@ struct DriveView: View {
             // so the line still says WHICH button did nothing.
             guard let policy = DuckQuickActions.filename(filling: slot,
                                                          among: health?.policies ?? []) else {
-                lastAction = "\(control.face): \(DuckQuickActions.notHeldHere(slot))"
+                lastAction = isSimple
+                    ? DuckQuickActions.notHeldHereShort(slot)
+                    : "\(control.face): \(DuckQuickActions.notHeldHere(slot))"
                 return
             }
             // ONE SWAP, THROUGH THE LOOP, WHERE STOP CAN CUT IT OFF. This was
@@ -3064,7 +3066,9 @@ struct DriveView: View {
             // the name to the next trip's `Go.load`, and `drive()` posts it
             // through the same `swap` every other load takes.
             desk.request(load: policy)
-            lastAction = "\(control.face) → \(slot.title): \(policy)"
+            // SIMPLE SAYS THE MOVE; EVERYTHING ALSO SAYS THE BUTTON AND THE FILE.
+            lastAction = isSimple ? slot.title
+                                  : "\(control.face) → \(slot.title): \(policy)"
             // AND IT DRIVES. A network loaded while the loop is stopped is a
             // policy on the servos that nothing is stepping: the duck stands
             // there and the button reads as broken, which is the difference
@@ -3074,16 +3078,17 @@ struct DriveView: View {
         case .drive:
             break
         case .stop:
-            lastAction = "\(control.face) → stop"
+            lastAction = isSimple ? "Stopped" : "\(control.face) → stop"
             await halt()
         case .reset:
-            lastAction = "\(control.face) → reset"
+            lastAction = isSimple ? "Back on its feet" : "\(control.face) → reset"
             flight = Task { await putBack() }
         case .run(let motion):
             // THE SAME DOOR THE MOTIONS SHEET OPENS. A press is not a round
             // trip here: the loop stops, the bench runs the track once, and
             // the sticks come back — which is what the binding says it does.
-            lastAction = "\(control.face) → \(desk.name(ofMotion: motion) ?? "")"
+            lastAction = isSimple ? (desk.name(ofMotion: motion) ?? "")
+                                  : "\(control.face) → \(desk.name(ofMotion: motion) ?? "")"
             await runMotion(motion)
         case .play(let id, let slot):
             // A REPLAY IS A STATE OF THE DRIVE LOOP, NEVER A SECOND ONE. The
@@ -3702,7 +3707,8 @@ struct DriveView: View {
                         // NOT SILENCE: the map may chain onto a slot this bench
                         // does not hold, and the pad, the map section and the
                         // bind sheet all say so — the chain says so too.
-                        lastAction = DuckQuickActions.notHeldHere(slot)
+                        lastAction = isSimple ? DuckQuickActions.notHeldHereShort(slot)
+                                              : DuckQuickActions.notHeldHere(slot)
                     }
                 }
                 if let note = go.note { lastAction = note }

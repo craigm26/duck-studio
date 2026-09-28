@@ -164,7 +164,12 @@ public enum DuckQuickActions {
       + "bench carrying networks somebody trained themselves fills none of the official slots, "
       + "and loading the wrong file would be worse than saying so. Copy the release into the "
       + "bench's policies folder and ask again — pull to refresh on My Microduck, or reopen "
-      + "Control."
+      + "Play."
+    }
+
+    /// The same fact in a line, for Simple's readout under the picture.
+    public static func notHeldHereShort(_ slot: DuckOfficialPolicies.Slot) -> String {
+        "No \(slot.title.lowercased()) network on this bench."
     }
 
     /// What to say where the chips would be, when there are none.
