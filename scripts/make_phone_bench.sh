@@ -85,6 +85,8 @@ cp "$SOURCE/climb/servo.mjs"            "$OUT/assets/climb_servo.mjs"
 # of one formula. Leave either out and the app boots, /health answers, and the
 # Ball Challenge dies on its first cell with a module-not-found.
 cp "$SOURCE/sim/chase_score.mjs"        "$OUT/assets/"
+# THE SHOT: walk to a ball, line up, kick it at a scored goal line. POST /shoot.
+cp "$SOURCE/sim/shoot_score.mjs"        "$OUT/assets/"
 cp "$SOURCE/sim/reward_math.mjs"        "$OUT/assets/"
 
 # THE PLANT, FROM sim/. `site/scene.mjb` and `sim/scene.mjb` share a name and

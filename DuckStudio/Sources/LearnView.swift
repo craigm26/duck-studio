@@ -74,6 +74,7 @@ struct LearnView: View {
         case .motions: router.go(to: .studio, then: .motions)
         case .challenges: router.go(to: .studio, then: .challenges)
         case .tune: router.go(to: .studio, then: .tune)
+        case .shoot: router.go(to: .studio, then: .shoot)
         case .everything:
             detail.level = .full
             router.go(to: .studio)

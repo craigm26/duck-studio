@@ -608,6 +608,9 @@ public enum DuckBench {
         // `/chase/grid` answers the cell list so a client never retypes it.
         // See `DuckBenchChase.swift`.
         "/chase", "/chase/grid",
+        // Train a duck to shoot. `/shoot` plays ONE shot; `/shoot/grid` answers
+        // the pitch and the cells. See `Shoot.swift`.
+        "/shoot", "/shoot/grid",
         // Changing what the duck is standing in, and reading back what the
         // bank could actually express. See `DuckWorld.swift`.
         "/world",

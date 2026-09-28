@@ -33,6 +33,9 @@ public enum Compare {
             case draft
             /// Stick commands and moves driven on the pad, replayed.
             case sequence
+            /// A shooting controller's numbers (Train a duck to shoot), judged
+            /// by the shot it takes from one ball spot.
+            case shooter
 
             public var title: String {
                 switch self {
@@ -40,6 +43,7 @@ public enum Compare {
                 case .motion: return "Recorded motions"
                 case .draft: return "Your motions"
                 case .sequence: return "Sequences"
+                case .shooter: return "Shooters"
                 }
             }
 
@@ -50,6 +54,7 @@ public enum Compare {
                 case .behaviour: return "policy"
                 case .motion, .draft: return "motion"
                 case .sequence: return "sequence"
+                case .shooter: return "shooter"
                 }
             }
 

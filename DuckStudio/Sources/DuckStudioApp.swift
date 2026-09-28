@@ -51,6 +51,8 @@ enum StudioDestination: String, Identifiable, Hashable, CaseIterable {
     case motions, scenes, draft, measure, challenges, evaluations
     /// The two Learn sends somebody to that had no route before.
     case tune, preference
+    /// Train a duck to shoot.
+    case shoot
     /// Mimic a person. Arrived with its caller: the Play tab's Mimic bar
     /// offers only the camera and sends a person here for a video or a
     /// YouTube clip.

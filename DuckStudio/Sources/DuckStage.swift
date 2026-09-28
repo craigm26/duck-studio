@@ -280,6 +280,9 @@ struct DuckStage: View {
     /// reporting it. Moving the ball this way leaves `props` alone, so a
     /// rolling ball does not rebuild every step and wall on every round trip.
     var rolling: SIMD2<Double>?
+    /// A soccer pitch to draw: goal posts, crossbar, net and lines. Drawn
+    /// once, never collided with; the bench scores the goal as a line.
+    var pitch: Shoot.Pitch?
     /// Whether the stage's own rotor carries zoom and reset.
     ///
     /// DEFAULTED TRUE, SO THE SEVEN UNTOUCHED CALLERS COMPILE AND BEHAVE. The
@@ -322,7 +325,7 @@ struct DuckStage: View {
     var body: some View {
         StageSurface(pose: pose, variant: variant, environment: environment,
                      props: props, trail: trail, progress: progress, orbit: $orbit,
-                     handles: handles, onProject: onProject, rolling: rolling)
+                     handles: handles, onProject: onProject, rolling: rolling, pitch: pitch)
             // ONE ELEMENT, NOT ONE PER JOINT. The scene holds a duck of fifteen
             // drawn parts, a grid, a path and whatever props the place has; as
             // elements that is a swipe through dozens of unnamed boxes, and
@@ -429,6 +432,9 @@ struct StageSurface: UIViewRepresentable {
     /// reporting it. Moving the ball this way leaves `props` alone, so a
     /// rolling ball does not rebuild every step and wall on every round trip.
     var rolling: SIMD2<Double>?
+    /// A soccer pitch to draw: goal posts, crossbar, net and lines. Drawn
+    /// once, never collided with; the bench scores the goal as a line.
+    var pitch: Shoot.Pitch?
 
     func makeUIView(context: Context) -> ARView {
         let view = ARView(frame: .zero, cameraMode: .nonAR, automaticallyConfigureSession: false)
@@ -547,6 +553,7 @@ struct StageSurface: UIViewRepresentable {
         c.handles = handles
         c.onProject = onProject
         c.rebuildProps(environment, graspables: props)
+        c.drawPitch(pitch)
         if let rolling, let ball = c.ballEntity {
             ball.position.x = Float(rolling.x)
             ball.position.z = Float(-rolling.y)
@@ -589,6 +596,55 @@ struct StageSurface: UIViewRepresentable {
         var onProject: ((StageProjections) -> Void)?
         /// The drawn ball, kept so `rolling` can move it without a rebuild.
         var ballEntity: ModelEntity?
+        /// The drawn pitch, and which one it is, so it is built once.
+        private var pitchEntity: Entity?
+        private var shownPitch: Shoot.Pitch?
+
+        /// Goal posts, crossbar and net at the pitch's goal line, the goal
+        /// line and halfway line on the floor, and the room's edge. Stage
+        /// coordinates: x forward, y up, z = -(world y).
+        func drawPitch(_ pitch: Shoot.Pitch?) {
+            guard shownPitch != pitch else { return }
+            shownPitch = pitch
+            pitchEntity?.removeFromParent()
+            pitchEntity = nil
+            guard let pitch, let world else { return }
+            let root = Entity()
+            let white = UnlitMaterial(color: .white)
+            let line = UnlitMaterial(color: UIColor(white: 0.92, alpha: 0.9))
+            let gx = Float(pitch.goalX), hw = Float(pitch.goalHalfWidth)
+            let h = Float(pitch.goalHeight), depth = Float(pitch.goalDepth)
+            let post: Float = 0.012
+            for side: Float in [-1, 1] {
+                let p = ModelEntity(mesh: .generateBox(size: SIMD3(post, h, post)), materials: [white])
+                p.position = SIMD3(gx, h / 2, side * hw)
+                root.addChild(p)
+            }
+            let bar = ModelEntity(mesh: .generateBox(size: SIMD3(post, post, hw * 2 + post)),
+                                  materials: [white])
+            bar.position = SIMD3(gx, h, 0)
+            root.addChild(bar)
+            let net = ModelEntity(mesh: .generateBox(size: SIMD3(0.002, h, hw * 2)),
+                                  materials: [UnlitMaterial(color: UIColor(white: 1, alpha: 0.25))])
+            net.position = SIMD3(gx + depth, h / 2, 0)
+            root.addChild(net)
+            // Lines on the floor: the goal line, the halfway line, the room's edge.
+            let w = Float(pitch.walls)
+            func stripe(x: Float, z: Float, length: Float, alongX: Bool) {
+                let size = alongX ? SIMD3<Float>(length, 0.001, 0.01) : SIMD3<Float>(0.01, 0.001, length)
+                let e = ModelEntity(mesh: .generateBox(size: size), materials: [line])
+                e.position = SIMD3(x, 0.001, z)
+                root.addChild(e)
+            }
+            stripe(x: gx, z: 0, length: w * 2, alongX: false)
+            stripe(x: 0, z: 0, length: w * 2, alongX: false)
+            stripe(x: 0, z: -w, length: w * 2, alongX: true)
+            stripe(x: 0, z: w, length: w * 2, alongX: true)
+            stripe(x: -w, z: 0, length: w * 2, alongX: false)
+            stripe(x: w, z: 0, length: w * 2, alongX: false)
+            world.addChild(root)
+            pitchEntity = root
+        }
         /// The frame subscription. Held here because a `Cancellable` that
         /// nobody holds is a subscription that ends immediately.
         var updates: (any Cancellable)?

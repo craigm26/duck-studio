@@ -605,6 +605,12 @@ final class PhoneBenchHost: NSObject, ObservableObject {
         //
         // `/chase/grid` IS A GET WITH NO BODY and falls out on the guard above,
         // which is right: answering the cell list runs no physics.
+        // `/shoot` IS ONE SHOT OF UP TO 45 SECONDS OF PHYSICS, the length in
+        // the body the way `/chase` carries it; the bench clamps it the same.
+        if target == "/shoot" {
+            let seconds = min(max((top["seconds"] as? Double) ?? 30, 2), 45)
+            return deadline + 3 * (0.5 + seconds)
+        }
         if target.hasPrefix("/chase") {
             // CLAMPED THE WAY THE BENCH CLAMPS IT: `chase_score.mjs` refuses a
             // span outside 0 < seconds <= 30, so a body claiming a thousand
