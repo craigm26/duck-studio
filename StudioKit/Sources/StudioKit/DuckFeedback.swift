@@ -136,6 +136,35 @@ public struct DuckFeedback: Equatable, Sendable {
                             client: client, body: block, kind: "policy_preference")
     }
 
+    /// The person watched any two things the duck can do and chose: two
+    /// networks, two motions, or two sequences. Compare's record.
+    ///
+    /// A NEW KIND BESIDE `policy_preference`, NOT A REPLACEMENT. The recorded
+    /// walker pairs keep writing the kind duckbatch has always read; this one
+    /// carries what each side IS (`policy`, `motion`, `sequence`), where it
+    /// came from, and the digest that identifies it, so the reader can rank
+    /// motions and sequences as well as networks.
+    public static func preference(
+        a: Compare.Contender, b: Compare.Contender, choice: Choice, reasons: [Reason] = [],
+        where place: Where, order: Order, context: String, command: [Double]? = nil,
+        tournament: String? = nil,
+        share: Share, client: String, id: UUID = UUID(), created: Date = Date()
+    ) throws -> DuckFeedback {
+        guard a.digest != b.digest else { throw Refusal.sameNetwork }
+        func side(_ c: Compare.Contender) -> [String: Any] {
+            ["kind": c.kind.recordKind, "name": c.name, "digest": c.digest,
+             "source": c.source.rawValue]
+        }
+        var shown: [String: Any] = ["where": place.rawValue, "order": order.rawValue,
+                                    "context": context]
+        if let command { shown["command"] = command }
+        if let tournament { shown["tournament"] = tournament }
+        let block: [String: Any] = ["a": side(a), "b": side(b), "shown": shown,
+                                    "choice": choice.rawValue, "reasons": reasons.map(\.rawValue)]
+        return DuckFeedback(id: id.uuidString.lowercased(), created: created, share: share,
+                            client: client, body: block, kind: "preference")
+    }
+
     // MARK: - writing
 
     /// One JSONL line, keys sorted, no trailing newline.

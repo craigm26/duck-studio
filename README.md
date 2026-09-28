@@ -182,6 +182,28 @@ steps, and the editor says so when you raise it past that. That ceiling is a
 simulation result, not a robot's — nobody has put a Microduck on a step, because
 none has shipped.
 
+**Compare** (Studio). Be the judge: watch two, pick the better one. This is
+RLHF's human feedback, and only that: every pick is a labelled `duck-feedback/0`
+`preference` record on the phone, and training on shared picks happens off the
+phone (craigm26/duckbatch fits a Bradley–Terry preference model; `duckbatch
+feedback rank` ranks everything people compared). Four ways in:
+
+- **Quick duel**: pairs of Pollen's walkers recorded in MuJoCo by duckbatch. No setup.
+- **Pick any two**: two networks under the same command, or two motions
+  (Pollen's recordings, kept ones, your drafts), or two sequences, from Pollen,
+  the community or you. Both run on the selected bench (this iPhone by default)
+  and play side by side on one clock.
+- **Tournament**: three to eight enter; pairs are scheduled fewest-meetings
+  first, then closest strengths; a Bradley–Terry ranking updates after every
+  pick; one is champion.
+- **Improve by choosing**: a motion goes through the existing preference search
+  (the kept version replaces its keyframes); a sequence becomes five variants
+  (as driven, gentler, bolder, quicker, slower) in a short tournament, and the
+  champion can be kept.
+
+Picks today and a day streak keep score. Settings → Feedback decides whether
+any pick may leave the phone.
+
 **Draft.** Say what you want in a sentence and watch what your words became.
 Four modes — **Motion**, **Rule**, **Fetch**, **Train** — all going through the
 same model of your choosing, and all landing in the same tested resolver a
