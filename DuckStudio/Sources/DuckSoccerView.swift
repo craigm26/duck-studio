@@ -53,6 +53,8 @@ struct DuckSoccerView: View {
                 if let toast = referee.toast {
                     ToastView(toast: toast).allowsHitTesting(false)
                 }
+                EdgeArrows(you: referee.youOffscreen, ball: referee.ballOffscreen)
+                    .allowsHitTesting(false)
                 if referee.isPaused { pauseMenu }
                 if referee.isOver { results }
                 if referee.practiceDone { practiceResults }
@@ -185,7 +187,7 @@ struct DuckSoccerView: View {
                     referee.passHeld = $0
                     if $0 { referee.strikePressed() }
                 }
-                HoldButton(label: "SHOOT", size: SoccerMetric.shootPad, role: .commands,
+                HoldButton(label: referee.flooded ? "PECK" : "SHOOT", size: SoccerMetric.shootPad, role: .commands,
                            hint: "Your duck walks to the ball if it is a few steps away, then strikes it hard.",
                            subtitle: name(.shoot), cooldown: referee.strikeCooldown,
                            ready: referee.ballInRange) {
@@ -314,6 +316,39 @@ struct DuckSoccerView: View {
         referee.isPaused = false
         resetRequested = true
         withAnimation { inLobby = true }
+    }
+}
+
+/// Arrows at the screen's edge pointing at your duck (yellow) and the ball
+/// (white) when either is out of view: in AR the camera is the phone, so it
+/// cannot be moved to keep them in frame.
+private struct EdgeArrows: View {
+    let you: Double?
+    let ball: Double?
+    var body: some View {
+        GeometryReader { g in
+            ZStack {
+                if let you { arrow(you, colour: .yellow, symbol: "location.north.fill", in: g.size) }
+                if let ball { arrow(ball, colour: .white, symbol: "circle.fill", in: g.size) }
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
+    private func arrow(_ angle: Double, colour: Color, symbol: String, in size: CGSize) -> some View {
+        let inset: CGFloat = 36
+        let cx = size.width / 2, cy = size.height / 2
+        let dx = CGFloat(cos(angle)), dy = CGFloat(-sin(angle))
+        let sx = dx == 0 ? .infinity : (cx - inset) / abs(dx)
+        let sy = dy == 0 ? .infinity : (cy - inset) / abs(dy)
+        let t = min(sx, sy)
+        return Image(systemName: "arrowtriangle.up.fill")
+            .font(.system(size: 26, weight: .bold))
+            .foregroundStyle(colour)
+            .shadow(color: .black.opacity(0.6), radius: 3)
+            .rotationEffect(.radians(.pi / 2 - angle))
+            .overlay(Image(systemName: symbol).font(.system(size: 9)).foregroundStyle(.black))
+            .position(x: cx + dx * t, y: cy + dy * t)
     }
 }
 
@@ -466,6 +501,15 @@ private struct SoccerLobby: View {
                     }
                     Picker("CPU team", selection: $referee.difficulty) {
                         ForEach(DuckSoccer.Difficulty.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }
+                    if referee.drill == nil {
+                        Toggle(isOn: $referee.waterPolo) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Water polo finale")
+                                Text("The last minute floods the pitch. Ducks swim, the ball floats, the beak shoots.")
+                                    .font(.caption).foregroundStyle(Theme.textSecondary)
+                            }
+                        }
                     }
                 } header: {
                     SectionHeading(text: "Match")
@@ -688,6 +732,13 @@ final class SoccerReferee: ObservableObject {
     /// Seconds per half, from the setup dialog.
     @Published var halfLength: Double = 120
     @Published var difficulty: DuckSoccer.Difficulty = .normal
+    /// The water polo finale: the last minute floods and the beak peck shoots.
+    @Published var waterPolo = false
+    @Published private(set) var flooded = false
+    /// Your duck or the ball off the screen (AR): the angle, from the centre,
+    /// of an arrow at the edge pointing at it. Nil when on screen.
+    @Published var youOffscreen: Double?
+    @Published var ballOffscreen: Double?
     /// Play stops; nothing ticks until resumed.
     @Published var isPaused = false {
         didSet { if !isPaused { accumulatorReset = true } }
@@ -730,6 +781,7 @@ final class SoccerReferee: ObservableObject {
         if let x = d.string(forKey: "soccer.difficulty").flatMap(DuckSoccer.Difficulty.init(rawValue:)) {
             difficulty = x
         }
+        waterPolo = d.bool(forKey: "soccer.waterPolo")
     }
 
     func saveSettings() {
@@ -739,6 +791,7 @@ final class SoccerReferee: ObservableObject {
         d.set(theme.name, forKey: "soccer.theme")
         d.set(halfLength, forKey: "soccer.half")
         d.set(difficulty.rawValue, forKey: "soccer.difficulty")
+        d.set(waterPolo, forKey: "soccer.waterPolo")
     }
 
     func show(_ text: String, colour: Color = .white, big: Bool = false, for seconds: Double = 1.6) {
@@ -844,6 +897,8 @@ final class SoccerReferee: ObservableObject {
                                  halfLength: halfLength)
         match.moves[.home] = moves
         match.difficulty = difficulty
+        match.waterPoloFinale = waterPolo
+        flooded = false
         homeShots = 0; awayShots = 0
         isPaused = false
         controlledID = match.controlled
@@ -965,6 +1020,10 @@ final class SoccerReferee: ObservableObject {
                 refreshChain()
                 isOver = true
                 status = finalWords()
+            case .flood:
+                flooded = true
+                show("WATER POLO!", colour: .cyan, big: true, for: 2.8)
+                UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
             case .whistle:
                 status = ""
             case .kick(let by):
@@ -1369,6 +1428,8 @@ final class SoccerCoordinator: NSObject, ARSessionDelegate {
     private var marker: ModelEntity?
     private var gesturesAdded = false
     /// The drill's cones, rings, finish and lit half, redrawn when they change.
+    private var water: ModelEntity?
+    private var peck: DuckIntentClip?
     private var drillLayer: Entity?
     private var drillShown = ""
 
@@ -1547,6 +1608,7 @@ final class SoccerCoordinator: NSObject, ARSessionDelegate {
         if let pitch { view?.scene.removeAnchor(pitch) }
         if venue == .ar { view?.session.pause() }
         pitch = nil; ball = nil; ducks = [:]; rings = [:]; ringState = [:]; marker = nil
+        water = nil
         drillLayer = nil; drillShown = ""
         walkPhase = [:]; kickStart = [:]; lastDrawn = [:]; rollAnchor = [:]
         wheelSpin = [:]; skatePhase = [:]; crouchStart = [:]
@@ -1766,6 +1828,17 @@ final class SoccerCoordinator: NSObject, ARSessionDelegate {
         stand = try? DuckTrajectory.bundled(.stand)
         let clips = try? DuckIntentClip.bundled()
         kickLeft = clips?["kick_left"]
+        peck = clips?["ground_pick"]
+        // THE WATER, waiting under the pitch until the finale floods it.
+        var blue = UnlitMaterial(color: UIColor(red: 0.15, green: 0.55, blue: 0.95, alpha: 0.5))
+        blue.blending = .transparent(opacity: 0.5)
+        let pool = ModelEntity(mesh: .generatePlane(width: Float(spec.length) + 0.3,
+                                                    depth: Float(spec.width) + 0.3),
+                               materials: [blue])
+        pool.position = SIMD3<Float>(0, -0.02, 0)
+        pool.isEnabled = false
+        anchor.addChild(pool)
+        water = pool
         roulade = clips?["roulade"]
         skateStand = try? DuckTrajectory.bundled(.skateStand)
         skate = try? DuckTrajectory.bundled(.skate)
@@ -1901,10 +1974,16 @@ final class SoccerCoordinator: NSObject, ARSessionDelegate {
         lastTick = now
         referee.tick(dt: dt)
         draw(match: referee.match, dt: dt)
+        if venue == .ar { markOffscreen() }
         // The broadcast camera follows the orbit state; AR has a real camera
         // and needs none of this.
         if let cameraEntity {
-            cameraEntity.look(at: SIMD3<Float>(0, 0.05, 0),
+            let m = referee.match
+            if let me = m.players.first(where: { $0.id == m.controlled }) {
+                stadiumCamera.follow(SIMD3<Float>(Float(me.position.x), 0, -Float(me.position.y)),
+                                     SIMD3<Float>(Float(m.ball.position.x), 0, -Float(m.ball.position.y)))
+            }
+            cameraEntity.look(at: stadiumCamera.focus,
                               from: stadiumCamera.position, relativeTo: nil)
             referee.cameraAzimuth = Double(stadiumCamera.azimuth)
         }
@@ -1964,6 +2043,31 @@ final class SoccerCoordinator: NSObject, ARSessionDelegate {
         }
     }
 
+    /// In AR the camera is the phone: when your duck or the ball is out of the
+    /// picture, say which way to look with an arrow at the edge.
+    private func markOffscreen() {
+        guard let view, let referee else { return }
+        let m = referee.match
+        func angle(of entity: Entity?) -> Double? {
+            guard let entity else { return nil }
+            let world = entity.position(relativeTo: nil)
+            let camera = view.cameraTransform.matrix.inverse
+            let local = camera * SIMD4<Float>(world.x, world.y, world.z, 1)
+            let inView: Bool = {
+                guard local.z < 0, let p = view.project(world) else { return false }
+                return view.bounds.insetBy(dx: 24, dy: 24).contains(p)
+            }()
+            guard !inView else { return nil }
+            // Quantised to 5 degrees so the arrow does not republish every frame.
+            let a = atan2(Double(local.y), Double(local.x))
+            return (a / (.pi / 36)).rounded() * (.pi / 36)
+        }
+        let you = angle(of: m.controlled.flatMap { ducks[$0] })
+        let ballAngle = angle(of: ball)
+        if referee.youOffscreen != you { referee.youOffscreen = you }
+        if referee.ballOffscreen != ballAngle { referee.ballOffscreen = ballAngle }
+    }
+
     /// Practice props: orange cones, target rings, a finish line, and the
     /// lit half of the goal.
     private func drawDrill() {
@@ -2016,8 +2120,20 @@ final class SoccerCoordinator: NSObject, ARSessionDelegate {
     }
 
     private func draw(match: DuckSoccer.Match, dt: Double) {
+        // THE FLOOD: the water rises over two seconds and stays.
+        let waterLevel: Float = 0.06
+        if let water {
+            if match.flooded {
+                water.isEnabled = true
+                water.position.y += (waterLevel - water.position.y) * Float(min(dt * 1.5, 1))
+            } else {
+                water.isEnabled = false
+                water.position.y = -0.02
+            }
+        }
+        let floating = match.flooded ? (water?.position.y ?? 0) : 0
         if let ball {
-            ball.position = SIMD3<Float>(Float(match.ball.position.x), 0.02,
+            ball.position = SIMD3<Float>(Float(match.ball.position.x), max(0.02, floating + 0.01),
                                          Float(-match.ball.position.y))
         }
         guard let walk, let stand else { return }
@@ -2049,6 +2165,12 @@ final class SoccerCoordinator: NSObject, ARSessionDelegate {
             let signed = forward < 0 ? -travelled : travelled
 
             duck.position = position
+            // SWIMMING: the body sits in the water with the legs under, and
+            // bobs a little, each duck on its own beat.
+            if match.flooded {
+                let beat = Double(player.number) + (player.team == .home ? 0 : 0.5)
+                duck.position.y = floating - 0.085 + Float(0.006 * sin(CACurrentMediaTime() * 3 + beat))
+            }
             duck.orientation = simd_quatf(angle: Float(player.heading),
                                           axis: SIMD3<Float>(0, 1, 0))
 
@@ -2138,7 +2260,8 @@ final class SoccerCoordinator: NSObject, ARSessionDelegate {
                 if kickStart[player.id] == nil {
                     kickStart[player.id] = CACurrentMediaTime()
                 }
-                let strike = yours(player.lastKickWasPass ? .pass : .shoot, player) ?? kickLeft
+                let strike = match.flooded ? (peck ?? kickLeft)
+                    : (yours(player.lastKickWasPass ? .pass : .shoot, player) ?? kickLeft)
                 if let kick = strike, let start = kickStart[player.id] {
                     duck.apply(jointAngles: kick.pose(at: CACurrentMediaTime() - start)
                         .jointAngles)

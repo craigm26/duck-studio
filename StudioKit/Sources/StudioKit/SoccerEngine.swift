@@ -135,6 +135,17 @@ public enum DuckSoccer {
         /// Whether this capability set can roll at all.
         public var canRoll: Bool { rollDistance > 0.01 }
 
+        /// WATER POLO: the same duck, swimming. Ducks swim better than they
+        /// walk, so it is quicker and turns faster; the beak is the striker,
+        /// so the reach is the neck's; there is no roll in water. Gameplay
+        /// tuning, not measured: no Microduck has been in a pool.
+        public var swimming: Capabilities {
+            Capabilities(walkSpeed: max(walkSpeed, 0.1) * 1.8, fastSpeed: max(fastSpeed, 0.15) * 1.8,
+                         backSpeed: max(backSpeed, 0.1) * 1.2, turnRate: max(turnRate, 0.34) * 1.8,
+                         kickRange: 0.14, kickCooldown: 1.0,
+                         kickBallSpeed: 0.7, passBallSpeed: 0.42, bodyRadius: bodyRadius)
+        }
+
         /// SKATES. Measured 2026-08-28 with `roller.onnx` on the rollers
         /// plant — WITH A CAVEAT THE LEGS DO NOT CARRY: that plant has not yet
         /// been rebuilt with training's parameters (the legs plant has), so
@@ -346,13 +357,15 @@ public enum DuckSoccer {
         case goal(by: Team, scorer: String)
         case halfTime
         case fullTime
+        /// The pitch floods for the water polo finale.
+        case flood
     }
 
     // MARK: - the match
 
     public struct Match: Equatable, Sendable {
         public let pitch: Pitch
-        public let capabilities: Capabilities
+        public private(set) var capabilities: Capabilities
         /// Seconds per half.
         public let halfLength: Double
         public var players: [Player]
@@ -372,6 +385,16 @@ public enum DuckSoccer {
         public var moves: [Team: Moves] = [.home: .standard, .away: .standard]
         /// How hard the CPU team plays.
         public var difficulty: Difficulty = .normal
+        /// Whether the second-nearest duck presses the ball carrier.
+        public var pressing = true
+
+        /// WATER POLO FINALE: the last minute of the match floods the pitch.
+        /// Ducks swim, the ball floats and glides, and the beak peck is the shot.
+        public var waterPoloFinale = false
+        public private(set) var flooded = false
+        public static let floodSeconds = 60.0
+        /// Ball drag per second: grass slows it, water barely does.
+        public var ballDrag: Double { flooded ? 0.45 : 1.1 }
 
         /// SHOOT ASSIST, for the human's duck only. The strike reaches 0.10 m,
         /// less than the duck's own body, and the ball never moves when a duck
@@ -397,6 +420,7 @@ public enum DuckSoccer {
 
         /// What Special is for this team, if anything.
         public func special(for team: Team) -> Moves.Special? {
+            if flooded { return nil }
             if let custom = moves[team]?.special { return custom }
             return capabilities.canRoll
                 ? Moves.Special(distance: capabilities.rollDistance,
@@ -531,6 +555,13 @@ public enum DuckSoccer {
             }
 
             clock += dt
+            if waterPoloFinale, !flooded, half == 2,
+               halfLength - clock <= Self.floodSeconds {
+                flooded = true
+                capabilities = capabilities.swimming
+                for i in players.indices { players[i].rollElapsed = nil; players[i].rollSpec = nil }
+                events.append(.flood)
+            }
 
             // Decide every duck's control: the human's where given, the CPU's
             // everywhere else.
@@ -792,7 +823,7 @@ public enum DuckSoccer {
             ball.position = ball.position + ball.velocity * dt
             // Rolling resistance, exponential: the ball coasts to a stop in a
             // couple of metres, carpet-like.
-            let damping = exp(-1.1 * dt)
+            let damping = exp(-ballDrag * dt)
             ball.velocity = ball.velocity * damping
             if ball.velocity.length < 0.01 { ball.velocity = .zero }
 
@@ -910,9 +941,24 @@ public enum DuckSoccer {
                     return Control(special: true)
                 }
 
-                let behind = ball.position + (ball.position - target.point).normalized * 0.07
-                return steer(player, toward: behind, kickIfClose: true,
-                             preferPass: target.isPass)
+                // THE DECISION: shoot when the goal is really in range, pass
+                // when a team-mate ahead is open, otherwise knock it on softly
+                // toward goal and keep it. A shot from midfield just gives the
+                // ball away.
+                let shotRange = capabilities.kickBallSpeed / max(ballDrag, 0.1) * 1.0
+                let inRange = (goal - ball.position).length <= shotRange
+                // AIM AWAY FROM THE KEEPER: the corner on the far side of
+                // wherever their keeper is standing, not the middle of the goal
+                // where the keeper clears it.
+                let keeperY = players.first { $0.team != player.team && $0.role == .keeper }?.position.y ?? 0
+                let corner = Vec2(goal.x, (keeperY >= 0 ? -1 : 1) * pitch.goalHalfWidth * 0.65)
+                let aim = inRange ? corner : target.point
+                let behind = ball.position + (ball.position - aim).normalized * 0.07
+                var c = steer(player, toward: behind, kickIfClose: true,
+                              preferPass: !inRange)
+                // SPRINT TO A LOOSE BALL; walk the last steps to line it up.
+                if toBall.length > 0.25 { c.sprint = true }
+                return c
             }
 
             // DEFENDERS MARK when the ball is in their half: goal-side of the
@@ -934,9 +980,30 @@ public enum DuckSoccer {
                 }
             }
 
-            let anchorX = player.team.attacking > 0
+            // PRESS: when the other team has the ball in our half, the second
+            // nearest outfielder closes down the carrier too.
+            let byDistance = mates.sorted {
+                ($0.position - ball.position).length < ($1.position - ball.position).length
+            }
+            let theirBall = players.filter { $0.team != player.team && $0.role != .keeper }
+                .contains { ($0.position - ball.position).length < 0.15 }
+            if pressing, theirBall, byDistance.count > 1, byDistance[1].id == player.id,
+               ball.position.x * player.team.attacking < pitch.halfLength * 0.3 {
+                let ownGoal = Vec2(-goalX, 0)
+                let cut = ball.position + (ownGoal - ball.position).normalized * 0.15
+                var c = steer(player, toward: cut, kickIfClose: true)
+                c.sprint = true
+                return c
+            }
+            // RUNS: when our team has the ball, attackers push up into space
+            // ahead of it, so there is someone to pass to.
+            let ourBall = mates.contains { ($0.position - ball.position).length < 0.15 }
+                || (humanActive && players.contains {
+                    $0.id == controlled && ($0.position - ball.position).length < 0.15 })
+            let push = (ourBall && player.role != .defender ? 0.18 : 0.0) * player.team.attacking
+            let anchorX = push + (player.team.attacking > 0
                 ? (player.role == .striker ? 0.22 : player.role == .midfield ? 0.0 : -0.26)
-                : (player.role == .striker ? -0.22 : player.role == .midfield ? 0.0 : 0.26)
+                : (player.role == .striker ? -0.22 : player.role == .midfield ? 0.0 : 0.26))
             let anchorY = Double(player.number % 2 == 0 ? 1 : -1)
                 * (player.role == .defender ? 0.2 : 0.12) * pitch.width
             let anchor = Vec2(anchorX * pitch.length, anchorY)
@@ -952,11 +1019,16 @@ public enum DuckSoccer {
             let gap = target - player.position
             if let spec = special(for: player.team), spec.distance > 0.1,
                player.rollRecovery <= 0,
-               gap.length > spec.distance + 0.2,
-               abs(angleDelta(from: player.heading, to: gap.heading)) < 0.3 {
+               // Sprinting back into shape closes gaps sooner than walking
+               // did, so the roll fires a little earlier to stay in play.
+               gap.length > spec.distance + 0.05,
+               abs(angleDelta(from: player.heading, to: gap.heading)) < 0.4 {
                 return Control(special: true)
             }
-            return steer(player, toward: target, kickIfClose: true)
+            var c = steer(player, toward: target, kickIfClose: true)
+            // SPRINT BACK INTO SHAPE when far from where the duck should be.
+            if gap.length > 0.35 { c.sprint = true }
+            return c
         }
 
         /// The chaser's choice: shoot, or feed a teammate who is meaningfully
