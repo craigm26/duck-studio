@@ -99,6 +99,21 @@ struct StadiumCamera {
     var azimuth: Float = 0
     var elevation: Float = 0.55
     var distance: Float = 2.6
+    /// ALWAYS YOUR DUCK AND THE BALL: what the camera looks at, eased toward
+    /// the midpoint of the two, and how far it pulls back to keep both in the
+    /// frame when they are far apart.
+    var focus = SIMD3<Float>(0, 0.05, 0)
+    var fit: Float = 2.6
+
+    mutating func follow(_ a: SIMD3<Float>, _ b: SIMD3<Float>) {
+        let mid = (a + b) / 2
+        focus += (SIMD3(mid.x, 0.05, mid.z) - focus) * 0.08
+        let apart = simd_length(SIMD2(a.x - b.x, a.z - b.z))
+        // A 42 degree lens: half the separation plus a margin, over tan(21 degrees).
+        let needed = (apart / 2 + 0.35) * 2.6
+        let want = min(max(distance * 0.7, needed), 5.0)
+        fit += (want - fit) * 0.06
+    }
 
     mutating func drag(dx: Float, dy: Float) {
         azimuth -= dx * 0.008
@@ -110,9 +125,9 @@ struct StadiumCamera {
     }
 
     var position: SIMD3<Float> {
-        let horizontal = distance * cos(elevation)
-        return SIMD3(horizontal * sin(azimuth),
-                     0.15 + distance * sin(elevation),
-                     horizontal * cos(azimuth))
+        let horizontal = fit * cos(elevation)
+        return focus + SIMD3(horizontal * sin(azimuth),
+                             0.10 + fit * sin(elevation),
+                             horizontal * cos(azimuth))
     }
 }
