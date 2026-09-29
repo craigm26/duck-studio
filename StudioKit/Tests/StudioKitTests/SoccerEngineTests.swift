@@ -69,9 +69,12 @@ final class SoccerEngineTests: XCTestCase {
             if case .playing = match.phase {
                 for (index, player) in match.players.enumerated() {
                     let moved = (player.position - previous[index].position).length
-                    // Speed cap plus the separation shove's per-second cap.
+                    // The fastest MEASURED gait plus the separation shove's
+                    // per-second cap. Backwards (0.172 m/s) is measured faster
+                    // than forwards (0.150); the envelope had assumed forwards
+                    // was the top, which a sprinting CPU exposed on 2026-09-28.
                     XCTAssertLessThanOrEqual(
-                        moved, caps.fastSpeed * dt + caps.bodyRadius * dt + 1e-9,
+                        moved, max(caps.fastSpeed, caps.backSpeed) * dt + caps.bodyRadius * dt + 1e-9,
                         "\(player.id) at tick \(tick) moved \(moved / dt) m/s")
                     let turned = abs(S.angleDelta(from: previous[index].heading,
                                                   to: player.heading))
@@ -538,7 +541,7 @@ extension SoccerEngineTests {
             if case .playing = match.phase {
                 for (index, player) in match.players.enumerated() {
                     let moved = (player.position - previous[index].position).length
-                    let allowed = (player.motion == .rolling ? rollSpeed : caps.fastSpeed)
+                    let allowed = (player.motion == .rolling ? rollSpeed : max(caps.fastSpeed, caps.backSpeed))
                         * dt + caps.bodyRadius * dt + 1e-9
                     XCTAssertLessThanOrEqual(moved, allowed,
                                              "\(player.id) at \(moved / dt) m/s in \(player.motion)")
@@ -687,5 +690,60 @@ extension SoccerEngineTests {
         XCTAssertTrue(match.canStrike(near))
         XCTAssertFalse(match.canStrike(beside))
         XCTAssertFalse(match.canStrike(facingAway))
+    }
+}
+
+
+extension SoccerEngineTests {
+
+    /// The CPU plays a livelier game now: sprinting, pressing, runs ahead of
+    /// the ball, and shots from inside a shot's roll, aimed at the corner
+    /// away from the keeper. Measured on 2026-09-28 over five matches with an
+    /// idle human: 571 strikes, 8 goals, 36 rolls (the old brain: about 88
+    /// strikes a match). Matches are chaotic, so the floors are loose.
+    func testTheSmarterCPUMakesMoreActionAndScores() {
+        var kicks = 0, goals = 0, rolls = 0
+        for halfLength in [100.0, 120.0, 140.0, 160.0, 180.0] {
+            var match = S.Match(halfLength: halfLength, controlledPlayer: "home-3")
+            for _ in 0..<12000 {
+                let events = match.advance(dt: dt, controls: ["home-3": S.Control()])
+                kicks += events.filter { if case .kick = $0 { return true }; return false }.count
+                goals += events.filter { if case .goal = $0 { return true }; return false }.count
+                rolls += events.filter { if case .roll = $0 { return true }; return false }.count
+            }
+        }
+        XCTAssertGreaterThan(kicks, 450, "the ball moves: passes and shots")
+        XCTAssertGreaterThanOrEqual(goals, 4, "and the goals come")
+        XCTAssertGreaterThan(rolls, 0, "and the roulade still gets used")
+    }
+
+    /// WATER POLO: the last minute floods, once; ducks swim faster, the beak
+    /// reaches further, the ball glides, and there is no roll in water.
+    func testTheWaterPoloFinaleFloodsTheLastMinute() {
+        var match = S.Match(halfLength: 70, controlledPlayer: nil)
+        match.waterPoloFinale = true
+        let land = match.capabilities
+        var floods = 0
+        var floodedAtHalf = 0
+        for _ in 0..<(2 * 70 * 50 + 1000) {
+            let events = match.advance(dt: dt)
+            if events.contains(.flood) { floods += 1; floodedAtHalf = match.half }
+            if case .fullTime = match.phase { break }
+        }
+        XCTAssertEqual(floods, 1)
+        XCTAssertEqual(floodedAtHalf, 2)
+        XCTAssertTrue(match.flooded)
+        XCTAssertGreaterThan(match.capabilities.fastSpeed, land.fastSpeed)
+        XCTAssertGreaterThan(match.capabilities.kickRange, land.kickRange)
+        XCTAssertLessThan(match.ballDrag, 1.1)
+        XCTAssertNil(match.special(for: .home))
+    }
+
+    func testNoFloodWithoutTheFinale() {
+        var match = S.Match(halfLength: 70, controlledPlayer: nil)
+        for _ in 0..<(2 * 70 * 50 + 1000) {
+            XCTAssertFalse(match.advance(dt: dt).contains(.flood))
+        }
+        XCTAssertFalse(match.flooded)
     }
 }
