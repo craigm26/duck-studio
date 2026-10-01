@@ -6,3 +6,4 @@ DerivedData/
 # Python bytecode from scripts/
 __pycache__/
 *.pyc
+scripts/upstream_gate/trgen/Package.resolved
