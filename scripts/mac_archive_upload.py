@@ -39,7 +39,8 @@ KEY_ID = "68T2S87K39"
 ISSUER_ID = "0803ec59-b64d-4014-9519-d5e8c7079f0c"
 
 
-def remote_script(keychain_password: str, dry_run: bool) -> str:
+def remote_script(keychain_password: str, dry_run: bool, platform: str = "iOS",
+                  export_only: bool = False) -> str:
     # The password is quoted for the remote shell and travels only over SSH.
     # It is exported for archive_upload.sh, which unlocks the login keychain,
     # never re-locks it for the session, and repairs the key partition list.
@@ -56,7 +57,8 @@ grep -E 'CURRENT_PROJECT_VERSION|MARKETING_VERSION' DuckStudio/project.yml
         return steps + "cd DuckStudio && xcodegen generate && echo DRY-RUN-OK\n"
     return steps + (
         f"export KEYCHAIN_PASSWORD={shlex.quote(keychain_password)}\n"
-        f"bash scripts/archive_upload.sh {KEY_ID} {ISSUER_ID}\n"
+        + ("export EXPORT_ONLY=1\n" if export_only else "")
+        + f"bash scripts/archive_upload.sh {KEY_ID} {ISSUER_ID} {platform}\n"
     )
 
 
@@ -64,6 +66,13 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry-run", action="store_true",
                         help="ship HEAD and regenerate the project, but do not archive or upload")
+    parser.add_argument("--platform", choices=["ios", "macos"], default="ios",
+                        help="which slice to archive (default: ios)")
+    # FREE. Archives and signs exactly as an upload would, then stops before
+    # anything reaches App Store Connect. Use it to prove signing on a platform
+    # before spending one of the day's uploads on it.
+    parser.add_argument("--export-only", action="store_true",
+                        help="archive, sign and export locally; do not upload")
     args = parser.parse_args()
 
     dirty = subprocess.run(["git", "status", "--porcelain"], cwd=base.REPO,
@@ -90,7 +99,9 @@ def main() -> int:
     transport = client.get_transport()
     transport.set_keepalive(30)
     channel = transport.open_session()
-    channel.exec_command(remote_script(secret, args.dry_run))
+    channel.exec_command(remote_script(secret, args.dry_run,
+                                       {"ios": "iOS", "macos": "macOS"}[args.platform],
+                                       args.export_only))
     while True:
         if channel.recv_ready():
             sys.stdout.write(channel.recv(65536).decode(errors="replace"))
