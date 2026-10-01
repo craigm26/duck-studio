@@ -177,7 +177,7 @@ struct PolicyBlendView: View {
                         NavigationLink { BenchSettingsView(store: benches) } label: {
                             Label("Set up a bench", systemImage: "plus.circle")
                         }
-                        Text("Blending happens on this phone. Finding out whether the result "
+                        Text("Blending happens on \(DeviceWords.current.this). Finding out whether the result "
                            + "does anything needs physics, and that lives on another machine.")
                             .font(.caption).foregroundStyle(Theme.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -330,7 +330,7 @@ struct PolicyBlendView: View {
         do {
             guard let a = PolicyStore.data(for: pair.0),
                   let b = PolicyStore.data(for: pair.1) else {
-                failure = "One of those files is not on this phone any more."
+                failure = "One of those files is not on \(DeviceWords.current.this) any more."
                 return
             }
             let x = try DuckPolicy.load(from: a).parameters

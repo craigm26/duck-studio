@@ -122,12 +122,12 @@ public struct PolicyLibrary: Sendable {
             switch self {
             case .bundled, .imported, .fetched: return nil
             case .tuned(let base):
-                return "Made on this phone by searching a per-joint gain and trim and folding it "
+                return "Made on \(DeviceWords.current.this) by searching a per-joint gain and trim and folding it "
                      + "into \(base). Nothing was trained: the walk is still the base policy's. "
                      + "Every number behind it came out of a simulator, and it has never run on "
                      + "hardware."
             case .searched(let base):
-                return "Made on this phone by searching the weights of \(base) on a physics "
+                return "Made on \(DeviceWords.current.this) by searching the weights of \(base) on a physics "
                      + "bench. Nothing was trained: no gradient was computed, and every number "
                      + "behind it came out of a simulator. It has never run on hardware."
             }
@@ -829,10 +829,10 @@ extension PolicyLibrary.Entry {
         case .bundled:
             return "This one came with the app and cannot be removed."
         case .fetched(let host):
-            return "Removes \(title) from this phone. It came from \(host), so it can be "
+            return "Removes \(title) from \(DeviceWords.current.this). It came from \(host), so it can be "
                  + "downloaded again."
         case .imported:
-            return "Removes \(title) from this phone. It was brought in as a file, so if "
+            return "Removes \(title) from \(DeviceWords.current.this). It was brought in as a file, so if "
                  + "this is the only copy, the weights are gone with it."
         // THE ONLY ENTRY THAT EXISTS NOWHERE ELSE IN THE WORLD. A bundled file
         // comes back with the app and a fetched one comes back off a server;
@@ -841,11 +841,11 @@ extension PolicyLibrary.Entry {
         // only from its seed and its base — which the manifest carries and a
         // deleted policy does not.
         case .tuned(let base):
-            return "Removes \(title) from this phone. It was made here by tuning "
+            return "Removes \(title) from \(DeviceWords.current.this). It was made here by tuning "
                  + "\(base), and this is the only copy there has ever been — no server has it "
                  + "and no other machine made it. Export it first if the run was worth keeping."
         case .searched(let base):
-            return "Removes \(title) from this phone. It was made here by searching the weights "
+            return "Removes \(title) from \(DeviceWords.current.this). It was made here by searching the weights "
                  + "of \(base), and this is the only copy there has ever been — no server has it "
                  + "and no other machine made it. Share or publish it first if the search was "
                  + "worth keeping."
@@ -863,7 +863,7 @@ extension PolicyLibrary.Entry {
         switch titleSource {
         case .typed:
             return PolicyNaming.isDigestName(fileName)
-                ? "You named this one. This phone did not keep what the file was called."
+                ? "You named this one. \(DeviceWords.current.This) did not keep what the file was called."
                 : "You named this one. The file it came in as is \(fileName)."
         case .release:
             return "Named after the Pollen release these exact weights match. The fingerprint "
@@ -875,7 +875,7 @@ extension PolicyLibrary.Entry {
         case .fileName:
             return nil
         case .digest:
-            return "Nothing on this phone says what this file was called, so it is named after "
+            return "Nothing on \(DeviceWords.current.this) says what this file was called, so it is named after "
                  + "its fingerprint. Give it a name you will recognise."
         }
     }

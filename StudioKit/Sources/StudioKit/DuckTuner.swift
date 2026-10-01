@@ -555,7 +555,7 @@ public enum DuckTuner {
     /// blocked surface that only says "not supported" teaches somebody that the
     /// app is small, where this one is a specific and fixable gap in a bench.
     public static let notYet =
-        "This phone's bench cannot score a search yet, so there is no Start button. Its answers "
+        "\(DeviceWords.current.This)'s bench cannot score a search yet, so there is no Start button. Its answers "
       + "carry a position, a quaternion and fourteen joint angles — no velocity and no action — "
       + "so four of the six reward terms cannot be computed from them, and the two that survive "
       + "are both terms a duck standing still maximises. Measured here at six seconds and "
@@ -978,7 +978,7 @@ public enum DuckTuner {
 
     /// Before anything has run.
     public static let durationNotMeasuredYet =
-        "How long this takes on this phone has not been measured. It will be timed as it runs "
+        "How long this takes on \(DeviceWords.current.this) has not been measured. It will be timed as it runs "
       + "and reported then; a figure quoted before the first episode would be a number from "
       + "somebody else's machine."
 

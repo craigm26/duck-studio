@@ -79,7 +79,7 @@ public enum PhoneModelSearch {
                     ? "mlx-community has nothing to show, which probably means the search did not "
                     + "reach it."
                     : "Nothing in mlx-community matches \"\(text)\". That organisation publishes "
-                    + "the MLX-format weights this phone can open — a model published anywhere "
+                    + "the MLX-format weights \(DeviceWords.current.this) can open — a model published anywhere "
                     + "else will download and then fail to load."
             }
         }
@@ -187,10 +187,7 @@ public enum PhoneModelSearch {
     public static func doesNotFit(_ name: String, bytes: Int, budgetBytes: Int) -> String? {
         let peak = bytes + 350_000_000
         guard peak > budgetBytes else { return nil }
-        return "\(name) needs roughly \(PhoneModel.megabytes(peak)) resident and iOS is offering "
-             + "this app about \(PhoneModel.megabytes(budgetBytes)). It would be killed part-way "
-             + "through an answer. That estimate is a rule of thumb, not a measurement on this "
-             + "phone."
+        return PhoneModel.doesNotFitSentence(name, needs: peak, budgetBytes: budgetBytes)
     }
 
     /// AN HTTP FAULT IS NOT A VERDICT ABOUT A REPOSITORY. `vetThenAdd` checked
@@ -216,7 +213,7 @@ public enum PhoneModelSearch {
     /// following chat model", so the curated list is the one that has been
     /// checked and this is the one that has not.
     public static let scopeNote =
-        "Searches mlx-community, the organisation that publishes weights in the format this phone "
+        "Searches mlx-community, the organisation that publishes weights in the format \(DeviceWords.current.this) "
       + "can open — a model from anywhere else will download in full and then fail to load, which "
       + "is a slow way to find out. These results are not checked beyond that: an embedding or "
       + "speech model can appear here and will download without being any use for writing a "

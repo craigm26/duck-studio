@@ -104,7 +104,7 @@ public enum DuckLink {
             let signal = rssi.map { "\($0) dBm" } ?? "no signal reading"
             let base = "\(name), \(signal) — \(tier.evidence)"
             return heard ? base
-                : base + "; offered from this phone's memory and NOT heard in this window"
+                : base + "; offered from \(DeviceWords.current.this)'s memory and NOT heard in this window"
         }
     }
 
@@ -140,7 +140,7 @@ public enum DuckLink {
         public var evidence: String {
             switch self {
             case .advertisedService: return "advertises the robot's service UUID"
-            case .knownBefore: return "this phone has handshaked with it before"
+            case .knownBefore: return "\(DeviceWords.current.this) has handshaked with it before"
             case .nameOnly: return "a duck-ish name and nothing else"
             }
         }

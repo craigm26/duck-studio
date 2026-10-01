@@ -80,7 +80,7 @@ public struct DuckSequence: Equatable, Sendable, Identifiable {
                 return "Driven here over \(trips) \(round), \(clocks). "
                      + PadPilot.endedBy(endedBy)
             case .said(let sentence):
-                return "Read on this phone from what you typed — \"\(sentence)\". "
+                return "Read on \(DeviceWords.current.this) from what you typed — \"\(sentence)\". "
                      + DuckTalk.notAModel
             case .drafted(let model, let asked):
                 return "\(model) wrote this from \"\(asked)\". Every number in it was re-derived "
@@ -245,7 +245,7 @@ public struct DuckSequence: Equatable, Sendable, Identifiable {
                      + "there is no schedule to send."
             case .noSimClock:
                 return "Nothing was recorded: the bench had not answered yet, so there was no "
-                     + "clock to stamp these commands with. A recording stamped with this phone's "
+                     + "clock to stamp these commands with. A recording stamped with \(DeviceWords.current.this)'s "
                      + "clock would play back at the wrong speed on any link but the one it was "
                      + "made on."
             case .tooLong(let s):

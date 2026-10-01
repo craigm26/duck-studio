@@ -23,7 +23,6 @@ typealias UIColor = NSColor
 typealias UIFont = NSFont
 typealias UIView = NSView
 typealias UIGestureRecognizer = NSGestureRecognizer
-typealias UIPanGestureRecognizer = NSPanGestureRecognizer
 
 /// `UIUserInterfaceStyle`, for the adaptive-colour closure in `Theme`.
 enum UIUserInterfaceStyle { case unspecified, light, dark }
@@ -79,6 +78,34 @@ final class UIPinchGestureRecognizer: NSMagnificationGestureRecognizer {
     var scale: CGFloat {
         get { 1 + magnification }
         set { magnification = newValue - 1 }
+    }
+}
+
+/// A pan, with UIKit's y axis.
+///
+/// UIKIT'S Y GROWS DOWNWARD; APPKIT'S GROWS UPWARD. Every drag handler in this
+/// app was written against UIKit, where dragging down gives a positive `y` —
+/// so on an unflipped NSView an orbit would tilt the wrong way and a joystick
+/// would steer upside down. Correcting it here, once, keeps the handlers as
+/// they are on the phone. A flipped view already counts downward and is left
+/// alone.
+final class UIPanGestureRecognizer: NSPanGestureRecognizer {
+    private func isFlipped(_ view: NSView?) -> Bool { (view ?? self.view)?.isFlipped ?? false }
+
+    override func translation(in view: NSView?) -> NSPoint {
+        let t = super.translation(in: view)
+        return isFlipped(view) ? t : NSPoint(x: t.x, y: -t.y)
+    }
+
+    override func setTranslation(_ translation: NSPoint, in view: NSView?) {
+        super.setTranslation(isFlipped(view) ? translation
+                                             : NSPoint(x: translation.x, y: -translation.y),
+                             in: view)
+    }
+
+    override func velocity(in view: NSView?) -> NSPoint {
+        let v = super.velocity(in: view)
+        return isFlipped(view) ? v : NSPoint(x: v.x, y: -v.y)
     }
 }
 

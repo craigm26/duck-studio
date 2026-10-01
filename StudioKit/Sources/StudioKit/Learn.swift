@@ -50,7 +50,7 @@ public enum Learn {
               symbol: "figure.roll", button: "Open Play", go: .play),
         .init(id: "networks",
               title: "Every move is a network",
-              body: "Behaviours lists the trained networks on this phone. Open one and play a "
+              body: "Behaviours lists the trained networks on \(DeviceWords.current.this). Open one and play a "
                   + "recording of what it did in physics.",
               symbol: "brain.head.profile", button: "Open Behaviours", go: .behaviours),
         .init(id: "training",
@@ -72,7 +72,7 @@ public enum Learn {
               symbol: "wand.and.stars", button: "Open Motions", go: .motions),
         .init(id: "measure",
               title: "Measure it",
-              body: "This phone runs MuJoCo, the physics engine Pollen trains in. A challenge "
+              body: "\(DeviceWords.current.This) runs MuJoCo, the physics engine Pollen trains in. A challenge "
                   + "scores a move over many tries instead of one good take.",
               symbol: "trophy", button: "Open Challenges", go: .challenges),
         .init(id: "shoot",
@@ -84,7 +84,7 @@ public enum Learn {
               title: "Tune a network",
               body: "A phone cannot train from scratch, but it can nudge a trained network and keep "
                   + "what scores better on Pollen's own reward.",
-              symbol: "slider.horizontal.3", button: "Tune on this phone", go: .tune),
+              symbol: "slider.horizontal.3", button: "Tune on \(DeviceWords.current.this)", go: .tune),
         .init(id: "everything",
               title: "Show every tool",
               body: "Turn on the rest: network internals, weight search, formal evaluations, the "

@@ -340,3 +340,7 @@ targets:
         # the sandbox; the entitlements say what it is allowed out for.
         "CODE_SIGN_ENTITLEMENTS[sdk=macosx*]": DuckStudio.macOS.entitlements
         "ENABLE_HARDENED_RUNTIME[sdk=macosx*]": YES
+        # APPLE SILICON ONLY ON A MAC. MLX runs on Metal on Apple silicon and
+        # nothing else, and the on-device models are much of what a Mac is for
+        # here; an Intel slice would be a binary whose headline feature refuses.
+        "ARCHS[sdk=macosx*]": arm64

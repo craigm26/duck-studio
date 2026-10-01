@@ -21,6 +21,16 @@ import StudioKit
 /// it is a thing to copy, not a thing to read. Everything else — names, the
 /// steps, the caveats — is SF.
 struct BenchSettingsView: View {
+
+    /// The picture of the machine the built-in bench is inside.
+    static var deviceSymbol: String {
+#if os(macOS)
+        return "laptopcomputer"
+#else
+        return UIDevice.current.userInterfaceIdiom == .pad ? "ipad" : "iphone"
+#endif
+    }
+
     @ObservedObject var store: BenchStore
     @State private var editing: BenchEndpoint?
 
@@ -143,7 +153,7 @@ struct BenchSettingsView: View {
             HStack(spacing: Theme.spacing(.tight)) {
                 VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
                     Label(PhoneBenchReport.name(onPad: UIDevice.current.userInterfaceIdiom == .pad),
-                          systemImage: UIDevice.current.userInterfaceIdiom == .pad ? "ipad" : "iphone")
+                          systemImage: Self.deviceSymbol)
                         .foregroundStyle(Theme.textPrimary)
                     Text(store.phonePort == 0 ? PhoneBenchReport.notListening
                                               : PhoneBenchReport.phoneRowNote)

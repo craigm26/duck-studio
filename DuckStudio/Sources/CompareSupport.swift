@@ -141,7 +141,7 @@ import StudioKit
             } else if let clip = library.importedClips.first(where: { "kept:\($0.name)" == contender.key }) {
                 return clip
             }
-            throw Failure.said("\(contender.name) is not on this phone any more.")
+            throw Failure.said("\(contender.name) is not on \(DeviceWords.current.this) any more.")
 
         case .behaviour:
             guard let entry = library.library.entries.first(where: { $0.id == contender.key }) else {

@@ -511,7 +511,7 @@ struct IntentListView: View {
         } header: {
             SectionHeading(text: "Plans")
         } footer: {
-            sectionFootnote("A fetch, kept on this phone in this app's own format. The steps are "
+            sectionFootnote("A fetch, kept on \(DeviceWords.current.this) in this app's own format. The steps are "
                           + "worked out again each time it is opened, against the measurements "
                           + "this app holds — so a plan cannot go stale and argue with the app "
                           + "that opened it.")

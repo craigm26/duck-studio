@@ -436,7 +436,7 @@ public enum WeightSearch {
     public static let bothPathsSaid =
         "Nothing on this screen has been trained yet — this is a specification for a machine "
       + "with a simulator and a graphics card, which is what learning a network from nothing "
-      + "needs. Searching a network you already have is a different job, and this phone can do "
+      + "needs. Searching a network you already have is a different job, and \(DeviceWords.current.this) can do "
       + "that one on your own bench."
 
     // MARK: - the words on the screen
@@ -457,7 +457,7 @@ public enum WeightSearch {
 
     /// The base is gone from disk between picking it and pressing run.
     public static let baseIsGoneSaid =
-        "That network is not on this phone any more."
+        "That network is not on \(DeviceWords.current.this) any more."
 
     /// A step, as a percentage, in the one place that formats it.
     public static func percentSaid(_ fraction: Double) -> String {

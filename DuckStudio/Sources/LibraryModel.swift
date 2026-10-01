@@ -329,7 +329,7 @@ final class LibraryModel: ObservableObject {
         do {
             let plan = try DuckPlanFile.read(data)
             guard plans.save(plan) else {
-                lastImport = "\(plan.name) could not be written to this phone."
+                lastImport = "\(plan.name) could not be written to \(DeviceWords.current.this)."
                 return
             }
             lastImport = "\(plan.name) is in your Motions, under Plans."

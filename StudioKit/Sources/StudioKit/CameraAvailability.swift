@@ -204,7 +204,7 @@ public struct CameraAvailability: Equatable, Sendable {
     private static func cause(_ blocker: Blocker) -> String {
         switch blocker {
         case .noUsageDescription:
-            return "This build cannot open the camera: it ships without the camera usage description iOS requires, and iOS ends an app that asks for the camera without one."
+            return "This build cannot open the camera: it ships without the camera usage description \(DeviceWords.current.system) requires, and \(DeviceWords.current.system) ends an app that asks for the camera without one."
         case .deviceCannotWorldTrack:
             return "This device cannot do world tracking, so nothing here can find the floor you are standing on."
         case .permissionDenied:

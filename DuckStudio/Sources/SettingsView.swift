@@ -141,7 +141,7 @@ struct SettingsView: View {
                 // something speaking HTTP, and this list is the app telling
                 // somebody what their options are.
                 Text("What writes a draft when you describe a motion in words. Apple's "
-                   + "on-device model needs no setup; a model downloaded onto this phone runs "
+                   + "on-device model needs no setup; a model downloaded onto \(DeviceWords.current.this) runs "
                    + "with nothing leaving it; and anything on your network speaking the "
                    + "OpenAI chat API works too.")
                     .foregroundStyle(Theme.textSecondary)
@@ -165,7 +165,7 @@ struct SettingsView: View {
                 // "THIS PHONE HAS NONE" WAS TRUE OF A BUILD, NOT THE HARDWARE — the
                 // kit's own PhoneBenchReport says so, and this line went on
                 // contradicting it. There is always one bench: this phone.
-                Text("Where a policy or a motion actually runs. This phone is one bench — "
+                Text("Where a policy or a motion actually runs. \(DeviceWords.current.This) is one bench — "
                    + "MuJoCo runs inside the app. Add a machine on your network for a "
                    + "second, faster one.")
                     .foregroundStyle(Theme.textSecondary)

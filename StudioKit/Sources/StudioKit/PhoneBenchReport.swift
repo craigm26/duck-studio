@@ -40,8 +40,8 @@ public enum PhoneBenchReport {
     /// it where it already stamps the port. An iPad calling itself "This
     /// iPhone" on the first screen was the kind of thing a screenshot catches
     /// and a test cannot, until now.
-    public static func name(onPad: Bool) -> String {
-        onPad ? "This iPad" : name
+    public static func name(onPad: Bool, device: DeviceWords = .current) -> String {
+        device == .mac ? "This Mac" : (onPad ? "This iPad" : name)
     }
 
     // MARK: - the premise this replaces
@@ -95,7 +95,7 @@ public enum PhoneBenchReport {
 
     /// Said where a recording made here is about to be kept.
     public static let recordDoesNotTransfer =
-        "A clip recorded here is this phone's run and not the desk bench's. The two are "
+        "A clip recorded here is \(DeviceWords.current.this)'s run and not the desk bench's. The two are "
       + "identical for the first fifty ticks, 2 mm apart by a hundred and 32 mm apart by two "
       + "hundred and fifty — so this is a second run rather than a second copy of one, and "
       + "putting the two side by side compares two runs."
@@ -154,7 +154,7 @@ public enum PhoneBenchReport {
     /// browser on the same hardware are 30% apart, which is the strongest
     /// available argument that neither of them is a fact about an iPhone.
     public static let speedIsUnmeasuredOnAPhone =
-        "How fast this is on this phone has not been measured. A desktop browser on the machine "
+        "How fast this is on \(DeviceWords.current.this) has not been measured. A desktop browser on the machine "
       + "that built it does a control tick in 2.7 to 3.5 ms against a 20 ms budget, and two runs "
       + "on that one machine are a third apart — which is Chromium on a Raspberry Pi either way, "
       + "not Safari on an iPhone. The bench times its own tick when it starts and reports it; "
@@ -170,7 +170,7 @@ public enum PhoneBenchReport {
     /// to. Saying that is better than an empty list, and much better than the
     /// address parser's "127.0.0.1:0 is not on your network".
     public static let notListening =
-        "This phone's bench is still coming up. It runs inside the app and answers on a port "
+        "\(DeviceWords.current.This)'s bench is still coming up. It runs inside the app and answers on a port "
       + "the system hands out at launch, so there is a moment after opening where there is "
       + "nothing yet to ask. It arrives on its own."
 
@@ -184,7 +184,7 @@ public enum PhoneBenchReport {
     /// built against. So the loss is stated, the in-flight work is called not a
     /// result, and the rebuild is mentioned last.
     public static let worldLost =
-        "This phone's bench lost its world. iOS ended the process the physics was running in — "
+        "\(DeviceWords.current.This)'s bench lost its world. iOS ended the process the physics was running in — "
       + "usually to take back memory — so the duck's pose, the loaded policy and anything "
       + "part-way through are gone. Whatever was being measured did not finish and is not a "
       + "result. The bench is being rebuilt now."
@@ -194,7 +194,7 @@ public enum PhoneBenchReport {
     /// The bench list's own explanation, replacing the empty state that used to
     /// say a phone cannot run anything.
     public static let alwaysOneBench =
-        "There is always one bench: this phone. It is first in the list, it cannot be edited "
+        "There is always one bench: \(DeviceWords.current.this). It is first in the list, it cannot be edited "
       + "or deleted, and it wants no token — there is nothing to type, because the physics "
       + "runs inside the app. Add a machine on your network for a second bench that can be "
       + "handed a network of its own — how the two compare in speed has not been measured."
@@ -224,7 +224,7 @@ public enum PhoneBenchReport {
         guard let host else { return unstatedHost }
         let machine: String
         switch host.kind {
-        case .phone: machine = "on this phone"
+        case .phone: machine = "on \(DeviceWords.current.this)"
         case .desk:  machine = "on a machine across the network"
         case nil:
             machine = host.kindSaid.isEmpty

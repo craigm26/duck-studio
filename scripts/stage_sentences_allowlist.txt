@@ -125,7 +125,7 @@ SequenceListView.swift|That did not work
 SequenceListView.swift|On the bench
 SequenceListView.swift|What a sequence is
 TalkToTheDuckView.swift|Not driven
-TalkToTheDuckView.swift|Read on this phone
+TalkToTheDuckView.swift|Read on \(DeviceWords.current.this)
 TalkToTheDuckView.swift|A model wrote this
 TalkToTheDuckView.swift|Kept as \(sequence.name)
 

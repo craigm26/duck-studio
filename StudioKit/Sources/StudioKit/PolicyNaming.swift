@@ -61,7 +61,7 @@ public enum PolicyNaming {
     public static let fileNameUnknown = "not kept"
 
     public static let fileNameNotKept =
-        "This phone stored the policy under its fingerprint and did not keep what the file was "
+        "\(DeviceWords.current.This) stored the policy under its fingerprint and did not keep what the file was "
       + "called. Anything brought in from now on keeps its name."
 
     /// WHERE A POLICY CAME FROM CANNOT BE RECOVERED AFTER THE FACT. Anything

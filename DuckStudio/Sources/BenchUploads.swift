@@ -23,7 +23,7 @@ enum BenchUploads {
     static func put(_ entry: PolicyLibrary.Entry, address: DuckBench.Address,
                     token: String?, host: DuckBench.Health.Host?) async throws -> String {
         guard let file = PolicyStore.data(for: entry) else {
-            throw DuckBench.ReadError.bench("\(entry.title) is not on this phone any more.")
+            throw DuckBench.ReadError.bench("\(entry.title) is not on \(DeviceWords.current.this) any more.")
         }
         // THE TITLE, NOT THE FILE NAME. A kept network's file is a digest-shaped
         // stem; its title is what the person sees on the shelf, and the bench's

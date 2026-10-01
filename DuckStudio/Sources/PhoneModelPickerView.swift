@@ -85,11 +85,28 @@ struct PhoneModelPickerView: View {
             } header: {
                 SectionHeading(text: "Tried on this app")
             } footer: {
-                Text(PhoneModelInstall.staysOpenNote + " " + PhoneModelInstall.cellularWarning)
+                Text(PhoneModelInstall.downloadFooter())
                     .foregroundStyle(Theme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .listRowBackground(Theme.surfacePrimary)
+
+#if os(macOS)
+            // THE SIZES A PHONE COULD NEVER HOLD, offered only where they fit.
+            // Under the untried preamble because neither has been run here.
+            Section {
+                ForEach(PhoneModel.macUntried) { model in
+                    row(model)
+                }
+            } header: {
+                SectionHeading(text: "Larger, for a Mac")
+            } footer: {
+                Text(PhoneModel.untriedPreamble)
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .listRowBackground(Theme.surfacePrimary)
+#endif
 
             Section {
                 HStack(spacing: Theme.spacing(.tight)) {

@@ -368,7 +368,7 @@ public struct DuckPadMap: Equatable, Sendable {
     }
 
     public static func staleNetwork(_ name: String) -> String {
-        "\(name) is not on this bench. The mapping is remembered on this phone and a bench holds "
+        "\(name) is not on this bench. The mapping is remembered on \(DeviceWords.current.this) and a bench holds "
       + "whatever it holds, so the sticks have been put back to whatever this bench already has "
       + "loaded rather than sending a name nothing here would recognise."
     }
@@ -387,12 +387,12 @@ public struct DuckPadMap: Equatable, Sendable {
 
     /// A motion this map names that Studio no longer holds.
     public static func motionIsGone(_ control: DuckPad.Control) -> String {
-        "\(control.face) is bound to a motion this phone no longer holds. It was deleted in "
+        "\(control.face) is bound to a motion \(DeviceWords.current.this) no longer holds. It was deleted in "
       + "Studio, so there is nothing to run; bind it again to give the button something to do."
     }
 
     public static let mapLivesOnThisPhone =
-        "This map lives on this phone, not on the bench. Every entry names a role or one of your "
+        "This map lives on \(DeviceWords.current.this), not on the bench. Every entry names a role or one of your "
       + "own sequences rather than a file, so it means the same thing on any bench; the one "
       + "exception is a network you picked by name, which is checked against what the bench holds "
       + "every time this tab opens."
@@ -415,7 +415,7 @@ public struct DuckPadMap: Equatable, Sendable {
     public static let putOneOfYoursDetail =
         "Sends the file to the bench under its own name and steers by it. A desk bench takes "
       + "the .onnx; the phone bench takes the same network as its parameter bytes. It stays "
-      + "on the bench until the bench restarts, and nothing here changes the file on this phone."
+      + "on the bench until the bench restarts, and nothing here changes the file on \(DeviceWords.current.this)."
     public static func puttingSaid(_ title: String) -> String { "Sending \(title) to the bench…" }
     public static func landedSaid(_ title: String, as name: String) -> String {
         "\(title) is on this bench as \(name), and the sticks steer by it."
