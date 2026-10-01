@@ -388,6 +388,9 @@ struct DuckStudioApp: App {
             // private, and adding a caller is not this change.
             .onChange(of: scenePhase) { _, phase in
                 if phase != .active { scenes.flush(); drafts.flush() }
+                // .background, NOT .inactive: on a Mac a window that merely
+                // loses focus is inactive, and a download should survive that.
+                if phase == .background { PhoneModelRuntime.shared.stopDownloadForSuspension() }
             }
             // INSIDE THE WindowGroup, ON THE VIEW. `tint` and
             // `preferredColorScheme` are View modifiers; hung on the

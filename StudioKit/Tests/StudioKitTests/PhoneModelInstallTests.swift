@@ -202,6 +202,14 @@ final class PhoneModelInstallTests: XCTestCase {
         XCTAssertTrue(s.contains("delete it and start over"), s)
     }
 
+    /// A DOWNLOAD THE APP STOPPED ITSELF SAYS WHY, and that it resumes.
+    func testABackgroundStopSaysWhyAndThatItResumes() {
+        let s = PhoneModelInstall.stoppedInBackground
+        XCTAssertTrue(s.contains("left the screen"), s)
+        XCTAssertTrue(s.contains("starting it again picks up from there"), s)
+        XCTAssertFalse(s.contains("phone"), "the same build runs on a Mac: \(s)")
+    }
+
     /// QWEN'S OWN SOFT SWITCH, sent as well as the template flag because the
     /// template route is unproven on a device and the first real run spent
     /// twenty-three minutes producing no JSON.
