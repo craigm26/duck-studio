@@ -44,6 +44,19 @@ public struct TrainingRequest: Equatable, Sendable {
         case rollerCrouch = "microduck_roller_crouch_env_cfg.py"
 
         /// The module, without the `.py` a filename carries.
+        /// The contact sensors each base defines, READ FROM UPSTREAM: built with
+        /// microduck_rl `cfe1c2a` on mjlab 1.3.0, 2026-09-30, by listing
+        /// `cfg.scene.sensors` of each factory's config.
+        public var contactSensors: Set<String> {
+            switch self {
+            case .groundPick: return ["feet_ground_contact", "head_impact_contact", "self_collision"]
+            case .velocity: return ["feet_ground_contact", "self_collision"]
+            case .sitStand: return ["feet_ground_contact", "self_collision"]
+            case .ballKick: return ["feet_ground_contact", "self_collision", "support_foot_ground_contact"]
+            case .rollerCrouch: return ["feet_ground_contact", "self_collision"]
+            }
+        }
+
         public var moduleName: String {
             String(rawValue.dropLast(3))
         }
@@ -208,6 +221,46 @@ public struct TrainingRequest: Equatable, Sendable {
         function == "self_collision_cost" ? "mjlab_mdp" : "microduck_mdp"
     }
 
+    /// The arguments a term cannot do without, as a Python dict literal.
+    ///
+    /// `params={}` WAS WRONG FOR FIVE OF THESE, AND ONLY AT TRAINING TIME.
+    /// Found 2026-09-30 by importing every vocabulary term into microduck_rl
+    /// `cfe1c2a` on mjlab 1.3.0: the file imports and the factory returns, and
+    /// then the reward manager calls the function without the arguments it
+    /// requires — on a GPU, an hour into somebody's budget.
+    ///
+    /// SENSORS ARE LOOKED UP ON THE CONFIG THAT WAS FORKED, NOT ASSUMED. The
+    /// bases do not all carry the same contact sensors — only ground pick has
+    /// `head_impact_contact` — so the file asks the forked config by name and
+    /// stops with a sentence when the sensor is not there.
+    ///
+    /// 0.115 m IS UPSTREAM'S `STAND_Z`, the trunk height of a standing duck
+    /// (defined alike in the standup, sitstand, roulade and ball-kick configs).
+    /// A crouch or a reach wants a different number; that is the person's edit.
+    /// Which contact sensor a term reads, for the terms that read one.
+    static let sensorNeeded: [String: String] = [
+        "feet_grounded_reward": "feet_ground_contact",
+        "self_collision_cost": "self_collision",
+        "body_impact_cost": "head_impact_contact",
+    ]
+
+    static func params(for function: String) -> String {
+        switch function {
+        case "feet_grounded_reward":
+            return #"{"sensor_name": _sensor(cfg, "feet_ground_contact")}"#
+        case "self_collision_cost":
+            return #"{"sensor_name": _sensor(cfg, "self_collision")}"#
+        case "body_impact_cost":
+            return #"{"sensor_name": _sensor(cfg, "head_impact_contact"), "threshold": 1.0}"#
+        case "height_target_gaussian":
+            return #"{"std": 0.04, "target_height": STAND_Z, "asset_cfg": SceneEntityCfg("robot", body_names=("trunk_base",))}"#
+        case "height_l1_penalty":
+            return #"{"target_height": STAND_Z, "asset_cfg": SceneEntityCfg("robot", body_names=("trunk_base",))}"#
+        default:
+            return "{}"
+        }
+    }
+
     /// The sentence the brief carries when a weight points the wrong way.
     var signWarning: String {
         let wrong = wrongSigns
@@ -273,6 +326,8 @@ public struct TrainingRequest: Equatable, Sendable {
         /// Asking to bite something thinner than the jaw closes.
         case underTheBite(millimetres: Double)
         case episodeTooLong(Double)
+        /// A term that reads a contact sensor the forked task does not define.
+        case missingSensor(reward: String, sensor: String, base: String)
         /// A request that uses the head as a lever against the robot's own
         /// weight, with the arithmetic that says how little margin there is.
         case leverAtTheStall(weightNewtons: Double, stallNewtons: Double)
@@ -300,6 +355,10 @@ public struct TrainingRequest: Equatable, Sendable {
                 return String(format: "The jaw shuts %.0f mm above the floor and %.0f mm passes "
                     + "underneath it. Training changes the policy, not the geometry.",
                     Retrieval.closedTipHeight * 1000, mm)
+            case .missingSensor(let reward, let sensor, let base):
+                return "\(reward) reads the contact sensor \(sensor), and \(base) does not "
+                     + "define one. The file would stop when the task is built. Fork a task that "
+                     + "has it — ground pick does — or leave this term out."
             case .episodeTooLong(let seconds):
                 return String(format: "%.0f s an episode is a long time to spend on one attempt. "
                     + "Every shipped task runs 2–8 s; a longer one is mostly the duck standing "
@@ -317,7 +376,8 @@ public struct TrainingRequest: Equatable, Sendable {
         /// Whether it cannot be trained, or merely should be reconsidered.
         public var isFatal: Bool {
             switch self {
-            case .unknownReward, .noRewards, .pastTheTorque, .pastTheReach, .underTheBite:
+            case .unknownReward, .noRewards, .pastTheTorque, .pastTheReach, .underTheBite,
+                 .missingSensor:
                 return true
             case .episodeTooLong, .leverAtTheStall: return false
             }
@@ -342,6 +402,12 @@ public struct TrainingRequest: Equatable, Sendable {
             found.append(.unknownReward(reward.function))
         }
         if episodeSeconds > 12 { found.append(.episodeTooLong(episodeSeconds)) }
+        for reward in rewards {
+            guard let sensor = Self.sensorNeeded[reward.function],
+                  !base.contactSensors.contains(sensor) else { continue }
+            found.append(.missingSensor(reward: reward.function, sensor: sensor,
+                                        base: base.rawValue))
+        }
         // THE HEAD AS A LEVER IS CHECKED EVEN WITH NO PROP. The neck check below
         // only ran for a prop's grams, so a request whose whole idea was the
         // head pushing the body up a step passed with no arithmetic at all.
@@ -422,7 +488,7 @@ extension TrainingRequest {
                 cfg.rewards["\(reward.function)"] = RewardTermCfg(
                     func=\(Self.moduleFor(reward.function)).\(reward.function),
                     weight=\(String(format: "%g", reward.weight)),
-                    params={},
+                    params=\(Self.params(for: reward.function)),
                 )
             """
         }.joined(separator: "\n")
@@ -463,8 +529,9 @@ extension TrainingRequest {
         from copy import deepcopy
 
         from mjlab.envs.mdp.actions import JointPositionActionCfg
-        from mjlab.managers.manager_term_config import RewardTermCfg
-        from mjlab.utils.spec_config import ContactSensorCfg
+        from mjlab.managers import RewardTermCfg
+        from mjlab.managers.scene_entity_config import SceneEntityCfg
+        from mjlab.sensor import ContactSensorCfg
 
         from mjlab_microduck.tasks import mdp as microduck_mdp
         # self_collision_cost is mjlab's, not microduck's — this app used to
@@ -474,6 +541,20 @@ extension TrainingRequest {
 
 
         EPISODE_SECONDS = \(String(format: "%g", episodeSeconds))
+        # Upstream's standing trunk height (STAND_Z in the standup, sitstand,
+        # roulade and ball-kick configs). Edit it for a crouch or a reach.
+        STAND_Z = 0.115
+
+
+        def _sensor(cfg, name):
+            \"\"\"A contact sensor the forked task defines, or a sentence saying it does not.\"\"\"
+            names = sorted(s.name for s in cfg.scene.sensors)
+            if name not in names:
+                raise ValueError(
+                    f"this reward needs the contact sensor {name!r}, and \(base.rawValue) "
+                    f"defines only {names}. Add the sensor, or drop the term."
+                )
+            return name
 
 
         def make_\(slug)_env_cfg(play: bool = False):
