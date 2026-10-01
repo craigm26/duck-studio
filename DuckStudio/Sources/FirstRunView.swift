@@ -23,13 +23,7 @@ struct FirstRunView: View {
 
     var body: some View {
         NavigationStack {
-            TabView(selection: $page) {
-                ForEach(Array(FirstRun.steps.enumerated()), id: \.element.id) { index, step in
-                    stepCard(step).tag(index)
-                }
-            }
-            .tabViewStyle(.page)
-            .indexViewStyle(.page(backgroundDisplayMode: .always))
+            pages
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     // SKIPPING IS ALLOWED. Somebody who wants to look around
@@ -46,6 +40,26 @@ struct FirstRunView: View {
             }
         }
         .interactiveDismissDisabled(false)
+    }
+
+    /// SWIPED ON A PHONE, STEPPED ON A MAC. macOS has no paging `TabView`; the
+    /// Next button in the toolbar already moves through the cards, so a Mac
+    /// shows the current one and lets that button do the work.
+    @ViewBuilder private var pages: some View {
+#if os(iOS)
+        TabView(selection: $page) {
+            ForEach(Array(FirstRun.steps.enumerated()), id: \.element.id) { index, step in
+                stepCard(step).tag(index)
+            }
+        }
+        .tabViewStyle(.page)
+        .indexViewStyle(.page(backgroundDisplayMode: .always))
+#else
+        stepCard(FirstRun.steps[page])
+            .id(page)
+            .transition(.opacity)
+            .frame(minWidth: 420, minHeight: 360)
+#endif
     }
 
     private func stepCard(_ step: FirstRun.Step) -> some View {

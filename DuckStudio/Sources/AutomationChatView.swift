@@ -636,7 +636,7 @@ struct AutomationChatView: View {
                 + "draft goes through, so a model that invents a joint is refused, not believed.")
         }
         #if canImport(FoundationModels)
-        if #available(iOS 26.0, *) {
+        if #available(iOS 26.0, macOS 26.0, *) {
             switch SystemLanguageModel.default.availability {
             case .available:
                 return Availability(isUsable: true, explanation:
@@ -664,7 +664,7 @@ struct AutomationChatView: View {
     }
 
     #if canImport(FoundationModels)
-    @available(iOS 26.0, *)
+    @available(iOS 26.0, macOS 26.0, *)
     @Generable
     struct DraftedRule {
         @Guide(description: "A short name for the rule, three or four words.")
@@ -677,7 +677,7 @@ struct AutomationChatView: View {
         var intent: String
     }
 
-    @available(iOS 26.0, *)
+    @available(iOS 26.0, macOS 26.0, *)
     @Generable
     struct DraftedMove {
         // ENFORCED AT DECODE, not just described: the guided decoder can only
@@ -690,7 +690,7 @@ struct AutomationChatView: View {
         var degrees: Double
     }
 
-    @available(iOS 26.0, *)
+    @available(iOS 26.0, macOS 26.0, *)
     @Generable
     struct DraftedKey {
         @Guide(description: "Seconds from the start, increasing.")
@@ -701,7 +701,7 @@ struct AutomationChatView: View {
         var mouthOpen: Double
     }
 
-    @available(iOS 26.0, *)
+    @available(iOS 26.0, macOS 26.0, *)
     @Generable
     struct DraftedMotion {
         @Guide(description: "A short, friendly name for the motion.")
@@ -731,7 +731,7 @@ struct AutomationChatView: View {
         }
 
         #if canImport(FoundationModels)
-        if #available(iOS 26.0, *) {
+        if #available(iOS 26.0, macOS 26.0, *) {
             switch mode {
             case .rule:     await draftRule(asked)
             case .motion:   await draftMotion(asked)
@@ -923,7 +923,7 @@ struct AutomationChatView: View {
     private var sceneProps: [DuckScene.Prop] { scenes.scenes.flatMap(\.props) }
 
     #if canImport(FoundationModels)
-    @available(iOS 26.0, *)
+    @available(iOS 26.0, macOS 26.0, *)
     private func draftRule(_ asked: String) async {
         let instructions = """
             You turn one sentence into one rule for a small robot duck.
@@ -950,7 +950,7 @@ struct AutomationChatView: View {
         }
     }
 
-    @available(iOS 26.0, *)
+    @available(iOS 26.0, macOS 26.0, *)
     private func draftMotion(_ asked: String) async {
         let instructions = """
             You turn one sentence into one short motion for a small robot duck.

@@ -1,5 +1,7 @@
 import SwiftUI
+#if os(iOS)
 import ARKit
+#endif
 import RealityKit
 import Combine
 import DuckKit

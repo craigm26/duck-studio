@@ -179,15 +179,16 @@ command -v xcodegen >/dev/null || {{ echo "xcodegen missing on the Mac — see t
 rm -rf {Q_SRC} && mkdir -p {Q_SRC}
 tar xzf {Q_HOME}/duck-studio-src.tgz -C {Q_SRC}
 cd {Q_SRC}/DuckStudio
+xcodegen --version
 xcodegen generate >/dev/null
 set -o pipefail
 xcodebuild -project DuckStudio.xcodeproj -scheme DuckStudio \
-    -destination 'generic/platform=iOS' -configuration Release \
+    -destination 'generic/platform=__PLATFORM__' -configuration Release \
     -skipPackagePluginValidation -skipMacroValidation \
     CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build 2>&1 \
   | sed -e 's|/Volumes/Macintosh_HD||g' -e 's|{REMOTE_SRC}/||g' \
   | grep -v 'Stale file' \\
-  | grep -E 'error:|warning: [A-Z]|\\*\\* BUILD' | tail -60
+  | grep -E '__GREP__' | tail -__TAIL__
 # `Stale file` FIRST. Xcode prints one "warning: Stale file …" per leftover
 # DerivedData artefact — fifty-nine of them on 2026-09-02 — and every one
 # matches `warning: [A-Z]`. With `tail -60` after them, the one real
@@ -205,7 +206,21 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--worktree", action="store_true",
                         help="build uncommitted changes too, not just HEAD")
+    # THE SAME TARGET, TWO DESTINATIONS. Since 2026-09-30 the app target lists
+    # macOS as a supported destination; `--platform macos` compiles that slice.
+    # The default stays iOS so every existing caller keeps gating what ships.
+    parser.add_argument("--platform", choices=["ios", "macos"], default="ios",
+                        help="which destination to compile (default: ios)")
+    # A conformance failure says only "does not conform"; the reason is in the
+    # `note:` lines under it, which the default filter drops.
+    parser.add_argument("--notes", action="store_true",
+                        help="keep compiler note: lines (and a longer tail)")
     args = parser.parse_args()
+    remote_build = (REMOTE_BUILD
+        .replace("__PLATFORM__", {"ios": "iOS", "macos": "macOS"}[args.platform])
+        .replace("__GREP__", r"error:|note:|warning: [A-Z]|\*\* BUILD" if args.notes
+                 else r"error:|warning: [A-Z]|\*\* BUILD")
+        .replace("__TAIL__", "400" if args.notes else "60"))
 
     try:
         import paramiko
@@ -228,7 +243,7 @@ def main() -> int:
     transport = client.get_transport()
     transport.set_keepalive(30)
     channel = transport.open_session()
-    channel.exec_command(REMOTE_BUILD)
+    channel.exec_command(remote_build)
     import select
     while True:
         if channel.recv_ready():

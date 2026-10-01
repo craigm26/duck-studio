@@ -1,5 +1,7 @@
 import SwiftUI
+#if os(iOS)
 import UIKit
+#endif
 import StudioKit
 
 /// The app's colours, as SwiftUI sees them. Every value comes from `Palette`.

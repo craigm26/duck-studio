@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Required for the Mac App Store. -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<!-- Robots, benches, Hugging Face, the community list. -->
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<!-- The phone bench serves its own page on a loopback NWListener. -->
+	<key>com.apple.security.network.server</key>
+	<true/>
+	<!-- Finding a Microduck over Bluetooth. -->
+	<key>com.apple.security.device.bluetooth</key>
+	<true/>
+	<!-- Mimic: a person posed onto the duck from the camera. -->
+	<key>com.apple.security.device.camera</key>
+	<true/>
+	<!-- Opening and exporting policies, motions and plans. -->
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
+</dict>
+</plist>

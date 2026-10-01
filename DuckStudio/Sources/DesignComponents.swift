@@ -1,5 +1,7 @@
 import SwiftUI
+#if os(iOS)
 import UIKit
+#endif
 import StudioKit
 
 /// The pieces the app is assembled from, and the only place their shapes are

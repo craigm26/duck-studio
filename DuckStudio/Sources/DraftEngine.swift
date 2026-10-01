@@ -88,7 +88,7 @@ enum DraftEngine {
 
     private static func askApple(instructions: String, prompt: String) async throws -> Answer {
         #if canImport(FoundationModels)
-        if #available(iOS 26.0, *) {
+        if #available(iOS 26.0, macOS 26.0, *) {
             guard case .available = SystemLanguageModel.default.availability else {
                 throw EngineError.appleUnavailable(DraftRouting.appleUnavailable)
             }

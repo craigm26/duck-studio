@@ -558,6 +558,7 @@ private enum CaptureMetric {
 
 // MARK: - the three surfaces
 
+#if os(iOS)
 /// The camera preview, drawn from the session the engine is reading.
 struct CameraPreview: UIViewRepresentable {
     let session: AVCaptureSession?
@@ -598,6 +599,50 @@ struct VideoSurface: UIViewControllerRepresentable {
     }
 }
 
+#else
+/// The camera preview, drawn from the session the engine is reading.
+///
+/// ON A MAC, A LAYER-HOSTING VIEW. AppKit has no `layerClass`; a view that is
+/// handed its layer before `wantsLayer` hosts that layer as-is.
+struct CameraPreview: NSViewRepresentable {
+    let session: AVCaptureSession?
+
+    func makeNSView(context: Context) -> NSView {
+        let layer = AVCaptureVideoPreviewLayer()
+        layer.videoGravity = .resizeAspect
+        layer.backgroundColor = NSColor.black.cgColor
+        layer.session = session
+        let view = NSView()
+        view.layer = layer
+        view.wantsLayer = true
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        guard let layer = view.layer as? AVCaptureVideoPreviewLayer else { return }
+        if layer.session !== session { layer.session = session }
+    }
+}
+
+/// An `AVPlayer` with its controls — AppKit's `AVPlayerView`.
+struct VideoSurface: NSViewRepresentable {
+    let player: AVPlayer
+
+    func makeNSView(context: Context) -> AVPlayerView {
+        let view = AVPlayerView()
+        view.player = player
+        view.allowsPictureInPicturePlayback = false
+        view.videoGravity = .resizeAspect
+        return view
+    }
+
+    func updateNSView(_ view: AVPlayerView, context: Context) {
+        if view.player !== player { view.player = player }
+    }
+}
+
+#endif
+
 /// YouTube's own inline player, in a web view.
 ///
 /// INLINE, OR THE FRAMES ARE NOT ON THIS SCREEN. Without
@@ -613,12 +658,16 @@ struct YouTubePlayer: UIViewRepresentable {
 
     func makeUIView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
+#if os(iOS)
         configuration.allowsInlineMediaPlayback = true
+#endif
         configuration.mediaTypesRequiringUserActionForPlayback = []
         let view = WKWebView(frame: .zero, configuration: configuration)
+#if os(iOS)
         view.isOpaque = false
         view.backgroundColor = .black
         view.scrollView.isScrollEnabled = false
+#endif
         load(videoID, into: view, context.coordinator)
         return view
     }
