@@ -12,8 +12,16 @@
 #   2. Place it at: ~/.appstoreconnect/private_keys/AuthKey_<KEY_ID>.p8
 #   3. Create the app record in App Store Connect for bundle com.duckstudio.ios.
 #
-# Usage: ./scripts/archive_upload.sh <KEY_ID> <ISSUER_ID>
+# Usage: ./scripts/archive_upload.sh <KEY_ID> <ISSUER_ID> [iOS|macOS]
 #   e.g. ./scripts/archive_upload.sh 68T2S87K39 0803ec59-b64d-4014-9519-d5e8c7079f0c
+#
+# PLATFORM (third argument, default iOS). Since 2026-09-30 the target builds a
+# native macOS slice under the same bundle id; `macOS` archives that one and
+# the export produces a signed installer package for the Mac App Store.
+#
+# EXPORT_ONLY=1 signs and packages into ./build/export and does NOT upload. It
+# is free — no TestFlight budget is spent — and it is the way to find out that
+# signing works for a platform before spending an upload on it.
 
 set -euo pipefail
 
@@ -23,7 +31,16 @@ KEY_PATH="$HOME/.appstoreconnect/private_keys/AuthKey_${KEY_ID}.p8"
 [ -f "$KEY_PATH" ] || { echo "Missing $KEY_PATH"; exit 1; }
 
 cd "$(dirname "$0")/../DuckStudio"
-ARCHIVE="$HOME/DuckStudio/build/DuckStudio.xcarchive"
+PLATFORM="${3:-iOS}"
+case "$PLATFORM" in iOS|macOS) ;; *) echo "platform must be iOS or macOS"; exit 2;; esac
+ARCHIVE="$HOME/DuckStudio/build/DuckStudio-$PLATFORM.xcarchive"
+OPTIONS=exportOptions.plist
+if [ "${EXPORT_ONLY:-0}" = 1 ]; then
+  OPTIONS="$HOME/DuckStudio/build/exportOptions-local.plist"
+  mkdir -p "$(dirname "$OPTIONS")"
+  cp exportOptions.plist "$OPTIONS"
+  /usr/libexec/PlistBuddy -c "Set :destination export" "$OPTIONS"
+fi
 
 # A locked login keychain fails the archive at the CodeSign step with no useful
 # error. Unlock up front when the password is available (headless always needs it).
@@ -65,7 +82,7 @@ xcodebuild archive \
   -project DuckStudio.xcodeproj \
   -skipPackagePluginValidation -skipMacroValidation \
   -scheme DuckStudio \
-  -destination 'generic/platform=iOS' \
+  -destination "generic/platform=$PLATFORM" \
   -archivePath "$ARCHIVE" \
   -allowProvisioningUpdates \
   -authenticationKeyPath "$KEY_PATH" \
@@ -75,13 +92,18 @@ xcodebuild archive \
 xcodebuild -exportArchive \
   -skipPackagePluginValidation -skipMacroValidation \
   -archivePath "$ARCHIVE" \
-  -exportOptionsPlist exportOptions.plist \
+  -exportOptionsPlist "$OPTIONS" \
+  -exportPath "$HOME/DuckStudio/build/export-$PLATFORM" \
   -allowProvisioningUpdates \
   -authenticationKeyPath "$KEY_PATH" \
   -authenticationKeyID "$KEY_ID" \
   -authenticationKeyIssuerID "$ISSUER_ID"
 
-echo "Uploaded. Watch App Store Connect -> TestFlight for processing (~5-15 min)."
+if [ "${EXPORT_ONLY:-0}" = 1 ]; then
+  echo "EXPORTED, NOT UPLOADED ($PLATFORM):"; ls -la "$HOME/DuckStudio/build/export-$PLATFORM"
+  exit 0
+fi
+echo "Uploaded ($PLATFORM). Watch App Store Connect -> TestFlight for processing (~5-15 min)."
 
 # Symbols upload with the build, so local archives are pure disk ballast.
 rm -rf "$ARCHIVE" ~/Library/Developer/Xcode/Archives/* 2>/dev/null || true

@@ -96,7 +96,7 @@ public enum LabCatalogue {
     public static let modesPreamble =
         noRobotYet
       + " Nothing in these modes is talking to a robot. What runs here is a trained policy on "
-      + "this phone, a physics bench on your own network, or a recorded motion."
+      + "\(DeviceWords.current.this), a physics bench on your own network, or a recorded motion."
 
     /// Why the modes are one screen rather than three apps.
     public static let rationale =
@@ -164,7 +164,7 @@ public enum LabCatalogue {
         // sentence follows the button.
         .init(id: "sounds", name: "Duck sounds", symbol: "waveform",
               blurb: "Seven duck calls — the honk, the tilt, the peck, the joy ride. Each one is "
-                   + "a voice synthesised on this phone and a movement of the whole body, not a "
+                   + "a voice synthesised on \(DeviceWords.current.this) and a movement of the whole body, not a "
                    + "sound effect with an animation over it. Hold the last one and the duck "
                    + "keeps going until you let go. The head and beak are exactly what the robot "
                    + "would be commanded; the legs are a recording.",

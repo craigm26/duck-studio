@@ -95,7 +95,7 @@ struct StudioHubView: View {
                 } label: {
                     Label(ShootWords.studioRow, systemImage: ShootWords.studioRowSymbol)
                 }
-                ForEach(LabCatalogue.listed().filter { $0.id != "bench" }) { mode in
+                ForEach(LabCatalogue.listed().filter { $0.id != "bench" && !Self.hiddenHere($0) }) { mode in
                     row(mode)
                 }
             } header: {
@@ -212,7 +212,7 @@ struct StudioHubView: View {
                     NavigationLink {
                         place(.tune)
                     } label: {
-                        Label("Tune it on this phone", systemImage: "slider.horizontal.3")
+                        Label("Tune it on \(DeviceWords.current.this)", systemImage: "slider.horizontal.3")
                     }
                     // THE SAME BENCH, THE WHOLE NETWORK. Tune folds twenty-eight
                     // numbers onto what the network already says; this moves the
@@ -227,7 +227,7 @@ struct StudioHubView: View {
                     NavigationLink {
                         WeightSearchView(library: model, benches: benches)
                     } label: {
-                        Label("Search its weights on this phone", systemImage: "brain")
+                        Label("Search its weights on \(DeviceWords.current.this)", systemImage: "brain")
                     }
                     // THE OTHER SEARCH, AND THE ONE MOST PEOPLE MEAN. Tune searches
                     // a NETWORK — twenty-eight numbers folded into a last layer.
@@ -403,6 +403,20 @@ struct StudioHubView: View {
     /// not let you in". Both are drawn in the same place because a person only
     /// wants to know why the row is grey — but a status reason always wins,
     /// because a mode nobody has written cannot be blocked by a camera.
+    /// A row this kind of machine can never open, left out rather than greyed.
+    ///
+    /// ROOM CAPTURE ON A MAC. A greyed row is a promise that something could
+    /// change — permission, a different room — and on a Mac nothing can: it
+    /// measures the floor through ARKit, which a Mac does not have. Every other
+    /// row has a stage to fall back on and stays.
+    static func hiddenHere(_ mode: LabCatalogue.Mode) -> Bool {
+#if os(macOS)
+        return mode.id == "room"
+#else
+        return false
+#endif
+    }
+
     private func cameraRefusal(for mode: LabCatalogue.Mode) -> String? {
         guard mode.id == "room" else { return nil }
         return door.refusal(for: .roomCapture)

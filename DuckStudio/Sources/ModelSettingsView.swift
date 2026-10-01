@@ -38,9 +38,9 @@ struct ModelSettingsView: View {
     private func subtitle(for endpoint: ModelEndpoint) -> String {
         switch endpoint.kind {
         case .appleOnDevice:
-            return "On this phone, no setup"
+            return "On \(DeviceWords.current.this), no setup"
         case .downloadedMLX:
-            return "\(endpoint.model) · on this phone"
+            return "\(endpoint.model) · on \(DeviceWords.current.this)"
         case .openAICompatible:
             return "\(endpoint.model) · "
                  + "\(URL(string: endpoint.baseURL)?.host ?? endpoint.baseURL)"
@@ -152,7 +152,7 @@ struct ModelSettingsView: View {
                 // what fits first.
                 NavigationLink { PhoneModelPickerView(store: store) } label: {
                     VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
-                        Label("Download a model to this phone", systemImage: "arrow.down.circle")
+                        Label("Download a model to \(DeviceWords.current.this)", systemImage: "arrow.down.circle")
                         Text("Runs on the phone itself, with nothing you type leaving it. "
                            + "Needs the space — the smallest is 351 MB.")
                             .font(.caption).foregroundStyle(Theme.textSecondary)
@@ -239,10 +239,10 @@ struct ModelSettingsView: View {
                        ModelEndpoint(name: "llama.cpp", kind: .openAICompatible,
                                      baseURL: "http://192.168.1.10:8080/v1", model: "")
                    },
-            Preset(name: "A model on this phone",
+            Preset(name: "A model on \(DeviceWords.current.this)",
                    detail: "Another app serving a model on localhost",
                    symbol: "iphone") {
-                       ModelEndpoint(name: "On this phone", kind: .openAICompatible,
+                       ModelEndpoint(name: "On \(DeviceWords.current.this)", kind: .openAICompatible,
                                      baseURL: "http://localhost:8080/v1", model: "")
                    },
             Preset(name: "Claude, through my subscription",

@@ -186,7 +186,7 @@ public struct ModelEndpoint: Equatable, Sendable, Codable, Identifiable {
                 return "A \(kind) model has no address to call. Something asked this app for one, "
                      + "which is a bug in this build rather than anything you did."
             case .relayOnADownloadedModel:
-                return "A model running on this phone cannot forward anything anywhere, so it "
+                return "A model running on \(DeviceWords.current.this) cannot forward anything anywhere, so it "
                      + "cannot be a relay. Untick that."
             case .notARepository(let text):
                 return text.trimmingCharacters(in: .whitespaces).isEmpty
@@ -448,14 +448,14 @@ public struct ModelEndpoint: Equatable, Sendable, Codable, Identifiable {
     public var privacyNote: String {
         switch kind {
         case .appleOnDevice:
-            return "Nothing you type leaves this phone."
+            return "Nothing you type leaves \(DeviceWords.current.this)."
         case .downloadedMLX:
             // NOT APPLE'S SENTENCE, THOUGH IT NEARLY IS. The difference worth
             // stating is that this one arrived over the network: the weights
             // were fetched once, and a person who has just spent two gigabytes
             // of their data allowance deserves that acknowledged rather than
             // being told, flatly, that nothing leaves the phone.
-            return "Runs on this phone. Nothing you type leaves it — the weights were "
+            return "Runs on \(DeviceWords.current.this). Nothing you type leaves it — the weights were "
                  + "downloaded from Hugging Face once, and nothing is sent while it drafts."
         case .openAICompatible:
             let host = URL(string: baseURL)?.host ?? baseURL
@@ -484,7 +484,7 @@ public struct ModelEndpoint: Equatable, Sendable, Codable, Identifiable {
                      + "them there."
             }
             if host == "localhost" || host == "127.0.0.1" {
-                return "Goes to another app on this phone. Nothing leaves the device."
+                return "Goes to another app on \(DeviceWords.current.this). Nothing leaves the device."
             }
             let base = ModelEndpoint.isLocalHost(host)
                 ? "Goes to \(host) on your own network. Nothing leaves it."

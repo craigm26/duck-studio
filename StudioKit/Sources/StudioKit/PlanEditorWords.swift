@@ -89,7 +89,7 @@ public enum PlanEditorWords {
                : "\(n) labels are still flagged. You can run anyway; they will go as proposed."
     }
     public static let recorded =
-        "What you kept, changed and discarded was written to this phone's feedback log."
+        "What you kept, changed and discarded was written to \(DeviceWords.current.this)'s feedback log."
 
     // MARK: - planning with a model (ModelIntentPlanner)
 
@@ -108,6 +108,6 @@ public enum PlanEditorWords {
     public static func checking(_ done: Int, of total: Int) -> String { "Checking… \(done) of \(total)" }
     public static func checked(_ model: String, _ line: String) -> String { "\(model): \(line)." }
     public static let checkFooter =
-        "The same thirty requests and the same scoring as duckbatch's p002, put to this phone's "
+        "The same thirty requests and the same scoring as duckbatch's p002, put to \(DeviceWords.current.this)'s "
       + "choice of model. " + PlannerCheck.laptopReference
 }

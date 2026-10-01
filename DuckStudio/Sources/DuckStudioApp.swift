@@ -414,9 +414,43 @@ struct DuckStudioApp: App {
             // same time. It belongs in `Theme`, as a tint that is the ink in
             // light and the brand in dark, not in a per-screen override.
             .microduckTheme()
+#if os(macOS)
+            // The phone layouts are written for a column; below this they
+            // start to wrap mid-control.
+            .frame(minWidth: 720, minHeight: 560)
+#endif
+        }
+#if os(macOS)
+        .defaultSize(width: 1100, height: 780)
+        .commands {
+            // ONE WINDOW. Every store this app has is a @StateObject on the App,
+            // so a second window would be a second view onto the same library,
+            // benches and router — switching a tab in one would switch it in
+            // both. Until the app is built for several windows, File > New
+            // Window is taken away rather than offered and wrong.
+            CommandGroup(replacing: .newItem) {}
+            TabCommands(router: router)
+        }
+#endif
+    }
+}
+
+#if os(macOS)
+/// The tabs as a Go menu, ⌘1 to ⌘5, which is how a Mac app with a tab bar is
+/// driven from the keyboard.
+struct TabCommands: Commands {
+    @ObservedObject var router: AppRouter
+
+    var body: some Commands {
+        CommandMenu("Go") {
+            ForEach(Array(AppTab.allCases.enumerated()), id: \.element) { index, tab in
+                Button(tab.title) { router.tab = tab }
+                    .keyboardShortcut(KeyEquivalent(Character(String(index + 1))), modifiers: .command)
+            }
         }
     }
 }
+#endif
 
 /// The one door a file comes in through, and the one place the phone says so.
 ///

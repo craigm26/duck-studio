@@ -41,7 +41,7 @@ public enum BenchSetup {
     /// What the person is being asked to do, once.
     public static let steps: [Step] = [
         .init(number: 1, title: "Install Tailscale on both",
-              detail: "On this phone and on the computer that will run the bench, signed in to "
+              detail: "On \(DeviceWords.current.this) and on the computer that will run the bench, signed in to "
                     + "the same account. This is what lets the phone reach it from anywhere "
                     + "rather than only on the same Wi-Fi."),
         .init(number: 2, title: "Install Node.js on the computer",
@@ -112,7 +112,7 @@ public enum BenchSetup {
               symbol: "point.3.connected.trianglepath.dotted",
               address: "100.64.0.1:8770", suggestedName: "My bench"),
         .init(name: "A machine on my Wi-Fi",
-              detail: "Only while this phone is on the same network as it. Simpler to set up, "
+              detail: "Only while \(DeviceWords.current.this) is on the same network as it. Simpler to set up, "
                     + "and it stops working when you walk out.",
               symbol: "wifi",
               address: "192.168.1.10:8770", suggestedName: "Bench on the LAN"),
@@ -242,7 +242,7 @@ public enum BenchSetup {
 
     /// Said next to a LAN address that will work now and stop working later.
     public static let lanWarning =
-        "That is a Wi-Fi address. It works while this phone is on the same Wi-Fi as the bench "
+        "That is a Wi-Fi address. It works while \(DeviceWords.current.this) is on the same Wi-Fi as the bench "
       + "and stops the moment it is not — which looks exactly like the bench going down. The "
       + "start script prints a Tailscale address (100.x) that works from anywhere."
 }

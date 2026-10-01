@@ -163,11 +163,11 @@ public enum DraftRouting {
     /// and it was the one option they were not told about.
     public static let appleUnavailable =
         "Apple Intelligence is not available on this device. In Settings you can download a "
-      + "model onto this phone, or point this app at one on your network."
+      + "model onto \(DeviceWords.current.this), or point this app at one on your network."
 
     public static let appleTooOld =
         "This version of iOS has no on-device model. In Settings you can download a model onto "
-      + "this phone, or point this app at one on your network."
+      + "\(DeviceWords.current.this), or point this app at one on your network."
 
     /// NAMES THREE ROUTES, NOT TWO. It used to end "anything speaking the
     /// OpenAI chat API will do, including one running on this phone", which
@@ -186,5 +186,5 @@ public enum DraftRouting {
         "Without a model this app can only work out two kinds of request on its own — fetching "
       + "something, and driving, because both are measured rather than written. For a motion, a "
       + "rule or a training brief, add one in Settings: Apple's on-device model, a model "
-      + "downloaded onto this phone, or anything on your network speaking the OpenAI chat API."
+      + "downloaded onto \(DeviceWords.current.this), or anything on your network speaking the OpenAI chat API."
 }

@@ -59,14 +59,14 @@ public enum MimicSource: String, CaseIterable, Identifiable, Equatable, Sendable
         switch self {
         case .camera:
             return "Real here: where your joints are. The skeleton is a body-pose model's "
-                 + "reading of the camera picture, worked out on this phone. Not real: the "
+                 + "reading of the camera picture, worked out on \(DeviceWords.current.this). Not real: the "
                  + "duck, which is a drawing posed to match you. Nothing is sent while you mimic."
         case .video:
             return "Real here: where the joints of the person in the video are, as a body-pose "
-                 + "model on this phone reads them. Not real: the duck, which is a drawing posed "
+                 + "model on \(DeviceWords.current.this) reads them. Not real: the duck, which is a drawing posed "
                  + "to match. Nothing is sent while you mimic."
         case .youtube:
-            return "Real here: the pixels of your own screen, read by this phone while the clip "
+            return "Real here: the pixels of your own screen, read by \(DeviceWords.current.this) while the clip "
                  + "plays, and a body-pose model's reading of them. Not real: the duck, which is "
                  + "a drawing posed to match. Nothing is sent while you mimic."
         }
@@ -174,7 +174,7 @@ public enum Mimic {
     /// Under the title, once.
     public static let preamble =
         "A person in front of the camera, in a video, or in a YouTube clip is read as a "
-      + "skeleton on this phone, and the duck on the picture stands the way they stand. Record "
+      + "skeleton on \(DeviceWords.current.this), and the duck on the picture stands the way they stand. Record "
       + "what you like and keep it as a motion, which runs on a bench like any other."
 
     /// How a person becomes a duck. Said, because the arm rule is not guessable.
@@ -183,7 +183,7 @@ public enum Mimic {
       + "opens the beak — hand at your shoulder is closed, straight up is wide open."
 
     public static let nothingLeavesThePhone =
-        "The skeleton is worked out on this phone. No picture is recorded, stored or sent "
+        "The skeleton is worked out on \(DeviceWords.current.this). No picture is recorded, stored or sent "
       + "anywhere by this screen."
 
     // MARK: - the readout

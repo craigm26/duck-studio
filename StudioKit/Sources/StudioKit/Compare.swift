@@ -71,7 +71,7 @@ public enum Compare {
                 case .pollen: return "Pollen Robotics"
                 case .community: return "Community"
                 case .yours: return "Yours"
-                case .device: return "On this phone"
+                case .device: return "On \(DeviceWords.current.this)"
                 }
             }
         }
@@ -349,7 +349,7 @@ public enum CompareWords {
     public static func kept(_ name: String) -> String { "Kept as \(name)." }
 
     public static let sharing =
-        "Picks stay on this phone unless Settings → Feedback says they may be shared. Shared "
+        "Picks stay on \(DeviceWords.current.this) unless Settings → Feedback says they may be shared. Shared "
       + "picks go to a public dataset on Hugging Face, where a preference model ranks what "
       + "people like."
 

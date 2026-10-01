@@ -640,7 +640,7 @@ struct AutomationChatView: View {
             switch SystemLanguageModel.default.availability {
             case .available:
                 return Availability(isUsable: true, explanation:
-                    "Drafted by Apple's on-device model. Nothing you type leaves this phone, and "
+                    "Drafted by Apple's on-device model. Nothing you type leaves \(DeviceWords.current.this), and "
                     + "everything it writes is resolved and checked by the same code a hand-made "
                     + "draft goes through.")
             case .unavailable(.deviceNotEligible):
@@ -911,9 +911,9 @@ struct AutomationChatView: View {
     private func save(_ plan: Retrieval.Plan, named title: String, by drafter: String?) {
         let file = DuckPlanFile(name: title, stick: plan.stick, asked: title,
                                 provenance: drafter.map { "Drafted by \($0)" }
-                                         ?? "Read on this phone, no model")
+                                         ?? "Read on \(DeviceWords.current.this), no model")
         guard plans.save(file) else {
-            exportFailure = "That plan could not be kept on this phone."
+            exportFailure = "That plan could not be kept on \(DeviceWords.current.this)."
             return
         }
         kept = title

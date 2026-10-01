@@ -94,7 +94,7 @@ struct TuneView: View {
         }
         .scrollContentBackground(.hidden)
         .background(Theme.backgroundSecondary)
-        .navigationTitle("Tune it on this phone")
+        .navigationTitle("Tune it on \(DeviceWords.current.this)")
         .navigationBarTitleDisplayMode(.inline)
         .task {
             if basePolicyID == nil { basePolicyID = candidates.first?.id }
@@ -512,7 +512,7 @@ struct TuneView: View {
 
     private func start(_ entry: PolicyLibrary.Entry) {
         guard let bytes = PolicyStore.data(for: entry) else {
-            run.failure = "That file is not on this phone any more."
+            run.failure = "That file is not on \(DeviceWords.current.this) any more."
             return
         }
         Haptic.behaviourStarted()

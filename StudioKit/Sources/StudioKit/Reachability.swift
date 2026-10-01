@@ -342,7 +342,7 @@ public enum Reachability {
 
         case .hostNotFound:
             return "Nothing on this network answers to the name \(seen.host). A .local name is "
-                 + "found over Bonjour, and iOS asks for Local Network permission the first time "
+                 + "found over Bonjour, and \(DeviceWords.current.system) asks for Local Network permission the first time "
                  + "an app looks; if that was declined, nothing here can reach it until "
                  + "Microduck Studio is turned back on under Settings, Privacy & Security, Local Network. "
                  + "An address like 192.168.1.10 does not need the name to resolve, and is the "
@@ -351,8 +351,8 @@ public enum Reachability {
         case .localNetworkBlocked:
             let opening = looksLikeAnAddress(seen.host)
                 ? "\(seen.host) is an address rather than a name, so there was nothing to look "
-                  + "up — and iOS would not make the connection anyway."
-                : "iOS said this phone has no connection at all, and yet \(place) is on your own "
+                  + "up — and \(DeviceWords.current.system) would not make the connection anyway."
+                : "\(DeviceWords.current.system) said \(DeviceWords.current.this) has no connection at all, and yet \(place) is on your own "
                   + "network and needs none."
             return opening + " " + localNetworkRemedy
 
@@ -366,10 +366,10 @@ public enum Reachability {
 
         case .plaintextBlocked:
             guard ModelEndpoint.isLocalHost(seen.host) else {
-                return "iOS refused this connection because it is plain http to \(seen.host), "
+                return "\(DeviceWords.current.system) refused this connection because it is plain http to \(seen.host), "
                      + "which is not on your own network. Use https for anything off your LAN."
             }
-            return "iOS refused this connection as plain http even though \(seen.host) is on "
+            return "\(DeviceWords.current.system) refused this connection as plain http even though \(seen.host) is on "
                  + "your own network. That is a fault in this build rather than anything you "
                  + "did — the app is meant to declare an exception for addresses like that one."
 
@@ -383,7 +383,7 @@ public enum Reachability {
                  + "allowed here for addresses on your own network — try http for this one."
 
         case .offline:
-            return "This phone has no network connection, so nothing could be tried. Nothing "
+            return "\(DeviceWords.current.This) has no network connection, so nothing could be tried. Nothing "
                  + "was learned about \(place) either way."
 
         case .unknown:

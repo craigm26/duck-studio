@@ -331,7 +331,7 @@ targets:
         DEVELOPMENT_TEAM: WYGG3JXWMG
         CODE_SIGN_STYLE: Automatic
         MARKETING_VERSION: "1.1"
-        CURRENT_PROJECT_VERSION: "77"
+        CURRENT_PROJECT_VERSION: "78"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         SWIFT_VERSION: "5.9"
         TARGETED_DEVICE_FAMILY: "1,2"
@@ -340,3 +340,7 @@ targets:
         # the sandbox; the entitlements say what it is allowed out for.
         "CODE_SIGN_ENTITLEMENTS[sdk=macosx*]": DuckStudio.macOS.entitlements
         "ENABLE_HARDENED_RUNTIME[sdk=macosx*]": YES
+        # APPLE SILICON ONLY ON A MAC. MLX runs on Metal on Apple silicon and
+        # nothing else, and the on-device models are much of what a Mac is for
+        # here; an Intel slice would be a binary whose headline feature refuses.
+        "ARCHS[sdk=macosx*]": arm64

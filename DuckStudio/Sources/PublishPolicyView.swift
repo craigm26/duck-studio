@@ -157,7 +157,7 @@ struct PublishPolicyView: View {
                     } header: {
                         SectionHeading(text: "What gets published")
                     } footer: {
-                        Text("The network exactly as this phone holds it, its manifest, and a card carrying the microduck tag the Community list filters on. The fingerprint on the card is the one thing a recipient can check.")
+                        Text("The network exactly as \(DeviceWords.current.this) holds it, its manifest, and a card carrying the microduck tag the Community list filters on. The fingerprint on the card is the one thing a recipient can check.")
                             .foregroundStyle(Theme.textSecondary)
                     }
                     .listRowBackground(Theme.surfacePrimary)

@@ -117,7 +117,7 @@ struct RetrieveView: View {
                                 asked: sentence,
                                 provenance: "Written here")
         guard plans.save(file) else {
-            failure = "That plan could not be written to this phone."
+            failure = "That plan could not be written to \(DeviceWords.current.this)."
             return
         }
         kept = file.name
@@ -431,7 +431,7 @@ struct RetrieveView: View {
                     // confirmation saying the plan is in your Motions. The only
                     // control here writes a `.duckplan` into Application Support.
                     // Nothing leaves the phone.
-                    Text("This plan is kept on this phone, in this app's own format, and it appears in your Motions under Plans. The file holds the MEASUREMENT, not the steps — the schedule above is worked out again from those numbers every time the plan is opened, so a kept plan cannot go stale and start disagreeing with the app that opens it.")
+                    Text("This plan is kept on \(DeviceWords.current.this), in this app's own format, and it appears in your Motions under Plans. The file holds the MEASUREMENT, not the steps — the schedule above is worked out again from those numbers every time the plan is opened, so a kept plan cannot go stale and start disagreeing with the app that opens it.")
                         .foregroundStyle(Theme.textSecondary)
                 }
             }

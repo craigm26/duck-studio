@@ -1354,7 +1354,7 @@ struct PolicyDetailView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Text("Name, \(shown.title)"))
-        .accessibilityHint(Text("Renames this policy on this phone."))
+        .accessibilityHint(Text("Renames this policy on \(DeviceWords.current.this)."))
     }
 
     /// What the file is called, under the name a person reads.

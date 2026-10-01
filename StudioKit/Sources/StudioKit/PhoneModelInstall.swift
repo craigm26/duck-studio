@@ -29,7 +29,7 @@ public enum PhoneModelInstall {
     // MARK: - what the screen says
 
     public static func notDownloaded(_ model: PhoneModel) -> String {
-        "Not on this phone. \(model.downloadDescription) to download."
+        "Not on \(DeviceWords.current.this). \(model.downloadDescription) to download."
     }
 
     /// Mid-download, driven by the FRACTION rather than a unit count.
@@ -82,13 +82,13 @@ public enum PhoneModelInstall {
     }
 
     public static func partlyDownloaded(bytes: Int) -> String {
-        "Partly downloaded — \(PhoneModel.megabytes(bytes)) on this phone. Downloading again "
+        "Partly downloaded — \(PhoneModel.megabytes(bytes)) on \(DeviceWords.current.this). Downloading again "
       + "keeps the files that finished and starts the one in progress over."
     }
 
     /// Installed, with the size MEASURED on disk.
     public static func installed(bytes: Int) -> String {
-        "On this phone, taking \(PhoneModel.megabytes(bytes))."
+        "On \(DeviceWords.current.this), taking \(PhoneModel.megabytes(bytes))."
     }
 
     /// A download that stopped without an error of its own.
@@ -135,6 +135,11 @@ public enum PhoneModelInstall {
     public static let cellularWarning =
         "This is a large download. On cellular it will use that much of your data allowance."
 
+    /// Under the list. A Mac has no cellular allowance to warn about.
+    public static func downloadFooter(on device: DeviceWords = .current) -> String {
+        device == .mac ? staysOpenNote : staysOpenNote + " " + cellularWarning
+    }
+
     /// Said when the weights cannot be reached because MLX is not there.
     public static let simulatorRefusal =
         "This model runs on the phone's GPU, which the Simulator does not have. Try it on a "
@@ -151,7 +156,7 @@ public enum PhoneModelInstall {
     /// already gone.
     public static func deleteConfirmation(named name: String, bytes: Int?) -> String {
         guard let bytes else {
-            return "Delete \(name)? Its weights come off this phone and can be downloaded "
+            return "Delete \(name)? Its weights come off \(DeviceWords.current.this) and can be downloaded "
                  + "again, at the same cost."
         }
         return "Delete \(name) and free \(PhoneModel.megabytes(bytes))? It can be downloaded "

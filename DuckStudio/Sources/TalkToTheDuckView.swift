@@ -131,7 +131,7 @@ struct TalkToTheDuckView: View {
                 .font(.caption)
                 .foregroundStyle(Theme.textSecondary)
         } header: {
-            SectionHeading(text: "Read on this phone")
+            SectionHeading(text: "Read on \(DeviceWords.current.this)")
         }
     }
 

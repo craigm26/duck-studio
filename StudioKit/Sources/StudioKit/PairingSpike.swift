@@ -121,7 +121,7 @@ public enum PairingSpike {
         public var failureMeans: String {
             switch self {
             case .scan:
-                return "Nothing was seen, and the first thing to rule out is this phone rather "
+                return "Nothing was seen, and the first thing to rule out is \(DeviceWords.current.this) rather "
                      + "than the duck: a radio that is switched off, or an app that has not been "
                      + "allowed to use it, is named in the line above in those words when that is "
                      + "what happened. Otherwise no robot advertised inside the budget. Neither "
@@ -750,7 +750,7 @@ public enum PairingSpike {
                      + "phone tried to bond and the bond did not complete; whatever refused it is on "
                      + "the robot's side."
             case .some(false):
-                return "iOS never showed a pairing prompt, so nothing on this phone ever attempted "
+                return "iOS never showed a pairing prompt, so nothing on \(DeviceWords.current.this) ever attempted "
                      + "to bond — which is what a robot that cannot be paired with at all would look "
                      + "like from here."
             case .none:
@@ -780,7 +780,7 @@ public enum PairingSpike {
             out += "Setup\n-----\n"
             out += "Run started: \(PairingSpike.timestamp(startedAt))\n"
             if let runNumber {
-                out += "Run count: this is run \(runNumber) from this phone against this "
+                out += "Run count: this is run \(runNumber) from \(DeviceWords.current.this) against this "
                      + "peripheral. The count is kept against the identifier iOS gives the "
                      + "peripheral, which survives a rename and does not survive a change of "
                      + "Bluetooth address — so a duck that changed address starts again at 1.\n"
@@ -913,7 +913,7 @@ public enum PairingSpike {
             var out = ""
             if heard.isEmpty {
                 out += "NOTHING WAS HEARD ON THE RADIO in this window. What follows was offered "
-                     + "from this phone's memory by identifier, which iOS does for any identifier "
+                     + "from \(DeviceWords.current.this)'s memory by identifier, which iOS does for any identifier "
                      + "it is given — switched off, out of range, or in another building.\n"
             }
             if let tested {

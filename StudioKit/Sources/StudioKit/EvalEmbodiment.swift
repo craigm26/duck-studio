@@ -38,7 +38,7 @@ public struct EvalEmbodiment: Equatable, Sendable {
         public var said: String {
             switch self {
             case .networkBench: return "A bench on your network"
-            case .thisPhoneBench: return "This phone's own bench"
+            case .thisPhoneBench: return "\(DeviceWords.current.This)'s own bench"
             case .realMicroduck: return "A real Microduck"
             }
         }
@@ -237,7 +237,7 @@ public struct EvalEmbodiment: Equatable, Sendable {
 
     /// B7: the phone bench can only ever score the networks it ships with.
     public static let phoneBenchOnlyBundled =
-        "This phone's bench runs canonical parameter bytes rather than an ONNX file, so it can "
+        "\(DeviceWords.current.This)'s bench runs canonical parameter bytes rather than an ONNX file, so it can "
       + "only score the networks that ship with the app. Pick one of those, or run this on a "
       + "bench on your network."
 }

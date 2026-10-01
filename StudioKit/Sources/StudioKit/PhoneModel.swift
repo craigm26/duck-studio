@@ -143,7 +143,37 @@ public struct PhoneModel: Equatable, Sendable, Identifiable {
     /// the wrong level — `PhoneModelConfig` corrects that, and this app is the
     /// first thing anywhere to do so, which is precisely why it has not been
     /// tried.
-    public static let untried: [PhoneModel] = [
+    public static var untried: [PhoneModel] { untried(on: .current) }
+
+    /// The untried list for a given kind of machine: the Mac also gets
+    /// `macUntried`, the sizes a phone could never hold.
+    public static func untried(on device: DeviceWords) -> [PhoneModel] {
+        untriedEverywhere + (device == .mac ? macUntried : [])
+    }
+
+    /// THE SIZES A MAC IS FOR. A phone tops out around the 4B row above; a Mac
+    /// with 16 GB of unified memory has about 8 GB to spare by this app's
+    /// reckoning (`os_proc_available_memory` on a Mac is half the machine), so
+    /// the next Qwen3 sizes up are worth offering there and nowhere else. Same
+    /// architecture as the Qwen3 rows that have been run, same 4-bit format —
+    /// but neither has been run here, so they are untried and say so.
+    ///
+    /// SIZES MEASURED 2026-09-30 from the Hugging Face tree API, summing every
+    /// file — the same method reproduces the 4B row's 2,279,000,000 exactly.
+    public static let macUntried: [PhoneModel] = [
+        .init(repository: "mlx-community/Qwen3-8B-4bit",
+              name: "Qwen3 8B", parameters: "8B", downloadBytes: 4_623_784_971,
+              note: "Twice the 4B, for a Mac with 16 GB or more. Expected to hold a long "
+                  + "instruction together better than anything a phone can run; nobody has run "
+                  + "it here yet. Download it on a fast connection."),
+        .init(repository: "mlx-community/Qwen3-14B-4bit",
+              name: "Qwen3 14B", parameters: "14B", downloadBytes: 8_323_870_520,
+              note: "For a Mac with 24 GB or more. The largest worth holding for writing short "
+                  + "motions; past this the answer arrives too slowly to sit and wait for. Not "
+                  + "run here yet."),
+    ]
+
+    static let untriedEverywhere: [PhoneModel] = [
         .init(repository: "mlx-community/Gemma4-E2B-IT-Text-int4",
               name: "Gemma 4 E2B", parameters: "2.3B effective", downloadBytes: 2_671_102_856,
               note: "Newer than everything above and cheaper to hold than the 4B models, but "
@@ -165,25 +195,60 @@ public struct PhoneModel: Equatable, Sendable, Identifiable {
       + "sentence."
 
     /// What has to be said above the list.
-    public static let preamble =
-        "These run on the phone itself: nothing you type leaves it, and they work with no network "
-      + "once downloaded. They are also slower and weaker than anything on a desktop, so the "
-      + "smallest one that does the job is the right one."
+    public static var preamble: String { preamble(on: .current) }
+
+    /// A MAC IS THE DESKTOP THE PHONE SENTENCE COMPARES ITSELF TO, so on a
+    /// Mac the comparison is with the hosted models instead, and the room it
+    /// has for larger ones is the point worth making.
+    public static func preamble(on device: DeviceWords) -> String {
+        device == .mac
+            ? "These run on this Mac itself: nothing you type leaves it, and they work with no "
+            + "network once downloaded. A Mac has room for larger ones than a phone does, but they "
+            + "are still slower and weaker than the big hosted models, so the smallest one that "
+            + "does the job is the right one."
+            : "These run on the phone itself: nothing you type leaves it, and they work with no network "
+            + "once downloaded. They are also slower and weaker than anything on a desktop, so the "
+            + "smallest one that does the job is the right one."
+    }
 
     /// Said next to a model that will not fit.
-    public static func tooBig(_ model: PhoneModel, budgetBytes: Int) -> String {
-        "\(model.name) needs roughly \(megabytes(model.estimatedPeakBytes)) resident and iOS is "
-      + "offering this app about \(megabytes(budgetBytes)). It would be killed part-way through "
-      + "an answer. That estimate is a rule of thumb, not a measurement on this phone."
+    public static func tooBig(_ model: PhoneModel, budgetBytes: Int,
+                              device: DeviceWords = .current) -> String {
+        doesNotFitSentence(model.name, needs: model.estimatedPeakBytes, budgetBytes: budgetBytes,
+                           device: device)
+    }
+
+    /// THE ONE "TOO BIG" SENTENCE, for the catalogue and for search alike.
+    ///
+    /// A PHONE KILLS; A MAC SWAPS. iOS ends an app that passes its memory
+    /// limit, so the phone sentence says it would be killed. macOS has no
+    /// per-app limit and pages instead, and the budget the app reads there is
+    /// half the machine — so the Mac sentence says what actually happens past
+    /// it, which is everything slowing to a crawl.
+    public static func doesNotFitSentence(_ name: String, needs bytes: Int, budgetBytes: Int,
+                                          device: DeviceWords = .current) -> String {
+        device == .mac
+            ? "\(name) needs roughly \(megabytes(bytes)) resident, and this Mac can spare about "
+            + "\(megabytes(budgetBytes)) for it without swapping. It would load, and then everything "
+            + "on the Mac would slow to a crawl. That estimate is a rule of thumb, not a measurement "
+            + "on this Mac."
+            : "\(name) needs roughly \(megabytes(bytes)) resident and iOS is "
+            + "offering this app about \(megabytes(budgetBytes)). It would be killed part-way through "
+            + "an answer. That estimate is a rule of thumb, not a measurement on this phone."
     }
 
     /// Said when the model is ALREADY LOADED and the budget is short. The
     /// other sentence claims it "needs N resident", which is false of something
     /// that is resident.
-    public static func tooBigWhileLoaded(_ name: String, budgetBytes: Int) -> String {
-        "\(name) is loaded, and iOS is offering this app about \(megabytes(budgetBytes)) for "
-      + "the answer itself — not enough room to write one without being killed. That estimate "
-      + "is a rule of thumb, not a measurement on this phone."
+    public static func tooBigWhileLoaded(_ name: String, budgetBytes: Int,
+                                         device: DeviceWords = .current) -> String {
+        device == .mac
+            ? "\(name) is loaded, and this Mac can spare about \(megabytes(budgetBytes)) more for "
+            + "the answer itself — not enough to write one without swapping. That estimate is a "
+            + "rule of thumb, not a measurement on this Mac."
+            : "\(name) is loaded, and iOS is offering this app about \(megabytes(budgetBytes)) for "
+            + "the answer itself — not enough room to write one without being killed. That estimate "
+            + "is a rule of thumb, not a measurement on this phone."
     }
 
     /// A BUDGET OF ZERO IS NOT A SMALL BUDGET. iOS returns 0 when the process

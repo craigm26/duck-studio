@@ -293,7 +293,7 @@ public enum ShootWords {
     public static let intro =
         "Walk to the ball, line up, kick it into the goal. Pollen trained a walker and two "
       + "kicks, but not the join between them. You will build that join and train it, in real "
-      + "physics on this phone."
+      + "physics on \(DeviceWords.current.this)."
 
     public struct Step: Sendable {
         public let title: String

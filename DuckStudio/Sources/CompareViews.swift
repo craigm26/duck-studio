@@ -142,7 +142,7 @@ struct ContenderPickView: View {
             }
             if candidates.count < 2 {
                 Section {
-                    Text("There are not two of these on this phone yet. Make one in Studio, or pick another kind.")
+                    Text("There are not two of these on \(DeviceWords.current.this) yet. Make one in Studio, or pick another kind.")
                         .font(.footnote).foregroundStyle(Theme.textSecondary)
                 }
                 .listRowBackground(Theme.surfacePrimary)
