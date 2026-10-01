@@ -1,5 +1,7 @@
 import RealityKit
+#if os(iOS)
 import UIKit
+#endif
 import StudioKit
 
 /// The bridge itself: cast iron over a lake, at duck scale.

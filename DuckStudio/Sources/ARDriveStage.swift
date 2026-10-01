@@ -1,7 +1,11 @@
+#if os(iOS)
 import UIKit
+#endif
 import SwiftUI
 import RealityKit
+#if os(iOS)
 import ARKit
+#endif
 import Combine
 import simd
 import StudioKit

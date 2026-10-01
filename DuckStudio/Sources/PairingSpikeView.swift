@@ -1,5 +1,7 @@
 import SwiftUI
+#if os(iOS)
 import UIKit
+#endif
 import StudioKit
 
 /// The phone spike Pollen's roadmap says their app is blocked on.

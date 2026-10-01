@@ -1,4 +1,6 @@
+#if os(iOS)
 import UIKit
+#endif
 import RealityKit
 
 /// The non-AR stadium: a themed pitch in its own little world, no camera feed.

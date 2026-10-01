@@ -1,7 +1,11 @@
+#if os(iOS)
 import UIKit
+#endif
 import SwiftUI
 import RealityKit
+#if os(iOS)
 import ARKit
+#endif
 // The permission store, read and never written: `authorizationStatus(for:)`
 // raises no prompt. Nothing in this app calls `requestAccess` — ARKit's own
 // session raises the prompt when a venue actually opens, which is the only

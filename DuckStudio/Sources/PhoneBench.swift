@@ -427,8 +427,12 @@ final class PhoneBenchHost: NSObject, ObservableObject {
     /// a view that SwiftUI may rebuild.
     let container: UIView = {
         let view = UIView(frame: CGRect(x: 0, y: 0, width: 1, height: 1))
+#if os(iOS)
         view.isUserInteractionEnabled = false
         view.alpha = 0
+#else
+        view.alphaValue = 0
+#endif
         return view
     }()
 
@@ -485,10 +489,16 @@ final class PhoneBenchHost: NSObject, ObservableObject {
         configuration.defaultWebpagePreferences.allowsContentJavaScript = true
         let webView = WKWebView(frame: container.bounds, configuration: configuration)
         webView.navigationDelegate = self
+#if os(iOS)
         webView.isUserInteractionEnabled = false
         webView.alpha = 0
         webView.isOpaque = false
         webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+#else
+        // A 1×1, invisible: an NSView takes no clicks it is not shown for.
+        webView.alphaValue = 0
+        webView.autoresizingMask = [.width, .height]
+#endif
         container.addSubview(webView)
         self.webView = webView
         load()

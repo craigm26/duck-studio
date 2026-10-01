@@ -63,7 +63,9 @@ final class DuckVoicePlayer {
         node.stop()
         engine.stop()
         running = false
+#if os(iOS)
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+#endif
     }
 
     private func start() -> Bool {
@@ -71,8 +73,12 @@ final class DuckVoicePlayer {
         do {
             // .ambient mixes with whatever else is playing and respects the
             // silent switch. A duck call is not a phone call.
+#if os(iOS)
+            // A Mac has no audio session: an app's sound mixes with
+            // everything else's by default, which is what .ambient asks for.
             try AVAudioSession.sharedInstance().setCategory(.ambient, mode: .default)
             try AVAudioSession.sharedInstance().setActive(true)
+#endif
             try engine.start()
             running = true
         } catch {

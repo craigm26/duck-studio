@@ -3,7 +3,9 @@ import AVFoundation
 import Vision
 import ReplayKit
 import CoreImage
+#if os(iOS)
 import UIKit
+#endif
 import Combine
 import DuckKit
 import StudioKit
@@ -440,7 +442,14 @@ final class VideoFrameSource: NSObject, FrameSource {
     private let output: AVPlayerItemVideoOutput
     private let player: AVPlayer
     private let orientation: CGImagePropertyOrientation
+#if os(iOS)
     private var link: CADisplayLink?
+#else
+    /// A Mac has no screen-agnostic CADisplayLink before macOS 14's view-bound
+    /// one, and this source has no view; 15 Hz on a timer is the rate the
+    /// phone's link prefers anyway.
+    private var link: Timer?
+#endif
 
     // NSObject because a display link's target needs an `@objc` selector.
     init(output: AVPlayerItemVideoOutput, player: AVPlayer, orientation: CGImagePropertyOrientation) {
@@ -451,10 +460,17 @@ final class VideoFrameSource: NSObject, FrameSource {
     }
 
     func start() {
+#if os(iOS)
         let link = CADisplayLink(target: self, selector: #selector(tick))
         link.preferredFrameRateRange = CAFrameRateRange(minimum: 10, maximum: 30, preferred: 15)
         link.add(to: .main, forMode: .common)
         self.link = link
+#else
+        let link = Timer(timeInterval: 1.0 / 15, target: self, selector: #selector(tick),
+                         userInfo: nil, repeats: true)
+        RunLoop.main.add(link, forMode: .common)
+        self.link = link
+#endif
     }
 
     func stop() {

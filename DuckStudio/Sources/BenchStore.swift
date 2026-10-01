@@ -1,5 +1,7 @@
 import Foundation
+#if os(iOS)
 import UIKit   // UIDevice, to name the built-in bench for the device it is inside
+#endif
 import Security
 import StudioKit
 

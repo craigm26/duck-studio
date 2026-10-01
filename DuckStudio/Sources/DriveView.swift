@@ -527,6 +527,7 @@ struct DriveView: View {
         // tap that returns early looks exactly like one the system did not
         // deliver. A bench is the only thing it needs, and `halt` cuts off
         // whatever else is in flight on its way past.
+#if os(iOS)
         .accessibilityAction(.magicTap) {
             // THE ONE CONTROL THAT MUST BE REACHABLE WITHOUT FINDING IT, and
             // it now covers the robot too: `bench != nil` alone would have made
@@ -535,6 +536,22 @@ struct DriveView: View {
             guard peer != nil else { return }
             Task { await halt() }
         }
+#else
+        // ON A MAC THE STOP THAT COSTS NOTHING TO REACH IS ESCAPE. macOS has
+        // no magic tap; a key that works wherever focus is in the window is
+        // the same promise. A zero-size button carries it because a keyboard
+        // shortcut needs a control to belong to.
+        .background {
+            Button("Stop") {
+                guard peer != nil else { return }
+                Task { await halt() }
+            }
+            .keyboardShortcut(.escape, modifiers: [])
+            .opacity(0)
+            .frame(width: 0, height: 0)
+            .accessibilityHidden(true)
+        }
+#endif
         .task {
             // THE PAD'S PRESSES GO THROUGH THE SAME DOOR as the on-screen ones.
             pad.onPress = { control in Task { await press(control) } }

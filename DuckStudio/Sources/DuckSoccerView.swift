@@ -1,5 +1,7 @@
 import SwiftUI
+#if os(iOS)
 import ARKit
+#endif
 import RealityKit
 import Combine
 import QuartzCore
@@ -66,8 +68,10 @@ struct DuckSoccerView: View {
         }
         .navigationTitle("Duck soccer")
         .navigationBarTitleDisplayMode(.inline)
+#if os(iOS)
         .toolbar(inLobby ? .visible : .hidden, for: .navigationBar)
         .statusBarHidden(!inLobby)
+#endif
     }
 
     // MARK: - the lobby

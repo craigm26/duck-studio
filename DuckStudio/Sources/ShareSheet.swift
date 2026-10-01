@@ -1,5 +1,7 @@
 import SwiftUI
+#if os(iOS)
 import UIKit
+#endif
 
 /// The system share sheet.
 ///
@@ -41,6 +43,7 @@ import UIKit
 /// fakes it — a `.transition` applied to the representable would animate the
 /// controller's view INSIDE a card that is already moving, which is two springs
 /// fighting rather than one landing.
+#if os(iOS)
 struct ShareSheet: UIViewControllerRepresentable {
     let items: [Any]
     /// Called when UIKit dismisses the controller, however it ended. The caller
@@ -56,6 +59,53 @@ struct ShareSheet: UIViewControllerRepresentable {
 
     func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }
+#else
+/// The same doors on a Mac: Save puts the file somewhere the person chooses,
+/// Share opens the system's sharing menu (Mail, Messages, AirDrop, Notes).
+///
+/// A VIEW IN THE SHEET, NOT A CONTROLLER UNDER IT. AppKit's sharing picker is
+/// a popover anchored to a control, so it lives on a button here, and the
+/// sheet every caller presents is this small panel. `onFinish` is still the
+/// one way out, so the callers' bindings close it exactly as on a phone.
+struct ShareSheet: View {
+    let items: [Any]
+    var onFinish: () -> Void = {}
+
+    private var files: [URL] { items.compactMap { $0 as? URL } }
+    private var texts: [String] { items.compactMap { $0 as? String } }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(files.count == 1 ? files[0].lastPathComponent : "Share")
+                .font(.headline)
+            HStack {
+                if !files.isEmpty {
+                    Button("Save to…", action: save)
+                    ShareLink(items: files) { Label("Share…", systemImage: "square.and.arrow.up") }
+                } else if let text = texts.first {
+                    Button("Copy") { UIPasteboard.general.string = text; onFinish() }
+                    ShareLink(item: text) { Label("Share…", systemImage: "square.and.arrow.up") }
+                }
+                Spacer()
+                Button("Done", action: onFinish).keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(20)
+        .frame(minWidth: 380)
+    }
+
+    private func save() {
+        guard let first = files.first else { return }
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = first.lastPathComponent
+        panel.canCreateDirectories = true
+        guard panel.runModal() == .OK, let target = panel.url else { return }
+        try? FileManager.default.removeItem(at: target)
+        try? FileManager.default.copyItem(at: first, to: target)
+        onFinish()
+    }
+}
+#endif
 
 /// A file on its way out, identified by where it is.
 ///

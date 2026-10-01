@@ -1,6 +1,8 @@
 import Foundation
 import StudioKit
+#if os(iOS)
 import UIKit
+#endif
 
 #if canImport(MLXLLM) && !targetEnvironment(simulator)
 import MLX
@@ -233,6 +235,7 @@ final class PhoneModelRuntime {
     /// the load has actually finished unwinding, and the expiry handler is the
     /// backstop if it somehow has not.
     func stopDownloadForSuspension() {
+#if os(iOS)
         guard let loading else { return }
         var assertion = UIBackgroundTaskIdentifier.invalid
         let release = {
@@ -248,6 +251,9 @@ final class PhoneModelRuntime {
             _ = try? await loading.value
             release()
         }
+#endif
+        // A NATIVE MAC APP IS NOT SUSPENDED for being in the background, so
+        // there is no kill to avoid and the download keeps going.
     }
 
     /// Called as a download starts, so an old background stop is not reported
