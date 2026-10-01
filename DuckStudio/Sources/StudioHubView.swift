@@ -229,6 +229,21 @@ struct StudioHubView: View {
                     } label: {
                         Label("Search its weights on \(DeviceWords.current.this)", systemImage: "brain")
                     }
+#if os(macOS)
+                    // PPO, NOT A SEARCH. The two rows above move numbers on a bench
+                    // and keep what scores; this runs Pollen's own trainer
+                    // (rsl_rl PPO in mjlab, through duckbatch) on a Hugging Face GPU
+                    // with a reward written here, and brings the network back. Mac
+                    // only: it is where it was asked for, and an hour-long paid job
+                    // wants a desk. NOT A `StudioDestination`: nothing routes here.
+                    NavigationLink {
+                        HubTrainingView { url in
+                            Imports.open(url, model: model, drafts: drafts, plans: plans)
+                        }
+                    } label: {
+                        Label("Train with PPO on Hugging Face", systemImage: "cpu")
+                    }
+#endif
                     // THE OTHER SEARCH, AND THE ONE MOST PEOPLE MEAN. Tune searches
                     // a NETWORK — twenty-eight numbers folded into a last layer.
                     // This searches a MOVE: the poses and times of an authored
