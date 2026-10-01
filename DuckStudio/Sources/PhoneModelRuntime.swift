@@ -1,5 +1,6 @@
 import Foundation
 import StudioKit
+import UIKit
 
 #if canImport(MLXLLM) && !targetEnvironment(simulator)
 import MLX
@@ -212,6 +213,47 @@ final class PhoneModelRuntime {
         MLX.GPU.clearCache()
     }
 
+    /// Whether the last download ended because the app left the screen, so
+    /// the picker can say that instead of the generic "it stopped".
+    private(set) var stoppedForBackground = false
+
+    /// STOP THE DOWNLOAD BEFORE THE SYSTEM SUSPENDS US, OR IT KILLS US.
+    ///
+    /// swift-huggingface's `HubClient` takes a `flock(2)` on the blob's `.lock`
+    /// file and holds it for the whole GET, which for a model is minutes. A
+    /// process suspended holding a file lock is terminated by RunningBoard with
+    /// 0xdead10cc — TestFlight crash for 1.1 (77) on a Mac, 2026-09-30, every
+    /// thread idle, which is what an awaited download looks like. A phone sent
+    /// to the background hits the same wall. The download was never going to
+    /// survive suspension anyway; this trades a kill for a stop.
+    ///
+    /// THE ASSERTION IS WHAT BUYS TIME TO UNWIND. Cancelling is asynchronous:
+    /// the URL task throws, `FileLock.withLock` releases on the way out, and only
+    /// then is the lock gone. The background task keeps the process awake until
+    /// the load has actually finished unwinding, and the expiry handler is the
+    /// backstop if it somehow has not.
+    func stopDownloadForSuspension() {
+        guard let loading else { return }
+        var assertion = UIBackgroundTaskIdentifier.invalid
+        let release = {
+            guard assertion != .invalid else { return }
+            UIApplication.shared.endBackgroundTask(assertion)
+            assertion = .invalid
+        }
+        assertion = UIApplication.shared.beginBackgroundTask(
+            withName: "Stop model download", expirationHandler: release)
+        stoppedForBackground = true
+        loading.cancel()
+        Task { @MainActor in
+            _ = try? await loading.value
+            release()
+        }
+    }
+
+    /// Called as a download starts, so an old background stop is not reported
+    /// against a new attempt.
+    func clearBackgroundStop() { stoppedForBackground = false }
+
     var isSupported: Bool { true }
 
 #else
@@ -234,6 +276,9 @@ final class PhoneModelRuntime {
     func unload() {}
     func unload(ifHolding repository: String) {}
     func isResident(_ repository: String) -> Bool { false }
+    func stopDownloadForSuspension() {}
+    func clearBackgroundStop() {}
+    var stoppedForBackground: Bool { false }
 
     var isSupported: Bool { false }
 

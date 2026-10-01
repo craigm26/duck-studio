@@ -102,6 +102,19 @@ public enum PhoneModelInstall {
       + "it and start over — and on a phone with little free memory, a smaller model is the "
       + "surer bet."
 
+    /// A download the app stopped itself because it was leaving the screen.
+    ///
+    /// THE APP STOPS IT ON PURPOSE. The Hugging Face cache holds a file lock for
+    /// the whole of a download, and a process suspended with a file lock held is
+    /// killed by the system outright (0xdead10cc) — on a phone when it goes to
+    /// the background, on a Mac when its window is closed or hidden. Stopping
+    /// first lets go of the lock; saying so is what makes the stop a decision
+    /// rather than a mystery.
+    public static let stoppedInBackground =
+        "That download stopped because Microduck Studio left the screen. Files that already "
+      + "arrived are kept, so starting it again picks up from there. Keep the app open until "
+      + "it finishes."
+
     public static func failed(_ reason: String) -> String {
         "That did not finish. \(reason)"
     }

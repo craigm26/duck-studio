@@ -417,6 +417,7 @@ struct PhoneModelPickerView: View {
             defer { busyWith = nil; progress = nil; refreshInstalled() }
             do {
                 rate = DownloadRate()
+                PhoneModelRuntime.shared.clearBackgroundStop()
                 try await PhoneModelRuntime.shared.load(model.repository) { made in
                     // READ THE NUMBERS HERE, NOT INSIDE THE TASK, or the rate is
                     // computed from a moment other than the one reported.
@@ -450,6 +451,11 @@ struct PhoneModelPickerView: View {
                 if store.selected.model != model.repository {
                     PhoneModelRuntime.shared.unload(ifHolding: model.repository)
                 }
+            } catch where PhoneModelRuntime.shared.stoppedForBackground {
+                // THE APP STOPPED IT, before suspension could kill the process
+                // for the lock the download holds. See
+                // `PhoneModelRuntime.stopDownloadForSuspension`.
+                failure = PhoneModelInstall.stoppedInBackground
             } catch is CancellationError {
                 // SAID, NOT SWALLOWED. Silence here is indistinguishable from
                 // success: the row simply stops moving, and with a partial on
