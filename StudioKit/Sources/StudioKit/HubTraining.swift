@@ -21,10 +21,15 @@ public enum HubTraining {
 
     // MARK: - the pin
 
-    /// duckbatch at the first commit with both the progress terms (`duckbatch.rewards`) and a
-    /// bootstrap that takes the menu as text (`MENU_YAML`). Bump deliberately: the job runs
-    /// whatever this commit says.
-    public static let duckbatchCommit = "7d8a9d35807992643ad2bcb011068f335bfb9d0a"
+    /// duckbatch `main` after the b003 series (b003b-b003g merged, 2026-10-02). Bump
+    /// deliberately: the job runs whatever this commit says.
+    ///
+    /// FROM 7d8a9d3, AND IT CHANGES NOTHING THIS RECIPE RUNS. The bootstrap and the launcher are
+    /// byte-identical between the two; what arrived in between is additive `finetune` keys
+    /// (`dead_band`, `standing_envs`) and reward terms that only a menu naming them uses, and
+    /// this menu names none of them. It moves the pin onto `main`, where every close note that
+    /// judges this recipe now lives.
+    public static let duckbatchCommit = "aa286e8e4ed5232eeb108759bf1d6b20d27685ab"
     public static let duckbatchRepo = "https://github.com/craigm26/duckbatch.git"
     static let duckbatchRaw = "https://raw.githubusercontent.com/craigm26/duckbatch"
     /// duckbatch `hf_job.IMAGE` and `hf_job.UV_VERSION`, the two values its bootstrap reads
@@ -94,6 +99,8 @@ public enum HubTraining {
             #   2. wz 1.0 rad/s in place -> >= 0.5 rad/s
             #   3. falls/min <= 0.71; recovery within 10 points of the teacher; planar error <= 0.179
             #   4. cmd 0.30 m/s -> >= 0.12 m/s
+            # Standing practice is VelStand's curriculum, 25% of envs: `rel_standing_envs` below is
+            # overwritten every reset (b003d close). b003g held it at 5% and the duck stopped standing.
             # \(isPilot ? "A PILOT: judged on whether it runs and the progress reward rises, not on the lines." : "Judged on the lines above.")
             batch_id: \(batchID)
             task: Mjlab-VelStand-Flat-MicroDuck

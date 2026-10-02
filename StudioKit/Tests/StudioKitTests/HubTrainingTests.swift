@@ -19,6 +19,7 @@ final class HubTrainingTests: XCTestCase {
         XCTAssertTrue(menu.contains("cmd 0.10 m/s -> >= 0.05 m/s"), menu)
         XCTAssertTrue(menu.contains("falls/min <= 0.71"), menu)
         XCTAssertTrue(menu.contains("A PILOT"), menu)
+        XCTAssertTrue(menu.contains("VelStand's curriculum, 25% of envs"), "say the real standing share: \(menu)")
         XCTAssertTrue(menu.contains("batch_id: app-pilot-x"), menu)
         XCTAssertTrue(menu.contains("iterations: 100"), menu)
         XCTAssertTrue(menu.contains("func: duckbatch.rewards.command_progress_linear\n      weight: 1.5"), menu)
