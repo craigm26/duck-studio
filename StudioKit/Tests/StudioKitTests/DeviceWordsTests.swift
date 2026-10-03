@@ -1,5 +1,6 @@
 import XCTest
 @testable import StudioKit
+import DuckEvidence
 
 /// The Mac's wording, tested on a machine that is not a Mac.
 ///
@@ -85,5 +86,22 @@ final class DeviceWordsTests: XCTestCase {
     func testAMacIsNotWarnedAboutCellularData() {
         XCTAssertFalse(PhoneModelInstall.downloadFooter(on: .mac).contains("cellular"))
         XCTAssertTrue(PhoneModelInstall.downloadFooter(on: .phone).contains("cellular"))
+    }
+}
+
+/// Build 79 on a phone: a switched-off desk bench was reported as a bench without Roulade.
+final class BenchFallbackSentenceTests: XCTestCase {
+
+    func testAnUnreadListIsNotAnEmptyOne() {
+        let said = DuckQuickActions.noBenchAnswering(.roulade)
+        XCTAssertTrue(said.hasPrefix("No bench has answered yet"), said)
+        XCTAssertFalse(said.contains("holds no policy"), said)
+        XCTAssertTrue(said.contains("Press Drive"), said)
+    }
+
+    func testTheFallbackNamesTheBenchItLeft() {
+        let said = PhoneBenchReport.fellBack(from: "Desk bench", to: "This iPhone")
+        XCTAssertTrue(said.hasPrefix("Desk bench is not answering, so Play moved to This iPhone"), said)
+        XCTAssertTrue(said.contains("Pick Desk bench again under Bench"), said)
     }
 }

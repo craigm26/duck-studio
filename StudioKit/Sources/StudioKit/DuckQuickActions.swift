@@ -172,6 +172,18 @@ public enum DuckQuickActions {
         "No \(slot.title.lowercased()) network on this bench."
     }
 
+    /// What a face button says when no bench has answered yet.
+    ///
+    /// NOT "HOLDS NO POLICY". That sentence was being said whenever `/health`
+    /// had not come back, because an unread list and an empty list looked the
+    /// same — so a desk bench that was simply switched off was reported as a
+    /// bench without Roulade (seen 2026-10-02, build 79). Not knowing what a
+    /// bench holds is not the same as knowing it holds nothing.
+    public static func noBenchAnswering(_ slot: DuckOfficialPolicies.Slot) -> String {
+        "No bench has answered yet, so there is nothing to load \(slot.title.lowercased()) on. "
+      + "Press Drive to connect, or pick a bench under Bench."
+    }
+
     /// What to say where the chips would be, when there are none.
     ///
     /// THE "NOT YET" FOR THE WHOLE GRID, and it is a kit string for the reason

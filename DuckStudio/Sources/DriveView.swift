@@ -2060,7 +2060,23 @@ struct DriveView: View {
             // which is what "LB" and then "Y" both came out as; this makes the
             // text refuse to shrink, so a column too narrow for the buttons
             // folds them instead of gutting them.
-            Text(label).lineLimit(1).fixedSize()
+            //
+            // BUT ONLY FOR A FACE. Simple draws the bound move's NAME on the
+            // button, and a name like `beak_strut_vault_r6_c…` held to its full
+            // width ran out of the 60-point circle and over its neighbours
+            // (build 79, 2026-10-02). A face letter keeps `fixedSize`; a name is
+            // held to the button, may take two lines and shrink to half, and may
+            // break after an underscore (a zero-width space, so what is drawn is
+            // still the name).
+            if label.count <= 3 {
+                Text(label).lineLimit(1).fixedSize()
+            } else {
+                Text(label.replacingOccurrences(of: "_", with: "_\u{200B}"))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .minimumScaleFactor(0.5)
+                    .frame(width: DesignMetric.movingTarget - 8)
+            }
         }
     }
 
@@ -3063,6 +3079,12 @@ struct DriveView: View {
             // is the one that says a bench full of somebody's own networks is
             // not a broken bench. The face button's name stays in front of it
             // so the line still says WHICH button did nothing.
+            // AN UNREAD LIST IS NOT AN EMPTY ONE. With no `/health` yet, "holds no
+            // policy" is a claim about a bench nobody has heard from.
+            guard health != nil else {
+                lastAction = "\(control.face): \(DuckQuickActions.noBenchAnswering(slot))"
+                return
+            }
             guard let policy = DuckQuickActions.filename(filling: slot,
                                                          among: health?.policies ?? []) else {
                 lastAction = isSimple
@@ -3318,6 +3340,14 @@ struct DriveView: View {
             cutOffByStop = false
             return
         }
+        // A SAVED BENCH THAT NEVER ANSWERED IS NOT A REFUSAL TO SHOW IN A
+        // DIALOG. Pressing Drive or a face button against a switched-off desk
+        // bench used to end in "The bench refused: Could not connect to the
+        // server." Play moves to the bench inside the app instead, and says so.
+        if venue != .real, let left = bench, !left.isThisPhone, Self.neverAnswered(error) {
+            Task { await fallBack(from: left) }
+            return
+        }
         // THE TITLE SAYS WHO REFUSED. A world this bank cannot hold is refused
         // by this app before anything is sent, and calling that a bench
         // refusal blames a bench that never heard about it.
@@ -3439,7 +3469,27 @@ struct DriveView: View {
         }
     }
 
-    @MainActor private func connect() async {
+    /// A bench that never answered, as opposed to one that answered no.
+    ///
+    /// URLSession's connection-level codes only: a bench that is switched off,
+    /// asleep, off this network, or at an address that resolves to nothing. A
+    /// bench that answered with a refusal is a different fact and keeps its
+    /// own sentence.
+    private static func neverAnswered(_ error: Error) -> Bool {
+        guard let failure = error as? URLError else { return false }
+        return [.cannotConnectToHost, .cannotFindHost, .timedOut, .networkConnectionLost,
+                .notConnectedToInternet, .dnsLookupFailed].contains(failure.code)
+    }
+
+    /// Move Play to the bench inside the app, connect to it, and say which bench was left.
+    @MainActor private func fallBack(from left: BenchEndpoint) async {
+        benches.selectedID = BenchEndpoint.thisPhone.id
+        await connect(fallingBack: false)
+        lastAction = PhoneBenchReport.fellBack(from: left.name,
+                                               to: bench?.name ?? PhoneBenchReport.name)
+    }
+
+    @MainActor private func connect(fallingBack: Bool = true) async {
         busy = true
         defer { busy = false }
         // THE ROBOT VENUE HAS NOTHING TO CONNECT TO AND MUST NOT BUILD ONE.
@@ -3496,7 +3546,20 @@ struct DriveView: View {
             // older bench 404s it and the picker goes dead with the reason
             // under it — see `readWorld`.
             await readWorld(try requireBench())
-        } catch { report(error) }
+        } catch {
+            // THE SIMPLEST BENCH IS THE ONE THAT CANNOT BE SWITCHED OFF. A saved
+            // desk bench that never answered left Play with nothing to drive and
+            // every face button saying "holds no policy" (build 79, 2026-10-02).
+            // The bench inside the app carries every bundled network, so Play
+            // moves to it once, keeps it selected — the simplest setup is the
+            // default again — and says which bench it left.
+            if fallingBack, let left = bench, !left.isThisPhone, Self.neverAnswered(error) {
+                busy = false
+                await fallBack(from: left)
+                return
+            }
+            report(error)
+        }
     }
 
     /// Ask the robot to start pushing its state, and record what it runs.

@@ -73,4 +73,12 @@ final class HubTrainingTests: XCTestCase {
                                            path: HubTraining.policyPath)?.absoluteString,
                        "https://huggingface.co/datasets/me/r/resolve/main/jobs/j1/b1/policies/finetuned/policy.onnx")
     }
+
+    /// SAY WHAT PPO IS, AND WHERE IT RUNS. The row led with the acronym and a tester asked.
+    func testTheScreenSaysWhatPPOIsAndWhereItRuns() {
+        XCTAssertFalse(HubTraining.rowTitle.contains("PPO"), HubTraining.rowTitle)
+        XCTAssertTrue(HubTraining.whatThisIs.contains("proximal policy optimisation"))
+        XCTAssertTrue(HubTraining.whatThisIs.contains("not on this phone"), "Linux reads as the phone")
+        XCTAssertTrue(HubTraining.whatThisIs.contains("reward you set"))
+    }
 }

@@ -219,6 +219,17 @@ public enum HubTraining {
     public static let policyPath = "policies/finetuned/policy.onnx"
     public static let recordPath = "record.json"
 
+    /// What PPO is, said where the screen starts, because the row used to lead with the acronym.
+    public static let whatThisIs =
+        "Trains a new walking network for the duck by trial and error, on a rented GPU at "
+      + "Hugging Face — not on \(DeviceWords.current.this). The method is PPO (proximal policy optimisation), the "
+      + "reinforcement learning Pollen trains Microduck's own networks with: the duck tries in "
+      + "simulation, a reward you set scores each try, and the network is nudged toward what "
+      + "scored better, with 2,048 ducks practising at once."
+
+    /// The row and the title, in words rather than an acronym.
+    public static let rowTitle = "Train a network on Hugging Face"
+
     public static let notClaimed =
         "Simulation only, in Pollen's mjlab. This fine-tunes Pollen's own walking network, "
       + "distilled to a smaller student; it is not a gait learned from nothing, and a pass here "
