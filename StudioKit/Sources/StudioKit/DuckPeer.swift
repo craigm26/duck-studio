@@ -62,6 +62,20 @@ public enum DuckMethod: String, CaseIterable, Sendable {
 
     /// Let the joints go slack. Discrete.
     case relax = "robot.relax"
+    /// Run one of the robot's one-shot skills by name — `kick_left`, `roulade`, `ground_pick`,
+    /// `sit_toggle` — or toggle sit and stand. Discrete: answered, and a refusal names the
+    /// scripted move already holding the robot (duck-ipc-proto `ROBOT_DO`, `DoParams {skill}`).
+    ///
+    /// SPELLED `doSkill` IN SWIFT because `do` is a keyword; the wire name is unchanged.
+    case doSkill = "robot.do"
+    /// Every skill this robot has, in the order `robot.do` tries them, plus the built-ins the
+    /// daemon drives itself (`SkillsResult {skills, built_in}`). Discrete. What a plan may ask
+    /// for is read from here, so a plan never names a skill this duck does not have.
+    case skills = "robot.skills"
+    /// Play one of the robot's voice-bank sounds by tag (`SoundParams {tag}`): the seven
+    /// `DuckSound` names are Pollen's `SoundTag` names exactly. Sent as a request, because a
+    /// robot with no voice refuses with a reason and the plan should hear it.
+    case sound = "robot.sound"
 
     /// What is the duck doing right now.
     ///
@@ -139,7 +153,7 @@ public enum DuckMethod: String, CaseIterable, Sendable {
         switch self {
         case .pairingPin, .setPairingPin, .update: return true
         case .hello, .move, .head, .look, .stop, .enable, .initPose, .relax, .state,
-             .subscribe: return false
+             .subscribe, .doSkill, .skills, .sound: return false
         // A NEW FILE ON THE DISK IS NOT THE RECOVERY PATH. The recovery path
         // is pairing and firmware — what gets a person back INTO a robot. An
         // installed policy does nothing until robotd is restarted and a slot
@@ -195,6 +209,8 @@ public enum DuckMethod: String, CaseIterable, Sendable {
         case .hello, .pairingPin, .setPairingPin, .update: return true
         case .move, .head, .look, .stop, .enable, .initPose, .relax, .state,
              .subscribe: return false
+        // A kick over a link that cannot carry a stop is a kick nobody can take back.
+        case .doSkill, .skills, .sound: return false
         case .installPolicy: return false
         }
     }
@@ -204,7 +220,7 @@ public enum DuckMethod: String, CaseIterable, Sendable {
     private var overWebRTC: Bool {
         switch self {
         case .hello, .move, .head, .look, .stop, .enable, .initPose, .relax,
-             .subscribe: return true
+             .subscribe, .doSkill, .skills, .sound: return true
         // `state` is not a method `robotd` answers, and `reach` is not the
         // place to wish that it were.
         case .state, .pairingPin, .setPairingPin, .update, .installPolicy: return false
@@ -229,6 +245,10 @@ public enum DuckMethod: String, CaseIterable, Sendable {
         // turn on, and a subscribe that returned success would be a claim that
         // states are now arriving unbidden when nothing will ever push one.
         case .head, .look, .enable, .initPose, .relax, .subscribe: return false
+        // THE BENCH RUNS SKILLS THROUGH ITS OWN ENDPOINTS (`DuckQuickActions`), not robotd's
+        // names, and it has no voice bank. Denied here so a plan sent to a bench says so
+        // rather than a kick being posted to a URL that does not exist.
+        case .doSkill, .skills, .sound: return false
         case .pairingPin, .setPairingPin, .update, .installPolicy: return false
         }
     }
@@ -244,7 +264,7 @@ public enum DuckMethod: String, CaseIterable, Sendable {
     private var overBridge: Bool {
         switch self {
         case .hello, .move, .head, .look, .stop, .enable, .initPose, .relax, .state,
-             .subscribe: return true
+             .subscribe, .doSkill, .skills, .sound: return true
         case .installPolicy: return true
         case .pairingPin, .setPairingPin, .update: return false
         }
@@ -387,6 +407,12 @@ public enum DuckCall: Equatable, Sendable {
     case subscribe(hz: Int?)
     /// `studio.installPolicy` — the bridge's, not robotd's. See `DuckMethod.installPolicy`.
     case installPolicy(DuckPolicyInstall)
+    /// `robot.do` — one of the robot's one-shot skills, by the name `robot.skills` gave it.
+    case doSkill(String)
+    /// `robot.skills` — what this robot can do, read before a plan names any of it.
+    case skills
+    /// `robot.sound` — one voice-bank sound.
+    case sound(DuckSound)
 
     /// What this is called on the wire.
     public var method: DuckMethod {
@@ -402,6 +428,9 @@ public enum DuckCall: Equatable, Sendable {
         case .state: return .state
         case .subscribe: return .subscribe
         case .installPolicy: return .installPolicy
+        case .doSkill: return .doSkill
+        case .skills: return .skills
+        case .sound: return .sound
         }
     }
 
@@ -418,7 +447,7 @@ public enum DuckCall: Equatable, Sendable {
         switch self {
         case .move, .head: return true
         case .hello, .look, .stop, .enable, .initPose, .relax, .state, .subscribe,
-             .installPolicy: return false
+             .installPolicy, .doSkill, .skills, .sound: return false
         }
     }
 
@@ -441,6 +470,9 @@ public enum DuckCall: Equatable, Sendable {
         case outOfReach(DuckMethod, DuckTransportKind)
         /// `notify` was handed a request, or `call` a notification.
         case wrongDirection(DuckMethod)
+        /// A skill name that is not one robotd could have given: lowercase letters, digits
+        /// and underscores, as every name in Pollen's set is.
+        case notASkillName(String)
 
         public var message: String {
             switch self {
@@ -461,6 +493,10 @@ public enum DuckCall: Equatable, Sendable {
             case .wrongDirection(let method):
                 return "\(method.rawValue) was sent the wrong way round — a continuous intent "
                      + "must be notified and an answered call must be called."
+            case .notASkillName(let name):
+                return "\"\(name)\" is not a skill name a duck gives. Skill names are lowercase "
+                     + "letters, digits and underscores, like kick_left; this one was stopped "
+                     + "here rather than sent."
             }
         }
     }
@@ -477,9 +513,10 @@ public enum DuckCall: Equatable, Sendable {
     /// newline that already separates messages is the frame delimiter, in both
     /// directions. That is safe rather than lucky: `serde_json` escapes a
     /// newline inside a string as `\n`, so a raw `0x0A` never appears inside a
-    /// serialised JSON object." Nothing in this vocabulary carries a string
-    /// payload at all, so the only newline any line of ours can contain is the
-    /// one appended at the end — which the tests assert by counting.
+    /// serialised JSON object." The one string payload — a skill name — is
+    /// checked to `[a-z0-9_]` before it is serialised, so the only newline any
+    /// line of ours can contain is the one appended at the end — which the
+    /// tests assert by counting.
     public func line(id: Int?) throws -> Data {
         if isNotification, id != nil { throw Misuse.notificationCarriedAnID(method) }
         if !isNotification, id == nil { throw Misuse.requestHadNoID(method) }
@@ -538,6 +575,15 @@ public enum DuckCall: Equatable, Sendable {
             return ["hz": hz]
         case .installPolicy(let install):
             return install.wire
+        case .doSkill(let name):
+            // `DoParams { skill }` — the only field, Pollen's name for it.
+            guard DuckCall.isSkillName(name) else { throw Misuse.notASkillName(name) }
+            return ["skill": name]
+        case .skills:
+            return nil
+        case .sound(let tag):
+            // `SoundParams { tag, hold? }`. `hold` is left out: a plan's sound is one-shot.
+            return ["tag": tag.rawValue]
         }
     }
 
@@ -549,6 +595,12 @@ public enum DuckCall: Equatable, Sendable {
     /// from quietly sweeping an out-of-date list. The methods that map to nil
     /// are the recovery path, and their absence is the rule stated at the top
     /// of this type, enforced by the compiler and asserted by a test.
+    /// Lowercase letters, digits and underscores, non-empty, at most 64.
+    public static func isSkillName(_ s: String) -> Bool {
+        !s.isEmpty && s.count <= 64
+            && s.unicodeScalars.allSatisfy { ("a"..."z").contains($0) || ("0"..."9").contains($0) || $0 == "_" }
+    }
+
     public static let allShapes: [DuckCall] = DuckMethod.allCases.compactMap(shape(of:))
 
     static func shape(of method: DuckMethod) -> DuckCall? {
@@ -564,6 +616,9 @@ public enum DuckCall: Equatable, Sendable {
         case .state: return .state
         case .subscribe: return .subscribe(hz: DuckSubscription.watchingRateHz)
         case .installPolicy: return .installPolicy(DuckPolicyInstall.shape)
+        case .doSkill: return .doSkill("kick_left")
+        case .skills: return .skills
+        case .sound: return .sound(.chirp)
         case .pairingPin, .setPairingPin, .update: return nil
         }
     }

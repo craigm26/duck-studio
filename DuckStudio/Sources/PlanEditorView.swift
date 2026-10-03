@@ -33,6 +33,11 @@ struct PlanEditorView: View {
     /// The models chosen in Settings, for planning with a model rather than
     /// the router. Nil where no store was handed down; then only the router.
     var models: EndpointStore? = nil
+    /// The link to a real duck, from the Robot tab. Used only on the Robot venue.
+    var robot: BridgeLink? = nil
+    /// Hands the duck over from the sticks before a plan drives it: the drive loop and a plan
+    /// writing one twist slot would interleave into a duck that obeys neither.
+    var stopDriving: (() async -> Void)? = nil
 
     /// A typed address wins; otherwise the router on the bench's own machine.
     private var routerBase: URL? {
@@ -55,13 +60,15 @@ struct PlanEditorView: View {
     @State private var plannedBy: DuckIntentPlan.RouterIdentity = .decide
     @State private var checkProgress: String?
     @State private var checkResult: String?
+    @State private var robotRun: Task<Void, Never>?
+    @State private var robotLine: String?
 
     var body: some View {
         List {
                 askSection
                 if let plan {
                     stepsSection(plan)
-                    runSection(plan)
+                    if venue == .real { robotSection(plan) } else { runSection(plan) }
                 }
                 if let refusal {
                     Section {
@@ -83,6 +90,11 @@ struct PlanEditorView: View {
             }
             .scrollContentBackground(.hidden)
             .background(Theme.backgroundSecondary)
+            // ON A DUCK THERE IS NO BENCH MACHINE TO FIND A ROUTER ON, so the planner starts as
+            // the model chosen in Settings — Apple's on-device model unless somebody chose
+            // another — rather than a router address nobody has typed.
+            .onAppear { if venue == .real, routerBase == nil, models != nil { useModel = true } }
+            .onDisappear { robotRun?.cancel() }
             .navigationTitle(PlanEditorWords.title)
             .navigationBarTitleDisplayMode(.inline)
     }
@@ -330,6 +342,102 @@ struct PlanEditorView: View {
             SectionHeading(text: PlanEditorWords.runHeading)
         }
         .listRowBackground(Theme.surfacePrimary)
+    }
+
+    // MARK: - on a duck
+
+    /// The plan as a duck runs it: every beat spelled, the stop caveat, and Run.
+    private func robotSection(_ plan: DuckIntentPlan) -> some View {
+        Section {
+            switch Result(catching: { try RobotPlan(plan) }) {
+            case .success(let robotPlan):
+                ForEach(Array(robotPlan.beats.enumerated()), id: \.offset) { _, beat in
+                    Text(RobotPlan.spelled(beat))
+                        .font(.footnote.monospacedDigit()).foregroundStyle(Theme.measured)
+                }
+                ForEach(robotPlan.notSent, id: \.self) { line in
+                    Label(line, systemImage: "info.circle")
+                        .font(.caption).foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if plan.flaggedCount > 0 {
+                    Label(PlanEditorWords.flaggedLeft(plan.flaggedCount),
+                          systemImage: "exclamationmark.circle")
+                        .font(.caption).foregroundStyle(Theme.warning)
+                }
+                Label(RobotPlan.stopDoesNotCancelASkill, systemImage: "hand.raised")
+                    .font(.caption).foregroundStyle(Theme.warning)
+                    .fixedSize(horizontal: false, vertical: true)
+                if robotRun != nil {
+                    Button(PlanEditorWords.stopOnDuckButton) { robotRun?.cancel() }
+                        .buttonStyle(.primaryAction)
+                } else if let robot, robot.isConnected {
+                    Button(PlanEditorWords.runOnDuckButton) { runOnDuck(plan, robotPlan, robot) }
+                        .buttonStyle(.primaryActionMoves)
+                } else {
+                    Text(PlanEditorWords.runNeedsDuck)
+                        .font(.caption).foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if let robotLine {
+                    Text(robotLine).font(.footnote).foregroundStyle(Theme.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            case .failure(let error):
+                Label((error as? RobotPlan.Refusal)?.message
+                        ?? (error as? SequenceProposal.Unresolvable)?.message
+                        ?? error.localizedDescription,
+                      systemImage: "exclamationmark.triangle")
+                    .font(.footnote).foregroundStyle(Theme.warning)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        } header: {
+            SectionHeading(text: PlanEditorWords.robotHeading)
+        }
+        .listRowBackground(Theme.surfacePrimary)
+    }
+
+    /// Run on the duck. The decisions are recorded when it starts, as on a bench.
+    @MainActor private func runOnDuck(_ plan: DuckIntentPlan, _ robotPlan: RobotPlan,
+                                      _ robot: BridgeLink) {
+        guard robotRun == nil, let peer = robot.peer else { return }
+        feedback.append((try? plan.corrections(router: plannedBy, share: feedback.share,
+                                               client: FeedbackStore.client)) ?? [])
+        let interval = robot.interval
+        let total = robotPlan.beats.count
+        robotLine = nil
+        robotRun = Task { @MainActor in
+            defer { robotRun = nil }
+            await stopDriving?()
+            do {
+                let outcome = try await RobotPlanRunner.run(
+                    robotPlan, on: peer, interval: interval,
+                    sleep: { try await Task.sleep(nanoseconds: UInt64($0 * 1_000_000_000)) },
+                    event: { event in
+                        await MainActor.run {
+                            switch event {
+                            case .began(let i, let beat):
+                                robotLine = PlanEditorWords.onBeat(i + 1, of: total, beat.clause)
+                            case .said(let line):
+                                robotLine = line
+                            }
+                        }
+                    })
+                switch outcome {
+                case .finished: robotLine = PlanEditorWords.robotFinished
+                case .refused(let beat, let reason):
+                    robotLine = PlanEditorWords.robotRefused(step: beat + 1, reason)
+                }
+            } catch let refusal as RobotPlanRunner.Refusal {
+                robotLine = refusal.message
+            } catch is CancellationError {
+                robotLine = PlanEditorWords.robotStopped
+            } catch let misuse as DuckCall.Misuse {
+                robotLine = misuse.message
+            } catch {
+                robotLine = Task.isCancelled ? PlanEditorWords.robotStopped : error.localizedDescription
+            }
+        }
     }
 
     /// Resolve, keep, record, and — from Control — play.

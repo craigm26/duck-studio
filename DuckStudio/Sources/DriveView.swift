@@ -1188,7 +1188,8 @@ struct DriveView: View {
                         PadChrome(desk: desk, venue: venue, bench: bench, token: token,
                                   lastAction: $lastAction,
                                   engage: { engageLoop() },
-                                  library: model, models: settingsModels)
+                                  library: model, models: settingsModels,
+                                  robot: robot, stopDriving: { await halt() })
                     }
                 }
                 .padding(.horizontal, Theme.spacing(.hairline))

@@ -78,6 +78,23 @@ public enum PlanEditorWords {
     public static let runNeedsBench =
         "Plans run from the Play tab, against the simulator or a bench. Keep this one and it "
       + "will be on the Sequences shelf there."
+    // MARK: - on a duck
+
+    public static let runOnDuckButton = "Run it on the duck"
+    public static let stopOnDuckButton = "Stop"
+    public static let runNeedsDuck =
+        "Connect to a duck on the Robot tab first. On a duck a plan's skills run by robotd's own "
+      + "names and its sounds play from the duck's voice bank."
+    public static let robotHeading = "On the duck"
+    public static func onBeat(_ n: Int, of total: Int, _ clause: String) -> String {
+        "Step \(n) of \(total): \(clause)"
+    }
+    public static let robotFinished = "Done. The duck was sent a stop at the end."
+    public static func robotRefused(step n: Int, _ reason: String) -> String {
+        "The duck refused step \(n): \(reason). The rest was not sent, and the duck was sent a stop."
+    }
+    public static let robotStopped = "Stopped. The duck was sent a stop."
+
     public static func thenSkill(_ name: String) -> String {
         "Then load \(name) when the moves finish."
     }
