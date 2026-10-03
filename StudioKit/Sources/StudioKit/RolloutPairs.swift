@@ -49,6 +49,13 @@ public struct RolloutPairs: Sendable {
     /// A file without the field is read as every env usable.
     public let usableEnvs: [String: [Int]]
     private let clips: [String: [[[Double]]]]
+    /// The robotd slot a skill pack's networks fill (`kick_right`); nil for walkers.
+    public let skill: String?
+    /// The ball, per clip key and env, one [x, y, z] per frame. Empty for walkers.
+    private let balls: [String: [[[Double]]]]
+    /// Features the simulator measured, per clip key and env (`features.names` order).
+    public let featureNames: [String]
+    private let featureValues: [String: [[Double]]]
 
     // MARK: - reading
 
@@ -123,12 +130,28 @@ public struct RolloutPairs: Sendable {
         for command in commands.keys {
             usableEnvs[command] = (rawUsable?[command] ?? Array(0..<envs)).filter { (0..<envs).contains($0) }
         }
+        // A SKILL PACK MUST CARRY ITS FEATURES. A phone cannot measure a kick (a clip has no
+        // ball), so a skill pick without the simulator's numbers would teach nothing.
+        let skill = top["skill"] as? String
+        let rawBalls = top["ball"] as? [String: [[[Double]]]] ?? [:]
+        let rawFeatures = top["features"] as? [String: Any]
+        let names = rawFeatures?["names"] as? [String] ?? []
+        let values = rawFeatures?["values"] as? [String: [[Double]]] ?? [:]
+        if skill != nil {
+            guard !names.isEmpty else { throw ReadError.missing("the features its skill picks are fitted over") }
+            for key in rawClips.keys {
+                guard let v = values[key], v.count == envs, v.allSatisfy({ $0.count == names.count }) else {
+                    throw ReadError.missing("features for every env of \(key)")
+                }
+            }
+        }
         return RolloutPairs(
             batch: source["batch"] as? String ?? "p001",
             seed: source["seed"] as? Int ?? 0,
             hz: hz, seconds: top["seconds"] as? Double ?? 0, envs: envs,
             policies: policies, commands: commands, commandNames: commands.keys.sorted(),
-            closeFirst: closeFirst, usableEnvs: usableEnvs, clips: rawClips)
+            closeFirst: closeFirst, usableEnvs: usableEnvs, clips: rawClips,
+            skill: skill, balls: rawBalls, featureNames: names, featureValues: values)
     }
 
     // MARK: - drawing
@@ -163,6 +186,26 @@ public struct RolloutPairs: Sendable {
         return DuckStance(jointAngles: (7..<RolloutPairs.frameWidth).map(mix),
                           root: DuckIntentClip.Root(x: mix(0), y: mix(1), z: mix(2),
                                                     quaternion: (q[0], q[1], q[2], q[3])))
+    }
+
+    /// Where the ball is at a time, between recorded frames; nil for a pack without one. Holds
+    /// the last frame past the end, as `stance` does.
+    public func ball(_ policy: String, _ command: String, env: Int,
+                     at time: TimeInterval) -> (x: Double, y: Double, z: Double)? {
+        guard let frames = balls["\(policy)__\(command)"]?[env], !frames.isEmpty else { return nil }
+        let exact = max(0, time) * hz
+        let i = min(Int(exact.rounded(.down)), frames.count - 1)
+        let j = min(i + 1, frames.count - 1)
+        let f = i == j ? 0 : exact - Double(i)
+        func mix(_ k: Int) -> Double { frames[i][k] + (frames[j][k] - frames[i][k]) * f }
+        return (mix(0), mix(1), mix(2))
+    }
+
+    public var hasBall: Bool { !balls.isEmpty }
+
+    /// The simulator's features for one clip, in `featureNames` order.
+    public func features(_ policy: String, _ command: String, env: Int) -> [Double]? {
+        featureValues["\(policy)__\(command)"]?[env]
     }
 
     // MARK: - one showing
@@ -202,10 +245,16 @@ public struct RolloutPairs: Sendable {
         guard let a = policies[showing.a], let b = policies[showing.b] else {
             throw ReadError.missing("the networks in that pair")
         }
+        var sim: DuckFeedback.SimFeatures?
+        if let fa = features(showing.a, showing.command, env: showing.env),
+           let fb = features(showing.b, showing.command, env: showing.env) {
+            sim = .init(names: featureNames, a: fa, b: fb)
+        }
         return try DuckFeedback.policyPreference(
             a: a, b: b, choice: choice, reasons: reasons, where: .sim, order: showing.order,
             command: commands[showing.command], seconds: seconds, seed: seed,
-            pairID: showing.pairID(batch: batch), share: share, client: client, created: when)
+            pairID: showing.pairID(batch: batch), skill: skill, features: sim,
+            share: share, client: client, created: when)
     }
 }
 
@@ -320,4 +369,34 @@ public enum RolloutPreferenceWords {
     public static let unreadable =
         "The recorded walkers that ship with the app could not be read, so there is nothing to "
       + "compare."
+
+    // MARK: - a skill pack
+
+    /// The screen's title for a pack: walkers, or the skill the pack is about.
+    public static func title(skill: String?) -> String {
+        switch skill {
+        case "kick_right": return "Which duck kicks better?"
+        case "kick_left": return "Which duck kicks better?"
+        default: return title
+        }
+    }
+
+    public static func askedSkill(_ skill: String, condition: String) -> String {
+        let foot = skill == "kick_left" ? "left" : "right"
+        let servos = condition == "backlash" ? " Both have the play in their gears a real servo has." : ""
+        return "Both kick the same ball with the \(foot) foot, from the same start.\(servos) Pick "
+             + "the kick you would rather see on your duck."
+    }
+
+    public static func skillTally(_ n: Int, skill: String) -> String {
+        let choices = n == 1 ? "choice" : "choices"
+        return "\(n) \(choices) between kicks on this phone. About \(PreferenceModel.minimumPicks) "
+             + "teach a taste you can train a kick from, in Train on Hugging Face."
+    }
+
+    public static let kickRow = "Kick duels"
+    public static let kickRowDetail =
+        "Pollen's kick beside a fine-tune, recorded with the ball. Your picks can train a kick."
+    public static let kickRight = "Right kicks"
+    public static let kickLeft = "Left kicks"
 }

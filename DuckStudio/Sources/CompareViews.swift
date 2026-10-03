@@ -32,6 +32,21 @@ struct CompareHubView: View {
                     row(CompareWords.quickDuel, CompareWords.quickDuelDetail, "bolt.fill")
                 }
                 NavigationLink {
+                    List {
+                        NavigationLink(RolloutPreferenceWords.kickRight) {
+                            RolloutPreferenceView(onPick: { store.counted() }, resource: "kp001-right-pairs")
+                        }
+                        if Bundle.main.url(forResource: "kp001-left-pairs", withExtension: "json") != nil {
+                            NavigationLink(RolloutPreferenceWords.kickLeft) {
+                                RolloutPreferenceView(onPick: { store.counted() }, resource: "kp001-left-pairs")
+                            }
+                        }
+                    }
+                    .navigationTitle(RolloutPreferenceWords.kickRow)
+                } label: {
+                    row(RolloutPreferenceWords.kickRow, RolloutPreferenceWords.kickRowDetail, "soccerball")
+                }
+                NavigationLink {
                     ContenderPickView(mode: .two, library: library, drafts: drafts,
                                       sequences: sequences, benches: benches, store: store)
                 } label: {

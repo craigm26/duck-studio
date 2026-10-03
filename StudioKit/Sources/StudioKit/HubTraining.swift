@@ -185,6 +185,90 @@ public enum HubTraining {
         }
     }
 
+    // MARK: - a skill, from your picks
+
+    /// A skill network trained from a person's picks between two of that skill.
+    ///
+    /// k001's METHOD, WITH THE PERSON'S WEIGHTS. k001 fine-tuned Pollen's right kick with plain
+    /// PPO from Pollen's own network, 1,000 iterations, and one added term against sideways ball
+    /// speed. This is that menu with the reward re-weighted by the picks (`PreferenceModel`,
+    /// profile per skill) and judged by the person: the trained kick must win in their own duels.
+    public struct SkillRecipe: Equatable, Sendable {
+        public var name: String
+        public let profile: PreferenceModel.Profile
+        public let fromPicks: Recipe.FromPicks
+        public var iterations: Int
+
+        public init(name: String, profile: PreferenceModel.Profile, fromPicks: Recipe.FromPicks,
+                    iterations: Int = 1000) {
+            self.name = name; self.profile = profile; self.fromPicks = fromPicks
+            self.iterations = iterations
+        }
+
+        public var isPilot: Bool { iterations < 500 }
+
+        public var refusal: String? {
+            if iterations < 10 || iterations > 3000 {
+                return "Between 10 and 3,000 iterations. k001 used 1,000."
+            }
+            if profile.skill == PreferenceModel.Profile.walk.skill {
+                return "Walking is trained from the walking recipe, which has its own pass lines."
+            }
+            return nil
+        }
+
+        public func batchID(at date: Date) -> String {
+            Recipe(name: name).batchID(at: date)
+        }
+
+        public func menuYAML(batchID: String) -> String {
+            let g = { (v: Double) in String(format: "%g", v) }
+            let p = fromPicks
+            let taste = zip(profile.featureNames, p.taste.weights)
+                .map { "\($0)=\(String(format: "%.2f", $1))" }.joined(separator: " ")
+            let mult = profile.groups.map {
+                "\($0.name)×\(String(format: "%.2f", p.plan.multipliers[$0.name] ?? 1))"
+            }.joined(separator: " ")
+            let reversed = p.plan.reversed.isEmpty ? ""
+                : "\n# Left at its usual weight (your picks favoured more of it): \(p.plan.reversed.joined(separator: ", "))"
+            // Pollen's terms are re-weighted under `rewards`; a term the task lacks is added.
+            let existing = p.plan.weights.keys.filter { profile.added[$0] == nil }.sorted()
+            let rewards = existing.map { "\n    \($0): {weight: \(g(p.plan.weights[$0]!))}" }.joined()
+            let added = profile.added.keys.sorted().map { term in
+                "\n    \(term):\n      func: \(profile.added[term]!)\n      weight: \(g(p.plan.weights[term] ?? 0))\n      params: {asset_name: ball}"
+            }.joined()
+            let backlash = profile.task.replacingOccurrences(of: "-Flat-", with: "-Flat-Backlash-")
+            return """
+            # \(name) — written in Microduck Studio, run by duckbatch \(String(HubTraining.duckbatchCommit.prefix(7))).
+            # k001's method on \(profile.skill): warm start from Pollen's network, plain PPO, no anchor.
+            # FROM YOUR PICKS (RLHF, human feedback): \(p.taste.picks) picks between two \(profile.plural).
+            # Taste (standardised; negative = less is preferred): \(taste); side bias \(String(format: "%.2f", p.taste.sideBias))
+            # Reward multipliers (bounded 0.5-2): \(mult)\(reversed)
+            # Judged by you, fixed before it ran: the trained network wins at least 60% of 20 fresh
+            # picks against the network it started from. Reported beside it: k001's lines.
+            # \(isPilot ? "A PILOT: judged on whether it runs, not on the lines." : "Judged on the line above.")
+            batch_id: \(batchID)
+            task: \(profile.task)
+            teacher: \(profile.teacher)
+            student: \(profile.teacher)
+            seed: 0
+            eval_envs: 256
+            eval_tasks: [\(profile.task), \(backlash)]
+            final_seeds: \(isPilot ? "[2001]" : "[2001, 2002, 2003]")
+            finetune:
+              num_envs: 2048
+              iterations: \(iterations)
+              save_interval: 250
+              init_std: 0.2
+              learning_rate: 3.0e-4
+              entropy_coef: 0.002
+              rewards:\(rewards)
+              add_rewards:\(added)
+
+            """
+        }
+    }
+
     // MARK: - the request
 
     /// `POST https://huggingface.co/api/jobs/<namespace>` — the call `HfApi.run_job` makes
@@ -196,18 +280,30 @@ public enum HubTraining {
     /// The JSON body. The token goes in `secrets`, which Hugging Face does not echo back.
     public static func requestBody(recipe: Recipe, batchID: String, dataset: String,
                                    token: String) -> [String: Any] {
+        requestBody(menuYAML: recipe.menuYAML(batchID: batchID), pilot: recipe.isPilot,
+                    dataset: dataset, token: token)
+    }
+
+    public static func requestBody(skill recipe: SkillRecipe, batchID: String, dataset: String,
+                                   token: String) -> [String: Any] {
+        requestBody(menuYAML: recipe.menuYAML(batchID: batchID), pilot: recipe.isPilot,
+                    dataset: dataset, token: token)
+    }
+
+    static func requestBody(menuYAML: String, pilot: Bool, dataset: String,
+                            token: String) -> [String: Any] {
         let bootstrap = "\(duckbatchRaw)/\(duckbatchCommit)/scripts/hf_job_bootstrap.sh"
         // The image has Python and may not have curl until the bootstrap installs it.
         let fetch = "python -c \"import urllib.request;open('/tmp/boot.sh','wb')"
                   + ".write(urllib.request.urlopen('\(bootstrap)').read())\" && bash /tmp/boot.sh"
-        let hours = recipe.isPilot ? 1 : 3
+        let hours = pilot ? 1 : 3
         return [
             "dockerImage": image,
             "command": ["bash", "-c", fetch],
             "arguments": [String](),
             "environment": [
                 "REPO": duckbatchRepo, "COMMIT": duckbatchCommit, "MENU": "menu-inline.yaml",
-                "MENU_YAML": recipe.menuYAML(batchID: batchID), "DATASET": dataset,
+                "MENU_YAML": menuYAML, "DATASET": dataset,
                 "UV_VERSION": uvVersion, "RUN": "finetune", "JUDGE_FLAG": "",
             ],
             "secrets": ["HF_TOKEN": token],
