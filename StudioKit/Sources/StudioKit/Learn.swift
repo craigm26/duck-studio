@@ -30,6 +30,9 @@ public enum Learn {
         /// only something to read.
         public let button: String?
         public let go: Go?
+        /// The numbers behind a plain lesson, for the "How it works" fold that
+        /// only Everything opens. Nil when the body already says it all.
+        public var howItWorks: String? = nil
     }
 
     public static let title = "Learn"
@@ -47,7 +50,7 @@ public enum Learn {
               title: "Play a move",
               body: "The buttons between the sticks play moves Pollen trained, like a roll and a "
                   + "pick-up; more are in the drawer. Each one swaps in a different network.",
-              symbol: "figure.roll", button: "Open Play", go: .play),
+              symbol: "figure.roll", button: "Try a move", go: .play),
         .init(id: "networks",
               title: "Every move is a network",
               body: "Behaviours lists the trained networks on \(DeviceWords.current.this). Open one and play a "
@@ -55,15 +58,14 @@ public enum Learn {
               symbol: "brain.head.profile", button: "Open Behaviours", go: .behaviours),
         .init(id: "training",
               title: "How Microduck learns",
-              body: "Pollen trains each move by reinforcement learning in mjlab, a MuJoCo "
-                  + "simulator: thousands of simulated ducks practise at once, each scored by a "
-                  + "reward. The finished network reads 61 sensor values and sets 14 joints, "
-                  + "50 times a second.",
-              symbol: "graduationcap", button: nil, go: nil),
+              body: "Pollen trains each move by reinforcement learning: thousands of simulated "
+                  + "ducks practise at once, and a score called a reward says which tries were good.",
+              symbol: "graduationcap", button: nil, go: nil,
+              howItWorks: "The simulator is mjlab, built on MuJoCo. The finished network reads 61 "
+                  + "sensor values and sets 14 joints, 50 times a second."),
         .init(id: "judge",
               title: "Be the judge",
-              body: "A reward is a judgement written as numbers. In Compare you watch two and pick "
-                  + "the better: RLHF's human feedback, with training done off the phone.",
+              body: "Watch two ducks, pick the better one. Your picks can train a new walker.",
               symbol: "rectangle.split.1x2", button: "Open Compare", go: .preference),
         .init(id: "make",
               title: "Make a motion",
@@ -91,6 +93,10 @@ public enum Learn {
                   + "robot's diagnostics and publishing.",
               symbol: "square.stack.3d.up", button: "Show every tool", go: .everything),
     ]
+
+    /// What the last lesson says in place of its button once every tool is
+    /// already on, so the button never offers what is already done.
+    public static let everythingOn = "Every tool is on"
 
     /// The footer under the list, saying where the path leads in one line.
     public static func progress(done: Int) -> String {

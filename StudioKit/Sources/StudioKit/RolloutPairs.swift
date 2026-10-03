@@ -335,8 +335,12 @@ public enum RolloutPreferenceWords {
     public static let simulated =
         "Recorded in MuJoCo, not on a robot. Both start from the same moment of the same run."
 
-    public static let left = "Left is better"
-    public static let right = "Right is better"
+    /// THE STAGES ARE STACKED, so the answers are Top and Bottom. They said Left and Right, and
+    /// on a phone a person was guessing which duck that meant.
+    public static let left = "Top is better"
+    public static let right = "Bottom is better"
+    public static let topLabel = "Top"
+    public static let bottomLabel = "Bottom"
     public static let tie = "Too close to call"
     public static let bothBad = "Neither walks well"
     public static let reasonsHeading = "Why? (optional)"
@@ -361,8 +365,8 @@ public enum RolloutPreferenceWords {
     /// and does not rank anything itself.
     public static func tally(_ n: Int) -> String {
         let choices = n == 1 ? "choice" : "choices"
-        return "\(n) \(choices) on this phone. Ranking walkers from choices like these takes a "
-             + "few hundred of them; this screen only collects them and ranks nothing."
+        return "\(n) \(choices) on this phone. About \(PreferenceModel.minimumPicks) teach a taste "
+             + "you can train a walker from, in Train on Hugging Face."
     }
     public static let finished =
         "That is every pair in this set. Thank you — each choice is in the feedback log."

@@ -158,7 +158,10 @@ private struct FetchContainer: UIViewRepresentable {
     }
 
     func makeCoordinator() -> FetchCoordinator { FetchCoordinator() }
-    static func dismantleUIView(_ view: ARView, coordinator: FetchCoordinator) { coordinator.detach() }
+    static func dismantleUIView(_ view: ARView, coordinator: FetchCoordinator) {
+        view.session.pause()
+        coordinator.detach()
+    }
 }
 
 @MainActor
@@ -228,7 +231,14 @@ final class FetchCoordinator: NSObject {
         case .ar:
             view.cameraMode = .ar
             view.environment.background = .cameraFeed()
-            guard ARWorldTrackingConfiguration.isSupported else { return }
+            guard ARWorldTrackingConfiguration.isSupported else {
+                // Same kit sentence BowBridge and GhostDuck use.
+                referee.hint = CameraAvailability(usageDescriptionIsDeclared: true,
+                                          permission: .authorized,
+                                          deviceSupportsWorldTracking: false)
+                    .refusal(for: .venue) ?? ""
+                return
+            }
             let config = ARWorldTrackingConfiguration()
             config.planeDetection = [.horizontal]
             view.session.run(config)
@@ -250,7 +260,10 @@ final class FetchCoordinator: NSObject {
 
         let hits = view.raycast(from: point, allowing: .existingPlaneGeometry, alignment: .horizontal)
         let fallback = view.raycast(from: point, allowing: .estimatedPlane, alignment: .horizontal)
-        guard let hit = (hits.first ?? fallback.first) else { return }
+        guard let hit = (hits.first ?? fallback.first) else {
+            referee.hint = DriveVenue.noFloorThere
+            return
+        }
         let world = SIMD3<Float>(hit.worldTransform.columns.3.x,
                                  hit.worldTransform.columns.3.y,
                                  hit.worldTransform.columns.3.z)

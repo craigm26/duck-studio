@@ -209,6 +209,7 @@ private struct BridgeContainer: UIViewRepresentable {
 
     func makeCoordinator() -> BridgeCoordinator { BridgeCoordinator() }
     static func dismantleUIView(_ view: ARView, coordinator: BridgeCoordinator) {
+        view.session.pause()
         coordinator.detach()
     }
 }

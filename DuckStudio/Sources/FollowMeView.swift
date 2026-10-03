@@ -155,9 +155,11 @@ private enum FollowMetric {
 final class FollowMeModel: ObservableObject {
     @Published private(set) var follow = FollowMe()
     @Published var isPlaced = false
+    /// Set when a tap finds no floor; cleared once the duck is down.
+    @Published var notice: String?
 
     var headline: String {
-        isPlaced ? follow.summary : "Follow me"
+        isPlaced ? follow.summary : (notice ?? "Follow me")
     }
 
     var detail: String {
@@ -189,6 +191,7 @@ final class FollowMeModel: ObservableObject {
         // you put it down.
         let heading = atan2(person.y, person.x)
         follow = FollowMe(duck: .init(position: .zero, heading: heading), person: person)
+        notice = nil
         isPlaced = true
     }
 }
@@ -215,7 +218,10 @@ private struct FollowContainer: UIViewRepresentable {
 
     func updateUIView(_ view: ARView, context: Context) {}
     func makeCoordinator() -> FollowCoordinator { FollowCoordinator() }
-    static func dismantleUIView(_ view: ARView, coordinator: FollowCoordinator) { coordinator.detach() }
+    static func dismantleUIView(_ view: ARView, coordinator: FollowCoordinator) {
+        view.session.pause()
+        coordinator.detach()
+    }
 }
 
 @MainActor
@@ -247,7 +253,10 @@ final class FollowCoordinator: NSObject {
         let point = gesture.location(in: view)
         let hits = view.raycast(from: point, allowing: .existingPlaneGeometry, alignment: .horizontal)
         let fallback = view.raycast(from: point, allowing: .estimatedPlane, alignment: .horizontal)
-        guard let hit = (hits.first ?? fallback.first) else { return }
+        guard let hit = (hits.first ?? fallback.first) else {
+            model.notice = DriveVenue.noFloorThere
+            return
+        }
         let root = AnchorEntity(world: hit.worldTransform)
         let ghost = DuckGhostEntity()
         root.addChild(ghost)

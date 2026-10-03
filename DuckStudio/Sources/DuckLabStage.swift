@@ -228,6 +228,9 @@ final class LabStage: NSObject {
          azimuth: Float = -.pi / 2, ground: Bool = true) {
         super.init()
         self.view = view
+        // Leaving "Your floor" for the stage: stop the camera and tracking.
+        // A no-op when no session is running.
+        view.session.pause()
         view.cameraMode = .nonAR
         view.environment.background = .color(theme.sky)
 

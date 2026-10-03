@@ -389,7 +389,10 @@ struct PolicyListView: View {
         } header: {
             SectionHeading(text: "Retrain")
         } footer: {
-            sectionFootnote("Describe what you want the duck to learn and Draft turns it into a fork of a training config, a set of reward functions that exist, and an episode — then refuses the ones the robot's own physics rule out, in a second rather than after a day of training. Nothing here keeps a request: it lives on the card that wrote it, and travels as a file you send to a machine that has Python, mjlab and a GPU.")
+            VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
+                sectionFootnote(BehavioursWords.retrainLine)
+                if detail.shows(.notes) { sectionFootnote(BehavioursWords.retrainNote) }
+            }
         }
     }
 
@@ -421,9 +424,9 @@ struct PolicyListView: View {
     /// would be a second copy of it, on a stack where its own Back button lies
     /// about where you came from.
     ///
-    /// ITS TWO LINES ARE THE KIT'S, ONE PER CHALLENGE. `Challenge.oneSentence`
-    /// is the same sentence the list screen draws, so this door cannot describe
-    /// a challenge differently from the screen it opens.
+    /// ITS ONE LINE IS THE KIT'S (`BehavioursWords.challengesDoor`); the
+    /// screen it opens draws each challenge's own sentence. It used to be two
+    /// lines here, one per challenge, via `Challenge.oneSentence`.
     ///
     /// AND A FOURTH ROW, FOR THE SAME REASON THE THIRD ONE IS HERE. A policy is
     /// the thing an evaluation evaluates, so the door onto one belongs on the
@@ -435,13 +438,13 @@ struct PolicyListView: View {
         Section {
             NavigationLink { CatalogueView(model: model) } label: {
                 door("Pollen Robotics",
-                     detail: "The releases that ship with the robot — and anything they have published since this app was built.",
+                     detail: BehavioursWords.pollenDoor,
                      symbol: "antenna.radiowaves.left.and.right")
             }
             .listRowBackground(cardSegment(first: true, last: false))
             NavigationLink { CommunityPoliciesView(model: model) } label: {
                 door("Community",
-                     detail: "Networks other people trained and published on Hugging Face, each with the manifest that says what its command block means.",
+                     detail: BehavioursWords.communityDoor,
                      symbol: "person.2")
             }
             // COMMUNITY CLOSES THE CARD IN SIMPLE; challenges and formal
@@ -466,12 +469,12 @@ struct PolicyListView: View {
                                 Image(systemName: "trophy")
                                     .foregroundStyle(Theme.actionSecondary)
                             }
-                            ForEach(Challenge.allCases) { challenge in
-                                Text("\(challenge.name) — \(challenge.oneSentence)")
-                                    .font(.caption)
-                                    .foregroundStyle(Theme.textSecondary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
+                            // ONE LINE, NOT ONE PER CHALLENGE: the screen it
+                            // opens lists them, each with its own sentence.
+                            Text(BehavioursWords.challengesDoor)
+                                .font(.caption)
+                                .foregroundStyle(Theme.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                         .padding(.vertical, Theme.spacing(.hairline))
                         Spacer(minLength: Theme.spacing(.tight))
@@ -502,12 +505,9 @@ struct PolicyListView: View {
                                 Image(systemName: "checklist")
                                     .foregroundStyle(Theme.actionSecondary)
                             }
-                            // THE SAME SENTENCE THE SCREEN ITSELF OPENS WITH.
-                            // `EvalTask.doorDetail` forwards to
-                            // `whatAnEvaluationIs`, which is what `EvalListView`
-                            // draws as its preamble, so this door cannot describe
-                            // the place differently from the place.
-                            Text(EvalTask.doorDetail)
+                            // ONE LINE HERE; the screen it opens leads with
+                            // the full `whatAnEvaluationIs`.
+                            Text(EvalTask.doorLine)
                                 .font(.caption)
                                 .foregroundStyle(Theme.textSecondary)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -564,7 +564,7 @@ struct PolicyListView: View {
                 Text(StudioKit.Provenance.notOfficialTitle)
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(Theme.textPrimary)
-                sectionFootnote(StudioKit.Provenance.independence)
+                sectionFootnote(StudioKit.Provenance.independenceShort)
                     .fixedSize(horizontal: false, vertical: true)
                 ProvenanceLinks().padding(.top, Theme.spacing(.hairline))
             }
@@ -874,6 +874,11 @@ struct PolicyListView: View {
     /// choosing between two catalogues, and this is the one state where there
     /// is nothing else on the screen at all. An empty state whose only
     /// affordance is further down the list is an empty state people leave.
+    ///
+    /// AND COMMUNITY IS A SECOND ROW, NOT A SECOND LINK IN THE FIRST. Two
+    /// links inside one list row both fire on a tap; a row of its own is a
+    /// door of its own.
+    @ViewBuilder
     private var emptyLibrary: some View {
         VStack(alignment: .leading, spacing: Theme.spacing(.standard)) {
             Text("No policies yet. Send one to Microduck Studio from Files, Mail or AirDrop.")
@@ -887,7 +892,17 @@ struct PolicyListView: View {
             .buttonStyle(.primaryAction)
         }
         .padding(.vertical, Theme.spacing(.tight))
-        .listRowBackground(cardSegment(first: true, last: true))
+        .listRowBackground(cardSegment(first: true, last: false))
+        NavigationLink { CommunityPoliciesView(model: model) } label: {
+            Label {
+                Text(BehavioursWords.browseCommunity)
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.textPrimary)
+            } icon: {
+                Image(systemName: "person.2").foregroundStyle(Theme.actionSecondary)
+            }
+        }
+        .listRowBackground(cardSegment(first: false, last: true))
     }
 }
 
@@ -1053,19 +1068,25 @@ struct PolicyDetailView: View {
                 // selectable so somebody can compare it against a repository.
                 // This is the shape `TelemetryRow` itself takes at
                 // accessibility sizes, at every size.
-                VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
-                    Text(entry.identity.isNetworkIdentity ? "Weights" : "File digest")
-                        .font(.subheadline)
-                        .foregroundStyle(Theme.textSecondary)
-                    Text(entry.identity.value)
-                        .font(.caption2.monospaced())
-                        .foregroundStyle(Theme.textPrimary)
-                        .textSelection(.enabled)
-                }
-                if !entry.identity.isNetworkIdentity {
-                    Text("This file does not load, so it has no weights to fingerprint. It is identified by the bytes of the file instead — which is a weaker kind of identity, and the reason it says so.")
-                        .font(.caption)
-                        .foregroundStyle(Theme.textSecondary)
+                //
+                // THE FULL DIGEST IS A NETWORK INTERNAL, the same flag the list
+                // uses for its sixteen-character fingerprint. Simple names it
+                // in the one hidden-line at the foot of this screen.
+                if detail.shows(.networkInternals) {
+                    VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
+                        Text(entry.identity.isNetworkIdentity ? "Weights" : "File digest")
+                            .font(.subheadline)
+                            .foregroundStyle(Theme.textSecondary)
+                        Text(entry.identity.value)
+                            .font(.caption2.monospaced())
+                            .foregroundStyle(Theme.textPrimary)
+                            .textSelection(.enabled)
+                    }
+                    if !entry.identity.isNetworkIdentity {
+                        Text("This file does not load, so it has no weights to fingerprint. It is identified by the bytes of the file instead, which is a weaker kind of identity, and the reason it says so.")
+                            .font(.caption)
+                            .foregroundStyle(Theme.textSecondary)
+                    }
                 }
                 arrived
                 // WHERE A POLICY CAME FROM CANNOT BE RECOVERED AFTER THE FACT.
@@ -1160,9 +1181,6 @@ struct PolicyDetailView: View {
                             secondaryAction("Probe this network",
                                             symbol: "slider.horizontal.below.square.filled.and.square")
                         }
-                    } else {
-                        Text(DetailLevel.placeholder(for: .networkInternals))
-                            .font(.caption).foregroundStyle(.secondary)
                     }
                     // REMIX AND RUN, FROM THE POLICY YOU ARE LOOKING AT.
                     // Both existed and neither was reachable from here: blending
@@ -1185,9 +1203,6 @@ struct PolicyDetailView: View {
                                                        benches: benches) } label: {
                             secondaryAction("Run it on a bench", symbol: "wifi")
                         }
-                    } else {
-                        Text(DetailLevel.placeholder(for: .physicsBench))
-                            .font(.caption).foregroundStyle(.secondary)
                     }
                     // WHERE A NETWORK LEAVES FOR EVERYBODY ELSE'S PHONE. The
                     // share button above hands over bytes; this puts the
@@ -1199,9 +1214,6 @@ struct PolicyDetailView: View {
                                 secondaryAction("Publish it to Hugging Face",
                                                 symbol: "arrow.up.doc.on.clipboard")
                             }
-                        } else {
-                            Text(DetailLevel.placeholder(for: .publishing))
-                                .font(.caption).foregroundStyle(.secondary)
                         }
                     }
                     // THE PRESENT TENSE, UNDER THE TWO PAST ONES. Watch is what
@@ -1241,9 +1253,20 @@ struct PolicyDetailView: View {
                         // fingerprint is not built.
                         sectionFootnote(PolicyNaming.recordingsNeedAFileName)
                     } else if madeFromThisPolicy.isEmpty {
-                        sectionFootnote("Nothing has been recorded from this network yet, so there is nothing to play. A preview cannot play a policy: watching one move means running it on a bench, and this iPhone is one. Run it on a bench, record it, and keep the recording — it comes back under Studio → Motions, in \"Brought in\".\n\nProbe hands it one observation and shows the fourteen numbers it answers with, and the robot they command. That works with no bench at all, but a network has no time axis, so nothing plays there either.")
+                        // ONE LINE; the rest is a note for Everything.
+                        VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
+                            sectionFootnote(BehavioursWords.nothingRecordedLine)
+                            if detail.shows(.notes) {
+                                sectionFootnote(BehavioursWords.nothingRecordedNote)
+                            }
+                        }
                     } else {
-                        sectionFootnote("Watch it move plays a recording made when this network drove a robot in physics — what it did, not what somebody asked for. Probe is the other half: hand it one observation and see the fourteen numbers it answers with. A network has no time axis, so nothing plays in Probe.\n\nRun it on a bench to record it again under your own commands, on your own floor.")
+                        VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
+                            sectionFootnote(BehavioursWords.recordedLine)
+                            if detail.shows(.notes) {
+                                sectionFootnote(BehavioursWords.recordedNote)
+                            }
+                        }
                     }
                 }
                 .listRowBackground(Theme.surfacePrimary)
@@ -1283,13 +1306,17 @@ struct PolicyDetailView: View {
             // is Microduck Studio's answer, not the robot's" — is for everybody and
             // stays; what Simple withholds is the op sequence and the initializer
             // dims, and it says so in the section's place.
-            if !detail.shows(.policyForensics) {
+            //
+            // ONE LINE FOR EVERYTHING SIMPLE HID ON THIS SCREEN, here at the
+            // foot, rather than a "hidden in Simple" sentence in each place.
+            if let hidden = BehavioursWords.hiddenLine(hiddenSurfaces.map(\.name)) {
                 Section {
-                    Text(DetailLevel.placeholder(for: .policyForensics))
+                    Text(hidden)
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 .listRowBackground(Theme.surfacePrimary)
-            } else {
+            }
+            if detail.shows(.policyForensics) {
             Section {
                 // THE STRUCTURE TABLE IS TELEMETRY IN THE STRICT SENSE THE
                 // DESIGN SYSTEM MEANS: a label that is the same on every policy
@@ -1314,6 +1341,20 @@ struct PolicyDetailView: View {
         .navigationTitle(shown.title)
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { clips = (try? DuckIntentClip.bundled()) ?? [:] }
+    }
+
+    /// The surfaces Simple withheld from this screen, in the order they would
+    /// have appeared. The action rows only exist for a runnable policy, so
+    /// only a runnable policy names them.
+    private var hiddenSurfaces: [DetailLevel.Surface] {
+        var surfaces: [DetailLevel.Surface] = []
+        if !detail.shows(.networkInternals) { surfaces.append(.networkInternals) }
+        if entry.isRunnable {
+            if !detail.shows(.physicsBench) { surfaces.append(.physicsBench) }
+            if !detail.shows(.publishing) { surfaces.append(.publishing) }
+        }
+        if !detail.shows(.policyForensics) { surfaces.append(.policyForensics) }
+        return surfaces
     }
 
     /// What this policy is CALLED, and the door to changing it.

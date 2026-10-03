@@ -82,11 +82,11 @@ struct RolloutPreferenceView: View {
         return VStack(spacing: 0) {
             stage(pairs.stance(showing.left, showing.command, env: showing.env, at: playhead),
                   ball: pairs.ball(showing.left, showing.command, env: showing.env, at: playhead),
-                  side: RolloutPreferenceWords.left)
+                  side: RolloutPreferenceWords.topLabel)
             Rectangle().fill(Theme.separator).frame(height: AuthoringMetric.hairlineStroke)
             stage(pairs.stance(showing.right, showing.command, env: showing.env, at: playhead),
                   ball: pairs.ball(showing.right, showing.command, env: showing.env, at: playhead),
-                  side: RolloutPreferenceWords.right)
+                  side: RolloutPreferenceWords.bottomLabel)
             TransportBar(duration: duration, playhead: $playhead, isRunning: $isRunning)
                 .padding(.horizontal, Theme.spacing(.snug))
                 .padding(.top, Theme.spacing(.hairline))
@@ -102,6 +102,14 @@ struct RolloutPreferenceView: View {
         let at = ball.map { SIMD2($0.x, $0.y) }
         return DuckStage(pose: pose, environment: .bareFloor,
                          props: at.map { [ShootBall.prop(at: $0)] } ?? [], orbit: $orbit, rolling: at)
+            // SAID ON THE PICTURE, NOT ONLY TO VOICEOVER: the answers below name these.
+            .overlay(alignment: .topLeading) {
+                Text(side)
+                    .font(.caption.weight(.bold))
+                    .padding(.horizontal, 8).padding(.vertical, 4)
+                    .background(.thinMaterial, in: Capsule())
+                    .padding(8)
+            }
             .frame(maxHeight: .infinity)
             .accessibilityLabel(Text(side))
     }

@@ -256,6 +256,13 @@ final class EvalTaskTests: XCTestCase {
         XCTAssertEqual(EvalTask.doorDetail, EvalTask.whatAnEvaluationIs)
     }
 
+    /// The Behaviours door is one line and still says what the screen does.
+    func testTheDoorLineIsOneLine() {
+        XCTAssertFalse(EvalTask.doorLine.contains(". "), EvalTask.doorLine)
+        XCTAssertLessThanOrEqual(EvalTask.doorLine.count, 60, EvalTask.doorLine)
+        XCTAssertTrue(EvalTask.doorLine.contains("log"))
+    }
+
     /// The two routes this build does not offer say why, under the picker,
     /// rather than being absent and read as an oversight.
     func testTheTwoRoutesThisBuildDoesNotOfferSayWhy() {

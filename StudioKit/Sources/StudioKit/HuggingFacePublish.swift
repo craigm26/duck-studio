@@ -26,12 +26,18 @@ public enum HuggingFacePublish {
     /// caller anywhere in the app — so a write token that can create and delete
     /// repositories under somebody's name could be saved and never removed.
     /// These are the sentences the screen that owns it is allowed to say.
+    ///
+    /// THE TOKEN DOES MORE THAN PUBLISH A MOTION NOW. It publishes policies and
+    /// evaluation logs, starts training jobs and contributes feedback, so the
+    /// note names the one thing that stays true across all of them: the only
+    /// host it is ever sent to.
     public static let tokenHeldNote =
-        "A Hugging Face write token is saved in this device's Keychain. It is attached to one "
-      + "kind of request only — publishing a motion — and to no other host."
+        "Saved in this device's Keychain. Sent only to huggingface.co, when you publish, "
+      + "train or contribute."
 
     public static let tokenAbsentNote =
-        "No token is saved. Publishing a motion asks for one; nothing else in this app uses it."
+        "No token is saved. Publishing, training or contributing asks for one, and it is sent "
+      + "only to huggingface.co."
 
     /// REMOVING IS NOT REVOKING, and a Remove button that does not say so
     /// teaches a false safety: the credential still works everywhere it worked

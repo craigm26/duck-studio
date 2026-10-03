@@ -30,14 +30,23 @@ final class LearnTests: XCTestCase {
     }
 
     /// THE TRAINING LESSON STATES THE FACTS THE REST OF THE APP PINS: the
-    /// simulator, the shape of the network and the rate it runs at.
-    func testTheTrainingLessonMatchesTheNetwork() {
-        let body = Learn.lessons.first { $0.id == "training" }!.body
-        XCTAssertTrue(body.contains("mjlab"))
-        XCTAssertTrue(body.contains("reinforcement learning"))
-        XCTAssertTrue(body.contains("61"))
-        XCTAssertTrue(body.contains("14 joints"))
-        XCTAssertTrue(body.contains("50 times a second"))
+    /// simulator, the shape of the network and the rate it runs at. The body
+    /// stays plain; the numbers live in its "How it works" fold.
+    func testTheTrainingLessonMatchesTheNetwork() throws {
+        let lesson = Learn.lessons.first { $0.id == "training" }!
+        XCTAssertTrue(lesson.body.contains("reinforcement learning"))
+        XCTAssertFalse(lesson.body.contains("mjlab"), "jargon stays out of the body")
+        let how = try XCTUnwrap(lesson.howItWorks)
+        XCTAssertTrue(how.contains("mjlab"))
+        XCTAssertTrue(how.contains("61"))
+        XCTAssertTrue(how.contains("14 joints"))
+        XCTAssertTrue(how.contains("50 times a second"))
+    }
+
+    /// Two lessons open Play, so their buttons must not read the same.
+    func testButtonLabelsAreDistinct() {
+        let labels = Learn.lessons.compactMap(\.button)
+        XCTAssertEqual(Set(labels).count, labels.count)
     }
 
     /// Nothing claims the phone trains from scratch.

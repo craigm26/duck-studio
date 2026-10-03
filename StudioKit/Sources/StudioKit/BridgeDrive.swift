@@ -126,6 +126,14 @@ public enum BridgeDrive {
     /// would be a picture of a duck standing still while the real one walks,
     /// which is the worst possible thing for a screen whose entire subject is
     /// what the robot is doing.
+    // MARK: - the short lines the Robot venue leads with
+
+    public static let realRobotShort = "A real robot: no Reset. Let go of the sticks or press Stop to halt."
+    public static let oneWriterShort = "One driver at a time. Close other controllers first."
+    public static let connectShort = "Connect to the bridge on your duck's computer to drive it."
+    public static let connectRow = "Connect to your duck's computer"
+    public static let connectRowLine = "Needed to drive a real duck or one in Pollen's simulator."
+
     public static let noPictureHere =
         "There is no duck drawn here, and that is deliberate. The picture on the other venues is "
       + "posed from fifteen joint angles the bench sends back with every command; a real robot "

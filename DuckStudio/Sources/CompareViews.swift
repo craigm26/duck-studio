@@ -33,15 +33,26 @@ struct CompareHubView: View {
                 }
                 NavigationLink {
                     List {
-                        NavigationLink(RolloutPreferenceWords.kickRight) {
-                            RolloutPreferenceView(onPick: { store.counted() }, resource: "kp001-right-pairs")
-                        }
-                        if Bundle.main.url(forResource: "kp001-left-pairs", withExtension: "json") != nil {
-                            NavigationLink(RolloutPreferenceWords.kickLeft) {
-                                RolloutPreferenceView(onPick: { store.counted() }, resource: "kp001-left-pairs")
+                        Section {
+                            NavigationLink {
+                                RolloutPreferenceView(onPick: { store.counted() }, resource: "kp001-right-pairs")
+                            } label: {
+                                HubRow(RolloutPreferenceWords.kickRight, "Pollen's right kick and a straighter one.", "soccerball")
                             }
+                            if Bundle.main.url(forResource: "kp001-left-pairs", withExtension: "json") != nil {
+                                NavigationLink {
+                                    RolloutPreferenceView(onPick: { store.counted() }, resource: "kp001-left-pairs")
+                                } label: {
+                                    HubRow(RolloutPreferenceWords.kickLeft, "Pollen's left kick and two straighter tries.", "soccerball")
+                                }
+                            }
+                        } footer: {
+                            Text(RolloutPreferenceWords.kickRowDetail).foregroundStyle(Theme.textSecondary)
                         }
+                        .listRowBackground(Theme.surfacePrimary)
                     }
+                    .scrollContentBackground(.hidden)
+                    .background(Theme.backgroundSecondary)
                     .navigationTitle(RolloutPreferenceWords.kickRow)
                 } label: {
                     row(RolloutPreferenceWords.kickRow, RolloutPreferenceWords.kickRowDetail, "soccerball")

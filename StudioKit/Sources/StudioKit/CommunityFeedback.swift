@@ -103,12 +103,25 @@ public enum CommunityFeedback {
     // MARK: - the words
 
     public static let button = "Contribute to the community dataset"
+    /// The whole explanation: the count line, then the detail note.
     public static func explain(pending n: Int) -> String {
+        countLine(pending: n) + " " + explainNote
+    }
+
+    /// The one line Settings always shows above the button: how many, and the
+    /// one fact a person must know before pressing it.
+    public static func countLine(pending n: Int) -> String {
         let records = n == 1 ? "record" : "records"
-        return "\(n) \(records) marked \"\(FeedbackLog.settingChoice(.public))\" not yet contributed. "
-             + "Contributing opens a pull request on \(repository.id) from your Hugging Face "
-             + "account, so your username is on the request; the records themselves carry no "
-             + "name, account or device identifier. Contributed under \(license)."
+        return "\(n) \(records) marked \"\(FeedbackLog.settingChoice(.public))\" not yet contributed; "
+             + "your username is on the request."
+    }
+
+    /// The rest, for Everything: where the request goes, what the records
+    /// carry, and the licence.
+    public static var explainNote: String {
+        "Contributing opens a pull request on \(repository.id) from your Hugging Face account. "
+      + "The records themselves carry no name, account or device identifier. Contributed "
+      + "under \(license)."
     }
     /// The account the pull request will come from, shown BEFORE the button —
     /// Apple's terms for optional, user-initiated submissions ask that the
