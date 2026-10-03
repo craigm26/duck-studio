@@ -21,15 +21,21 @@ public enum HubTraining {
 
     // MARK: - the pin
 
-    /// duckbatch `main` after the b003 series (b003b-b003g merged, 2026-10-02). Bump
-    /// deliberately: the job runs whatever this commit says.
+    /// duckbatch with kp001 (kick pairs, duckbatch #17 on #16), 2026-10-03. Bump deliberately:
+    /// the job runs whatever this commit says.
+    ///
+    /// FROM aa286e8 FOR THE KICKS. A kick recipe needs k001's `ball_lateral_speed`, the plain-PPO
+    /// path (a menu with no `anchor`) and the left-foot BallKick tasks; all three arrived after
+    /// aa286e8. For the walking recipe nothing changes: the bootstrap, the launcher and `sim`
+    /// are byte-identical, and `finetune`'s one change is that `anchor` became optional, which
+    /// a walking menu (it names one) never takes.
     ///
     /// FROM 7d8a9d3, AND IT CHANGES NOTHING THIS RECIPE RUNS. The bootstrap and the launcher are
     /// byte-identical between the two; what arrived in between is additive `finetune` keys
     /// (`dead_band`, `standing_envs`) and reward terms that only a menu naming them uses, and
     /// this menu names none of them. It moves the pin onto `main`, where every close note that
     /// judges this recipe now lives.
-    public static let duckbatchCommit = "aa286e8e4ed5232eeb108759bf1d6b20d27685ab"
+    public static let duckbatchCommit = "7e7e6601252c7e8b5358380e7c134773c46e5167"
     public static let duckbatchRepo = "https://github.com/craigm26/duckbatch.git"
     static let duckbatchRaw = "https://raw.githubusercontent.com/craigm26/duckbatch"
     /// duckbatch `hf_job.IMAGE` and `hf_job.UV_VERSION`, the two values its bootstrap reads
