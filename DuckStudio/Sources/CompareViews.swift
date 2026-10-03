@@ -320,7 +320,7 @@ struct DuelView: View {
             } else if let clips {
                 DuelStage(left: clips.0, right: clips.1, caption: caption) { choice, reasons in
                     store.pick(left: left, right: right, chose: choice, reasons: reasons,
-                               context: "duel", command: commandVector)
+                               context: "duel", command: commandVector, clips: clips)
                     done = true
                 }
             } else {
@@ -408,7 +408,7 @@ struct TournamentView: View {
                                reasons: reasons, context: "tournament",
                                command: tournament.contenders[pair.a].kind.takesACommand
                                    ? [twist.vx, twist.vy, twist.vyaw] : nil,
-                               tournament: id)
+                               tournament: id, clips: (a, b))
                     tournament.record(a: pair.a, b: pair.b, choice: choice)
                     self.pair = tournament.nextPair()
                     if tournament.isFinished { Haptic.finished() }

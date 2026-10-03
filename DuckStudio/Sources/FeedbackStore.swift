@@ -92,6 +92,10 @@ final class FeedbackStore: ObservableObject {
         recount()
     }
 
+    /// The whole log, for the training screen to read picks out of. Never leaves the device
+    /// through here: `PreferenceModel.picks(fromLog:)` reads it in place.
+    var log: String { (try? String(contentsOf: file, encoding: .utf8)) ?? "" }
+
     private func recount() {
         let log = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
         counts = FeedbackLog.counts(log)

@@ -148,6 +148,7 @@ public struct DuckFeedback: Equatable, Sendable {
         a: Compare.Contender, b: Compare.Contender, choice: Choice, reasons: [Reason] = [],
         where place: Where, order: Order, context: String, command: [Double]? = nil,
         tournament: String? = nil,
+        features: (a: PreferenceFeatures, b: PreferenceFeatures)? = nil,
         share: Share, client: String, id: UUID = UUID(), created: Date = Date()
     ) throws -> DuckFeedback {
         guard a.digest != b.digest else { throw Refusal.sameNetwork }
@@ -159,8 +160,16 @@ public struct DuckFeedback: Equatable, Sendable {
                                     "context": context]
         if let command { shown["command"] = command }
         if let tournament { shown["tournament"] = tournament }
-        let block: [String: Any] = ["a": side(a), "b": side(b), "shown": shown,
+        var block: [String: Any] = ["a": side(a), "b": side(b), "shown": shown,
                                     "choice": choice.rawValue, "reasons": reasons.map(\.rawValue)]
+        // WHAT THE TWO SIDES DID, so a pick can teach a model something (see
+        // `PreferenceFeatures`). Optional: motions and sequences carry none, and
+        // a record without it is still a valid `duck-feedback/0` preference.
+        if let features {
+            block["features"] = ["names": PreferenceFeatures.names, "a": features.a.values,
+                                 "b": features.b.values,
+                                 "joint_proxy": ["action_rate", "jitter"]] as [String: Any]
+        }
         return DuckFeedback(id: id.uuidString.lowercased(), created: created, share: share,
                             client: client, body: block, kind: "preference")
     }

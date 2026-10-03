@@ -43,13 +43,23 @@ import StudioKit
     /// Write one pick between `left` and `right` as the person saw them.
     func pick(left: Compare.Contender, right: Compare.Contender, chose: DuckFeedback.Choice,
               reasons: [DuckFeedback.Reason], context: String, command: [Double]?,
-              tournament: String? = nil) {
+              tournament: String? = nil, clips: (DuckIntentClip, DuckIntentClip)? = nil) {
+        // WHAT EACH SIDE DID, for a pick between two NETWORKS under a command.
+        // This is what lets "Train from your picks" learn a taste; a pick
+        // without it still counts for Compare's own rankings.
+        var features: (a: PreferenceFeatures, b: PreferenceFeatures)?
+        if left.kind == .behaviour, right.kind == .behaviour, let clips, let command,
+           command.count == 3,
+           let fa = try? PreferenceFeatures.measure(clips.0, command: (command[0], command[1], command[2])),
+           let fb = try? PreferenceFeatures.measure(clips.1, command: (command[0], command[1], command[2])) {
+            features = (fa, fb)
+        }
         // The record's `a` is always the left one, with `order` saying so, so
         // the reader can see a side bias.
         if let record = try? DuckFeedback.preference(
             a: left, b: right, choice: chose, reasons: reasons, where: .phoneBench,
             order: .aLeft, context: context, command: command, tournament: tournament,
-            share: feedback.share, client: FeedbackStore.client) {
+            features: features, share: feedback.share, client: FeedbackStore.client) {
             feedback.append([record])
         }
         counted()

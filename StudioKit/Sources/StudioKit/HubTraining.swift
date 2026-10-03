@@ -48,12 +48,25 @@ public enum HubTraining {
         public var iterations: Int
         public var linearProgressWeight: Double
         public var angularProgressWeight: Double
+        /// From your picks: the taste they were learned as and the reward it became. Nil is
+        /// b003b's reward exactly, as before.
+        public var fromPicks: FromPicks?
+
+        public struct FromPicks: Equatable, Sendable {
+            public let taste: PreferenceModel.Taste
+            public let plan: PreferenceModel.RewardPlan
+            public init(taste: PreferenceModel.Taste, plan: PreferenceModel.RewardPlan) {
+                self.taste = taste; self.plan = plan
+            }
+        }
 
         public init(name: String, iterations: Int = 100,
-                    linearProgressWeight: Double = 1.0, angularProgressWeight: Double = 1.0) {
+                    linearProgressWeight: Double = 1.0, angularProgressWeight: Double = 1.0,
+                    fromPicks: FromPicks? = nil) {
             self.name = name; self.iterations = iterations
             self.linearProgressWeight = linearProgressWeight
             self.angularProgressWeight = angularProgressWeight
+            self.fromPicks = fromPicks
         }
 
         public var isPilot: Bool { iterations < 500 }
@@ -86,6 +99,37 @@ public enum HubTraining {
             return nil
         }
 
+        /// The header lines that say where the reward came from, and how this run is judged.
+        var picksHeader: String {
+            guard let p = fromPicks else { return "" }
+            let names = PreferenceFeatures.names
+            let taste = zip(names, p.taste.weights).map { "\($0)=\(String(format: "%.2f", $1))" }
+                .joined(separator: " ")
+            let mult = PreferenceModel.groups.map {
+                "\($0.name)×\(String(format: "%.2f", p.plan.multipliers[$0.name] ?? 1))"
+            }.joined(separator: " ")
+            let reversed = p.plan.reversed.isEmpty ? "" : "\n# Left at Pollen's weight (your picks favoured more of it): \(p.plan.reversed.joined(separator: ", "))"
+            return """
+
+            # FROM YOUR PICKS (RLHF, human feedback): \(p.taste.picks) network-vs-network picks.
+            # Taste (standardised; negative = less is preferred): \(taste); side bias \(String(format: "%.2f", p.taste.sideBias))
+            # Reward multipliers on Pollen's VelStand weights (bounded 0.5-2): \(mult)\(reversed)
+            # Judged by you, fixed before it ran: in Compare the trained network wins at least 60%
+            # of 20 fresh picks against the network it started from.
+            """
+        }
+
+        /// The `rewards:` block that sets the re-weighted terms (finetune applies `weight`).
+        var picksRewards: String {
+            guard let p = fromPicks else { return "" }
+            // Interpolated text is not de-indented with the literal around it, so these
+            // carry the menu's own indentation: two under `finetune`, four for a term.
+            let lines = p.plan.weights.keys.sorted().map {
+                "\n    \($0): {weight: \(String(format: "%g", p.plan.weights[$0]!))}"
+            }.joined()
+            return "\n  rewards:\(lines)"
+        }
+
         /// The duckbatch menu, with its pass lines in the header.
         ///
         /// b003's pass lines, unchanged, so every run here is comparable with b003 and b003b.
@@ -101,7 +145,7 @@ public enum HubTraining {
             #   4. cmd 0.30 m/s -> >= 0.12 m/s
             # Standing practice is VelStand's curriculum, 25% of envs: `rel_standing_envs` below is
             # overwritten every reset (b003d close). b003g held it at 5% and the duck stopped standing.
-            # \(isPilot ? "A PILOT: judged on whether it runs and the progress reward rises, not on the lines." : "Judged on the lines above.")
+            # \(isPilot ? "A PILOT: judged on whether it runs and the progress reward rises, not on the lines." : "Judged on the lines above.")\(picksHeader)
             batch_id: \(batchID)
             task: Mjlab-VelStand-Flat-MicroDuck
             teacher: teachers/velstand.onnx
@@ -118,7 +162,7 @@ public enum HubTraining {
               entropy_coef: 0.002
               command:
                 rel_turn_in_place_envs: 0.25
-                rel_standing_envs: 0.05
+                rel_standing_envs: 0.05\(picksRewards)
               add_rewards:
                 command_progress_linear:
                   func: duckbatch.rewards.command_progress_linear
@@ -217,6 +261,13 @@ public enum HubTraining {
     }
 
     public static let policyPath = "policies/finetuned/policy.onnx"
+
+    /// The network every run here starts from — b002's distilled student a02 — at the pin.
+    /// Fetched beside the trained one, because the judge is a Compare duel between the two.
+    public static var startingNetworkURL: URL? {
+        URL(string: "\(duckbatchRaw)/\(duckbatchCommit)/records/b002-student-size-longer/policies/a02/policy.onnx")
+    }
+    public static let startingNetworkName = "b002-a02-start.onnx"
     public static let recordPath = "record.json"
 
     /// What PPO is, said where the screen starts, because the row used to lead with the acronym.
