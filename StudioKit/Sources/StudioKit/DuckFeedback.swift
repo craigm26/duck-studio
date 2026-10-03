@@ -112,11 +112,22 @@ public struct DuckFeedback: Equatable, Sendable {
                             client: client, body: block, kind: "route_correction")
     }
 
+    /// Features a recorded pack measured in the simulator, for both sides of one showing.
+    public struct SimFeatures: Equatable, Sendable {
+        public let names: [String]
+        public let a: [Double]
+        public let b: [Double]
+        public init(names: [String], a: [Double], b: [Double]) {
+            self.names = names; self.a = a; self.b = b
+        }
+    }
+
     /// The person watched two policies do the same thing and chose.
     public static func policyPreference(
         a: Policy, b: Policy, choice: Choice, reasons: [Reason] = [],
         where place: Where, order: Order, command: [Double]? = nil, seconds: Double? = nil,
         seed: Int? = nil, pairID: String? = nil,
+        skill: String? = nil, features: SimFeatures? = nil,
         share: Share, client: String, id: UUID = UUID(), created: Date = Date()
     ) throws -> DuckFeedback {
         guard a.fingerprint != b.fingerprint else { throw Refusal.sameNetwork }
@@ -130,8 +141,15 @@ public struct DuckFeedback: Equatable, Sendable {
         if let seconds { shown["seconds"] = seconds }
         if let seed { shown["seed"] = seed }
         if let pairID { shown["pair_id"] = pairID }
-        let block: [String: Any] = ["a": side(a), "b": side(b), "shown": shown,
+        var block: [String: Any] = ["a": side(a), "b": side(b), "shown": shown,
                                     "choice": choice.rawValue, "reasons": reasons.map(\.rawValue)]
+        // A SKILL PICK SAYS WHICH SKILL, AND WHAT THE SIMULATOR MEASURED. Both optional: the
+        // walking pack carries neither and its records are unchanged.
+        if let skill { block["skill"] = skill }
+        if let features {
+            block["features"] = ["names": features.names, "a": features.a, "b": features.b,
+                                 "measured": "simulator"] as [String: Any]
+        }
         return DuckFeedback(id: id.uuidString.lowercased(), created: created, share: share,
                             client: client, body: block, kind: "policy_preference")
     }

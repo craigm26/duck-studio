@@ -26,6 +26,8 @@ struct RolloutPreferenceView: View {
     @StateObject private var feedback = FeedbackStore()
     /// Compare's tally, told about every pick made here.
     var onPick: (() -> Void)? = nil
+    /// Which recorded pack: the walkers, or a skill's (`kp001-right-pairs`).
+    var resource = "p001-pairs"
     @State private var pairs: RolloutPairs?
     @State private var deck: PreferenceDeck?
     @State private var showing: RolloutPairs.Showing?
@@ -46,14 +48,14 @@ struct RolloutPreferenceView: View {
             }
         }
         .background(Theme.backgroundPrimary)
-        .navigationTitle(RolloutPreferenceWords.title)
+        .navigationTitle(RolloutPreferenceWords.title(skill: pairs?.skill))
         .navigationBarTitleDisplayMode(.inline)
         .onAppear(perform: load)
     }
 
     private func load() {
         guard pairs == nil,
-              let url = Bundle.main.url(forResource: "p001-pairs", withExtension: "json"),
+              let url = Bundle.main.url(forResource: resource, withExtension: "json"),
               let data = try? Data(contentsOf: url),
               let read = try? RolloutPairs.read(data) else { return }
         pairs = read
@@ -79,9 +81,11 @@ struct RolloutPreferenceView: View {
                            pairs.duration(showing.right, showing.command, env: showing.env))
         return VStack(spacing: 0) {
             stage(pairs.stance(showing.left, showing.command, env: showing.env, at: playhead),
+                  ball: pairs.ball(showing.left, showing.command, env: showing.env, at: playhead),
                   side: RolloutPreferenceWords.left)
             Rectangle().fill(Theme.separator).frame(height: AuthoringMetric.hairlineStroke)
             stage(pairs.stance(showing.right, showing.command, env: showing.env, at: playhead),
+                  ball: pairs.ball(showing.right, showing.command, env: showing.env, at: playhead),
                   side: RolloutPreferenceWords.right)
             TransportBar(duration: duration, playhead: $playhead, isRunning: $isRunning)
                 .padding(.horizontal, Theme.spacing(.snug))
@@ -92,15 +96,20 @@ struct RolloutPreferenceView: View {
 
     /// One duck. The side's name is for VoiceOver only: the buttons below say
     /// Left and Right, and the picture is the answer.
-    private func stage(_ pose: DuckStance, side: String) -> some View {
-        DuckStage(pose: pose, environment: .bareFloor, props: [], orbit: $orbit)
+    /// The ball, when the pack has one, is drawn the way Compare's shoot duel draws it.
+    private func stage(_ pose: DuckStance, ball: (x: Double, y: Double, z: Double)?,
+                       side: String) -> some View {
+        let at = ball.map { SIMD2($0.x, $0.y) }
+        return DuckStage(pose: pose, environment: .bareFloor,
+                         props: at.map { [ShootBall.prop(at: $0)] } ?? [], orbit: $orbit, rolling: at)
             .frame(maxHeight: .infinity)
             .accessibilityLabel(Text(side))
     }
 
     private func controls(_ pairs: RolloutPairs, _ showing: RolloutPairs.Showing) -> some View {
         VStack(spacing: Theme.spacing(.snug)) {
-            Text(RolloutPreferenceWords.asked(pairs.commands[showing.command] ?? []))
+            Text(pairs.skill.map { RolloutPreferenceWords.askedSkill($0, condition: showing.command) }
+                 ?? RolloutPreferenceWords.asked(pairs.commands[showing.command] ?? []))
                 .font(.footnote).foregroundStyle(Theme.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
             Text(RolloutPreferenceWords.simulated)
@@ -145,7 +154,8 @@ struct RolloutPreferenceView: View {
                 }
                 .buttonStyle(AuthoringActionStyle())
             }
-            Text(RolloutPreferenceWords.tally(answered))
+            Text(pairs.skill.map { RolloutPreferenceWords.skillTally(answered, skill: $0) }
+                 ?? RolloutPreferenceWords.tally(answered))
                 .font(.caption).foregroundStyle(Theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
