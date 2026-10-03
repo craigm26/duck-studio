@@ -1,0 +1,8 @@
+{"format": "duck-intent-plan/0", "request": "walk forward slowly, say hello, kick with your left foot, then turn right",
+ "model": "harness",
+ "steps": [
+  {"clause": "walk forward slowly", "labels": {"action": "walk_forward", "speed": "slow", "head": "straight", "sound": "chirp"}, "confidence": {"action": 0.9}},
+  {"clause": "say hello", "labels": {"action": "make_sound", "sound": "greet"}, "confidence": {"action": 0.9}},
+  {"clause": "kick with your left foot", "labels": {"action": "kick_left"}, "confidence": {"action": 0.9}},
+  {"clause": "turn right", "labels": {"action": "turn_right", "speed": "normal"}, "confidence": {"action": 0.9}}
+ ]}

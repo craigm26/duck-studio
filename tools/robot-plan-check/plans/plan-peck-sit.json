@@ -1,0 +1,8 @@
+{"format": "duck-intent-plan/0", "request": "turn left, peck the ground, coo, then sit down",
+ "model": "harness",
+ "steps": [
+  {"clause": "turn left", "labels": {"action": "turn_left", "speed": "slow"}, "confidence": {"action": 0.9}},
+  {"clause": "peck the ground", "labels": {"action": "peck_ground"}, "confidence": {"action": 0.9}},
+  {"clause": "coo", "labels": {"action": "make_sound", "sound": "coo"}, "confidence": {"action": 0.9}},
+  {"clause": "sit down", "labels": {"action": "sit_or_stand"}, "confidence": {"action": 0.9}}
+ ]}

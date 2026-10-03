@@ -47,7 +47,7 @@ final class DuckPeerTests: XCTestCase {
     func testEveryMethodIsSpelledOnce() {
         let names = Set(DuckMethod.allCases.map(\.rawValue))
         XCTAssertEqual(names.count, DuckMethod.allCases.count)
-        XCTAssertEqual(DuckMethod.allCases.count, 14,
+        XCTAssertEqual(DuckMethod.allCases.count, 17,
                        "A method was added or removed. That is fine — but the routing table and "
                        + "the reach tests below are the reason this count is pinned.")
         // FOURTEEN SINCE `robot.subscribe` ARRIVED. It is the method that turns
@@ -186,7 +186,7 @@ final class DuckPeerTests: XCTestCase {
     /// A method that takes nothing sends no `params` member. An empty object is
     /// a claim that it takes parameters and got none.
     func testACallWithNoParametersSendsNoParamsMember() throws {
-        for call in [DuckCall.stop, .enable, .initPose, .relax, .state] {
+        for call in [DuckCall.stop, .initPose, .relax, .state, .skills] {
             let top = try object(call.line(id: 3))
             XCTAssertFalse(top.keys.contains("params"), "\(call.method.rawValue)")
         }
@@ -234,9 +234,10 @@ final class DuckPeerTests: XCTestCase {
     /// line for a transport to send by mistake.
     func testTheRecoveryPathIsNotEvenRepresentableAsACall() {
         let buildable = Set(DuckCall.allShapes.map(\.method))
-        // ELEVEN: the ten robot calls — `robot.subscribe` included — and the
-        // bridge's own `studio.installPolicy`.
-        XCTAssertEqual(buildable.count, 11)
+        // FOURTEEN: the thirteen robot calls — `robot.subscribe`, `robot.do`,
+        // `robot.skills` and `robot.sound` included — and the bridge's own
+        // `studio.installPolicy`.
+        XCTAssertEqual(buildable.count, 14)
         for method in DuckMethod.allCases where method.mutatesTheRecoveryPath {
             XCTAssertNil(DuckCall.shape(of: method), method.rawValue)
             XCTAssertFalse(buildable.contains(method), method.rawValue)
@@ -279,7 +280,7 @@ final class DuckPeerTests: XCTestCase {
     func testWebRTCCarriesTheWholeRobotSurface() {
         XCTAssertEqual(DuckMethod.reach(for: .webRTC),
                        [.hello, .move, .head, .look, .stop, .enable, .initPose, .relax,
-                        .subscribe])
+                        .subscribe, .doSkill, .skills, .sound])
     }
 
     /// A method routed nowhere is almost certainly a routing slip rather than a
