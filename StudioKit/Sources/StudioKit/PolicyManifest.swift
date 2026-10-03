@@ -313,6 +313,8 @@ public struct PolicyManifest: Equatable, Sendable {
         public let encoding: String
         public let durationSeconds: Double?
         public let chain: Bool?
+        /// For a scripted or held policy: how long to unwind back to standing.
+        public var unwindSeconds: Double? = nil
     }
 
     public static func pollenFields(for kind: DuckPolicyKind) -> PollenFields {
@@ -321,10 +323,14 @@ public struct PolicyManifest: Equatable, Sendable {
                                  durationSeconds: nil, chain: nil)
         case .stand: return .init(kind: "perpetual", slot: "stand", encoding: "constant",
                                   durationSeconds: nil, chain: nil)
-        case .sitStand: return .init(kind: "perpetual", slot: "sitstand", encoding: "posture_flag",
-                                     durationSeconds: nil, chain: nil)
+        // AS POLLEN'S OWN SET MANIFEST HAS THEM (pollen-robotics/microduck-policies @d5a8b55,
+        // 2026-10-01): sit-stand is `scripted` with a 1 s unwind, ground pick is a 2.8 s
+        // phase-driven episode. The first draft of this table said `perpetual` for sit-stand;
+        // the validator accepts both, the daemon would not run them the same.
+        case .sitStand: return .init(kind: "scripted", slot: "sitstand", encoding: "posture_flag",
+                                     durationSeconds: nil, chain: nil, unwindSeconds: 1.0)
         case .groundPick: return .init(kind: "episodic", slot: "ground_pick", encoding: "phase",
-                                       durationSeconds: nil, chain: nil)
+                                       durationSeconds: 2.8, chain: nil)
         case .kickLeft: return .init(kind: "episodic", slot: "kick_left", encoding: "constant",
                                      durationSeconds: 0.5, chain: false)
         case .kickRight: return .init(kind: "episodic", slot: "kick_right", encoding: "constant",
@@ -347,6 +353,7 @@ public struct PolicyManifest: Equatable, Sendable {
             extra["slot"] = f.slot
             extra["command"] = ["encoding": f.encoding, "idle": [0.0, 0.0, 0.0]]
             if let chain = f.chain { extra["chain"] = chain }
+            if let unwind = f.unwindSeconds { extra["unwind_s"] = unwind }
         }
         return Written(name: bareName(title), summary: summary, actionScale: nil, kind: pollenKind,
                        durationSeconds: duration, entryPose: "standing", twist: [], idle: [],

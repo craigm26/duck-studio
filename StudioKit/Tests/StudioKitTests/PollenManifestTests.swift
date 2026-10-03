@@ -15,7 +15,7 @@ final class PollenManifestTests: XCTestCase {
     func testThekindIsPollensNeverTheAppsFileStem() throws {
         for kind in DuckPolicyKind.allCases {
             let m = try written(kind)
-            XCTAssertTrue(["episodic", "perpetual"].contains(m["kind"] as? String), "\(kind): \(m)")
+            XCTAssertTrue(["episodic", "perpetual", "scripted"].contains(m["kind"] as? String), "\(kind): \(m)")
             XCTAssertNotEqual(m["kind"] as? String, kind.rawValue)
         }
     }
@@ -35,6 +35,10 @@ final class PollenManifestTests: XCTestCase {
         XCTAssertEqual(try written(.walk)["slot"] as? String, "walk")
         XCTAssertEqual((try written(.sitStand)["command"] as? [String: Any])?["encoding"] as? String,
                        "posture_flag")
+        // Pollen's set manifest @d5a8b55: sit-stand is scripted with a 1 s unwind; ground pick 2.8 s.
+        XCTAssertEqual(try written(.sitStand)["kind"] as? String, "scripted")
+        XCTAssertEqual(try written(.sitStand)["unwind_s"] as? Double, 1.0)
+        XCTAssertEqual(try written(.groundPick)["duration_s"] as? Double, 2.8)
     }
 
     func testTheNameIsABareWordRobotctlCanTake() {
