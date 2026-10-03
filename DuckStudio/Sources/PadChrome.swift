@@ -53,6 +53,9 @@ struct PadChrome: View {
     /// real ones is a two-argument change at the call site.
     var library: LibraryModel?
     var models: EndpointStore?
+    /// The link to a real duck, for running a plan on it.
+    var robot: BridgeLink? = nil
+    var stopDriving: (() async -> Void)? = nil
 
     @StateObject private var ownModels = EndpointStore()
     private var modelList: EndpointStore { models ?? ownModels }
@@ -108,7 +111,7 @@ struct PadChrome: View {
             case .plan:
                 NavigationStack {
                     PlanEditorView(desk: desk, venue: venue, engage: engage, bench: bench,
-                                   models: modelList)
+                                   models: modelList, robot: robot, stopDriving: stopDriving)
                 }
             case .sequences:
                 NavigationStack {

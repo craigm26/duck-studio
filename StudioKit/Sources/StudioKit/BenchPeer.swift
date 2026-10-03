@@ -206,6 +206,9 @@ public actor BenchPeer: DuckPeer {
         case .initPose: return .resetIsNotTheInitialPose
         case .installPolicy: return .noDiskToInstallOn
         case .subscribe: return .nothingToSubscribeTo
+        case .doSkill: return .skillsAreTheBenchsOwn(.doSkill)
+        case .skills: return .skillsAreTheBenchsOwn(.skills)
+        case .sound: return .noVoice
         case .hello, .move, .stop, .state: return nil
         }
     }
@@ -234,6 +237,10 @@ public actor BenchPeer: DuckPeer {
         /// `robot.subscribe`: a bench pushes nothing, so there is no stream to
         /// turn on.
         case nothingToSubscribeTo
+        /// `robot.do` / `robot.skills`: a bench runs skills through its own endpoints.
+        case skillsAreTheBenchsOwn(DuckMethod)
+        /// `robot.sound`: a bench has no speaker.
+        case noVoice
 
         public var message: String {
             switch self {
@@ -276,6 +283,14 @@ public actor BenchPeer: DuckPeer {
                      + "the state block it just computed, which is what studio.state reads here. "
                      + "Accepting a subscription would be a promise that states are now arriving "
                      + "on their own when nothing will ever send one."
+            case .skillsAreTheBenchsOwn(let method):
+                return "\(method.rawValue) asks robotd about its skills by name, and a bench is not "
+                     + "robotd. A bench runs a kick or a sit through its own endpoints, under the "
+                     + "network's filename, which is what the skill buttons on the Play tab do. "
+                     + "A plan sent here runs its skills that way instead."
+            case .noVoice:
+                return "robot.sound plays one of the duck's voice-bank sounds, and a bench has no "
+                     + "speaker. On a duck the same plan plays it."
             }
         }
     }
@@ -364,7 +379,8 @@ public actor BenchPeer: DuckPeer {
             // answer, so a "read" would be a command.
             guard let live else { throw Refusal.nothingHasHappenedYet }
             return DuckReply(id: id, result: try Self.stateResult(live), failure: nil)
-        case .move, .head, .look, .enable, .initPose, .relax, .installPolicy, .subscribe:
+        case .move, .head, .look, .enable, .initPose, .relax, .installPolicy, .subscribe,
+             .doSkill, .skills, .sound:
             // UNREACHABLE, AND A THROW RATHER THAN A CRASH. `refusal(for:)`
             // has answered for five of these six — head, look, enable,
             // initPose, relax — and `vet` for the sixth, `move`, which is a
