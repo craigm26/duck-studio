@@ -161,6 +161,9 @@ final class SlalomModel: ObservableObject {
     @Published private(set) var run = Slalom()
     @Published var isPlaced = false
     @Published var stick = DuckSoccer.Vec2.zero
+    /// Why nothing is on the floor yet (no floor under the tap, AR refused).
+    /// Shown in place of the headline until the course is laid out.
+    @Published var notice: String?
     /// Set once at placement: changing gear mid-course would change the arc
     /// under the player's hands.
     private(set) var locked: Gear = .legs
@@ -168,13 +171,14 @@ final class SlalomModel: ObservableObject {
     func begin() {
         locked = gear
         run = Slalom(capabilities: gear.capabilities)
+        notice = nil
         isPlaced = true
     }
 
     func restart() { run = Slalom(capabilities: locked.capabilities); stick = .zero }
 
     var headline: String {
-        isPlaced ? run.summary : "Slalom · \(Slalom.course.count) gates"
+        isPlaced ? run.summary : (notice ?? "Slalom · \(Slalom.course.count) gates")
     }
 
     var detail: String {
@@ -232,7 +236,10 @@ private struct SlalomContainer: UIViewRepresentable {
     }
 
     func makeCoordinator() -> SlalomCoordinator { SlalomCoordinator() }
-    static func dismantleUIView(_ view: ARView, coordinator: SlalomCoordinator) { coordinator.detach() }
+    static func dismantleUIView(_ view: ARView, coordinator: SlalomCoordinator) {
+        view.session.pause()
+        coordinator.detach()
+    }
 }
 
 @MainActor
@@ -291,6 +298,7 @@ final class SlalomCoordinator: NSObject {
         anchor = nil; duck = nil; posts = [:]
         lastPosition = nil; phase = 0; wheel = 0
         model.isPlaced = false
+        model.notice = nil
         loadClips()
 
         switch venue {
@@ -304,7 +312,14 @@ final class SlalomCoordinator: NSObject {
         case .ar:
             view.cameraMode = .ar
             view.environment.background = .cameraFeed()
-            guard ARWorldTrackingConfiguration.isSupported else { return }
+            guard ARWorldTrackingConfiguration.isSupported else {
+                // Same kit sentence BowBridge and GhostDuck use.
+                model.notice = CameraAvailability(usageDescriptionIsDeclared: true,
+                                          permission: .authorized,
+                                          deviceSupportsWorldTracking: false)
+                    .refusal(for: .venue)
+                return
+            }
             let config = ARWorldTrackingConfiguration()
             config.planeDetection = [.horizontal]
             view.session.run(config)
@@ -324,7 +339,10 @@ final class SlalomCoordinator: NSObject {
         let point = gesture.location(in: view)
         let hits = view.raycast(from: point, allowing: .existingPlaneGeometry, alignment: .horizontal)
         let fallback = view.raycast(from: point, allowing: .estimatedPlane, alignment: .horizontal)
-        guard let hit = (hits.first ?? fallback.first) else { return }
+        guard let hit = (hits.first ?? fallback.first) else {
+            model.notice = DriveVenue.noFloorThere
+            return
+        }
         model.begin()
         let root = AnchorEntity(world: hit.worldTransform)
         layout(on: root, variant: model.locked.variant)

@@ -64,6 +64,13 @@ final class CommunityFeedbackTests: XCTestCase {
         XCTAssertTrue(line.contains("your username is on the request"))
         XCTAssertTrue(line.contains("CC0-1.0"))
         XCTAssertTrue(line.hasPrefix("2 records"))
+        // THE SHORT LINE SETTINGS ALWAYS SHOWS still names the username, so
+        // Simple never hides it; the licence may wait for Everything.
+        let short = CommunityFeedback.countLine(pending: 2)
+        XCTAssertTrue(short.hasPrefix("2 records"))
+        XCTAssertTrue(short.contains("your username is on the request"))
+        XCTAssertTrue(CommunityFeedback.explainNote.contains("CC0-1.0"))
+        XCTAssertTrue(CommunityFeedback.countLine(pending: 1).hasPrefix("1 record marked"))
         XCTAssertEqual(CommunityFeedback.contributingAs("someone"),
                        "Contributing as someone on Hugging Face")
     }

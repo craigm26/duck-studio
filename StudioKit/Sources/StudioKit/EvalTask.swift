@@ -384,6 +384,11 @@ public struct EvalTask: Equatable, Sendable, Identifiable {
     /// differently from the screen it opens is two descriptions of one thing.
     public static var doorDetail: String { whatAnEvaluationIs }
 
+    /// One line for the door on the Behaviours list, where three sentences
+    /// crowd out the rows around it. The screen it opens still leads with
+    /// `whatAnEvaluationIs`.
+    public static let doorLine = "Run a policy many times and save a log others can check"
+
     public static let nothingRunYet =
         "No evaluations yet. Pick a preset, pick a policy and start one, and the log lands here "
       + "with everything needed to read it somewhere else."

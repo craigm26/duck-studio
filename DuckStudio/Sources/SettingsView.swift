@@ -46,20 +46,6 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            // WHOSE APP THIS IS NOT, FIRST. Settings is where somebody looks
-            // for "About", and Pollen Robotics asked (microduck#329) that
-            // nobody take this for their official app.
-            Section {
-                Text(StudioKit.Provenance.independence)
-                    .font(.footnote).foregroundStyle(Theme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                ProvenanceLinks()
-                    .padding(.vertical, Theme.spacing(.hairline))
-            } header: {
-                SectionHeading(text: StudioKit.Provenance.notOfficialTitle)
-            }
-            .listRowBackground(Theme.surfacePrimary)
-
             // BOTH SALVAGE NOTICES, AT THE TOP. Each store keeps a count of
             // rows it could not read, and each used to be drawn only on its own
             // screen — so the notice that something you configured is gone was
@@ -113,14 +99,10 @@ struct SettingsView: View {
             }
             .listRowBackground(Theme.surfacePrimary)
 
+            // HOW MUCH OF THE APP TO SHOW, IN A SECTION OF ITS OWN. It is the
+            // setting that changes what the other settings are for, so it
+            // does not share a card with Models.
             Section {
-                // THE GLYPH CARRIES THE ACTION COLOUR AND THE WORD DOES NOT —
-                // the arrangement `CatalogueView` makes for every door that is
-                // not the primary one. A navigation row is a place to go, not
-                // the thing this screen is for, so it gets a coloured mark
-                // rather than a coloured sentence.
-                // HOW MUCH OF THE APP TO SHOW. First in Settings because it is
-                // the setting that changes what the other settings are for.
                 Picker("Detail", selection: $detail.level) {
                     ForEach(DetailLevel.allCases) { Text($0.name).tag($0) }
                 }
@@ -129,6 +111,17 @@ struct SettingsView: View {
                 if let withheld = detail.level.withheldNote {
                     Text(withheld).font(.caption2).foregroundStyle(.secondary)
                 }
+            } header: {
+                SectionHeading(text: "Detail")
+            }
+            .listRowBackground(Theme.surfacePrimary)
+
+            Section {
+                // THE GLYPH CARRIES THE ACTION COLOUR AND THE WORD DOES NOT:
+                // the arrangement `CatalogueView` makes for every door that is
+                // not the primary one. A navigation row is a place to go, not
+                // the thing this screen is for, so it gets a coloured mark
+                // rather than a coloured sentence.
                 NavigationLink { ModelSettingsView(store: models) } label: {
                     Label {
                         Text("Models").foregroundStyle(Theme.textPrimary)
@@ -190,11 +183,17 @@ struct SettingsView: View {
                     .font(.caption.monospacedDigit()).foregroundStyle(Theme.textSecondary)
                 Button(FeedbackLog.exportButton) { exporting = feedback.exportFile() }
                     .disabled(feedback.counts.exportable == 0)
-                // THE COMMUNITY DATASET. Said in full before the button, because
-                // the pull request carries the person's username.
-                Text(CommunityFeedback.explain(pending: feedback.pendingContribution))
+                // THE COMMUNITY DATASET. The count line always says the pull
+                // request carries the person's username; where it goes and the
+                // licence are a note for Everything.
+                Text(CommunityFeedback.countLine(pending: feedback.pendingContribution))
                     .font(.caption).foregroundStyle(Theme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
+                if detail.shows(.notes) {
+                    Text(CommunityFeedback.explainNote)
+                        .font(.caption2).foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 Text(feedback.account.map(CommunityFeedback.contributingAs)
                      ?? CommunityFeedback.accountUnknown)
                     .font(.caption.weight(.semibold)).foregroundStyle(Theme.textPrimary)
@@ -211,6 +210,8 @@ struct SettingsView: View {
                         .textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+            } header: {
+                SectionHeading(text: "Feedback")
             } footer: {
                 Text(FeedbackLog.settingFooter)
                     .foregroundStyle(Theme.textSecondary)
@@ -221,6 +222,24 @@ struct SettingsView: View {
                                         set: { if !$0 { exporting = nil } })) {
                 if let exporting { ShareSheet(items: [exporting]) { self.exporting = nil } }
             }
+
+            // WHOSE APP THIS IS NOT, AT THE FOOT, WHERE "ABOUT" LIVES. Pollen
+            // Robotics asked (microduck#329) that nobody take this for their
+            // official app; the title says it in their words, the short claim
+            // keeps all three denials, and the links go to them.
+            Section {
+                Text(StudioKit.Provenance.notOfficialTitle)
+                    .font(.footnote.weight(.semibold)).foregroundStyle(Theme.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(StudioKit.Provenance.independenceShort)
+                    .font(.footnote).foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                ProvenanceLinks()
+                    .padding(.vertical, Theme.spacing(.hairline))
+            } header: {
+                SectionHeading(text: "About")
+            }
+            .listRowBackground(Theme.surfacePrimary)
         }
         // THE RECESSED GROUND UNDER THE CARDS, and it is what lets any coloured
         // word be set on this screen at all: `Palette` documents

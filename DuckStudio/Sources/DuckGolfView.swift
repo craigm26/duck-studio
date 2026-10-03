@@ -172,6 +172,9 @@ final class GolfModel: ObservableObject {
     @Published var stick = DuckSoccer.Vec2.zero
     @Published var power = 0.6
     @Published private(set) var lastStroke = ""
+    /// Why nothing is on the floor yet (no floor under the tap, AR refused).
+    /// Shown in place of the headline until a hole is laid out.
+    @Published var notice: String?
     /// The duck's own position and heading, driven by the stick. The engine
     /// owns the ball and the cup; where the player stands is the player's.
     @Published private(set) var duck = DuckSoccer.Vec2.zero
@@ -181,7 +184,7 @@ final class GolfModel: ObservableObject {
     var hasNextHole: Bool { holeIndex + 1 < DuckGolf.course.count }
 
     var headline: String {
-        guard isPlaced else { return "Tap the floor to lay out the hole." }
+        guard isPlaced else { return notice ?? "Tap the floor to lay out the hole." }
         return "Hole \(holeIndex + 1) of \(DuckGolf.course.count) · par \(game.hole.par) — \(game.summary)"
     }
 
@@ -204,6 +207,7 @@ final class GolfModel: ObservableObject {
     func reset() {
         game = DuckGolf(hole: DuckGolf.course[holeIndex])
         duck = .zero; heading = 0; lastStroke = ""
+        notice = nil
         isPlaced = true
     }
 
@@ -254,7 +258,10 @@ private struct GolfContainer: UIViewRepresentable {
     }
 
     func makeCoordinator() -> GolfCoordinator { GolfCoordinator() }
-    static func dismantleUIView(_ view: ARView, coordinator: GolfCoordinator) { coordinator.detach() }
+    static func dismantleUIView(_ view: ARView, coordinator: GolfCoordinator) {
+        view.session.pause()
+        coordinator.detach()
+    }
 }
 
 @MainActor
@@ -314,6 +321,7 @@ final class GolfCoordinator: NSObject {
         anchor = nil; duck = nil; ball = nil; cup = nil
         laidOutHole = -1; lastPosition = nil; phase = 0
         model.isPlaced = false
+        model.notice = nil
 
         switch venue {
         case .stage:
@@ -326,7 +334,14 @@ final class GolfCoordinator: NSObject {
         case .ar:
             view.cameraMode = .ar
             view.environment.background = .cameraFeed()
-            guard ARWorldTrackingConfiguration.isSupported else { return }
+            guard ARWorldTrackingConfiguration.isSupported else {
+                // Same kit sentence BowBridge and GhostDuck use.
+                model.notice = CameraAvailability(usageDescriptionIsDeclared: true,
+                                          permission: .authorized,
+                                          deviceSupportsWorldTracking: false)
+                    .refusal(for: .venue)
+                return
+            }
             let config = ARWorldTrackingConfiguration()
             config.planeDetection = [.horizontal]
             view.session.run(config)
@@ -338,7 +353,10 @@ final class GolfCoordinator: NSObject {
         let point = gesture.location(in: view)
         let hits = view.raycast(from: point, allowing: .existingPlaneGeometry, alignment: .horizontal)
         let fallback = view.raycast(from: point, allowing: .estimatedPlane, alignment: .horizontal)
-        guard let hit = (hits.first ?? fallback.first) else { return }
+        guard let hit = (hits.first ?? fallback.first) else {
+            model.notice = DriveVenue.noFloorThere
+            return
+        }
         let root = AnchorEntity(world: hit.worldTransform)
         layout(on: root)
         view.scene.addAnchor(root)

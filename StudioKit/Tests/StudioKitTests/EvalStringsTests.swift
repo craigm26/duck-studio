@@ -67,6 +67,7 @@ final class EvalStringsTests: XCTestCase {
         ("EvalPolicy.fileOnlySaid", EvalPolicy.fileOnlySaid),
         ("EvalTask.rowTitle", EvalTask.rowTitle),
         ("EvalTask.whatAnEvaluationIs", EvalTask.whatAnEvaluationIs),
+        ("EvalTask.doorLine", EvalTask.doorLine),
         ("EvalTask.nothingRunYet", EvalTask.nothingRunYet),
         ("EvalTask.stopIsNotAFailure", EvalTask.stopIsNotAFailure),
         ("EvalTask.maxStepsSaid", EvalTask.maxStepsSaid),

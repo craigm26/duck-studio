@@ -93,7 +93,7 @@ struct StudioHubView: View {
                 NavigationLink {
                     place(.shoot)
                 } label: {
-                    Label(ShootWords.studioRow, systemImage: ShootWords.studioRowSymbol)
+                    HubRow(ShootWords.studioRow, StudioHubWords.shoot, ShootWords.studioRowSymbol)
                 }
                 ForEach(LabCatalogue.listed().filter { $0.id != "bench" && !Self.hiddenHere($0) }) { mode in
                     row(mode)
@@ -117,21 +117,21 @@ struct StudioHubView: View {
                 // these rows — is product copy a test guards, and the screen
                 // that folded here was the only one that drew it.
                 // SIMPLE STOPS AT THE CARDS: they say what each mode is.
+                // ONE SENTENCE, NOT TWO. `rationale` (why three apps became these rows) is about
+                // how the app was built, not about what a person can do here; it stays in the kit.
                 if detail.shows(.notes) {
-                    VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
-                        Text(LabCatalogue.modesPreamble)
-                        Text(LabCatalogue.rationale)
-                    }
+                    Text(LabCatalogue.modesPreamble)
                         .foregroundStyle(Theme.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
+            .listRowBackground(Theme.surfacePrimary)
 
             Section {
                 NavigationLink {
                     place(.motions)
                 } label: {
-                    Label("Motions", systemImage: "figure.walk.motion")
+                    HubRow("Motions", StudioHubWords.motions, "figure.walk.motion")
                 }
                 // A THIRD KIND OF THING, and it earned its own row the moment
                 // the stage started drawing one. A policy is a network, a
@@ -142,7 +142,7 @@ struct StudioHubView: View {
                 NavigationLink {
                     place(.scenes)
                 } label: {
-                    Label("Scenes", systemImage: "square.3.layers.3d")
+                    HubRow("Scenes", StudioHubWords.scenes, "square.3.layers.3d")
                 }
                 // NOT `wand.and.stars`, WHICH IS NOW THE TAB'S OWN SYMBOL. A
                 // row wearing the same glyph as the tab it sits in reads as the
@@ -150,7 +150,7 @@ struct StudioHubView: View {
                 NavigationLink {
                     place(.draft)
                 } label: {
-                    Label("Draft with words", systemImage: "text.bubble")
+                    HubRow("Draft with words", StudioHubWords.draft, "text.bubble")
                 }
                 // A PLAN, NOT A MOTION: steps a router proposed from a sentence,
                 // edited here and kept as a sequence. It runs from Control, where
@@ -158,7 +158,7 @@ struct StudioHubView: View {
                 NavigationLink {
                     PlanEditorView(desk: nil, venue: .sim, engage: {}, models: models)
                 } label: {
-                    Label(PlanEditorWords.studioRow, systemImage: PlanEditorWords.studioRowSymbol)
+                    HubRow(PlanEditorWords.studioRow, StudioHubWords.plan, PlanEditorWords.studioRowSymbol)
                 }
                 // A FOURTH WAY TO WRITE A MOTION: stand in front of the
                 // camera, or play a video, and let a body-pose model read
@@ -167,14 +167,14 @@ struct StudioHubView: View {
                 NavigationLink {
                     place(.mimic)
                 } label: {
-                    Label(Mimic.studioRow, systemImage: Mimic.studioRowSymbol)
+                    HubRow(Mimic.studioRow, StudioHubWords.mimic, Mimic.studioRowSymbol)
                 }
                 // THE ONE MEASURING SCREEN THAT NEEDS NO BENCH AND NO VOCABULARY:
                 // two walks, pick the better one. It is Learn's "Judge two walks".
                 NavigationLink {
                     place(.preference)
                 } label: {
-                    Label(CompareWords.studioRow, systemImage: CompareWords.studioRowSymbol)
+                    HubRow(CompareWords.studioRow, StudioHubWords.compare, CompareWords.studioRowSymbol)
                 }
             } header: {
                 SectionHeading(text: "Make")
@@ -196,7 +196,7 @@ struct StudioHubView: View {
                     NavigationLink {
                         place(.measure)
                     } label: {
-                        Label("Run on your network", systemImage: "wifi")
+                        HubRow("Run on your network", StudioHubWords.measure, "wifi")
                     }
                     // THE ONLY ROW IN THE APP THAT TRIES TO MAKE A NETWORK BETTER,
                     // and it is under Measure rather than under Author because
@@ -212,7 +212,7 @@ struct StudioHubView: View {
                     NavigationLink {
                         place(.tune)
                     } label: {
-                        Label("Tune it on \(DeviceWords.current.this)", systemImage: "slider.horizontal.3")
+                        HubRow("Tune it on \(DeviceWords.current.this)", StudioHubWords.tune, "slider.horizontal.3")
                     }
                     // THE SAME BENCH, THE WHOLE NETWORK. Tune folds twenty-eight
                     // numbers onto what the network already says; this moves the
@@ -227,7 +227,7 @@ struct StudioHubView: View {
                     NavigationLink {
                         WeightSearchView(library: model, benches: benches)
                     } label: {
-                        Label("Search its weights on \(DeviceWords.current.this)", systemImage: "brain")
+                        HubRow("Search its weights on \(DeviceWords.current.this)", StudioHubWords.weights, "brain")
                     }
                     // PPO, NOT A SEARCH. The two rows above move numbers on a bench
                     // and keep what scores; this runs Pollen's own trainer
@@ -240,7 +240,7 @@ struct StudioHubView: View {
                             Imports.open(url, model: model, drafts: drafts, plans: plans)
                         }
                     } label: {
-                        Label(HubTraining.rowTitle, systemImage: "cpu")
+                        HubRow(HubTraining.rowTitle, StudioHubWords.hub, "cpu")
                     }
                     // THE OTHER SEARCH, AND THE ONE MOST PEOPLE MEAN. Tune searches
                     // a NETWORK — twenty-eight numbers folded into a last layer.
@@ -256,7 +256,7 @@ struct StudioHubView: View {
                     NavigationLink {
                         MoveSearchView(benches: benches, models: models)
                     } label: {
-                        Label("Search a move's keyframes", systemImage: "magnifyingglass")
+                        HubRow("Search a move's keyframes", StudioHubWords.moveSearch, "magnifyingglass")
                     }
                     // THE ONE PLACE IN THE APP WHERE A NUMBER THIS PHONE PRODUCES
                     // CAN BE THE SAME NUMBER SOMEBODY ELSE PUBLISHED. It is under
@@ -277,7 +277,7 @@ struct StudioHubView: View {
                     NavigationLink {
                         place(.challenges)
                     } label: {
-                        Label(Challenge.listTitle, systemImage: "trophy")
+                        HubRow(Challenge.listTitle, StudioHubWords.challenges, "trophy")
                     }
                     // THE SIXTH DOOR UNDER MEASURE, AND THE ONLY ONE THAT ENDS IN A
                     // FILE SOMEBODY ELSE'S TOOL READS. Tune, the weight search and
@@ -301,7 +301,7 @@ struct StudioHubView: View {
                     NavigationLink {
                         place(.evaluations)
                     } label: {
-                        Label(EvalTask.rowTitle, systemImage: "checklist")
+                        HubRow(EvalTask.rowTitle, StudioHubWords.evaluations, "checklist")
                     }
                     // A PERSON AS THE MEASURE. Two recorded walkers, one choice;
                     // under Measure because nothing is authored or trained here.
@@ -311,7 +311,7 @@ struct StudioHubView: View {
                     NavigationLink {
                         MultiDuckView(model: model, benches: benches)
                     } label: {
-                        Label(MultiDuck.studioRow, systemImage: MultiDuck.studioRowSymbol)
+                        HubRow(MultiDuck.studioRow, StudioHubWords.multiDuck, MultiDuck.studioRowSymbol)
                     }
                 } header: {
                     SectionHeading(text: "Train and measure")
@@ -322,11 +322,9 @@ struct StudioHubView: View {
                     Button {
                         router.go(to: .learn)
                     } label: {
-                        Label("Training and measuring tools", systemImage: "graduationcap")
+                        HubRow(StudioHubWords.toolsRow, StudioHubWords.toolsLine, "graduationcap")
                     }
-                } footer: {
-                    Text("Learn explains them one at a time, then turns them on.")
-                        .foregroundStyle(Theme.textSecondary)
+                    .foregroundStyle(Theme.textPrimary)
                 }
                 .listRowBackground(Theme.surfacePrimary)
             }
@@ -444,87 +442,19 @@ struct StudioHubView: View {
     /// would put a third corner radius nobody chose in the middle of two that
     /// were picked to be a step apart.
     @ViewBuilder private func row(_ mode: LabCatalogue.Mode) -> some View {
-        let blocked = cameraRefusal(for: mode)
-        Group {
-            if mode.status == .here, blocked == nil {
-                NavigationLink {
-                    destination(mode)
-                } label: {
-                    card(mode, reason: nil)
-                }
-            } else {
-                card(mode, reason: mode.status.reason ?? blocked)
-                    // Combined so a screen reader gets the name, what it does and
-                    // why it cannot be opened as one thing, rather than three
-                    // fragments it has to reassemble.
-                    .accessibilityElement(children: .combine)
+        let reason = mode.status.reason ?? cameraRefusal(for: mode)
+        if reason == nil {
+            NavigationLink {
+                destination(mode)
+            } label: {
+                HubRow(mode.name, mode.summary, mode.symbol)
             }
+        } else {
+            // A ROW THAT CANNOT OPEN SAYS WHY, UNDER ITS NAME, rather than in a dialog after
+            // the tap. Combined so a screen reader hears name, line and reason as one thing.
+            HubRow(mode.name, mode.summary, mode.symbol, reason: reason)
+                .accessibilityElement(children: .combine)
         }
-        .listRowInsets(EdgeInsets(top: Theme.spacing(.hairline),
-                                  leading: Theme.spacing(.snug),
-                                  bottom: Theme.spacing(.hairline),
-                                  trailing: Theme.spacing(.snug)))
-        .listRowBackground(Color.clear)
-        .listRowSeparator(.hidden)
-    }
-
-    /// `reason` is nil exactly for a row that can be opened. It is passed in
-    /// rather than read off `mode.status` here because a built row can also be
-    /// shut by the camera, and the card must not have to know which of the two
-    /// happened to draw the sentence.
-    ///
-    /// A BLOCKED CARD LOSES THE ACTION COLOUR RATHER THAN BEING FADED OUT — the
-    /// argument `PrimaryActionStyle` makes about its own disabled state. Half
-    /// opacity over three lines of explanation takes the explanation to roughly
-    /// 2:1, and the explanation is the entire reason the row is still drawn.
-    private func card(_ mode: LabCatalogue.Mode, reason: String?) -> some View {
-        HStack(alignment: .top, spacing: Theme.spacing(.snug)) {
-            Image(systemName: mode.symbol)
-                .font(.title3)
-                // AN INK, NOT THE BRAND FILL. The glyph is a WORD-sized mark
-                // set on a surface rather than a shape filled with the action
-                // colour, and Duck Orange is 2.30:1 on cream — `actionSecondary`
-                // is the orange that sets marks and clears 4.5:1 in both schemes.
-                .foregroundStyle(reason == nil ? Theme.actionSecondary : Theme.textTertiary)
-                .frame(width: Theme.spacing(.loose), height: Theme.spacing(.loose))
-                .padding(Theme.spacing(.tight))
-                .background(Theme.surfaceInteractive, in: tile)
-                // The name is right there; the symbol is decoration.
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
-                Text(mode.name)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(reason == nil ? Theme.textPrimary : Theme.textSecondary)
-                Text(mode.blurb)
-                    .font(.footnote)
-                    .foregroundStyle(Theme.textSecondary)
-                    // NO FIXED WIDTH ANYWHERE ON THIS CARD. Every string here
-                    // is a whole sentence from `LabCatalogue`, and a sentence
-                    // in a fixed frame at AX5 is a column of single words.
-                    .fixedSize(horizontal: false, vertical: true)
-                if let reason {
-                    Text(reason)
-                        .font(.caption2)
-                        .foregroundStyle(Theme.textTertiary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(Theme.spacing(.snug))
-        .background(Theme.surfacePrimary, in: shell)
-        .overlay(shell.strokeBorder(Theme.separator, lineWidth: StudioHubMetric.hairlineStroke))
-    }
-
-    /// The card, and the tile inside it at the next radius down. Written as
-    /// `StudioHubMetric.card.inner` rather than as a second constant so that
-    /// changing the outer radius moves the inner one with it.
-    private var shell: RoundedRectangle {
-        RoundedRectangle(cornerRadius: Theme.radius(StudioHubMetric.card), style: .continuous)
-    }
-
-    private var tile: RoundedRectangle {
-        RoundedRectangle(cornerRadius: Theme.radius(StudioHubMetric.card.inner), style: .continuous)
     }
 
     /// WHERE A LIVE MODE GOES.
@@ -569,6 +499,55 @@ struct StudioHubView: View {
                                    description: Text("\(mode.name) is listed as usable but nothing is wired to it. That is a bug in this build, not something you did."))
         }
     }
+}
+
+/// One row on the Studio list: a symbol in a fixed column, the name, and one line.
+///
+/// THE SYMBOL COLUMN IS FIXED, so every row's text starts at the same x and the list separators
+/// line up; system `Label`s size the icon to the glyph, which is what made one separator on this
+/// tab run the full width under "Plan with words". `reason` is set only for a row that cannot open.
+struct HubRow: View {
+    let title: String
+    let line: String
+    let symbol: String
+    var reason: String? = nil
+
+    init(_ title: String, _ line: String, _ symbol: String, reason: String? = nil) {
+        self.title = title; self.line = line; self.symbol = symbol; self.reason = reason
+    }
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: Theme.spacing(.snug)) {
+            Image(systemName: symbol)
+                .font(.body)
+                .foregroundStyle(reason == nil ? Theme.actionSecondary : Theme.textTertiary)
+                .frame(width: HubRowMetric.symbolColumn)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.body)
+                    .foregroundStyle(reason == nil ? Theme.textPrimary : Theme.textSecondary)
+                Text(line)
+                    .font(.footnote)
+                    .foregroundStyle(Theme.textSecondary)
+                    .lineLimit(2)
+                if let reason {
+                    Text(reason)
+                        .font(.caption)
+                        .foregroundStyle(Theme.textTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
+        }
+        .padding(.vertical, 2)
+        .frame(minHeight: DesignMetric.minimumTarget)
+    }
+}
+
+private enum HubRowMetric {
+    /// Wide enough for the widest symbol on the tab at body size.
+    static let symbolColumn: CGFloat = 28
 }
 
 /// The two numbers this screen writes down for itself.

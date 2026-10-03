@@ -134,8 +134,8 @@ struct MyMicroduckView: View {
                 remoteSection
             }
             benchSection
+            cameraSection
             if detail.shows(.diagnostics) {
-                cameraSection
                 connectionSection
             }
         }
@@ -446,42 +446,46 @@ struct MyMicroduckView: View {
     /// its own tab.
     private var robotSection: some View {
         Section {
+            NavigationLink { RobotBridgeView(library: model, robot: robot) } label: {
+                HubRow(BridgeDrive.connectRow, BridgeDrive.connectRowLine, "cable.connector")
+            }
+            NavigationLink { FindDuckView() } label: {
+                HubRow("Find a duck", "Scan nearby over Bluetooth.", "antenna.radiowaves.left.and.right")
+            }
             NavigationLink {
                 RobotView(benches: benches, models: models, library: model,
                           robot: robot, detail: detail)
             } label: {
-                Label("Robot details", systemImage: "wrench.and.screwdriver")
+                HubRow("Robot details", "Size, weight, servos and what this app knows.", "wrench.and.screwdriver")
             }
-            .frame(minHeight: DesignMetric.minimumTarget)
-            NavigationLink { FindDuckView() } label: {
-                Label("Find a duck", systemImage: "antenna.radiowaves.left.and.right")
-            }
-            .frame(minHeight: DesignMetric.minimumTarget)
         } header: {
             SectionHeading(text: "Robot")
         }
         .listRowBackground(Theme.surfacePrimary)
     }
 
+    /// THE DUCK'S OWN CAMERA, read from the robot's `/frame` (see `DuckCamera`). It replaced a
+    /// sentence saying this build could not draw one; the same address the Play tab's Robot
+    /// venue uses, so it is typed once.
+    @AppStorage("robot.camera.address") private var cameraAddress = ""
+
     private var cameraSection: some View {
         Section {
-            Text(DeviceCard.noCameraYet)
-                .font(.footnote)
-                .foregroundStyle(Theme.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityLabel(Text("Camera"))
-                .accessibilityValue(Text(DeviceCard.noCameraYet))
+            DuckCameraCard(address: $cameraAddress)
         } header: {
-            SectionHeading(text: "Camera")
+            SectionHeading(text: DuckCamera.Words.heading)
+        } footer: {
+            if detail.shows(.notes) { Text(DuckCamera.Words.footer).foregroundStyle(Theme.textSecondary) }
         }
         .listRowBackground(Theme.surfacePrimary)
+        .onAppear { if cameraAddress.isEmpty, !robot.host.isEmpty { cameraAddress = robot.host } }
     }
 
     /// The two doors that open onto hardware.
     private var connectionSection: some View {
         Section {
             NavigationLink { PairingSpikeView() } label: {
-                Label("Run the pairing spike", systemImage: "bolt.horizontal")
+                Label("Bluetooth test report", systemImage: "bolt.horizontal")
             }
             .frame(minHeight: DesignMetric.minimumTarget)
         } header: {

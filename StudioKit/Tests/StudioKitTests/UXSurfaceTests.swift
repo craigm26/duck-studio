@@ -52,8 +52,13 @@ final class UXSurfaceTests: XCTestCase {
     func testTheHeldNoteNamesNoAccount() {
         let s = HuggingFacePublish.tokenHeldNote
         XCTAssertFalse(s.contains("account"), s)
-        XCTAssertTrue(s.contains("one kind of request only"), s)
-        XCTAssertTrue(HuggingFacePublish.tokenAbsentNote.contains("nothing else in this app uses it"),
-                      HuggingFacePublish.tokenAbsentNote)
+        // Both notes name the one host the token is ever sent to, and the
+        // three things that send it, so neither under-claims its reach.
+        for note in [s, HuggingFacePublish.tokenAbsentNote] {
+            XCTAssertTrue(note.contains("only to huggingface.co"), note)
+            for use in ["publish", "train", "contribut"] {
+                XCTAssertTrue(note.lowercased().contains(use), "\(use): \(note)")
+            }
+        }
     }
 }

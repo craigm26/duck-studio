@@ -187,6 +187,9 @@ struct DriveView: View {
     /// not advertise itself over Bonjour, so an address is the honest control
     /// until something on the robot broadcasts one.
     @AppStorage("robot.console.host") private var consoleHost = "duck.local"
+    /// Where the duck's camera is: seeded from the bridge's host, since `mediad` runs on the
+    /// same computer as `robotd`; a simulated duck's is the laptop and the port duck-sim printed.
+    @AppStorage("robot.camera.address") private var cameraAddress = ""
     /// Whether the controls drawer is up.
     ///
     /// PER SCREEN, AND CLOSED BY DEFAULT. `stage.legend.expanded` is app-wide
@@ -2367,21 +2370,23 @@ struct DriveView: View {
     /// the first time on this screen.
     @ViewBuilder private var drivingSection: some View {
         Section {
-            Text(DriveVenue.robotIsDrivenOverTheBridge)
-                .font(.footnote)
-                .foregroundStyle(Theme.textPrimary)
-                .fixedSize(horizontal: false, vertical: true)
-            Text(BridgeDrive.theseCommandsAreReal)
+            Label(BridgeDrive.realRobotShort, systemImage: "exclamationmark.triangle")
                 .font(.footnote)
                 .foregroundStyle(Theme.warning)
                 .fixedSize(horizontal: false, vertical: true)
             if !robot.host.isEmpty {
                 TelemetryRow(label: "Bridge", value: robot.host, unit: "")
             }
-            Text(robot.deadmanSaid)
-                .font(.caption)
-                .foregroundStyle(Theme.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
+            if !isSimple {
+                Text(DriveVenue.robotIsDrivenOverTheBridge)
+                    .font(.footnote)
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(robot.deadmanSaid)
+                    .font(.caption)
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         } header: {
             SectionHeading(text: BridgeDrive.drivingHeading)
         }
@@ -2443,20 +2448,20 @@ struct DriveView: View {
         // arrives here looking for a picture, a world picker and a Reset, and
         // finds none of the three.
         Section {
-            Text(BridgeDrive.noPictureHere)
-                .font(.footnote).foregroundStyle(Theme.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-            Text(BridgeDrive.noWorldNoScene)
-                .font(.footnote).foregroundStyle(Theme.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-            Text(BridgeDrive.noPolicySwapHere)
-                .font(.footnote).foregroundStyle(Theme.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-            Label(BridgeDrive.oneWriterOnly, systemImage: "person.2.slash")
+            Label(BridgeDrive.oneWriterShort, systemImage: "person.2.slash")
                 .font(.caption).foregroundStyle(Theme.warning)
                 .fixedSize(horizontal: false, vertical: true)
-        } header: {
-            SectionHeading(text: BridgeDrive.absencesHeading)
+            // THE THREE ABSENCES, ONE TAP AWAY rather than three paragraphs on the screen
+            // somebody is driving from.
+            DisclosureGroup(BridgeDrive.absencesHeading) {
+                VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
+                    Text(BridgeDrive.noWorldNoScene)
+                    Text(BridgeDrive.noPolicySwapHere)
+                    Text(BridgeDrive.oneWriterOnly)
+                }
+                .font(.footnote).foregroundStyle(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .listRowBackground(Theme.surfacePrimary)
     }
@@ -2464,16 +2469,26 @@ struct DriveView: View {
     /// The venue with no link open: what it is, and where to open one.
     @ViewBuilder private var notDrivingSection: some View {
         Section {
-            Text(DriveVenue.robotNeedsABridge)
+            Text(BridgeDrive.connectShort)
                 .font(.footnote)
                 .foregroundStyle(Theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
-            Text(BridgeDrive.connectFirst)
-                .font(.footnote)
-                .foregroundStyle(Theme.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-            NavigationLink { PairingSpikeView() } label: {
-                Label("Find and pair a duck", systemImage: "dot.radiowaves.left.and.right")
+            // THE WAY IN, ON THE SCREEN THAT NEEDS IT. The bridge screen used to be reachable
+            // only from My Microduck's diagnostics, which Simple hides.
+            NavigationLink { RobotBridgeView(library: model, robot: robot) } label: {
+                HubRow(BridgeDrive.connectRow, BridgeDrive.connectRowLine, "cable.connector")
+            }
+            NavigationLink { FindDuckView() } label: {
+                HubRow("Find a duck nearby", "Scan over Bluetooth to see which ducks are around.",
+                       "dot.radiowaves.left.and.right")
+            }
+            if !isSimple {
+                DisclosureGroup("Why a bridge") {
+                    Text(DriveVenue.robotNeedsABridge)
+                        .font(.footnote)
+                        .foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         } header: {
             SectionHeading(text: "Robot")
@@ -2483,43 +2498,36 @@ struct DriveView: View {
 
     private var robotControls: some View {
         List {
-            if robot.isConnected { drivingSection } else { notDrivingSection }
-            // THE CONSOLE THE ROBOT SERVES, WHICH IS THE CAMERA AND THE
-            // CONTROL CHANNEL WITHOUT A SECOND CLIENT. Opened in the system
-            // browser rather than drawn here: the page is the robot's own, it
-            // is served from the daemon that negotiates the session, and a
-            // WebView of it would be this app taking responsibility for
-            // software it did not write and cannot version.
             Section {
-                Text(DriveVenue.consoleIsTheRobotsOwn)
-                    .font(.footnote)
-                    .foregroundStyle(Theme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                TextField("duck.local", text: $consoleHost)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .keyboardType(.URL)
-                    .frame(minHeight: DesignMetric.minimumTarget)
-                if let url = consoleURL {
-                    Link(destination: url) {
-                        Label(DriveVenue.consoleAt(consoleHost), systemImage: "safari")
-                            .frame(minHeight: DesignMetric.minimumTarget)
-                    }
-                    .tint(Theme.actionSecondary)
-                }
-                Text(DriveVenue.consoleIsNotThisApp)
-                    .font(.caption)
-                    .foregroundStyle(Theme.textTertiary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Label(DriveVenue.consoleHasNoGate, systemImage: "exclamationmark.triangle")
-                    .font(.caption)
-                    .foregroundStyle(Theme.warning)
-                    .fixedSize(horizontal: false, vertical: true)
+                DuckCameraCard(address: $cameraAddress)
             } header: {
-                SectionHeading(text: DriveVenue.consoleHeading)
+                SectionHeading(text: DuckCamera.Words.heading)
+            } footer: {
+                if !isSimple { Text(DuckCamera.Words.footer).foregroundStyle(Theme.textSecondary) }
             }
             .listRowBackground(Theme.surfacePrimary)
+            .onAppear {
+                if cameraAddress.isEmpty, !robot.host.isEmpty { cameraAddress = robot.host }
+            }
+            .onChange(of: robot.host) { _, host in
+                if cameraAddress.isEmpty, !host.isEmpty { cameraAddress = host }
+            }
+            if robot.isConnected { drivingSection } else { notDrivingSection }
+            // THE ROBOT'S OWN CONSOLE (full-rate video in Safari) is now the camera card's link,
+            // beside the picture it is the faster version of. The gate warning goes with it.
+            if !isSimple {
+                Section {
+                    Label(DriveVenue.consoleHasNoGate, systemImage: "exclamationmark.triangle")
+                        .font(.caption)
+                        .foregroundStyle(Theme.warning)
+                        .fixedSize(horizontal: false, vertical: true)
+                } header: {
+                    SectionHeading(text: DriveVenue.consoleHeading)
+                }
+                .listRowBackground(Theme.surfacePrimary)
+            }
 
+            if !isSimple && !robot.isConnected {
             Section {
                 // A CARD FOR A DUCK NOBODY HAS ANSWERED FROM, WHICH IS WHY
                 // BOTH LINES SAY SO. `lastReplyAt` is nil because this app has
@@ -2576,6 +2584,7 @@ struct DriveView: View {
                 SectionHeading(text: "What it would take")
             }
             .listRowBackground(Theme.surfacePrimary)
+            }
         }
         .scrollContentBackground(.hidden)
         .background(Theme.backgroundSecondary)

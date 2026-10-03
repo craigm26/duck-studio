@@ -62,6 +62,10 @@ struct HubTrainingView: View {
 
             Section {
                 SecureField("hf_…", text: $token)
+#if os(iOS)
+                    .textInputAutocapitalization(.never)
+#endif
+                    .autocorrectionDisabled()
                 Button("Check this token") { Task { await check() } }
                     .disabled(token.isEmpty || busy)
                 if let account { Text("Signed in as \(account). Jobs are billed to this account.") }
@@ -114,7 +118,7 @@ struct HubTrainingView: View {
 
             Section {
                 TextField("Name", text: $recipe.name)
-                Toggle("Full run (1,500 iterations, about 1½ h on an L4)", isOn: $full)
+                Toggle("Full run (1,500 iterations, about 1½ hours on a rented GPU)", isOn: $full)
                     .onChange(of: full) { _, on in recipe.iterations = on ? 1500 : 100 }
                 Stepper(value: $recipe.linearProgressWeight, in: 0...4, step: 0.25) {
                     Text("Pay for walking: \(recipe.linearProgressWeight, specifier: "%.2f")")
@@ -123,26 +127,33 @@ struct HubTrainingView: View {
                     Text("Pay for turning: \(recipe.angularProgressWeight, specifier: "%.2f")")
                 }
                 TextField("Records dataset", text: $dataset)
-                if let refusal = recipe.refusal { Text(refusal).foregroundStyle(.red) }
+                if let refusal = recipe.refusal { Text(refusal).foregroundStyle(Theme.refused) }
             } header: { SectionHeading(text: "The reward") } footer: {
-                Text("Each weight pays for going: speed along the commanded direction, as a fraction of the command, nothing for standing still. The tracking terms beside them weigh 2.0 each. \(recipe.isPilot ? "A pilot is 100 iterations, about a quarter of an hour with setup, and is judged only on whether it runs." : "")")
+                Text("Each weight pays for going: speed along the commanded direction, nothing for standing still. \(recipe.isPilot ? "A pilot is 100 iterations, about a quarter of an hour, judged only on whether it runs." : "")")
             }
 
             Section {
-                ScrollView(.horizontal) {
-                    Text(recipe.menuYAML(batchID: recipe.batchID(at: Date())))
-                        .font(.system(.caption, design: .monospaced))
-                        .textSelection(.enabled)
+                // THE JOB FILE IS FOR CHECKING, NOT FOR READING FIRST: one tap, not 220 points of
+                // monospace between the reward and the button.
+                DisclosureGroup("Show the job file") {
+                    ScrollView(.horizontal) {
+                        Text(recipe.menuYAML(batchID: recipe.batchID(at: Date())))
+                            .font(.system(.caption, design: .monospaced))
+                            .textSelection(.enabled)
+                    }
+                    .frame(minHeight: 220)
                 }
-                .frame(minHeight: 220)
-            } header: { SectionHeading(text: "The menu, pass lines first") } footer: {
-                Text("The pass lines are written into the menu before it runs, so the result cannot move them.")
+            } footer: {
+                Text("Its pass lines are written in before it runs, so the result cannot move them.")
             }
 
             Section {
                 Button(job == nil ? "Train on Hugging Face" : "Train another") { Task { await launch() } }
-                    .disabled(busy || account == nil || recipe.refusal != nil || dataset.isEmpty
-                              || (state.map { !$0.stage.isFinal } ?? false))
+                    .disabled(whyNotYet != nil)
+                // A GREY BUTTON SAYS WHY.
+                if let whyNotYet, !busy {
+                    Text(whyNotYet).font(.caption).foregroundStyle(Theme.textSecondary)
+                }
                 if let job {
                     LabeledContent("Job", value: String(job.id.prefix(12)))
                     LabeledContent("Batch", value: job.batchID)
@@ -160,7 +171,7 @@ struct HubTrainingView: View {
                     }
                 }
                 if let fetched { Text(fetched) }
-                if let failure { Text(failure).foregroundStyle(.red) }
+                if let failure { Text(failure).foregroundStyle(Theme.refused) }
             } header: { SectionHeading(text: "Run it") } footer: {
                 Text("Runs duckbatch \(String(HubTraining.duckbatchCommit.prefix(7))) on an \(HubTraining.flavor) GPU. Billed by Hugging Face to the account above.")
             }
@@ -177,6 +188,16 @@ struct HubTrainingView: View {
             if !token.isEmpty { await check() }
             await watch()
         }
+    }
+
+    /// Why Train cannot be pressed yet, or nil when it can.
+    private var whyNotYet: String? {
+        if busy { return "Working…" }
+        if account == nil { return "Check your Hugging Face token first." }
+        if dataset.isEmpty { return "Name a records dataset under The reward." }
+        if let refusal = recipe.refusal { return refusal }
+        if let state, !state.stage.isFinal { return "Wait for this run to finish." }
+        return nil
     }
 
     /// The taste your picks describe and the reward it becomes, once there are enough.

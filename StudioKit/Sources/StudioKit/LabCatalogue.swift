@@ -74,7 +74,26 @@ public enum LabCatalogue {
             self.id = id; self.name = name; self.symbol = symbol
             self.blurb = blurb; self.status = status
         }
+
+        /// What the row says on the Studio list: one line, so the list reads as a list. The
+        /// whole `blurb` stays for the screen behind the row and for `swift test`.
+        public var summary: String {
+            LabCatalogue.summaries[id] ?? String(blurb.prefix { $0 != "." }) + "."
+        }
     }
+
+    /// One line per mode, at most 60 characters (`LabCatalogueTests`).
+    static let summaries: [String: String] = [
+        "bench": "Run motions in real physics on a computer nearby.",
+        "ghost": "A life-size duck replaying a real gait, on a stage or your floor.",
+        "soccer": "Kick a ball around a stage or your own floor.",
+        "room": "Measure the floor and tables around you.",
+        "sounds": "Seven duck calls, each with its own movement.",
+        "trials": "Run a policy at an object, again and again.",
+        "bobsled": "A steered run down a mountain.",
+        "deck": "Big buttons and a stop bar for driving by feel.",
+        "diary": "A signed record of what a duck actually did.",
+    ]
 
     /// The sentence that has to appear above any list of these.
     /// The bare fact, with no claim about any container in it.

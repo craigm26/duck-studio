@@ -228,9 +228,15 @@ final class RolloutPreferenceWordsTests: XCTestCase {
         XCTAssertEqual(Set(words).count, DuckFeedback.Reason.allCases.count)
     }
 
-    func testTheTallySaysNothingIsRankedHere() {
+    func testTheTallySaysHowManyPicksTrainAWalker() {
         XCTAssertTrue(RolloutPreferenceWords.tally(3).hasPrefix("3 choices on this phone."))
-        XCTAssertTrue(RolloutPreferenceWords.tally(3).contains("ranks nothing"))
+        XCTAssertTrue(RolloutPreferenceWords.tally(3).contains("About \(PreferenceModel.minimumPicks)"))
+    }
+
+    /// The two stages are stacked, so the answers must not say left and right.
+    func testTheAnswersMatchAStackedLayout() {
+        XCTAssertTrue(RolloutPreferenceWords.left.hasPrefix("Top"))
+        XCTAssertTrue(RolloutPreferenceWords.right.hasPrefix("Bottom"))
     }
 
     func testTheScreenNeverNamesTheWalkers() {
