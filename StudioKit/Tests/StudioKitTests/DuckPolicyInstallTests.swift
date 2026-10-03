@@ -2,7 +2,7 @@ import XCTest
 import DuckKit
 @testable import StudioKit
 
-/// `policy.install` on the wire: the bridge's verb, carried by the bridge
+/// `studio.installPolicy` on the wire: the bridge's verb, carried by the bridge
 /// alone, with the digest of the bytes it carries.
 final class DuckPolicyInstallTests: XCTestCase {
 
@@ -12,7 +12,7 @@ final class DuckPolicyInstallTests: XCTestCase {
         let install = DuckPolicyInstall(name: "walk_two", bytes: bytes, slot: "walk")
         let line = try DuckCall.installPolicy(install).line(id: 4)
         let top = try XCTUnwrap(JSONSerialization.jsonObject(with: line) as? [String: Any])
-        XCTAssertEqual(top["method"] as? String, "policy.install")
+        XCTAssertEqual(top["method"] as? String, "studio.installPolicy")
         XCTAssertEqual(top["id"] as? Int, 4)
         let params = try XCTUnwrap(top["params"] as? [String: Any])
         XCTAssertEqual(params["name"] as? String, "walk_two")

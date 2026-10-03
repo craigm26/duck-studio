@@ -98,10 +98,11 @@ public struct PolicyPublication: Equatable, Sendable {
             return try JSONSerialization.data(withJSONObject: top,
                                               options: [.prettyPrinted, .sortedKeys])
         }
-        let kind = PolicyNaming.kind(forFileName: entry.fileName)?.rawValue
-        return try PolicyManifest.encode(PolicyManifest.Written(
-            name: entry.title, summary: whatItDoes, actionScale: nil, kind: kind,
-            durationSeconds: nil, entryPose: nil, twist: [], idle: [],
+        // POLLEN'S `kind`, NOT THE APP'S. See `PolicyManifest.pollenFields`: what used to be
+        // written here was refused by the daemon's own validator.
+        return try PolicyManifest.encode(PolicyManifest.forPublishing(
+            title: entry.title, summary: whatItDoes,
+            kind: PolicyNaming.kind(forFileName: entry.fileName),
             cautions: cautions(for: entry), extra: ["when_to_use": whatItDoes]))
     }
 

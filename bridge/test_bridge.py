@@ -208,7 +208,7 @@ class BridgeTests(unittest.TestCase):
 
 
 class InstallTests(unittest.TestCase):
-    """policy.install: the one verb the bridge answers itself, proved on a disk."""
+    """studio.installPolicy: the one verb the bridge answers itself, proved on a disk."""
 
     def setUp(self):
         self.dir = tempfile.mkdtemp()
@@ -256,7 +256,7 @@ class InstallTests(unittest.TestCase):
 
     def request(self, sock, params, rpc_id=7):
         sock.sendall(json.dumps({"jsonrpc": "2.0", "id": rpc_id,
-                                 "method": "policy.install", "params": params}).encode() + b"\n")
+                                 "method": "studio.installPolicy", "params": params}).encode() + b"\n")
         return json.loads(self.line(sock))
 
     def payload(self, data=b"ONNX" * 1000, name="walk_two", **extra):

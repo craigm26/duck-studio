@@ -106,7 +106,7 @@ public struct DuckPolicyInstall: Equatable, Sendable {
             switch self {
             case .refused(let why): return "The bridge refused: \(why)"
             case .notAnInstallAnswer:
-                return "The bridge answered, but not with what policy.install answers with."
+                return "The bridge answered, but not with what studio.installPolicy answers with."
             }
         }
     }
@@ -145,6 +145,6 @@ public struct DuckPolicyInstall: Equatable, Sendable {
 
     public static let neverRunOnHardware =
         "A network made on this phone has never run on hardware. The first time it does is "
-      + "the first time anybody finds out what it does with 15 real servos. Stand clear, keep "
+      + "the first time anybody finds out what it does with the 14 servos it drives. Stand clear, keep "
       + "the pad's stop under a thumb, and expect a fall."
 }

@@ -7,3 +7,4 @@ DerivedData/
 __pycache__/
 *.pyc
 scripts/upstream_gate/trgen/Package.resolved
+scripts/upstream_gate/manifests/Package.resolved

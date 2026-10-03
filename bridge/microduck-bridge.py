@@ -101,7 +101,9 @@ def hello_is_valid(line: bytes, token: str) -> bool:
     return hmac.compare_digest(given, token)
 
 
-INSTALL_METHOD = "policy.install"
+# Not `policy.install`: that is updaterd's method on a real Microduck (it installs an official
+# set by version). Renamed 2026-10-02 so the two can never be confused on the wire.
+INSTALL_METHOD = "studio.installPolicy"
 INSTALL_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 INSTALL_CAP = 8 * 1024 * 1024
 
@@ -109,7 +111,7 @@ INSTALL_CAP = 8 * 1024 * 1024
 class Installer:
     """THE ONE VERB THIS BRIDGE ANSWERS ITSELF, and why that is not a contradiction.
 
-    Everything else passes through to robotd unchanged. `policy.install` cannot:
+    Everything else passes through to robotd unchanged. `studio.installPolicy` cannot:
     robotd has no method that takes a file, and a network somebody searched on a
     phone reaches the robot's disk or it reaches nothing. So the bridge, which is
     the one process here that HAS a disk, takes exactly this request, writes the
@@ -142,7 +144,7 @@ class Installer:
             message = json.loads(line.decode("utf-8"))
             rpc_id = message.get("id") if isinstance(message, dict) else None
             if not isinstance(message, dict) or message.get("method") != INSTALL_METHOD:
-                raise Refusal("that line is not a policy.install request")
+                raise Refusal("that line is not a studio.installPolicy request")
             result = self.install(message.get("params") or {})
             reply = {"jsonrpc": "2.0", "id": rpc_id, "result": result}
         except Refusal as why:
@@ -166,7 +168,7 @@ class Installer:
                           "dashes and underscores, up to 64, starting with a letter or digit")
         encoded = params.get("bytes")
         if not isinstance(encoded, str) or not encoded:
-            raise Refusal("policy.install needs `bytes`: the .onnx file, base64")
+            raise Refusal("studio.installPolicy needs `bytes`: the .onnx file, base64")
         try:
             data = base64.b64decode(encoded, validate=True)
         except (ValueError, TypeError):
@@ -179,7 +181,7 @@ class Installer:
         claimed = str(params.get("sha256") or "").lower()
         actual = hashlib.sha256(data).hexdigest()
         if not claimed:
-            raise Refusal("policy.install needs `sha256`: the digest of the bytes as sent, "
+            raise Refusal("studio.installPolicy needs `sha256`: the digest of the bytes as sent, "
                           "so a network that arrived short is refused rather than driven")
         if claimed != actual:
             raise Refusal(f"the bytes that arrived digest to {actual[:12]}…, not the "
@@ -193,7 +195,7 @@ class Installer:
             os.fsync(out.fileno())
         os.chmod(tmp, 0o644)
         os.replace(tmp, path)
-        self.log(f"policy.install: {len(data)} bytes -> {path} ({actual[:12]})")
+        self.log(f"studio.installPolicy: {len(data)} bytes -> {path} ({actual[:12]})")
         result = {"installed": path, "sha256": actual, "bytes": len(data),
                   "takes_effect": "when robotd next starts; this bridge does not restart it"}
         slot = params.get("slot")
@@ -245,7 +247,7 @@ class Installer:
         with open(tmp, "w", encoding="utf-8") as f:
             f.write("\n".join(lines))
         os.replace(tmp, self.robotd_toml)
-        self.log(f"policy.install: [policy] {slot} -> {path} (backup {os.path.basename(backup)})")
+        self.log(f"studio.installPolicy: [policy] {slot} -> {path} (backup {os.path.basename(backup)})")
         return {"asked": slot, "applied": True, "backup": backup}
 
 
@@ -344,7 +346,7 @@ def serve(host: str, port: int, socket_path: str, token: str,
     # waiting on a reply that never comes.
     installer = Installer(policy_dir, robotd_toml, log=log)
     log(f"{VERSION} on {host}:{listener.getsockname()[1]} -> {socket_path}, "
-        f"deadman {deadman_ms} ms, policy.install "
+        f"deadman {deadman_ms} ms, studio.installPolicy "
         + (f"-> {installer.policy_dir}" if installer.policy_dir else "off (no --policy-dir)"))
     if ready:
         ready(listener.getsockname()[1])
@@ -413,7 +415,7 @@ def main(argv=None) -> int:
                              "port-forward it.")
     parser.add_argument("--token-file", default=os.path.expanduser("~/.microduck-bridge-token"))
     parser.add_argument("--policy-dir", default=None,
-                        help="the directory robotd loads policies from; enables policy.install")
+                        help="the directory robotd loads policies from; enables studio.installPolicy")
     parser.add_argument("--robotd-toml", default=None,
                         help="robotd's config, so an install can point a [policy] key at the file")
     parser.add_argument("--deadman", type=int, default=DEFAULT_DEADMAN_MS,

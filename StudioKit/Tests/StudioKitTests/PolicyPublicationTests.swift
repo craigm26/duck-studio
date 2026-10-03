@@ -27,7 +27,11 @@ final class PolicyPublicationTests: XCTestCase {
         let manifest = try PolicyManifest.decode(publication.files[1].contents)
         XCTAssertEqual(manifest.name, walk.title)
         XCTAssertEqual(manifest.summary, "Walks under a velocity twist.")
-        XCTAssertEqual(manifest.kind, "alpha_walking")
+        // POLLEN'S `kind`, not the app's file stem: `alpha_walking` was refused by Pollen's
+        // validate_manifest, so a published walk could never be installed on a real duck.
+        XCTAssertEqual(manifest.kind, "perpetual")
+        let raw = try JSONSerialization.jsonObject(with: publication.files[1].contents) as! [String: Any]
+        XCTAssertEqual(raw["slot"] as? String, "walk")
         XCTAssertTrue(manifest.incompatibilities.isEmpty)
         XCTAssertEqual(publication.totalBytes, publication.files.reduce(0) { $0 + $1.bytes })
         XCTAssertEqual(publication.fingerprint, walk.identity.value)

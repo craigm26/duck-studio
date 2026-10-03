@@ -163,7 +163,7 @@ is done — `DuckTransportKind.bridge` and `BridgeHandshake` write the exact
 bytes the Python expects. What is still true is narrower and worth stating
 plainly, because it is what the review at this gate has to weigh: **the app has
 never sent a `robot.move` to a robot.** Its one bridge consumer is
-`RobotBridgeView`, which calls `policy.install` and nothing else, so the app
+`RobotBridgeView`, which calls `studio.installPolicy` and nothing else, so the app
 can put a policy file onto a duck's disk and cannot drive it. The blocker is
 one bench-only member — `DriveView.requirePeer()` returns a concrete
 `BenchPeer`, and `BenchPeer.live` has no representation in `DuckPeer` — not

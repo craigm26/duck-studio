@@ -13,7 +13,7 @@ TOKEN_FILE="${TOKEN_FILE:-$HOME/.microduck-bridge-token}"
 SOCKET="${SOCKET:-/run/robotd.sock}"
 PORT="${PORT:-7788}"
 DEADMAN="${DEADMAN:-700}"
-# policy.install IS OFF UNLESS YOU SAY WHERE. Set POLICY_DIR to the folder
+# studio.installPolicy IS OFF UNLESS YOU SAY WHERE. Set POLICY_DIR to the folder
 # robotd loads policies from to turn it on, and ROBOTD_TOML to robotd's config
 # if an install should be able to point a [policy] key at the file. The
 # bridge never restarts robotd; an install takes effect when it next starts.
@@ -68,9 +68,9 @@ fi
 
 echo
 if [ -n "$POLICY_DIR" ]; then
-  echo "policy.install is ON: files land in $POLICY_DIR${ROBOTD_TOML:+, slots edit $ROBOTD_TOML}"
+  echo "studio.installPolicy is ON: files land in $POLICY_DIR${ROBOTD_TOML:+, slots edit $ROBOTD_TOML}"
 else
-  echo "policy.install is OFF. Re-run with POLICY_DIR=<where robotd loads policies> to turn it on."
+  echo "studio.installPolicy is OFF. Re-run with POLICY_DIR=<where robotd loads policies> to turn it on."
 fi
 echo "token (the app asks for this once):"
 cat "$TOKEN_FILE"

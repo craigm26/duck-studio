@@ -118,7 +118,12 @@ public enum DuckMethod: String, CaseIterable, Sendable {
     /// one process on that machine with a disk, so it answers this one line
     /// itself and forwards everything else untouched. Bridge only, by
     /// construction: no other transport has anywhere to put the bytes.
-    case installPolicy = "policy.install"
+    // RENAMED FROM `policy.install` (2026-10-02). That is updaterd's own method on a real
+    // Microduck — it installs an official set by `{version}` — and the bridge answering a verb
+    // of the same name meant a client could not tell which machine it was talking to. The
+    // bridge's verb is now its own; Pollen's install path (`policy.fetch` + `robot.loadPolicy`)
+    // is the one a physical duck should get networks through.
+    case installPolicy = "studio.installPolicy"
 
     /// Whether getting this method wrong locks somebody out of their robot.
     ///
@@ -380,7 +385,7 @@ public enum DuckCall: Equatable, Sendable {
     /// screen that only prints a line of text should ask for a rate rather than
     /// take fifty states a second and drop forty-nine of them on a phone.
     case subscribe(hz: Int?)
-    /// `policy.install` — the bridge's, not robotd's. See `DuckMethod.installPolicy`.
+    /// `studio.installPolicy` — the bridge's, not robotd's. See `DuckMethod.installPolicy`.
     case installPolicy(DuckPolicyInstall)
 
     /// What this is called on the wire.
