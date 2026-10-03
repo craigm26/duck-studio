@@ -169,6 +169,18 @@ public enum PhoneBenchReport {
     /// a moment after opening the app when there is genuinely nothing to talk
     /// to. Saying that is better than an empty list, and much better than the
     /// address parser's "127.0.0.1:0 is not on your network".
+    /// Said when Play gave up on an unreachable bench and moved to the built-in one.
+    ///
+    /// THE SIMPLEST BENCH IS THE ONE THAT CANNOT BE SWITCHED OFF. A saved desk
+    /// bench that does not answer leaves Play with nothing; the bench inside
+    /// the app is always there and carries every bundled network. So Play
+    /// moves to it, keeps it selected, and says so — naming the bench it left,
+    /// so going back is one tap and not a guess.
+    public static func fellBack(from name: String, to phone: String) -> String {
+        "\(name) is not answering, so Play moved to \(phone), the bench built into this app. "
+      + "Pick \(name) again under Bench when it is back."
+    }
+
     public static let notListening =
         "\(DeviceWords.current.This)'s bench is still coming up. It runs inside the app and answers on a port "
       + "the system hands out at launch, so there is a moment after opening where there is "

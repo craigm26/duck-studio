@@ -1,13 +1,14 @@
-#if os(macOS)
 import SwiftUI
 import StudioKit
 
 /// Train with PPO on Hugging Face: write the reward here, run Pollen's PPO on a rented GPU,
 /// bring the trained network back.
 ///
-/// MAC ONLY, BECAUSE THAT IS WHERE IT WAS ASKED FOR AND WHERE IT FITS. Nothing here needs a
-/// Mac's hardware — the training runs on Hugging Face — but this is an hour-long, paid job
-/// that wants a desk and a keyboard, and it arrives in the app's Mac slice first.
+/// ON THE PHONE TOO, BECAUSE THE PHONE IS THE POINT. The stated goal (2026-10-02) is an
+/// iPhone that trains new policies by renting the RL steps on Hugging Face. Nothing here
+/// needs a Mac: it is a token, a form, HTTP and a poll, and the GPU is Hugging Face's. If iOS
+/// suspends the app mid-run the job carries on at Hugging Face; `SavedJob` is what the
+/// screen picks back up on return.
 ///
 /// WHAT THIS SCREEN DECIDES IS SMALL ON PURPOSE. `HubTraining.Recipe` is b003b's recipe with
 /// two numbers a person may move and a length. Everything else — which student, which teacher,
@@ -47,6 +48,7 @@ struct HubTrainingView: View {
     var body: some View {
         Form {
             Section {
+                Text(HubTraining.whatThisIs)
                 Text(HubTraining.notClaimed).foregroundStyle(Theme.textSecondary)
             } header: { SectionHeading(text: "What this is") }
 
@@ -113,7 +115,7 @@ struct HubTrainingView: View {
             }
         }
         .formStyle(.grouped)
-        .navigationTitle("Train with PPO")
+        .navigationTitle(HubTraining.rowTitle)
         .task {
             token = TokenStore.load() ?? ""
             if !token.isEmpty { await check() }
@@ -199,4 +201,3 @@ struct HubTrainingView: View {
         } catch { failure = error.localizedDescription }
     }
 }
-#endif
