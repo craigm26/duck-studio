@@ -72,6 +72,12 @@ final class RobotPlanTests: XCTestCase {
                        #"{"id":5,"jsonrpc":"2.0","method":"robot.sound","params":{"tag":"greet"}}"# + "\n")
     }
 
+    /// robotd 0.15.1 refuses a bare `robot.enable` (-32602, expected struct EnableParams).
+    func testEnableCarriesOnBecauseRobotdRequiresIt() throws {
+        XCTAssertEqual(String(decoding: try DuckCall.enable.line(id: 2), as: UTF8.self),
+                       #"{"id":2,"jsonrpc":"2.0","method":"robot.enable","params":{"on":true}}"# + "\n")
+    }
+
     func testASkillNameThatCouldCarryANewlineIsStoppedHere() {
         XCTAssertThrowsError(try DuckCall.doSkill("kick\n{\"method\":\"system.update\"}").line(id: 1)) {
             XCTAssertEqual($0 as? DuckCall.Misuse, .notASkillName("kick\n{\"method\":\"system.update\"}"))

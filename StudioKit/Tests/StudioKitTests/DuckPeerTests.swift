@@ -186,7 +186,7 @@ final class DuckPeerTests: XCTestCase {
     /// A method that takes nothing sends no `params` member. An empty object is
     /// a claim that it takes parameters and got none.
     func testACallWithNoParametersSendsNoParamsMember() throws {
-        for call in [DuckCall.stop, .enable, .initPose, .relax, .state] {
+        for call in [DuckCall.stop, .initPose, .relax, .state, .skills] {
             let top = try object(call.line(id: 3))
             XCTAssertFalse(top.keys.contains("params"), "\(call.method.rawValue)")
         }

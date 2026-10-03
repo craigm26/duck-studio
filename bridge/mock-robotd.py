@@ -94,7 +94,30 @@ POLICIES = {
     "skills": list(SUBSCRIBE["skills"]),  # :2235
 }
 
+# SkillsResult (duck-ipc-proto 1fa8438, lib.rs :4378-4386, SkillParams :4332), as robotd 0.15.1
+# answered it in Pollen's duck-sim on 2026-10-03 with the stock set, paths shortened. The kicks and
+# the roll are the configured table; ground_pick and sit_toggle are the daemon's own.
+SKILLS = {
+    "skills": [
+        {"name": "roulade", "path": "roulade.onnx", "duration": 1, "command": [0, 0, 0],
+         "chain": True, "unwind": [0, 0, 0], "unwind_s": 0},
+        {"name": "kick_left", "path": "ball_kick_left.onnx", "duration": 0.5,
+         "command": [0, 0, 0], "chain": False, "unwind": [0, 0, 0], "unwind_s": 0},
+        {"name": "kick_right", "path": "ball_kick_right.onnx", "duration": 0.5,
+         "command": [0, 0, 0], "chain": False, "unwind": [0, 0, 0], "unwind_s": 0},
+    ],
+    "built_in": ["ground_pick", "sit_toggle"],
+}
+
+# IntentResult (lib.rs :3665): `accepted: false` with a reason is a normal answer, not an error.
+# robot.do, robot.sound and robot.enable all answer with it.
+ACCEPTED = {"accepted": True}
+
 SHAPED = {
+    "robot.skills": SKILLS,
+    "robot.do": ACCEPTED,
+    "robot.sound": ACCEPTED,
+    "robot.enable": {"accepted": True, "reason": "enabled — driving"},
     "hello": HELLO,                 # :417
     "robot.health": HEALTH,         # :442
     "robot.subscribe": SUBSCRIBE,   # :640

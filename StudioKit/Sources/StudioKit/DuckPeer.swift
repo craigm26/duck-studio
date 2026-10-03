@@ -564,7 +564,13 @@ public enum DuckCall: Equatable, Sendable {
         case .look(let pose):
             guard pose.isFinite else { throw Misuse.notANumber(.look) }
             return pose.wire
-        case .stop, .enable, .initPose, .relax, .state:
+        case .enable:
+            // `EnableParams { on, toggle? }` is a required struct: robotd answers a bare
+            // `robot.enable` with "invalid type: null, expected struct EnableParams" (-32602),
+            // found against robotd 0.15.1 in duck-sim on 2026-10-03. `toggle` is left out, so
+            // this always means ON rather than "the other one".
+            return ["on": true]
+        case .stop, .initPose, .relax, .state:
             return nil
         case .subscribe(let hz):
             // OMITTED RATHER THAN NULL. `SubscribeParams` is `#[serde(default,
