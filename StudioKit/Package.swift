@@ -33,7 +33,8 @@ let package = Package(
         // 1.36.0: `DuckPolicy.load` takes narrower students of the alpha
         // graph, `PolicyBlend` depends on `shapeProblem`'s contract, and the
         // refusal corpus's `hidden_narrowed.onnx` is expected to load.
-        .package(url: "https://github.com/craigm26/duckkit.git", from: "1.36.0")
+        // 1.37.0: Pollen's set @d5a8b55 — sit-stand v6, velstand leads the walk slot.
+        .package(url: "https://github.com/craigm26/duckkit.git", from: "1.37.0")
     ],
     targets: [
         .target(

@@ -36,8 +36,9 @@ final class DuckQuickActionsTests: XCTestCase {
     /// those would report a fully stocked bench as holding nothing.
     func testAStemMatchesWhenTheExtensionIsMissing() {
         let stems = Self.everything.map { $0.replacingOccurrences(of: ".onnx", with: "") }
+        // velstand since duckkit 1.37.0: it leads the walk slot (what a real Microduck walks with).
         XCTAssertEqual(DuckQuickActions.filename(filling: .walk, among: stems),
-                       "alpha_walking")
+                       "velstand")
         XCTAssertEqual(DuckQuickActions.filename(filling: .kickLeft, among: stems),
                        "ball_kick_left")
     }
@@ -106,8 +107,8 @@ final class DuckQuickActionsTests: XCTestCase {
                                                  reach: Self.benchReach, transport: .bench)
         XCTAssertEqual(actions.map(\.slot), [.walk, .stand, .sitstand, .groundPick])
         XCTAssertTrue(actions.allSatisfy(\.runs))
-        XCTAssertEqual(actions.first?.effect, .loadsOnABench(filename: "alpha_walking.onnx"))
-        XCTAssertEqual(actions.first?.policyFilename, "alpha_walking.onnx")
+        XCTAssertEqual(actions.first?.effect, .loadsOnABench(filename: "velstand.onnx"))
+        XCTAssertEqual(actions.first?.policyFilename, "velstand.onnx")
         XCTAssertNil(actions.first?.reason)
     }
 
