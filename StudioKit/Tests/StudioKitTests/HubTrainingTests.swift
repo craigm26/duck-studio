@@ -81,4 +81,27 @@ final class HubTrainingTests: XCTestCase {
         XCTAssertTrue(HubTraining.whatThisIs.contains("not on this phone"), "Linux reads as the phone")
         XCTAssertTrue(HubTraining.whatThisIs.contains("reward you set"))
     }
+
+    /// FROM PICKS: the re-weighted terms go into `rewards:` and the header says where they came from.
+    func testARecipeFromPicksWritesItsRewardAndItsJudge() {
+        let taste = PreferenceModel.Taste(weights: [-0.1, -0.1, -5, -5, -0.1, -0.1, -0.1],
+                                          sideBias: 0.2, picks: 120)
+        let plan = PreferenceModel.rewardPlan(from: taste)
+        let recipe = HubTraining.Recipe(name: "mine", iterations: 1500,
+                                        fromPicks: .init(taste: taste, plan: plan))
+        let menu = recipe.menuYAML(batchID: "app-mine")
+        XCTAssertTrue(menu.contains("# FROM YOUR PICKS (RLHF, human feedback): 120 network-vs-network picks."), menu)
+        XCTAssertTrue(menu.contains("wins at least 60%"), menu)
+        XCTAssertTrue(menu.contains("\n  rewards:\n    action_rate_l2: {weight: -0.5}"), menu)
+        XCTAssertTrue(menu.contains("\n    upright: {weight: 4}"), menu)
+        XCTAssertFalse(HubTraining.Recipe(name: "plain").menuYAML(batchID: "b").contains("\n  rewards:"),
+                       "no picks, no override: b003b exactly")
+    }
+
+    /// The judge's other contender comes from the same pinned commit the job runs.
+    func testTheStartingNetworkIsFetchedAtThePin() {
+        XCTAssertEqual(HubTraining.startingNetworkURL?.absoluteString,
+                       "https://raw.githubusercontent.com/craigm26/duckbatch/\(HubTraining.duckbatchCommit)"
+                       + "/records/b002-student-size-longer/policies/a02/policy.onnx")
+    }
 }

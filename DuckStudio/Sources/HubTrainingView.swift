@@ -28,6 +28,9 @@ struct HubTrainingView: View {
     @State private var failure: String?
     @State private var busy = false
     @State private var fetched: String?
+    /// Network-vs-network picks with features, read from the feedback log on appear.
+    @State private var picks: [PreferenceModel.Pick] = []
+    @State private var usePicks = false
 
     /// The job in flight, kept across launches so closing the window does not lose it.
     struct SavedJob: Codable, Equatable {
@@ -59,6 +62,28 @@ struct HubTrainingView: View {
                 if let account { Text("Signed in as \(account). Jobs are billed to this account.") }
             } header: { SectionHeading(text: "Your Hugging Face token") } footer: {
                 Text("A WRITE token: the job uploads its records with it. It is sent to huggingface.co as a job secret, never in the job's environment or its log.")
+            }
+
+            Section {
+                Text(PreferenceModel.whatThisDoes).font(.callout)
+                if picks.count < PreferenceModel.minimumPicks {
+                    Text(PreferenceModel.notEnoughPicks(picks.count))
+                        .foregroundStyle(Theme.textSecondary)
+                } else if let fitted = fittedFromPicks {
+                    Toggle("Train from my \(picks.count) picks", isOn: $usePicks)
+                        .onChange(of: usePicks) { _, on in recipe.fromPicks = on ? fitted : nil }
+                    ForEach(PreferenceModel.groups, id: \.name) { g in
+                        LabeledContent(g.said.prefix(1).uppercased() + g.said.dropFirst(),
+                                       value: String(format: "×%.2f", fitted.plan.multipliers[g.name] ?? 1))
+                    }
+                    if !fitted.plan.reversed.isEmpty {
+                        Text("Left at Pollen's weight, because your picks favoured more of it: "
+                             + fitted.plan.reversed.joined(separator: ", ") + ".")
+                            .font(.caption).foregroundStyle(Theme.textSecondary)
+                    }
+                }
+            } header: { SectionHeading(text: "Train from your picks") } footer: {
+                Text("Picks come from Compare: two networks walking under the same command. Each multiplier scales Pollen's weight for that part of the reward, between ×0.5 and ×2.")
             }
 
             Section {
@@ -117,10 +142,18 @@ struct HubTrainingView: View {
         .formStyle(.grouped)
         .navigationTitle(HubTraining.rowTitle)
         .task {
+            picks = PreferenceModel.picks(fromLog: FeedbackStore().log)
             token = TokenStore.load() ?? ""
             if !token.isEmpty { await check() }
             await watch()
         }
+    }
+
+    /// The taste your picks describe and the reward it becomes, once there are enough.
+    private var fittedFromPicks: HubTraining.Recipe.FromPicks? {
+        guard picks.count >= PreferenceModel.minimumPicks else { return nil }
+        let taste = PreferenceModel.fit(picks)
+        return .init(taste: taste, plan: PreferenceModel.rewardPlan(from: taste))
     }
 
     private func call(_ request: URLRequest) async throws -> Data {
@@ -197,7 +230,15 @@ struct HubTrainingView: View {
                 .appendingPathComponent("\(job.batchID).onnx")
             try data.write(to: file, options: .atomic)
             onPolicy(file)
-            fetched = "\(job.batchID) is in Behaviours. Measure it on a bench before trusting it."
+            // AND THE NETWORK IT STARTED FROM, for the duel the run is judged by.
+            if let start = HubTraining.startingNetworkURL,
+               let (bytes, _) = try? await URLSession.shared.data(from: start) {
+                let startFile = FileManager.default.temporaryDirectory
+                    .appendingPathComponent(HubTraining.startingNetworkName)
+                if (try? bytes.write(to: startFile, options: .atomic)) != nil { onPolicy(startFile) }
+            }
+            fetched = "\(job.batchID) and the network it started from are in Behaviours. "
+                + "Compare the two: the run is judged by you picking the trained one at least 12 times in 20."
         } catch { failure = error.localizedDescription }
     }
 }
