@@ -229,7 +229,7 @@ public actor BenchPeer: DuckPeer {
 
         /// `studio.state` was asked before anything had been commanded.
         case nothingHasHappenedYet
-        /// `policy.install`: a bench has no robot's disk to put a file on.
+        /// `studio.installPolicy`: a bench has no robot's disk to put a file on.
         case noDiskToInstallOn
         /// `robot.subscribe`: a bench pushes nothing, so there is no stream to
         /// turn on.
@@ -266,7 +266,7 @@ public actor BenchPeer: DuckPeer {
                      + "read that advanced physics would be a measurement that changed what it "
                      + "was measuring."
             case .noDiskToInstallOn:
-                return "policy.install puts a file on a robot's disk, through the bridge on its "
+                return "studio.installPolicy puts a file on a robot's disk, through the bridge on its "
                      + "computer, and a bench is not that. A bench takes a network through "
                      + "/upload, under a name, for as long as it runs — which is what putting one "
                      + "of your networks on this bench does from the Play tab."

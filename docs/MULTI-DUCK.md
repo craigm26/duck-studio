@@ -16,7 +16,7 @@ dataset (`craigm26/microduck-feedback`) can hold.
 | Needed | State today |
 |---|---|
 | Driving a real duck | **Built, one at a time.** Through the bridge (`bridge/microduck-bridge.py` on the robot's computer, relaying robotd's socket). The app holds **one** `BridgeLink`. |
-| Putting a walker on a duck | `policy.install` is routed over the bridge (`DuckCall.installPolicy`). |
+| Putting a walker on a duck | `studio.installPolicy` is routed over the bridge (`DuckCall.installPolicy`). |
 | Finding ducks | The bridge advertises `_robotd._tcp` (declared in `NSBonjourServices`). **Nothing browses for it.** #7's launch browse does `_duckstudio._tcp` only. |
 | Several ducks in one simulated world | **Built.** The bench's `/health` lists `ducks`, and every call takes `?duck=`. |
 | A physical Microduck | **None recorded yet.** Everything up to stage 2 below runs without one. |
@@ -39,7 +39,7 @@ Two ducks are never identical: calibration, servo wear, a slightly different flo
 once with walker A on duck 1 and B on duck 2 compares **duck + walker** against **duck + walker**.
 So every live pair is **crossed**:
 
-1. Install A on duck 1 and B on duck 2 (`policy.install`, then a state read confirming which
+1. Install A on duck 1 and B on duck 2 (`studio.installPolicy`, then a state read confirming which
    walker each duck is running).
 2. Stand both. Send the same twist to both in the same instant, hold it for the pair's seconds,
    then stop both.

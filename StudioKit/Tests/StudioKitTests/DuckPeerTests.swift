@@ -235,7 +235,7 @@ final class DuckPeerTests: XCTestCase {
     func testTheRecoveryPathIsNotEvenRepresentableAsACall() {
         let buildable = Set(DuckCall.allShapes.map(\.method))
         // ELEVEN: the ten robot calls — `robot.subscribe` included — and the
-        // bridge's own `policy.install`.
+        // bridge's own `studio.installPolicy`.
         XCTAssertEqual(buildable.count, 11)
         for method in DuckMethod.allCases where method.mutatesTheRecoveryPath {
             XCTAssertNil(DuckCall.shape(of: method), method.rawValue)

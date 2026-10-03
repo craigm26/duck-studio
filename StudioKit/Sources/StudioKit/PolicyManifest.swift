@@ -297,6 +297,76 @@ public struct PolicyManifest: Equatable, Sendable {
     /// caller write a manifest this app then refuses to run — a file that fails
     /// its own compatibility check. They come from `DuckObservation` and
     /// `DuckModel`, which is where the robot's truth lives.
+    /// Pollen's manifest fields for each kind of network this app knows.
+    ///
+    /// THE APP'S KIND IS NOT POLLEN'S `kind`. Before 2026-10-02 `PolicyPublication` wrote
+    /// `kind: "alpha_walking"`, which Pollen's `validate_manifest` refuses ("kind … is not one
+    /// of episodic, perpetual, scripted"), so nothing this app published could be installed on a
+    /// real duck. Pollen's `kind` says how the daemon runs it; the slot says which job it does.
+    /// Read from Pollen's own set manifest (pollen-robotics/microduck-policies) and
+    /// `publish/manifest.py` `SLOTS`. Phase and posture-flag networks are the official set's
+    /// own arms: they load into their slot with `robotctl policy load`, and `policy add`
+    /// refuses them.
+    public struct PollenFields: Equatable, Sendable {
+        public let kind: String
+        public let slot: String
+        public let encoding: String
+        public let durationSeconds: Double?
+        public let chain: Bool?
+        /// For a scripted or held policy: how long to unwind back to standing.
+        public var unwindSeconds: Double? = nil
+    }
+
+    public static func pollenFields(for kind: DuckPolicyKind) -> PollenFields {
+        switch kind {
+        case .walk: return .init(kind: "perpetual", slot: "walk", encoding: "constant",
+                                 durationSeconds: nil, chain: nil)
+        case .stand: return .init(kind: "perpetual", slot: "stand", encoding: "constant",
+                                  durationSeconds: nil, chain: nil)
+        // AS POLLEN'S OWN SET MANIFEST HAS THEM (pollen-robotics/microduck-policies @d5a8b55,
+        // 2026-10-01): sit-stand is `scripted` with a 1 s unwind, ground pick is a 2.8 s
+        // phase-driven episode. The first draft of this table said `perpetual` for sit-stand;
+        // the validator accepts both, the daemon would not run them the same.
+        case .sitStand: return .init(kind: "scripted", slot: "sitstand", encoding: "posture_flag",
+                                     durationSeconds: nil, chain: nil, unwindSeconds: 1.0)
+        case .groundPick: return .init(kind: "episodic", slot: "ground_pick", encoding: "phase",
+                                       durationSeconds: 2.8, chain: nil)
+        case .kickLeft: return .init(kind: "episodic", slot: "kick_left", encoding: "constant",
+                                     durationSeconds: 0.5, chain: false)
+        case .kickRight: return .init(kind: "episodic", slot: "kick_right", encoding: "constant",
+                                      durationSeconds: 0.5, chain: false)
+        case .roulade: return .init(kind: "episodic", slot: "roulade", encoding: "constant",
+                                    durationSeconds: 1.0, chain: true)
+        }
+    }
+
+    /// What gets published for a network of this kind: Pollen's fields when the kind is known.
+    public static func forPublishing(title: String, summary: String, kind: DuckPolicyKind?,
+                                     cautions: [String], extra: [String: Any] = [:]) -> Written {
+        var extra = extra
+        var pollenKind: String?
+        var duration: Double?
+        if let kind {
+            let f = pollenFields(for: kind)
+            pollenKind = f.kind
+            duration = f.durationSeconds
+            extra["slot"] = f.slot
+            extra["command"] = ["encoding": f.encoding, "idle": [0.0, 0.0, 0.0]]
+            if let chain = f.chain { extra["chain"] = chain }
+            if let unwind = f.unwindSeconds { extra["unwind_s"] = unwind }
+        }
+        return Written(name: bareName(title), summary: summary, actionScale: nil, kind: pollenKind,
+                       durationSeconds: duration, entryPose: "standing", twist: [], idle: [],
+                       cautions: cautions, extra: extra)
+    }
+
+    /// A name `robotctl policy add <name>` can take: a bare word, no slash, no spaces.
+    public static func bareName(_ title: String) -> String {
+        let mapped = title.lowercased().map { $0.isLetter || $0.isNumber ? $0 : "_" }
+        let joined = String(mapped).split(separator: "_", omittingEmptySubsequences: true).joined(separator: "_")
+        return joined.isEmpty ? "policy" : joined
+    }
+
     public static func encode(_ written: Written) throws -> Data {
         guard !written.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw WriteError.noName
@@ -308,7 +378,11 @@ public struct PolicyManifest: Equatable, Sendable {
             "description": written.summary,
             "obs_len": DuckObservation.length,
             "action_len": DuckModel.policyJointCount,
-            "robot": ["control_hz": DuckModel.tickHz],
+            // POLLEN'S ROBOT BLOCK. `validate_manifest` refuses a `robot.model` that is
+            // not microduck; `model`, `hw_rev` and `servos` are what Pollen's
+            // `publish` writes (mjlab_microduck/publish/manifest.py `ROBOT`).
+            "robot": ["model": "microduck", "hw_rev": 1, "servos": "xl330",
+                      "control_hz": DuckModel.tickHz],
             "cautions": written.cautions,
         ]
         // OMITTED, NOT DEFAULTED. Every Optional below is a fact this app may

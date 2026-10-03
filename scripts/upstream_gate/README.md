@@ -32,3 +32,15 @@ python <duck-studio>/scripts/upstream_gate/gate.py /tmp/tr-out
 Expected: ground pick and `walk_on` build with `"unbound": []`; the other four bases stop
 with the deliberate missing-sensor sentence for `body_impact_cost`. Pin the bam commit from
 microduck_rl's `uv.lock`: PyPI's latest renamed a kwarg and the task package fails to load.
+
+## The manifests a real duck will load (added 2026-10-02)
+
+Before 2026-10-02 every manifest Duck Studio published said `kind: "alpha_walking"` and the like,
+which Pollen's `validate_manifest` refuses, so nothing published from the app could be installed
+on a physical Microduck. `PolicyManifest.forPublishing` now writes Pollen's `kind`, `slot`,
+`command.encoding`, `duration_s` and robot block. To re-check against Pollen's own validator:
+
+```bash
+cd <duck-studio>/scripts/upstream_gate/manifests && swift run -q manifests > /tmp/m.jsonl
+python <duck-studio>/scripts/upstream_gate/manifest_gate.py /tmp/m.jsonl   # all seven kinds: PASS
+```

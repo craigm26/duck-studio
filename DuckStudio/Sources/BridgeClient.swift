@@ -13,7 +13,7 @@ import StudioKit
 /// THE BRIDGE'S HELLO GOES FIRST AND IS NOT THE ROBOT'S. `LinePeer.call(.hello)`
 /// is robotd's `hello`; the bridge wants its own token line before it relays
 /// anything, and answers it with a greeting that names the bridge, the
-/// deadman and whether `policy.install` is on. So this reads that greeting
+/// deadman and whether `studio.installPolicy` is on. So this reads that greeting
 /// itself, before the peer sees a byte.
 final class BridgeClient: @unchecked Sendable {
     let connection: NWConnection

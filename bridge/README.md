@@ -75,7 +75,7 @@ is refused with its length, a silent client is stopped exactly once, talking
 again re-arms the deadman, and a client that keeps talking is never stopped by
 its own driver.
 
-**Eight on `policy.install`,** which landed after the relay and is the reason
+**Eight on `studio.installPolicy`,** which landed after the relay and is the reason
 this count moved: the greeting says whether install is on, an install lands on
 the disk under its own name and is answered in RPC shape, a wrong digest writes
 nothing and says so, a name that could be a path is refused before anything is
@@ -95,7 +95,7 @@ python3 -u microduck-bridge.py --socket /tmp/duck.sock --port 7788 \
 
 ## Installing a policy
 
-The one line the bridge answers itself. `policy.install` is a JSON-RPC request
+The one line the bridge answers itself. `studio.installPolicy` is a JSON-RPC request
 whose params are `name`, `bytes` (the `.onnx`, base64), `sha256` (of those bytes
 — required, and checked before anything is written) and an optional `slot`. The
 bridge writes `<name>.onnx` under `--policy-dir`, atomically, and answers with
