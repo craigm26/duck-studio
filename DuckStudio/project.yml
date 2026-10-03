@@ -27,7 +27,9 @@ packages:
     # refuses distilled students of the alpha graph (61-128-128-14 and the
     # like), so the community catalogue would offer them and fail on Add.
     # StudioKit/Package.swift pins the same floor.
-    from: 1.36.0
+    # 1.37.0 (2026-10-02): Pollen's set @d5a8b55 — sit-stand v6, and velstand FIRST in the walk
+    # slot, which is what a real Microduck walks with. alpha_walking stays second.
+    from: 1.37.0
   # The engine for a model downloaded onto the phone itself.
   #
   # WHY THIS PACKAGE. "A model on this phone" already existed and meant an

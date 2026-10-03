@@ -208,11 +208,16 @@ public enum DuckQuickActions {
     /// beats loading the wrong one.
     public static func filename(filling slot: DuckOfficialPolicies.Slot,
                                 among policies: [String]) -> String? {
-        let wanted = DuckOfficialPolicies.releases.first { $0.slot == slot }?.filename
-        if let wanted, let exact = policies.first(where: { $0 == wanted }) { return exact }
-        // A bench often lists them without the extension.
-        let stem = wanted.map { $0.replacingOccurrences(of: ".onnx", with: "") }
-        return stem.flatMap { name in policies.first { $0 == name } }
+        // EVERY RELEASE IN THE SLOT, IN ORDER, FIRST ONE THE BENCH HOLDS. Since duckkit 1.37.0 the
+        // walk slot has two: velstand (what a real Microduck walks with) then alpha_walking. A
+        // bench that only holds alpha_walking must still walk, not say it has no walk network.
+        for wanted in DuckOfficialPolicies.releases.filter({ $0.slot == slot }).map(\.filename) {
+            if let exact = policies.first(where: { $0 == wanted }) { return exact }
+            // A bench often lists them without the extension.
+            let stem = wanted.replacingOccurrences(of: ".onnx", with: "")
+            if let bare = policies.first(where: { $0 == stem }) { return bare }
+        }
+        return nil
     }
 
     /// One chip's worth of decision, for any slot.

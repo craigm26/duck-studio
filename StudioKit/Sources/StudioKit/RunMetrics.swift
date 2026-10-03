@@ -67,7 +67,7 @@ public struct RunMetrics: Equatable, Sendable {
 
         public static func forPolicy(_ filename: String) -> Task? {
             switch filename {
-            case "alpha_walking.onnx":        return .velocity
+            case "alpha_walking.onnx", "velstand.onnx": return .velocity
             case "ball_kick_left.onnx",
                  "ball_kick_right.onnx":      return .ballKick
             case "roulade.onnx":              return .roulade

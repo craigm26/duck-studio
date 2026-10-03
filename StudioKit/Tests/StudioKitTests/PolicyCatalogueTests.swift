@@ -43,7 +43,14 @@ final class PolicyCatalogueTests: XCTestCase {
         let entries = try PolicyCatalogue.parse(fixture("microduck-tree"),
                                                 source: PolicyCatalogue.officialPolicies,
                                                 extensions: ["onnx"])
-        let theirs = Set(entries.map(\.filename))
+        // AND POLLEN'S SET MANIFEST, because the robot repo stopped carrying `policies/`: the
+        // networks now ship from pollen-robotics/microduck-policies, and its manifest
+        // (fixture @d5a8b55) names velstand — what deploy/robotd.toml's `walk` loads.
+        let setURL = try XCTUnwrap(Bundle.module.url(
+            forResource: "Fixtures/microduck-policies-manifest-d5a8b55", withExtension: "json"))
+        let set = try JSONSerialization.jsonObject(with: Data(contentsOf: setURL)) as! [String: Any]
+        let setFiles = (set["policies"] as! [[String: Any]]).compactMap { $0["file"] as? String }
+        let theirs = Set(entries.map(\.filename)).union(setFiles)
         let ours = Set(DuckOfficialPolicies.releases.map(\.filename))
         XCTAssertTrue(ours.isSubset(of: theirs),
                       "we ship a name the robot does not: \(ours.subtracting(theirs).sorted())")
