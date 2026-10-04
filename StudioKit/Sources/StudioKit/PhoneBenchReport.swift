@@ -181,6 +181,14 @@ public enum PhoneBenchReport {
       + "Pick \(name) again under Bench when it is back."
     }
 
+    /// iOS would not send plain HTTP to that name. Said with the remedy: an IP address or a
+    /// `.local` name always works.
+    public static func blockedAsInsecure(_ name: String) -> String {
+        "\(DeviceWords.current.system) would not connect to \(name) without a secure connection, so "
+      + "Play moved to the bench built into this app. Use the bench's IP address or its .local "
+      + "name under Bench."
+    }
+
     public static let notListening =
         "\(DeviceWords.current.This)'s bench is still coming up. It runs inside the app and answers on a port "
       + "the system hands out at launch, so there is a moment after opening where there is "
