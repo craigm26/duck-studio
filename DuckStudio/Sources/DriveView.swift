@@ -3358,6 +3358,15 @@ struct DriveView: View {
             Task { await fallBack(from: left) }
             return
         }
+        // THE SYSTEM REFUSED TO SEND, so the bench never heard the request. Same move: the bench
+        // in the app, and a sentence that says what to change, not a dialog at launch.
+        if venue != .real, let left = bench, !left.isThisPhone, Self.blockedAsInsecure(error) {
+            Task {
+                await fallBack(from: left)
+                lastAction = PhoneBenchReport.blockedAsInsecure(left.name)
+            }
+            return
+        }
         // THE TITLE SAYS WHO REFUSED. A world this bank cannot hold is refused
         // by this app before anything is sent, and calling that a bench
         // refusal blames a bench that never heard about it.
@@ -3489,6 +3498,11 @@ struct DriveView: View {
         guard let failure = error as? URLError else { return false }
         return [.cannotConnectToHost, .cannotFindHost, .timedOut, .networkConnectionLost,
                 .notConnectedToInternet, .dnsLookupFailed].contains(failure.code)
+    }
+
+    /// iOS's App Transport Security refused a plain-HTTP request before it was sent.
+    private static func blockedAsInsecure(_ error: Error) -> Bool {
+        (error as? URLError)?.code == .appTransportSecurityRequiresSecureConnection
     }
 
     /// Move Play to the bench inside the app, connect to it, and say which bench was left.

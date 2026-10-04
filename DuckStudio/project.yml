@@ -255,6 +255,18 @@ targets:
         # `plaintextToThePublicInternet` refusal is about.
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
+          # NSAllowsLocalNetworking COVERS `.local`, UNQUALIFIED NAMES AND IP ADDRESSES ONLY.
+          # `ModelEndpoint.isLocalHost` also accepts a Tailscale MagicDNS name (`*.ts.net`) and
+          # `*.internal`, and without these ATS refused a bench saved by its tailnet name with
+          # "requires the use of a secure connection" (build 83, 2026-10-03).
+          # `AppTransportSecurityTests` keeps this list and isLocalHost in step.
+          NSExceptionDomains:
+            ts.net:
+              NSIncludesSubdomains: true
+              NSExceptionAllowsInsecureHTTPLoads: true
+            internal:
+              NSIncludesSubdomains: true
+              NSExceptionAllowsInsecureHTTPLoads: true
         # A shared motion, which is this app's OWN format — so Exported here,
         # unlike ONNX. Declaring it is what lets a .duckintent arriving in a
         # chat or in Files offer Microduck Studio to open it.
@@ -333,7 +345,7 @@ targets:
         DEVELOPMENT_TEAM: WYGG3JXWMG
         CODE_SIGN_STYLE: Automatic
         MARKETING_VERSION: "1.1"
-        CURRENT_PROJECT_VERSION: "83"
+        CURRENT_PROJECT_VERSION: "84"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         SWIFT_VERSION: "5.9"
         TARGETED_DEVICE_FAMILY: "1,2"
