@@ -1,0 +1,235 @@
+{
+ "counts": {},
+ "deck_cards": [
+  {
+   "category": "yours",
+   "code": "card_2",
+   "does": "Walk forward fast, then spin and roll twice.",
+   "kind": "yours",
+   "name": "Victory dance",
+   "plan": null,
+   "row": [
+    {
+     "card": "walk_forward",
+     "under": [
+      "fast"
+     ]
+    },
+    {
+     "card": "card_3"
+    }
+   ],
+   "tag": 201
+  },
+  {
+   "category": "yours",
+   "code": "card_3",
+   "kind": "yours",
+   "name": "Spin and roll",
+   "plan": null,
+   "row": [
+    {
+     "card": "repeat",
+     "times": 2
+    },
+    {
+     "card": "turn_left",
+     "under": [
+      "fast"
+     ]
+    },
+    {
+     "card": "roll"
+    },
+    {
+     "card": "end_repeat"
+    }
+   ],
+   "tag": 202
+  }
+ ],
+ "detections": [
+  {
+   "corners": [
+    [
+     143.1,
+     339.3
+    ],
+    [
+     123.9,
+     339.3
+    ],
+    [
+     123.9,
+     358.5
+    ],
+    [
+     143.1,
+     358.5
+    ]
+   ],
+   "hamming": 0,
+   "id": 100,
+   "margin": 80.0
+  },
+  {
+   "corners": [
+    [
+     255.1,
+     339.3
+    ],
+    [
+     235.9,
+     339.3
+    ],
+    [
+     235.9,
+     358.5
+    ],
+    [
+     255.1,
+     358.5
+    ]
+   ],
+   "hamming": 0,
+   "id": 201,
+   "margin": 80.0
+  },
+  {
+   "corners": [
+    [
+     367.1,
+     339.3
+    ],
+    [
+     347.9,
+     339.3
+    ],
+    [
+     347.9,
+     358.5
+    ],
+    [
+     367.1,
+     358.5
+    ]
+   ],
+   "hamming": 0,
+   "id": 61,
+   "margin": 80.0
+  },
+  {
+   "corners": [
+    [
+     479.1,
+     339.3
+    ],
+    [
+     459.9,
+     339.3
+    ],
+    [
+     459.9,
+     358.5
+    ],
+    [
+     479.1,
+     358.5
+    ]
+   ],
+   "hamming": 0,
+   "id": 101,
+   "margin": 80.0
+  }
+ ],
+ "expect": {
+  "asks": [],
+  "complete": true,
+  "kind": "row",
+  "notes": [],
+  "on_fall": [],
+  "plan": {
+   "format": "duck-intent-plan/0",
+   "model": "duck-cards/0",
+   "request": "Walk forward, fast. Turn left, fast. Roll. Turn left, fast. Roll. Kick, right.",
+   "steps": [
+    {
+     "clause": "Walk forward, fast",
+     "confidence": {
+      "action": 1.0,
+      "head": 1.0,
+      "speed": 1.0
+     },
+     "labels": {
+      "action": "walk_forward",
+      "head": "straight",
+      "speed": "fast"
+     }
+    },
+    {
+     "clause": "Turn left, fast",
+     "confidence": {
+      "action": 1.0,
+      "head": 1.0,
+      "speed": 1.0
+     },
+     "labels": {
+      "action": "turn_left",
+      "head": "straight",
+      "speed": "fast"
+     }
+    },
+    {
+     "clause": "Roll",
+     "confidence": {
+      "action": 1.0
+     },
+     "labels": {
+      "action": "roll"
+     }
+    },
+    {
+     "clause": "Turn left, fast",
+     "confidence": {
+      "action": 1.0,
+      "head": 1.0,
+      "speed": 1.0
+     },
+     "labels": {
+      "action": "turn_left",
+      "head": "straight",
+      "speed": "fast"
+     }
+    },
+    {
+     "clause": "Roll",
+     "confidence": {
+      "action": 1.0
+     },
+     "labels": {
+      "action": "roll"
+     }
+    },
+    {
+     "clause": "Kick, right",
+     "confidence": {
+      "action": 1.0
+     },
+     "labels": {
+      "action": "kick_right"
+     }
+    }
+   ]
+  },
+  "rows": [
+   [
+    "start",
+    "card_2",
+    "kick_right",
+    "end"
+   ]
+  ],
+  "words": "Walk forward, fast. Turn left, fast. Roll. Turn left, fast. Roll. Kick, right."
+ },
+ "name": "your_card_nested"
+}

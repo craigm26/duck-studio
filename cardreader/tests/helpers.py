@@ -20,6 +20,19 @@ from duckcards.cards import (CARD_H, CARD_W, SQUARE, Deck, place)  # noqa: E402
 DECK = Deck.load()
 
 
+def yours(tag: int, row: list, name: str = "Your card", does: str | None = None) -> dict:
+    """A Your card as a class's deck file saves it: the spec's `row`, beside a name."""
+    entry = {"tag": tag, "code": f"card_{tag - 199}", "name": name, "category": "yours", "kind": "yours",
+             "plan": None, "row": row}
+    if does:
+        entry["does"] = does
+    return entry
+
+
+def class_deck(*cards: dict) -> Deck:
+    return DECK.with_cards(list(cards))
+
+
 def corners_at(cx: float, cy: float, width_px: float, angle_deg: float = 0.0):
     """The code's corners, in the library's order, for a card centred at (cx, cy), `width_px`
     wide, turned `angle_deg` clockwise in the picture."""
@@ -36,14 +49,17 @@ def corners_at(cx: float, cy: float, width_px: float, angle_deg: float = 0.0):
     return [at(right, top), at(left, top), at(left, bottom), at(right, bottom)]
 
 
-def seen_at(code: str, cx: float, cy: float, width_px: float = 100.0, angle_deg: float = 0.0):
-    return place(DECK.by_code(code), corners_at(cx, cy, width_px, angle_deg), margin=80.0)
+def seen_at(code: str, cx: float, cy: float, width_px: float = 100.0, angle_deg: float = 0.0,
+            count: int | None = None):
+    return place(DECK.by_code(code), corners_at(cx, cy, width_px, angle_deg), margin=80.0, count=count)
 
 
-def row_at(codes, x0=100.0, y=300.0, width=100.0, gap=12.0, angle=0.0, unders=None):
+def row_at(codes, x0=100.0, y=300.0, width=100.0, gap=12.0, angle=0.0, unders=None, counts=None):
     """A row of cards, left to right in the cards' own direction, and optional unders:
-    {index: [codes]} placed one card height below that card."""
+    {index: [codes]} placed one card height below that card, and numbers read off Repeat cards:
+    {index: count}."""
     unders = unders or {}
+    counts = counts or {}
     out = []
     a = math.radians(angle)
     rx, ry = math.cos(a), math.sin(a)
@@ -52,7 +68,7 @@ def row_at(codes, x0=100.0, y=300.0, width=100.0, gap=12.0, angle=0.0, unders=No
     for i, code in enumerate(codes):
         t = i * (width + gap)
         cx, cy = x0 + t * rx, y + t * ry
-        out.append(seen_at(code, cx, cy, width, angle))
+        out.append(seen_at(code, cx, cy, width, angle, count=counts.get(i)))
         for j, u in enumerate(unders.get(i, [])):
             k = (j + 1) * (h + 8)
             out.append(seen_at(u, cx + 4 * rx + k * dx, cy + 4 * ry + k * dy, width, angle))

@@ -1,4 +1,6 @@
 {
+ "counts": {},
+ "deck_cards": [],
  "detections": [
   {
    "corners": [
@@ -94,6 +96,7 @@
   }
  ],
  "expect": {
+  "asks": [],
   "complete": true,
   "kind": "row",
   "notes": [
@@ -130,6 +133,5 @@
   ],
   "words": "Walk forward."
  },
- "name": "loose_speed",
- "yours": {}
+ "name": "loose_speed"
 }

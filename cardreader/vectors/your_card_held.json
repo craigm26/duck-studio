@@ -1,0 +1,154 @@
+{
+ "counts": {},
+ "deck_cards": [
+  {
+   "category": "yours",
+   "code": "card_2",
+   "does": "Walk forward fast, then spin and roll twice.",
+   "kind": "yours",
+   "name": "Victory dance",
+   "plan": null,
+   "row": [
+    {
+     "card": "walk_forward",
+     "under": [
+      "fast"
+     ]
+    },
+    {
+     "card": "card_3"
+    }
+   ],
+   "tag": 201
+  },
+  {
+   "category": "yours",
+   "code": "card_3",
+   "kind": "yours",
+   "name": "Spin and roll",
+   "plan": null,
+   "row": [
+    {
+     "card": "repeat",
+     "times": 2
+    },
+    {
+     "card": "turn_left",
+     "under": [
+      "fast"
+     ]
+    },
+    {
+     "card": "roll"
+    },
+    {
+     "card": "end_repeat"
+    }
+   ],
+   "tag": 202
+  }
+ ],
+ "detections": [
+  {
+   "corners": [
+    [
+     368.374,
+     358.391
+    ],
+    [
+     343.657,
+     354.917
+    ],
+    [
+     340.184,
+     379.634
+    ],
+    [
+     364.901,
+     383.108
+    ]
+   ],
+   "hamming": 0,
+   "id": 201,
+   "margin": 80.0
+  }
+ ],
+ "expect": {
+  "asks": [],
+  "complete": true,
+  "kind": "card",
+  "notes": [],
+  "on_fall": [],
+  "plan": {
+   "format": "duck-intent-plan/0",
+   "model": "duck-cards/0",
+   "request": "Walk forward, fast. Turn left, fast. Roll. Turn left, fast. Roll.",
+   "steps": [
+    {
+     "clause": "Walk forward, fast",
+     "confidence": {
+      "action": 1.0,
+      "head": 1.0,
+      "speed": 1.0
+     },
+     "labels": {
+      "action": "walk_forward",
+      "head": "straight",
+      "speed": "fast"
+     }
+    },
+    {
+     "clause": "Turn left, fast",
+     "confidence": {
+      "action": 1.0,
+      "head": 1.0,
+      "speed": 1.0
+     },
+     "labels": {
+      "action": "turn_left",
+      "head": "straight",
+      "speed": "fast"
+     }
+    },
+    {
+     "clause": "Roll",
+     "confidence": {
+      "action": 1.0
+     },
+     "labels": {
+      "action": "roll"
+     }
+    },
+    {
+     "clause": "Turn left, fast",
+     "confidence": {
+      "action": 1.0,
+      "head": 1.0,
+      "speed": 1.0
+     },
+     "labels": {
+      "action": "turn_left",
+      "head": "straight",
+      "speed": "fast"
+     }
+    },
+    {
+     "clause": "Roll",
+     "confidence": {
+      "action": 1.0
+     },
+     "labels": {
+      "action": "roll"
+     }
+    }
+   ]
+  },
+  "rows": [
+   [
+    "card_2"
+   ]
+  ],
+  "words": "Walk forward, fast. Turn left, fast. Roll. Turn left, fast. Roll."
+ },
+ "name": "your_card_held"
+}

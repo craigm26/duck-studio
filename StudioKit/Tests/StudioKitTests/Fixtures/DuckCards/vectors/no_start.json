@@ -1,4 +1,6 @@
 {
+ "counts": {},
+ "deck_cards": [],
  "detections": [
   {
    "corners": [
@@ -48,6 +50,7 @@
   }
  ],
  "expect": {
+  "asks": [],
   "complete": false,
   "kind": "none",
   "notes": [
@@ -63,6 +66,5 @@
   ],
   "words": ""
  },
- "name": "no_start",
- "yours": {}
+ "name": "no_start"
 }

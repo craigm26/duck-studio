@@ -1,4 +1,6 @@
 {
+ "counts": {},
+ "deck_cards": [],
  "detections": [
   {
    "corners": [
@@ -140,43 +142,20 @@
   }
  ],
  "expect": {
-  "complete": true,
+  "asks": [
+   0
+  ],
+  "complete": false,
   "kind": "row",
   "notes": [
-   "Nothing reads the number written on Repeat yet, so it repeats 2 times."
+   "Repeat has no number that could be read, so the row waits for one."
   ],
   "on_fall": [],
   "plan": {
    "format": "duck-intent-plan/0",
    "model": "duck-cards/0",
-   "request": "Walk forward. Turn right. Walk forward. Turn right.",
+   "request": "Walk forward. Turn right.",
    "steps": [
-    {
-     "clause": "Walk forward",
-     "confidence": {
-      "action": 1.0,
-      "head": 1.0,
-      "speed": 1.0
-     },
-     "labels": {
-      "action": "walk_forward",
-      "head": "straight",
-      "speed": "normal"
-     }
-    },
-    {
-     "clause": "Turn right",
-     "confidence": {
-      "action": 1.0,
-      "head": 1.0,
-      "speed": 1.0
-     },
-     "labels": {
-      "action": "turn_right",
-      "head": "straight",
-      "speed": "normal"
-     }
-    },
     {
      "clause": "Walk forward",
      "confidence": {
@@ -215,8 +194,7 @@
     "end"
    ]
   ],
-  "words": "Walk forward. Turn right. Walk forward. Turn right."
+  "words": "Walk forward. Turn right."
  },
- "name": "repeat",
- "yours": {}
+ "name": "repeat"
 }

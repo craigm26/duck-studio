@@ -1,4 +1,6 @@
 {
+ "counts": {},
+ "deck_cards": [],
  "detections": [
   {
    "corners": [
@@ -94,6 +96,7 @@
   }
  ],
  "expect": {
+  "asks": [],
   "complete": true,
   "kind": "row",
   "notes": [
@@ -129,6 +132,5 @@
   ],
   "words": "Turn left."
  },
- "name": "turned_card",
- "yours": {}
+ "name": "turned_card"
 }

@@ -9,13 +9,17 @@ change before anything moves. `check_plan` holds every plan to the rules
 `DuckIntentPlan.read` enforces, label for label.
 
 WHAT A PLAN CANNOT SAY STAYS BESIDE IT. `duck-intent-plan/0` has no loops and
-no events. Repeat is unrolled into the steps it repeats. When it falls is kept
-as a second list, `on_fall`, which the duck's own runner watches for and Studio
-does not run yet; the program says so in its notes rather than dropping it.
+no events. Repeat is unrolled into the steps it repeats, as many times as the
+number written on it says. When it falls is kept as a second list, `on_fall`,
+which the duck's own runner watches for and Studio does not run yet. A Your
+card is opened into the row its deck saved for it, which may hold Your cards
+of its own.
 
 A ROW SAYS WHAT IT DID WITH EVERY CARD. A Slow under a kick, a Your card nobody
 has given a meaning, a Start with no End: each is a note in the duck's words,
-because "it ignored my card" is the bug a class should be able to find.
+because "it ignored my card" is the bug a class should be able to find. What
+the reader cannot decide alone, a Repeat whose number it cannot read, it asks
+(`Program.asks`), and the row waits for the answer.
 """
 
 from __future__ import annotations
@@ -23,7 +27,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 
-from .cards import Card
+from .cards import REPEAT_MOST, Card, Deck, Seen
 from .layout import Layout, Row, Slot
 
 FORMAT = "duck-intent-plan/0"
@@ -43,11 +47,11 @@ CARRIES = {"walk_forward": {"speed", "head"}, "walk_backward": {"speed", "head"}
            "turn_left": {"speed", "head"}, "turn_right": {"speed", "head"}, "stop": {"head"},
            "make_sound": {"sound"}}
 
-# How many times Repeat repeats when nothing can read the number written on it.
-REPEAT_TIMES = 2
 # A plan on a duck is held to this many steps after unrolling, so a Repeat inside a Repeat
 # cannot become a plan nobody is watching the end of. RobotPlan holds the seconds; this the count.
 MAX_STEPS = 40
+# A Your card may hold Your cards, and those may hold more, this many deep and no deeper.
+YOURS_DEPTH = 4
 
 
 @dataclass
@@ -66,8 +70,11 @@ class Program:
     steps: list[Step]
     on_fall: list[Step]
     notes: list[str]
-    complete: bool                  # a Start and an End were both read, or a single card was
+    complete: bool                  # a Start and an End were read, or a single card, and nothing is asked
     kind: str                       # "row", "card" or "none"
+    # The Repeat cards whose number nobody could read, counted along the row from 0 (then along
+    # the When it falls row). The row waits for these: Studio asks, the duck asks with a sound.
+    asks: list[int] = field(default_factory=list)
 
     @property
     def words(self) -> str:
@@ -108,8 +115,48 @@ def _step(slot: Slot, notes: list[str]) -> Step | None:
                 cards=[card.code] + [u.code for u in kept])
 
 
-def _compile(slots: list[Slot], notes: list[str], yours: dict[int, list[str]], deck) -> list[Step]:
-    """Slots to steps: Repeat unrolled, Your cards looked up, everything else said."""
+class _Reading:
+    """What one read keeps across the rows it compiles: the deck, the answers given for Repeat
+    numbers, how many Repeat cards have been met, and which of them are still asked about."""
+
+    def __init__(self, deck: Deck, counts: dict[int, int] | None):
+        self.deck = deck
+        self.counts = dict(counts or {})
+        self.repeats = 0
+        self.asks: list[int] = []
+
+
+def _saved(card: Card, times: int | None = None) -> Seen:
+    """A card from a saved row: where it lies does not matter, only what it is."""
+    return Seen(card=card, corners=[], count=times)
+
+
+def _times(slot: Slot, notes: list[str], state: _Reading, saved: bool) -> int:
+    """How many times a Repeat repeats.
+
+    THE NUMBER IS WRITTEN ON THE CARD, AND A READER THAT CANNOT READ IT ASKS. That is the cards
+    page's rule. A saved row carries its numbers. On the table, an answer someone gave wins, then
+    a number read off the card (said back, because handwriting is read, not known), and otherwise
+    the Repeat is asked about and the row waits; meanwhile what it holds is shown once."""
+    if saved:
+        return slot.card.count or 1
+    index = state.repeats
+    state.repeats += 1
+    answered = state.counts.get(index)
+    if isinstance(answered, int) and 1 <= answered <= REPEAT_MOST:
+        return answered
+    read_off = slot.card.count
+    if isinstance(read_off, int) and 1 <= read_off <= REPEAT_MOST:
+        notes.append(f"Repeat says {read_off} times.")
+        return read_off
+    state.asks.append(index)
+    notes.append("Repeat has no number that could be read, so the row waits for one.")
+    return 1
+
+
+def _compile(slots: list[Slot], notes: list[str], state: _Reading, inside: tuple[int, ...] = ()) -> list[Step]:
+    """Slots to steps: Repeat unrolled, Your cards opened, everything else said. `inside` is the
+    Your cards being opened, outermost first, when these slots are a saved row."""
     out: list[Step] = []
     i = 0
     while i < len(slots):
@@ -124,22 +171,16 @@ def _compile(slots: list[Slot], notes: list[str], yours: dict[int, list[str]], d
             body = slots[i + 1:j - 1] if depth == 0 else slots[i + 1:j]
             if depth:
                 notes.append("Repeat has no End repeat after it, so it repeats to the end of the row.")
-            notes.append(f"Nothing reads the number written on Repeat yet, so it repeats "
-                         f"{REPEAT_TIMES} times.")
-            inner = _compile(body, notes, yours, deck)
-            for _ in range(REPEAT_TIMES):
+            times = _times(slot, notes, state, saved=bool(inside))
+            inner = _compile(body, notes, state, inside)
+            for _ in range(times):
                 out.extend(inner)
             i = j
             continue
         if card.code == "end_repeat":
             notes.append("End repeat has no Repeat before it, so it was skipped.")
         elif card.kind == "yours":
-            meaning = yours.get(card.tag)
-            if not meaning:
-                notes.append(f"Your card {card.tag} has no meaning saved yet, so it was skipped.")
-            else:
-                inner = [Slot(card=_seen_like(deck.by_code(code))) for code in meaning]
-                out.extend(_compile(inner, notes, yours, deck))
+            out.extend(_open(card, notes, state, inside))
         elif card.kind == "event":
             notes.append(f"{card.name} starts a row of its own; in the middle of a row it was skipped.")
         elif card.kind == "modifier":
@@ -154,20 +195,47 @@ def _compile(slots: list[Slot], notes: list[str], yours: dict[int, list[str]], d
     return out
 
 
-def _seen_like(card: Card):
-    from .cards import Seen
-    return Seen(card=card, corners=[(0, 0)] * 4)
+def _open(card: Card, notes: list[str], state: _Reading, inside: tuple[int, ...]) -> list[Step]:
+    """A Your card, opened into the row its deck saved for it.
+
+    A ROUTINE CAN CALL A ROUTINE, FOUR DEEP, AND NEVER ITSELF. The cards page's spec: the read
+    stops on a loop, naming both cards, and below a depth of four. A card that is skipped says
+    which card it was, because a class looking at a duck that did nothing needs the number.
+    The meaning is looked up in the deck this read was given, whichever deck found the code."""
+    tag = card.tag
+    card = state.deck.card(tag) or card
+    if tag in inside:
+        holder = inside[-1]
+        if holder == tag:
+            notes.append(f"Your card {tag} holds itself, so the loop was cut there.")
+        else:
+            notes.append(f"Your card {holder} holds Your card {tag}, which leads back to {holder}, "
+                         "so the loop was cut there.")
+        return []
+    if len(inside) >= YOURS_DEPTH:
+        notes.append(f"Your card {tag} sits more than {YOURS_DEPTH} Your cards deep, so it was skipped.")
+        return []
+    if not card.row:
+        notes.append(f"Your card {tag} has no meaning saved yet, so it was skipped.")
+        return []
+    deck = state.deck
+    slots = [Slot(card=_saved(deck.by_code(e.card), e.times),
+                  under=[_saved(deck.by_code(u)) for u in e.under]) for e in card.row]
+    return _compile(slots, notes, state, inside + (tag,))
 
 
-def read(layout: Layout, yours: dict[int, list[str]] | None = None, deck=None) -> Program:
+def read(layout: Layout, deck: Deck, counts: dict[int, int] | None = None) -> Program:
     """The program in a picture's rows.
 
     THE PROGRAM IS THE ROW WITH START IN IT. Between Start and End, left to right, is what runs.
     A row that begins with When it falls is what runs after a fall. With no Start anywhere, one
     card on its own is a program of one step, which is how holding up a card works; several cards
     with no Start are not a program yet, and the duck says so rather than guessing which you
-    meant."""
-    yours = yours or {}
+    meant.
+
+    `counts` answers Repeat numbers nobody could read: {position: times}, positions as
+    `Program.asks` gives them."""
+    state = _Reading(deck, counts)
     notes: list[str] = []
     main: Row | None = None
     fall_row: Row | None = None
@@ -180,40 +248,52 @@ def read(layout: Layout, yours: dict[int, list[str]] | None = None, deck=None) -
     if layout.turned:
         names = ", ".join(s.card.name for s in layout.turned)
         notes.append(f"Turned the other way from the rest, so not read: {names}.")
-    on_fall: list[Step] = []
-    if fall_row is not None:
-        body = fall_row.slots[1:]
-        ends = [k for k, s in enumerate(body) if s.card.card.code == "end"]
-        on_fall = _compile(body[:ends[0]] if ends else body, notes, yours, deck)
+    end = None
     if main is None:
         actions = [s for r in layout.rows if r is not fall_row for s in r.slots
                    if s.card.card.kind in ("action", "yours")]
         others = [s for r in layout.rows if r is not fall_row for s in r.slots
                   if s.card.card.kind not in ("action", "yours")]
         if len(actions) == 1 and not [o for o in others if o.card.card.kind == "control"]:
-            steps = _compile(actions, notes, yours, deck)
-            return Program(steps=steps, on_fall=on_fall, notes=notes, complete=bool(steps), kind="card")
-        if actions:
-            notes.append("These cards have no Start, so there is no row to run yet.")
-        return Program(steps=[], on_fall=on_fall, notes=notes, complete=False, kind="none")
-    codes = main.codes
-    start = codes.index("start")
-    end = codes.index("end", start) if "end" in codes[start:] else None
-    if start > 0:
-        notes.append("Cards before Start are not part of the row.")
-    if end is None:
-        notes.append("There is a Start but no End yet.")
-        body = main.slots[start + 1:]
+            kind, steps = "card", _compile(actions, notes, state)
+        else:
+            if actions:
+                notes.append("These cards have no Start, so there is no row to run yet.")
+            kind, steps = "none", []
     else:
-        if end + 1 < len(codes):
-            notes.append("Cards after End are not part of the row.")
-        body = main.slots[start + 1:end]
-    steps = _compile(body, notes, yours, deck)
-    if len(steps) > MAX_STEPS:
-        notes.append(f"The row unrolls to {len(steps)} steps; a duck runs at most {MAX_STEPS}.")
-        steps = steps[:MAX_STEPS]
-    return Program(steps=steps, on_fall=on_fall, notes=notes, complete=end is not None and bool(steps),
-                   kind="row")
+        kind = "row"
+        codes = main.codes
+        start = codes.index("start")
+        end = codes.index("end", start) if "end" in codes[start:] else None
+        if start > 0:
+            notes.append("Cards before Start are not part of the row.")
+        if end is None:
+            notes.append("There is a Start but no End yet.")
+            body = main.slots[start + 1:]
+        else:
+            if end + 1 < len(codes):
+                notes.append("Cards after End are not part of the row.")
+            body = main.slots[start + 1:end]
+        steps = _compile(body, notes, state)
+        if len(steps) > MAX_STEPS:
+            notes.append(f"The row unrolls to {len(steps)} steps; a duck runs at most {MAX_STEPS}.")
+            steps = steps[:MAX_STEPS]
+    on_fall: list[Step] = []
+    if fall_row is not None:
+        body = fall_row.slots[1:]
+        ends = [k for k, s in enumerate(body) if s.card.card.code == "end"]
+        on_fall = _compile(body[:ends[0]] if ends else body, notes, state)
+    if kind == "card":
+        complete = bool(steps) and not state.asks
+    elif kind == "row":
+        complete = end is not None and bool(steps) and not state.asks
+    else:
+        complete = False
+    # Two Repeats nobody could read, or two loose Speed cards, are said once: a note explains, and
+    # `asks` keeps the count.
+    said = list(dict.fromkeys(notes))
+    return Program(steps=steps, on_fall=on_fall, notes=said, complete=complete, kind=kind,
+                   asks=list(state.asks))
 
 
 def plan(program: Program, steps: list[Step] | None = None) -> dict:

@@ -1,4 +1,6 @@
 {
+ "counts": {},
+ "deck_cards": [],
  "detections": [
   {
    "corners": [
@@ -25,6 +27,7 @@
   }
  ],
  "expect": {
+  "asks": [],
   "complete": true,
   "kind": "card",
   "notes": [],
@@ -52,6 +55,5 @@
   ],
   "words": "Kick, right."
  },
- "name": "picture_held_card",
- "yours": {}
+ "name": "picture_held_card"
 }

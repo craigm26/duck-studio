@@ -10,11 +10,11 @@ import math
 import random
 import unittest
 
-from helpers import DECK, corners_at, row_at, seen_at
+from helpers import DECK, class_deck, corners_at, row_at, seen_at, yours
 
-from duckcards.cards import DECK_SHA256, SQUARE_SIDE, Deck, place
+from duckcards.cards import DECK_SHA256, SQUARE_SIDE, Deck, DeckError, place
 from duckcards.layout import arrange
-from duckcards.program import check_plan, plan, read, PlanError, REPEAT_TIMES
+from duckcards.program import YOURS_DEPTH, check_plan, plan, read, PlanError
 
 try:
     import numpy as np
@@ -27,8 +27,8 @@ except ImportError:
 EXAMPLE = ["start", "greet", "walk_forward", "turn_left", "kick_right", "end"]
 
 
-def program_of(seen, yours=None):
-    return read(arrange(seen), yours or {}, DECK)
+def program_of(seen, deck=DECK, counts=None):
+    return read(arrange(seen), deck, counts)
 
 
 class TheDeck(unittest.TestCase):
@@ -130,17 +130,123 @@ class Programs(unittest.TestCase):
         self.assertEqual(program.steps[0].labels, {"action": "stop", "head": "look_left"})
         self.assertEqual(program.steps[1].labels, {"action": "walk_backward", "speed": "fast", "head": "look_up"})
 
-    def test_repeat_is_unrolled_and_says_how_many_times(self):
+    def test_repeat_asks_for_its_number_and_the_row_waits(self):
         program = program_of(row_at(["start", "repeat", "walk_forward", "turn_right", "end_repeat", "end"]))
-        self.assertEqual([s.action for s in program.steps], ["walk_forward", "turn_right"] * REPEAT_TIMES)
-        self.assertTrue(any("repeats 2 times" in n for n in program.notes))
+        self.assertEqual(program.asks, [0])
+        self.assertFalse(program.complete)
+        self.assertEqual([s.action for s in program.steps], ["walk_forward", "turn_right"])
+        self.assertIn("Repeat has no number that could be read, so the row waits for one.", program.notes)
 
-    def test_a_your_card_runs_what_the_class_saved_for_it(self):
-        seen = row_at(["start", "card_1", "end"])
-        self.assertEqual(program_of(seen).steps, [])
-        self.assertTrue(any("no meaning saved" in n for n in program_of(seen).notes))
-        program = program_of(seen, {200: ["sit_or_stand", "greet"]})
-        self.assertEqual([s.action for s in program.steps], ["sit_or_stand", "make_sound"])
+    def test_a_number_read_off_repeat_is_said_back(self):
+        program = program_of(row_at(["start", "repeat", "walk_forward", "end_repeat", "end"], counts={1: 3}))
+        self.assertEqual((program.asks, program.complete), ([], True))
+        self.assertEqual([s.action for s in program.steps], ["walk_forward"] * 3)
+        self.assertIn("Repeat says 3 times.", program.notes)
+
+    def test_an_answer_is_used_and_wins_over_what_was_read(self):
+        seen = row_at(["start", "repeat", "walk_forward", "end_repeat", "end"])
+        answered = program_of(seen, counts={0: 4})
+        self.assertEqual((len(answered.steps), answered.complete, answered.notes), (4, True, []))
+        read_off = row_at(["start", "repeat", "walk_forward", "end_repeat", "end"], counts={1: 3})
+        self.assertEqual(len(program_of(read_off, counts={0: 2}).steps), 2)
+
+    def test_a_number_out_of_reach_is_asked_about(self):
+        for count in (0, 10, -1):
+            seen = row_at(["start", "repeat", "walk_forward", "end_repeat", "end"], counts={1: count})
+            self.assertEqual(program_of(seen).asks, [0], count)
+        self.assertEqual(program_of(row_at(["start", "repeat", "walk_forward", "end_repeat", "end"]),
+                                    counts={0: 12}).asks, [0])
+
+    def test_repeats_inside_repeats_are_asked_about_in_reading_order(self):
+        seen = row_at(["start", "repeat", "walk_forward", "repeat", "turn_left", "end_repeat", "end_repeat", "end"],
+                      width=60, gap=6)
+        program = program_of(seen)
+        self.assertEqual(program.asks, [0, 1])
+        answered = program_of(seen, counts={0: 2, 1: 3})
+        self.assertEqual([s.action for s in answered.steps], (["walk_forward"] + ["turn_left"] * 3) * 2)
+        self.assertTrue(answered.complete)
+
+    def test_a_when_it_falls_row_is_asked_about_after_the_main_row(self):
+        main = row_at(["start", "repeat", "walk_forward", "end_repeat", "end"])
+        fall = row_at(["when_falls", "repeat", "greet", "end_repeat", "end"], y=600)
+        program = program_of(main + fall)
+        self.assertEqual(program.asks, [0, 1])
+        answered = program_of(main + fall, counts={0: 2, 1: 3})
+        self.assertEqual((len(answered.steps), len(answered.on_fall)), (2, 3))
+
+
+class YourCards(unittest.TestCase):
+    """The cards page's spec: a Your card means what its deck file says, a `row` in the shape of
+    the deck's `example.row`; a routine can call a routine, four deep, and a loop is cut."""
+
+    def test_a_your_card_with_nothing_saved_is_skipped_by_number(self):
+        program = program_of(row_at(["start", "card_1", "end"]))
+        self.assertEqual(program.steps, [])
+        self.assertIn("Your card 200 has no meaning saved yet, so it was skipped.", program.notes)
+
+    def test_a_your_card_runs_the_row_its_deck_saved(self):
+        deck = class_deck(yours(201, [{"card": "walk_forward", "under": ["fast"]}, {"card": "roll"}],
+                                "Victory dance", "Walk forward fast, then roll."))
+        self.assertEqual(deck.card(201).name, "Victory dance")
+        program = program_of(row_at(["start", "card_2", "greet", "end"]), deck)
+        self.assertEqual([s.labels for s in program.steps], [
+            {"action": "walk_forward", "speed": "fast", "head": "straight"},
+            {"action": "roll"},
+            {"action": "make_sound", "sound": "greet"},
+        ])
+        self.assertEqual(program.notes, [])
+        held = program_of([seen_at("card_2", 300, 300)], deck)
+        self.assertEqual((held.kind, held.words), ("card", "Walk forward, fast. Roll."))
+
+    def test_a_saved_repeat_carries_its_number_and_asks_nothing(self):
+        deck = class_deck(yours(200, [{"card": "repeat", "times": 3}, {"card": "peck_ground"},
+                                      {"card": "end_repeat"}]))
+        program = program_of(row_at(["start", "card_1", "end"]), deck)
+        self.assertEqual([s.action for s in program.steps], ["peck_ground"] * 3)
+        self.assertEqual((program.asks, program.notes, program.complete), ([], [], True))
+
+    def test_a_routine_calls_a_routine_four_deep_and_no_deeper(self):
+        chain = [yours(200 + k, [{"card": f"card_{k + 2}"}, {"card": "greet"}]) for k in range(5)]
+        program = program_of(row_at(["start", "card_1", "end"]), class_deck(*chain))
+        self.assertEqual(YOURS_DEPTH, 4)
+        self.assertEqual([s.action for s in program.steps], ["make_sound"] * 4)
+        self.assertIn("Your card 204 sits more than 4 Your cards deep, so it was skipped.", program.notes)
+
+    def test_a_loop_is_cut_and_both_cards_are_named(self):
+        deck = class_deck(yours(201, [{"card": "kick_left"}, {"card": "card_3"}]),
+                          yours(202, [{"card": "kick_right"}, {"card": "card_2"}]),
+                          yours(203, [{"card": "card_4"}]))
+        program = program_of(row_at(["start", "card_2", "card_4", "end"]), deck)
+        self.assertEqual([s.action for s in program.steps], ["kick_left", "kick_right"])
+        self.assertEqual(program.notes, [
+            "Your card 202 holds Your card 201, which leads back to 202, so the loop was cut there.",
+            "Your card 203 holds itself, so the loop was cut there.",
+        ])
+
+    def test_a_deck_that_says_what_the_reader_cannot_follow_is_refused_by_name(self):
+        for card, why in [
+            (yours(200, [{"card": "fly"}]), "'fly', which is not a card"),
+            (yours(200, [{"card": "walk_forward", "under": ["sideways"]}]), "'sideways', which is not a card"),
+            (yours(200, [{"card": "repeat"}, {"card": "roll"}]), "needs times"),
+            (yours(200, [{"card": "repeat", "times": 12}]), "needs times"),
+            (yours(200, [{"card": "roll", "times": 2}]), "only a Repeat takes times"),
+            (yours(200, {"card": "roll"}), "row is not a list"),
+            ({**DECK.data["cards"][0], "row": [{"card": "roll"}]}, "only a Your card stands for a row"),
+        ]:
+            with self.assertRaises(DeckError, msg=why) as e:
+                class_deck(card)
+            self.assertIn(why, str(e.exception))
+
+    def test_a_class_deck_file_round_trips_through_load(self):
+        import tempfile, pathlib
+        deck = class_deck(yours(205, [{"card": "sit_or_stand"}], "Bow"))
+        with tempfile.TemporaryDirectory() as d:
+            path = pathlib.Path(d) / "class.duckcards"
+            path.write_text(json.dumps(deck.data))
+            again = Deck.load(path)
+        self.assertEqual(again.card(205).name, "Bow")
+        self.assertEqual(again.by_code("card_6").tag, 205)
+        self.assertEqual(again.by_code("card_51").tag, 250)
 
 
 class Plans(unittest.TestCase):

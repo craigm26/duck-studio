@@ -1,0 +1,225 @@
+{
+ "counts": {},
+ "deck_cards": [
+  {
+   "category": "yours",
+   "code": "card_1",
+   "kind": "yours",
+   "name": "Your card",
+   "plan": null,
+   "row": [
+    {
+     "card": "card_2"
+    },
+    {
+     "card": "greet"
+    }
+   ],
+   "tag": 200
+  },
+  {
+   "category": "yours",
+   "code": "card_2",
+   "kind": "yours",
+   "name": "Your card",
+   "plan": null,
+   "row": [
+    {
+     "card": "card_3"
+    },
+    {
+     "card": "greet"
+    }
+   ],
+   "tag": 201
+  },
+  {
+   "category": "yours",
+   "code": "card_3",
+   "kind": "yours",
+   "name": "Your card",
+   "plan": null,
+   "row": [
+    {
+     "card": "card_4"
+    },
+    {
+     "card": "greet"
+    }
+   ],
+   "tag": 202
+  },
+  {
+   "category": "yours",
+   "code": "card_4",
+   "kind": "yours",
+   "name": "Your card",
+   "plan": null,
+   "row": [
+    {
+     "card": "card_5"
+    },
+    {
+     "card": "greet"
+    }
+   ],
+   "tag": 203
+  },
+  {
+   "category": "yours",
+   "code": "card_5",
+   "kind": "yours",
+   "name": "Your card",
+   "plan": null,
+   "row": [
+    {
+     "card": "card_6"
+    },
+    {
+     "card": "greet"
+    }
+   ],
+   "tag": 204
+  }
+ ],
+ "detections": [
+  {
+   "corners": [
+    [
+     143.1,
+     339.3
+    ],
+    [
+     123.9,
+     339.3
+    ],
+    [
+     123.9,
+     358.5
+    ],
+    [
+     143.1,
+     358.5
+    ]
+   ],
+   "hamming": 0,
+   "id": 100,
+   "margin": 80.0
+  },
+  {
+   "corners": [
+    [
+     255.1,
+     339.3
+    ],
+    [
+     235.9,
+     339.3
+    ],
+    [
+     235.9,
+     358.5
+    ],
+    [
+     255.1,
+     358.5
+    ]
+   ],
+   "hamming": 0,
+   "id": 200,
+   "margin": 80.0
+  },
+  {
+   "corners": [
+    [
+     367.1,
+     339.3
+    ],
+    [
+     347.9,
+     339.3
+    ],
+    [
+     347.9,
+     358.5
+    ],
+    [
+     367.1,
+     358.5
+    ]
+   ],
+   "hamming": 0,
+   "id": 101,
+   "margin": 80.0
+  }
+ ],
+ "expect": {
+  "asks": [],
+  "complete": true,
+  "kind": "row",
+  "notes": [
+   "Your card 204 sits more than 4 Your cards deep, so it was skipped."
+  ],
+  "on_fall": [],
+  "plan": {
+   "format": "duck-intent-plan/0",
+   "model": "duck-cards/0",
+   "request": "Hello. Hello. Hello. Hello.",
+   "steps": [
+    {
+     "clause": "Hello",
+     "confidence": {
+      "action": 1.0,
+      "sound": 1.0
+     },
+     "labels": {
+      "action": "make_sound",
+      "sound": "greet"
+     }
+    },
+    {
+     "clause": "Hello",
+     "confidence": {
+      "action": 1.0,
+      "sound": 1.0
+     },
+     "labels": {
+      "action": "make_sound",
+      "sound": "greet"
+     }
+    },
+    {
+     "clause": "Hello",
+     "confidence": {
+      "action": 1.0,
+      "sound": 1.0
+     },
+     "labels": {
+      "action": "make_sound",
+      "sound": "greet"
+     }
+    },
+    {
+     "clause": "Hello",
+     "confidence": {
+      "action": 1.0,
+      "sound": 1.0
+     },
+     "labels": {
+      "action": "make_sound",
+      "sound": "greet"
+     }
+    }
+   ]
+  },
+  "rows": [
+   [
+    "start",
+    "card_1",
+    "end"
+   ]
+  ],
+  "words": "Hello. Hello. Hello. Hello."
+ },
+ "name": "your_card_too_deep"
+}

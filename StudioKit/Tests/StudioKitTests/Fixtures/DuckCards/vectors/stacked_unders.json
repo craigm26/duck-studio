@@ -1,4 +1,6 @@
 {
+ "counts": {},
+ "deck_cards": [],
  "detections": [
   {
    "corners": [
@@ -163,6 +165,7 @@
   }
  ],
  "expect": {
+  "asks": [],
   "complete": true,
   "kind": "row",
   "notes": [],
@@ -208,6 +211,5 @@
   ],
   "words": "Stop, look left. Walk back, fast, look up."
  },
- "name": "stacked_unders",
- "yours": {}
+ "name": "stacked_unders"
 }

@@ -6,7 +6,8 @@ watch, beside duck-sim:   python3 -m duckcards watch --frame-url http://127.0.0.
                               --robot-socket ~/.cache/duck-sim/duck-a.sock
 watch, from a laptop:     python3 -m duckcards watch --frame-url http://duck.local:8080/frame \\
                               --bridge duck.local:7788 --token-file ~/.microduck-bridge-token
-Add --dry-run to read and say what would be sent without sending it.
+Add --dry-run to read and say what would be sent without sending it, and --deck class.duckcards
+to read a class's own deck, with the Your cards it saved.
 """
 
 from __future__ import annotations
@@ -23,24 +24,27 @@ from .program import check_plan, plan, read
 from .see import see
 
 
-def _yours(path: str | None) -> dict[int, list[str]]:
+def _deck(path: str | None) -> Deck:
+    """The starter deck, or a class's copy of it: a `.duckcards` file Studio exported, or any
+    `duck-cards/0` deck file. Refused by name if it says something the reader cannot follow."""
     if not path:
-        return {}
-    data = json.loads(open(path).read())
-    return {int(k): list(v) for k, v in data.items()}
+        return Deck.load()
+    try:
+        return Deck.load(os.path.expanduser(path))
+    except (OSError, ValueError) as e:
+        raise SystemExit(f"cannot read the deck {path}: {e}")
 
 
 def cmd_read(args) -> int:
     from PIL import Image
     import numpy as np
-    deck = Deck.load()
-    yours = _yours(args.yours)
+    deck = _deck(args.deck)
     status = 0
     for path in args.pictures:
         gray = np.asarray(Image.open(path).convert("L"))
         look = see(gray, deck)
         layout = arrange(look.seen)
-        program = read(layout, yours, deck)
+        program = read(layout, deck)
         print(f"{path}: {len(look.seen)} cards, rows {layout.describe()}")
         if look.foreign:
             print(f"  {look.foreign} code(s) that are not Duck Cards")
@@ -60,6 +64,9 @@ class DryRobot:
         print(f"    -> {method} {json.dumps(params) if params else ''}")
         if method == "robot.skills":
             return {"skills": [], "built_in": ["kick_left", "kick_right", "sit_toggle", "roulade", "ground_pick"]}
+        if method == "robot.look":
+            return {"head": {"neck_pitch": 0.0, "head_pitch": 0.0, "head_yaw": 0.0, "head_roll": 0.0},
+                    "clamped": False}
         return {"accepted": True}
 
     def notify(self, method, params=None):
@@ -68,8 +75,7 @@ class DryRobot:
 
 def cmd_watch(args) -> int:
     from . import duck, runner
-    deck = Deck.load()
-    yours = _yours(args.yours)
+    deck = _deck(args.deck)
     frames = duck.FrameURL(args.frame_url) if args.frame_url else duck.FrameSocket(args.frame_socket)
     if args.dry_run:
         robot, connect = DryRobot(), None
@@ -90,9 +96,19 @@ def cmd_watch(args) -> int:
         except Exception:
             pass
 
-    if args.floor:
-        x, y, z = runner.FLOOR_AT
-        robot.call("robot.look", {"x": x, "y": y, "z": z})
+    gaze = None if args.let_head_wander else runner.Gaze(robot, runner.FLOOR_AT if args.floor else None)
+
+    def look_again():
+        try:
+            if gaze:
+                gaze.aim(time.time())
+            elif args.floor:
+                x, y, z = runner.FLOOR_AT
+                robot.call("robot.look", {"x": x, "y": y, "z": z})
+        except Exception as e:
+            say(f"  (could not point the head: {e})")
+
+    look_again()
     watcher = runner.Watcher(need=args.need)
     on_fall = []
     frame_n = 0
@@ -111,7 +127,7 @@ def cmd_watch(args) -> int:
             if args.upscale and frame_n % 2 == 0:       # every other look, twice the pixels
                 import cv2
                 gray = cv2.resize(gray, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
-            program = read(arrange(see(gray, deck).seen), yours, deck)
+            program = read(arrange(see(gray, deck).seen), deck)
             event = watcher.feed(program, time.time())
             if event:
                 say(f"[{event.kind}] {event.program.words or '(nothing to run)'}")
@@ -133,14 +149,18 @@ def cmd_watch(args) -> int:
                         outcome = str(r)
                         voice("alarm")
                     say(f"  {outcome}")
-                    if args.floor:
-                        x, y, z = runner.FLOOR_AT
-                        robot.call("robot.look", {"x": x, "y": y, "z": z})
+                    look_again()
             if falls and falls.recovered.is_set():
                 falls.recovered.clear()
                 if on_fall:
                     say("[fell] running the When it falls row")
                     runner.run(runner.beats(on_fall), robot, heads=args.heads, say=say)
+                    look_again()
+            if gaze:
+                try:
+                    gaze.tick(time.time())
+                except Exception:
+                    pass
             time.sleep(max(0.0, 1.0 / args.hz - (time.time() - t0)))
     except KeyboardInterrupt:
         pass
@@ -161,7 +181,7 @@ def main(argv=None) -> int:
     r = sub.add_parser("read", help="read the cards in pictures")
     r.add_argument("pictures", nargs="+")
     r.add_argument("--plan", action="store_true", help="print the duck-intent-plan/0 too")
-    r.add_argument("--yours", help="a JSON file: Your card code -> list of card codes it stands for")
+    r.add_argument("--deck", help="a class's deck file (.duckcards), with its Your cards")
     r.set_defaults(fn=cmd_read)
     w = sub.add_parser("watch", help="the duck reads cards and does them")
     w.add_argument("--frame-socket", default="/run/mediad/media.sock")
@@ -171,11 +191,14 @@ def main(argv=None) -> int:
     w.add_argument("--token-file", default="~/.microduck-bridge-token")
     w.add_argument("--floor", action="store_true", help="look down at a row on the floor")
     w.add_argument("--heads", action="store_true", help="send Look cards as robot.look (Studio does not yet)")
+    w.add_argument("--let-head-wander", action="store_true",
+                   help="do not hold the head still while watching; robotd's idle look-around then "
+                        "takes a held card out of the picture and it is read again")
     w.add_argument("--hz", type=float, default=4.0, help="pictures a second (default 4)")
     w.add_argument("--need", type=int, default=3, help="pictures in a row that must agree (default 3)")
     w.add_argument("--hands-off", type=float, default=1.5, help="seconds between reading a row and running it")
     w.add_argument("--upscale", action="store_true", help="every other picture at twice the size: farther cards, more CPU")
-    w.add_argument("--yours", help="a JSON file: Your card code -> list of card codes it stands for")
+    w.add_argument("--deck", help="a class's deck file (.duckcards), with its Your cards")
     w.add_argument("--dry-run", action="store_true", help="read and say, send nothing")
     w.set_defaults(fn=cmd_watch)
     args = p.parse_args(argv)

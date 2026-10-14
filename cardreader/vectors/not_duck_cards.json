@@ -1,4 +1,6 @@
 {
+ "counts": {},
+ "deck_cards": [],
  "detections": [
   {
    "corners": [
@@ -25,6 +27,7 @@
   }
  ],
  "expect": {
+  "asks": [],
   "complete": false,
   "kind": "none",
   "notes": [],
@@ -33,6 +36,5 @@
   "rows": [],
   "words": ""
  },
- "name": "not_duck_cards",
- "yours": {}
+ "name": "not_duck_cards"
 }

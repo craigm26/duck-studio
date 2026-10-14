@@ -28,7 +28,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
 def program_of(seen):
-    return read(arrange(seen), {}, DECK)
+    return read(arrange(seen), DECK)
 
 
 class Recorder:
@@ -36,7 +36,7 @@ class Recorder:
 
     def __init__(self, skills=("kick_left", "kick_right", "sit_toggle", "roulade", "ground_pick"),
                  accept=True):
-        self.calls, self.moves = [], []
+        self.calls, self.moves, self.notified = [], [], []
         self.skills, self.accept = list(skills), accept
 
     def call(self, method, params=None):
@@ -45,10 +45,15 @@ class Recorder:
             return {"skills": [{"name": "kick_right", "duration": 0.6}], "built_in": self.skills}
         if method == "robot.do":
             return {"accepted": self.accept} if self.accept is not None else {}
+        if method == "robot.look":       # LookResult: the joints the head was sent to
+            return {"head": {"neck_pitch": 0.0, "head_pitch": 0.61, "head_yaw": 0.0, "head_roll": 0.0},
+                    "clamped": False}
         return {"accepted": True}
 
     def notify(self, method, params=None):
-        self.moves.append(params)
+        self.notified.append((method, params))
+        if method == "robot.move":
+            self.moves.append(params)
 
 
 class Beats(unittest.TestCase):
@@ -136,6 +141,44 @@ class Watching(unittest.TestCase):
         whole = row_at(["start", "walk_forward", "end"])
         events = [self.feed(w, whole, 2 + t * 0.25) for t in range(4)]
         self.assertEqual([e.kind for e in events if e], ["row"])
+
+    def test_a_repeat_nobody_can_read_is_asked_about_not_run(self):
+        w = runner.Watcher(need=2, unfinished_after=1.0)
+        row = row_at(["start", "repeat", "walk_forward", "end_repeat", "end"])
+        events = [self.feed(w, row, t * 0.25) for t in range(8)]
+        self.assertEqual([e.kind for e in events if e], ["unfinished"])
+        readable = row_at(["start", "repeat", "walk_forward", "end_repeat", "end"], counts={1: 2})
+        events = [self.feed(w, readable, 2 + t * 0.25) for t in range(4)]
+        self.assertEqual([(e.kind, e.program.words) for e in events if e], [("row", "Walk forward. Walk forward.")])
+
+
+class Gaze(unittest.TestCase):
+    """robotd's idle look-around starts after two seconds nobody steered the head; in duck-sim it
+    took a held card out of the picture and the duck kicked three times for one card."""
+
+    def test_the_head_is_held_at_rest_more_often_than_robotd_lets_it_wander(self):
+        robot = Recorder()
+        gaze = runner.Gaze(robot)
+        gaze.aim(0.0)
+        for t in (0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.25):
+            gaze.tick(t)
+        sent = [(m, p) for m, p in robot.notified if m == "robot.head"]
+        self.assertEqual(sent, [("robot.head", {})] * 3)       # at 0, 1 and 2 s: the rest pose
+        self.assertLess(runner.GAZE_EVERY, 2.0)
+        self.assertEqual(robot.calls, [])
+
+    def test_a_point_is_looked_at_once_then_held_by_its_joints(self):
+        robot = Recorder()
+        gaze = runner.Gaze(robot, runner.FLOOR_AT)
+        gaze.aim(0.0)
+        gaze.tick(1.0)
+        gaze.tick(2.0)
+        self.assertEqual([m for m, _ in robot.calls], ["robot.look"])
+        x, y, z = runner.FLOOR_AT
+        self.assertEqual(robot.calls[0][1], {"x": x, "y": y, "z": z})
+        held = [p for m, p in robot.notified if m == "robot.head"]
+        self.assertEqual(len(held), 2)
+        self.assertEqual(held[0]["head_pitch"], 0.61)
 
 
 class Frames(unittest.TestCase):

@@ -1,4 +1,6 @@
 {
+ "counts": {},
+ "deck_cards": [],
  "detections": [
   {
    "corners": [
@@ -71,6 +73,7 @@
   }
  ],
  "expect": {
+  "asks": [],
   "complete": true,
   "kind": "row",
   "notes": [],
@@ -104,6 +107,5 @@
   ],
   "words": "Walk forward."
  },
- "name": "picture_floor_row",
- "yours": {}
+ "name": "picture_floor_row"
 }

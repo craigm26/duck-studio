@@ -69,10 +69,16 @@ extension DuckCards {
         public let program: Program
     }
 
-    public static func reading(_ detections: [Detection], deck: Deck, yours: [Int: [String]] = [:]) -> Reading {
+    /// `counts` answers the Repeat numbers a reading asked about (`Program.asks`), by position.
+    public static func reading(_ detections: [Detection], deck: Deck, counts: [Int: Int] = [:]) -> Reading {
         let look = self.look(detections, deck: deck)
         let layout = arrange(look.seen)
-        return Reading(look: look, layout: layout, program: read(layout, yours: yours, deck: deck))
+        return Reading(look: look, layout: layout, program: read(layout, deck: deck, counts: counts))
+    }
+
+    /// The same reading with Repeat numbers answered: what the person told Studio when it asked.
+    public static func answered(_ reading: Reading, deck: Deck, counts: [Int: Int]) -> Reading {
+        Reading(look: reading.look, layout: reading.layout, program: read(reading.layout, deck: deck, counts: counts))
     }
 
     #if canImport(CoreGraphics)

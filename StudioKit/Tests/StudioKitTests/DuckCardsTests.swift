@@ -30,7 +30,10 @@ final class DuckCardsTests: XCTestCase {
     struct Vector {
         let name: String
         let detections: [DuckCards.Detection]
-        let yours: [Int: [String]]
+        /// The class's own cards, written over the starter deck.
+        let deckCards: [[String: Any]]
+        /// Answers given for Repeat numbers nobody could read, by position.
+        let counts: [Int: Int]
         let expect: [String: Any]
     }
 
@@ -43,31 +46,74 @@ final class DuckCardsTests: XCTestCase {
             let dets = (top["detections"] as? [[String: Any]] ?? []).map { d -> DuckCards.Detection in
                 let corners = (d["corners"] as? [[Double]] ?? []).map { DuckCards.Point($0[0], $0[1]) }
                 return DuckCards.Detection(id: d["id"] as? Int ?? -1, hamming: d["hamming"] as? Int ?? 0,
-                                           margin: (d["margin"] as? NSNumber)?.doubleValue ?? 0, corners: corners)
+                                           margin: (d["margin"] as? NSNumber)?.doubleValue ?? 0, corners: corners,
+                                           count: d["count"] as? Int)
             }
-            var yours: [Int: [String]] = [:]
-            for (k, v) in top["yours"] as? [String: [String]] ?? [:] { yours[Int(k)!] = v }
-            return Vector(name: top["name"] as? String ?? url.lastPathComponent, detections: dets, yours: yours,
+            var counts: [Int: Int] = [:]
+            for (k, v) in top["counts"] as? [String: Int] ?? [:] { counts[Int(k)!] = v }
+            return Vector(name: top["name"] as? String ?? url.lastPathComponent, detections: dets,
+                          deckCards: top["deck_cards"] as? [[String: Any]] ?? [], counts: counts,
                           expect: top["expect"] as? [String: Any] ?? [:])
         }
     }
 
+    func deck(for v: Vector) throws -> DuckCards.Deck {
+        v.deckCards.isEmpty ? try deck() : try deck().replacing(v.deckCards)
+    }
+
     func testEveryVectorReadsAsTheDucksReaderReadIt() throws {
-        let d = try deck()
         let all = try vectors()
-        XCTAssertEqual(all.count, 18, "a vector went missing from the fixtures")
+        XCTAssertEqual(all.count, 28, "a vector went missing from the fixtures")
         for v in all {
-            let r = DuckCards.reading(v.detections, deck: d, yours: v.yours)
+            let r = DuckCards.reading(v.detections, deck: try deck(for: v), counts: v.counts)
             XCTAssertEqual(r.layout.described, v.expect["rows"] as? [[String]], v.name)
             XCTAssertEqual(r.program.kind.rawValue, v.expect["kind"] as? String, v.name)
             XCTAssertEqual(r.program.complete, v.expect["complete"] as? Bool, v.name)
             XCTAssertEqual(r.program.words, v.expect["words"] as? String, v.name)
             XCTAssertEqual(r.program.notes, v.expect["notes"] as? [String], v.name)
+            XCTAssertEqual(r.program.asks, v.expect["asks"] as? [Int], v.name)
             XCTAssertEqual(r.program.onFall.map(\.labels), v.expect["on_fall"] as? [[String: String]], v.name)
             if let want = v.expect["plan"] as? [String: Any] {
                 XCTAssertTrue(NSDictionary(dictionary: DuckCards.planJSON(r.program)).isEqual(to: want), v.name)
             } else {
                 XCTAssertTrue(r.program.steps.isEmpty, v.name)
+            }
+        }
+    }
+
+    // MARK: - a class's deck
+
+    func testAYourCardMeansWhatItsDeckSays() throws {
+        let saved: [String: Any] = ["tag": 201, "code": "card_2", "name": "Victory dance", "category": "yours",
+                                    "kind": "yours", "plan": NSNull(), "does": "Walk forward fast, then roll.",
+                                    "row": [["card": "walk_forward", "under": ["fast"]], ["card": "roll"]]]
+        let classDeck = try deck().replacing([saved])
+        let card = try XCTUnwrap(classDeck.card(201))
+        XCTAssertEqual(card.name, "Victory dance")
+        XCTAssertEqual(card.row, [DuckCards.Entry(card: "walk_forward", under: ["fast"]), DuckCards.Entry(card: "roll")])
+        XCTAssertEqual(classDeck.card(code: "card_51")?.tag, 250)
+        XCTAssertEqual(classDeck.cards.count, try deck().cards.count, "a printed card was written over, not added")
+        // and it reads back from its own file, which keeps everything else the starter deck said
+        let again = try DuckCards.Deck.read(classDeck.source)
+        XCTAssertEqual(again.card(201)?.row, card.row)
+        let top = try XCTUnwrap(try JSONSerialization.jsonObject(with: again.source) as? [String: Any])
+        XCTAssertEqual(top["license"] as? String, "CC-BY-4.0")
+    }
+
+    func testADeckThatSaysWhatTheReaderCannotFollowIsRefusedByName() throws {
+        func yours(_ row: Any) -> [String: Any] {
+            ["tag": 200, "code": "card_1", "name": "Your card", "category": "yours", "kind": "yours", "row": row]
+        }
+        let cases: [([String: Any], String)] = [
+            (yours([["card": "fly"]]), "card_1: its row holds 'fly', which is not a card"),
+            (yours([["card": "repeat"], ["card": "roll"]]), "card_1: a Repeat in its row needs times, 1 to 9"),
+            (yours([["card": "repeat", "times": 12]]), "card_1: a Repeat in its row needs times, 1 to 9"),
+            (yours([["card": "roll", "times": 2]]), "card_1: only a Repeat takes times"),
+            (yours(["card": "roll"]), "card_1: row is not a list"),
+        ]
+        for (card, why) in cases {
+            XCTAssertThrowsError(try deck().replacing([card]), why) { error in
+                XCTAssertEqual(error as? DuckCards.Deck.ReadError, .badCard(why))
             }
         }
     }
@@ -90,7 +136,7 @@ final class DuckCardsTests: XCTestCase {
 
     func program(_ name: String) throws -> DuckCards.Program {
         let v = try XCTUnwrap(try vectors().first { $0.name == name }, name)
-        return DuckCards.reading(v.detections, deck: try deck(), yours: v.yours).program
+        return DuckCards.reading(v.detections, deck: try deck(for: v), counts: v.counts).program
     }
 
     func testACardMustHoldStillAndIsActedOnOnce() throws {
@@ -112,16 +158,29 @@ final class DuckCardsTests: XCTestCase {
     }
 
     func testWhatTheCameraCardSays() throws {
-        let d = try deck()
         let line = { (name: String) -> String in
             let v = try XCTUnwrap(try self.vectors().first { $0.name == name })
-            return DuckCards.Words.sees(DuckCards.reading(v.detections, deck: d, yours: v.yours))
+            return DuckCards.Words.sees(DuckCards.reading(v.detections, deck: try self.deck(for: v), counts: v.counts))
         }
         XCTAssertEqual(try line("example_row"), "Row: Hello. Walk forward, slow. Turn left. Kick, right.")
         XCTAssertEqual(try line("one_card"), "Card: Roll.")
         XCTAssertEqual(try line("start_without_end"), "Row so far: Walk forward.")
         XCTAssertEqual(try line("no_start"), "These cards have no Start, so there is no row to run yet.")
         XCTAssertEqual(try line("not_duck_cards"), DuckCards.Words.notACard)
+        XCTAssertEqual(try line("repeat"), "Row, once Repeat has its number: Walk forward. Turn right.")
+        XCTAssertEqual(try line("repeat_answered"), "Row: Walk forward. Walk forward. Walk forward. Walk forward.")
+    }
+
+    func testARepeatAskedAboutIsAnsweredByPosition() throws {
+        let v = try XCTUnwrap(try vectors().first { $0.name == "repeat_nested_asked" })
+        let asked = DuckCards.reading(v.detections, deck: try deck())
+        XCTAssertEqual(asked.program.asks, [0, 1])
+        XCTAssertFalse(asked.program.complete)
+        let answered = DuckCards.answered(asked, deck: try deck(), counts: [0: 2, 1: 3])
+        let once = ["walk_forward", "turn_left", "turn_left", "turn_left"]
+        XCTAssertEqual(answered.program.steps.map(\.action), once + once)
+        XCTAssertTrue(answered.program.complete)
+        XCTAssertEqual(answered.program.notes, [])
     }
 
     // MARK: - the library

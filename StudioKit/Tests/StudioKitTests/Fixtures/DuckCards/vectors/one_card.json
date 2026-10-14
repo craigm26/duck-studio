@@ -1,4 +1,6 @@
 {
+ "counts": {},
+ "deck_cards": [],
  "detections": [
   {
    "corners": [
@@ -25,6 +27,7 @@
   }
  ],
  "expect": {
+  "asks": [],
   "complete": true,
   "kind": "card",
   "notes": [],
@@ -52,6 +55,5 @@
   ],
   "words": "Roll."
  },
- "name": "one_card",
- "yours": {}
+ "name": "one_card"
 }

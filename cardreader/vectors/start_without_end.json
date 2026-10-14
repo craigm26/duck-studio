@@ -1,4 +1,6 @@
 {
+ "counts": {},
+ "deck_cards": [],
  "detections": [
   {
    "corners": [
@@ -48,6 +50,7 @@
   }
  ],
  "expect": {
+  "asks": [],
   "complete": false,
   "kind": "row",
   "notes": [
@@ -82,6 +85,5 @@
   ],
   "words": "Walk forward."
  },
- "name": "start_without_end",
- "yours": {}
+ "name": "start_without_end"
 }

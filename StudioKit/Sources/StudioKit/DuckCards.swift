@@ -8,10 +8,16 @@ import Foundation
 /// that reader in Swift, for Studio reading the duck's own camera. Both take
 /// what the AprilTag library found — an id and four corners per code — and
 /// must make the same rows, words, notes and plan of it. `cardreader/vectors`
-/// is the contract: eighteen cases, three of them the library's own answers to
-/// simulated duck-camera pictures, copied into this package's fixtures byte for
-/// byte, and `DuckCardsTests` reads every one. A rule changed in one reader
+/// is the contract: twenty-eight cases, three of them the library's own answers
+/// to simulated duck-camera pictures, copied into this package's fixtures byte
+/// for byte, and `DuckCardsTests` reads every one. A rule changed in one reader
 /// and not the other fails there, not in a classroom.
+///
+/// A YOUR CARD MEANS WHAT ITS DECK FILE SAYS. The cards page's spec puts the
+/// meaning in the deck: a Your card gains a `row`, in the shape of the deck's
+/// `example.row`, beside a name and a `does` sentence. A class's deck is the
+/// starter deck with some of the 200s filled in; Studio keeps its copy in
+/// `DuckCards.ClassDeck`, and the duck reads the same file.
 ///
 /// THE PLAN IS `duck-intent-plan/0`, WITH `model: "duck-cards/0"`. A card is
 /// not a guess, so every label goes at confidence 1.0 and nothing is flagged;
@@ -44,6 +50,27 @@ public enum DuckCards {
 
     // MARK: - the deck
 
+    /// One card of a saved row, in the deck's own `example.row` shape: the card, the cards under
+    /// it, and for a Repeat the number of times, which a saved row always carries.
+    public struct Entry: Equatable, Sendable {
+        public let card: String
+        public let under: [String]
+        public let times: Int?
+        public init(card: String, under: [String] = [], times: Int? = nil) {
+            self.card = card; self.under = under; self.times = times
+        }
+        /// As the deck file spells it.
+        public var json: [String: Any] {
+            var out: [String: Any] = ["card": card]
+            if !under.isEmpty { out["under"] = under }
+            if let times { out["times"] = times }
+            return out
+        }
+    }
+
+    /// A number written on Repeat is one figure in a small box.
+    public static let repeatMost = 9
+
     public struct Card: Equatable, Sendable {
         public let tag: Int
         public let code: String
@@ -54,13 +81,23 @@ public enum DuckCards {
         /// The labels this card puts into a plan, as the deck says; nil for a card that shapes a
         /// row rather than moving the duck.
         public let plan: [String: String]?
+        /// What a Your card stands for, once a class saved it.
+        public let row: [Entry]?
+        public let does: String?
     }
 
     public struct Deck: Sendable {
         public let cards: [Int: Card]
         public let yours: ClosedRange<Int>
+        /// The file this deck was read from, so a class's changes are written over it and nothing
+        /// else in it is lost.
+        public let source: Data
 
-        public enum ReadError: Error, Equatable { case notADeck(String) }
+        public enum ReadError: Error, Equatable {
+            case notADeck(String)
+            /// A card says something the reader cannot follow, named, as cardreader names it.
+            case badCard(String)
+        }
 
         public static func read(_ data: Data) throws -> Deck {
             guard let top = try JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -73,11 +110,49 @@ public enum DuckCards {
                 guard let tag = c["tag"] as? Int, let code = c["code"] as? String,
                       let name = c["name"] as? String, let category = c["category"] as? String,
                       let kind = c["kind"] as? String else { continue }
+                let row = try entries(code, c["row"])
+                if row != nil && kind != "yours" { throw ReadError.badCard("\(code): only a Your card stands for a row") }
                 cards[tag] = Card(tag: tag, code: code, name: name, category: category, kind: kind,
-                                  plan: c["plan"] as? [String: String])
+                                  plan: c["plan"] as? [String: String], row: row, does: c["does"] as? String)
             }
             let range = (cats.first { $0["id"] as? String == "yours" }?["codes"] as? [Int]) ?? [200, 299]
-            return Deck(cards: cards, yours: range[0]...range[1])
+            let deck = Deck(cards: cards, yours: range[0]...range[1], source: data)
+            for card in cards.values.sorted(by: { $0.tag < $1.tag }) {
+                for e in card.row ?? [] {
+                    for code in [e.card] + e.under where deck.card(code: code) == nil {
+                        throw ReadError.badCard("\(card.code): its row holds '\(code)', which is not a card")
+                    }
+                }
+            }
+            return deck
+        }
+
+        /// A Your card's `row`, read strictly: a deck that says something this cannot follow is
+        /// refused by name, rather than run as something nobody saved.
+        static func entries(_ code: String, _ value: Any?) throws -> [Entry]? {
+            guard let value, !(value is NSNull) else { return nil }
+            guard let list = value as? [Any] else { throw ReadError.badCard("\(code): row is not a list") }
+            return try list.map { item in
+                guard let e = item as? [String: Any], let card = e["card"] as? String else {
+                    throw ReadError.badCard("\(code): every card in its row needs a card code")
+                }
+                var under: [String] = []
+                if let u = e["under"] {
+                    guard let codes = u as? [String] else {
+                        throw ReadError.badCard("\(code): under \(card) is not a list of card codes")
+                    }
+                    under = codes
+                }
+                let times = e["times"] as? Int
+                if card == "repeat" {
+                    guard let t = times, (1...repeatMost).contains(t) else {
+                        throw ReadError.badCard("\(code): a Repeat in its row needs times, 1 to \(repeatMost)")
+                    }
+                } else if e["times"] != nil && !(e["times"] is NSNull) {
+                    throw ReadError.badCard("\(code): only a Repeat takes times")
+                }
+                return Entry(card: card, under: under, times: times)
+            }
         }
 
         /// The deck this app ships: microduckstudio.com's `duck-cards.json`, byte for byte.
@@ -86,16 +161,34 @@ public enum DuckCards {
             return try? read(data)
         }()
 
+        /// This deck with some cards written over, by code number: a class's deck, as the deck file
+        /// spells its cards. Everything else in the file is kept as it was.
+        public func replacing(_ entries: [[String: Any]]) throws -> Deck {
+            guard var top = try JSONSerialization.jsonObject(with: source) as? [String: Any],
+                  let rows = top["cards"] as? [[String: Any]]
+            else { throw ReadError.notADeck("not a \(DuckCards.deckFormat) deck") }
+            var byTag: [Int: [String: Any]] = [:]
+            for c in rows { if let t = c["tag"] as? Int { byTag[t] = c } }
+            for e in entries { if let t = e["tag"] as? Int { byTag[t] = e } }
+            top["cards"] = byTag.keys.sorted().map { byTag[$0]! }
+            return try Deck.read(JSONSerialization.data(withJSONObject: top, options: [.prettyPrinted, .sortedKeys]))
+        }
+
         /// A Your card the starter deck did not print is still a Your card: the whole range is set
         /// aside for them, so a class that made a tenth one has not made a stranger's code.
         public func card(_ tag: Int) -> Card? {
             if let c = cards[tag] { return c }
             guard yours.contains(tag) else { return nil }
             return Card(tag: tag, code: "card_\(tag - yours.lowerBound + 1)", name: "Your card",
-                        category: "yours", kind: "yours", plan: nil)
+                        category: "yours", kind: "yours", plan: nil, row: nil, does: nil)
         }
 
-        public func card(code: String) -> Card? { cards.values.first { $0.code == code } }
+        public func card(code: String) -> Card? {
+            if let c = cards.values.first(where: { $0.code == code }) { return c }
+            guard code.hasPrefix("card_"), let n = Int(code.dropFirst(5)), let c = card(yours.lowerBound + n - 1),
+                  c.code == code else { return nil }
+            return c
+        }
     }
 
     // MARK: - one code, found
@@ -118,8 +211,11 @@ public enum DuckCards {
         public let hamming: Int
         public let margin: Double
         public let corners: [Point]
-        public init(id: Int, hamming: Int, margin: Double, corners: [Point]) {
-            self.id = id; self.hamming = hamming; self.margin = margin; self.corners = corners
+        /// The number written on a Repeat, when something could read it. Studio's finder reads no
+        /// handwriting, so from a picture this is nil and Studio asks; the duck's reader reads it.
+        public let count: Int?
+        public init(id: Int, hamming: Int, margin: Double, corners: [Point], count: Int? = nil) {
+            self.id = id; self.hamming = hamming; self.margin = margin; self.corners = corners; self.count = count
         }
     }
 
@@ -135,15 +231,24 @@ public enum DuckCards {
         public let right: Point      // one square to the card's right, in pixels
         public let down: Point       // one square down the card, in pixels
         public let cardCentre: Point
+        /// The number written on a Repeat, when something could read it.
+        public let count: Int?
     }
 
-    public static func place(_ card: Card, corners p: [Point]) -> Seen {
+    public static func place(_ card: Card, corners p: [Point], count: Int? = nil) -> Seen {
         let (tr, tl, bl, br) = (p[0], p[1], p[2], p[3])
         let right = ((tr - tl) + (br - bl)) * 0.5
         let down = ((bl - tl) + (br - tr)) * 0.5
         let centre = (tr + tl + bl + br) * 0.25
         let cardCentre = centre + right * centreRight + down * centreDown
-        return Seen(card: card, corners: p, centre: centre, right: right, down: down, cardCentre: cardCentre)
+        return Seen(card: card, corners: p, centre: centre, right: right, down: down, cardCentre: cardCentre,
+                    count: count)
+    }
+
+    /// A card from a saved row: where it lies does not matter, only what it is.
+    static func saved(_ card: Card, times: Int? = nil) -> Seen {
+        Seen(card: card, corners: [], centre: Point(0, 0), right: Point(1, 0), down: Point(0, 1),
+             cardCentre: Point(0, 0), count: times)
     }
 
     public struct Look: Sendable {
@@ -161,7 +266,7 @@ public enum DuckCards {
             guard d.hamming <= maxHamming, d.margin >= minMargin, d.corners.count == 4 else {
                 doubtful += 1; continue
             }
-            seen.append(place(card, corners: d.corners))
+            seen.append(place(card, corners: d.corners, count: d.count))
         }
         return Look(seen: seen, foreign: foreign, doubtful: doubtful)
     }
@@ -271,9 +376,10 @@ public enum DuckCards {
         "turn_left": ["speed", "head"], "turn_right": ["speed", "head"], "stop": ["head"],
         "make_sound": ["sound"],
     ]
-    /// Nothing reads the number written on Repeat yet.
-    public static let repeatTimes = 2
+    /// A plan on a duck is held to this many steps after unrolling.
     public static let maxSteps = 40
+    /// A Your card may hold Your cards, and those may hold more, this many deep and no deeper.
+    public static let yoursDepth = 4
 
     public struct Step: Equatable, Sendable {
         public let labels: [String: String]
@@ -287,8 +393,13 @@ public enum DuckCards {
         public let steps: [Step]
         public let onFall: [Step]
         public let notes: [String]
+        /// A Start and an End were read, or a single card, and nothing is asked.
         public let complete: Bool
         public let kind: Kind
+        /// The Repeat cards whose number nobody could read, counted along the row from 0 (then
+        /// along the When it falls row). The row waits for these; `read(_:deck:counts:)` takes
+        /// the answers by the same positions.
+        public let asks: [Int]
         public var words: String { steps.map { $0.clause + "." }.joined(separator: " ") }
     }
 
@@ -317,7 +428,35 @@ public enum DuckCards {
         return Step(labels: labels, clause: clause, cards: [card.code] + kept.map(\.code))
     }
 
-    static func compile(_ slots: [Slot], _ notes: inout [String], yours: [Int: [String]], deck: Deck) -> [Step] {
+    /// What one read keeps across the rows it compiles: the deck, the answers given for Repeat
+    /// numbers, how many Repeat cards have been met, and which of them are still asked about.
+    struct ReadState {
+        let deck: Deck
+        let counts: [Int: Int]
+        var repeats = 0
+        var asks: [Int] = []
+        var notes: [String] = []
+    }
+
+    /// THE NUMBER IS WRITTEN ON THE CARD, AND A READER THAT CANNOT READ IT ASKS. The cards page's
+    /// rule. A saved row carries its numbers. On the table, an answer someone gave wins, then a
+    /// number read off the card (said back, because handwriting is read, not known), and otherwise
+    /// the Repeat is asked about and the row waits; meanwhile what it holds is shown once.
+    static func times(_ slot: Slot, _ state: inout ReadState, saved: Bool) -> Int {
+        if saved { return slot.card.count ?? 1 }
+        let index = state.repeats
+        state.repeats += 1
+        if let answered = state.counts[index], (1...repeatMost).contains(answered) { return answered }
+        if let readOff = slot.card.count, (1...repeatMost).contains(readOff) {
+            state.notes.append("Repeat says \(readOff) times.")
+            return readOff
+        }
+        state.asks.append(index)
+        state.notes.append("Repeat has no number that could be read, so the row waits for one.")
+        return 1
+    }
+
+    static func compile(_ slots: [Slot], _ state: inout ReadState, inside: [Int] = []) -> [Step] {
         var out: [Step] = []
         var i = 0
         while i < slots.count {
@@ -334,33 +473,25 @@ public enum DuckCards {
                 }
                 let body = depth == 0 ? Array(slots[(i + 1)..<(j - 1)]) : Array(slots[(i + 1)..<j])
                 if depth > 0 {
-                    notes.append("Repeat has no End repeat after it, so it repeats to the end of the row.")
+                    state.notes.append("Repeat has no End repeat after it, so it repeats to the end of the row.")
                 }
-                notes.append("Nothing reads the number written on Repeat yet, so it repeats \(repeatTimes) times.")
-                let inner = compile(body, &notes, yours: yours, deck: deck)
-                for _ in 0..<repeatTimes { out += inner }
+                let n = times(slots[i], &state, saved: !inside.isEmpty)
+                let inner = compile(body, &state, inside: inside)
+                for _ in 0..<n { out += inner }
                 i = j
                 continue
             }
             if card.code == "end_repeat" {
-                notes.append("End repeat has no Repeat before it, so it was skipped.")
+                state.notes.append("End repeat has no Repeat before it, so it was skipped.")
             } else if card.kind == "yours" {
-                if let meaning = yours[card.tag], !meaning.isEmpty {
-                    let inner = meaning.compactMap { deck.card(code: $0) }.map { c in
-                        Slot(card: Seen(card: c, corners: [], centre: Point(0, 0), right: Point(1, 0),
-                                        down: Point(0, 1), cardCentre: Point(0, 0)), under: [])
-                    }
-                    out += compile(inner, &notes, yours: yours, deck: deck)
-                } else {
-                    notes.append("Your card \(card.tag) has no meaning saved yet, so it was skipped.")
-                }
+                out += open(card, &state, inside: inside)
             } else if card.kind == "event" {
-                notes.append("\(card.name) starts a row of its own; in the middle of a row it was skipped.")
+                state.notes.append("\(card.name) starts a row of its own; in the middle of a row it was skipped.")
             } else if card.kind == "modifier" {
-                notes.append("\(card.name) is not under any card, so it was not used.")
+                state.notes.append("\(card.name) is not under any card, so it was not used.")
             } else if card.kind == "control" {
-                notes.append("A second \(card.name) in the row was skipped.")
-            } else if let s = step(slots[i], &notes) {
+                state.notes.append("A second \(card.name) in the row was skipped.")
+            } else if let s = step(slots[i], &state.notes) {
                 out.append(s)
             }
             i += 1
@@ -368,11 +499,41 @@ public enum DuckCards {
         return out
     }
 
+    /// A ROUTINE CAN CALL A ROUTINE, FOUR DEEP, AND NEVER ITSELF. The cards page's spec: the read
+    /// stops on a loop, naming both cards, and below a depth of four. The meaning is looked up in
+    /// the deck this read was given, whichever deck found the code.
+    static func open(_ found: Card, _ state: inout ReadState, inside: [Int]) -> [Step] {
+        let tag = found.tag
+        let card = state.deck.card(tag) ?? found
+        if inside.contains(tag) {
+            let holder = inside[inside.count - 1]
+            state.notes.append(holder == tag
+                ? "Your card \(tag) holds itself, so the loop was cut there."
+                : "Your card \(holder) holds Your card \(tag), which leads back to \(holder), so the loop was cut there.")
+            return []
+        }
+        if inside.count >= yoursDepth {
+            state.notes.append("Your card \(tag) sits more than \(yoursDepth) Your cards deep, so it was skipped.")
+            return []
+        }
+        guard let row = card.row, !row.isEmpty else {
+            state.notes.append("Your card \(tag) has no meaning saved yet, so it was skipped.")
+            return []
+        }
+        let deck = state.deck
+        let slots = row.compactMap { e -> Slot? in
+            guard let c = deck.card(code: e.card) else { return nil }
+            return Slot(card: saved(c, times: e.times), under: e.under.compactMap { deck.card(code: $0).map { saved($0) } })
+        }
+        return compile(slots, &state, inside: inside + [tag])
+    }
+
     /// THE PROGRAM IS THE ROW WITH START IN IT. Between Start and End, left to right, is what runs;
     /// a row that begins with When it falls is what runs after a fall; with no Start anywhere, one
-    /// card on its own is a program of one step, and several are not a program yet.
-    public static func read(_ layout: Layout, yours: [Int: [String]] = [:], deck: Deck) -> Program {
-        var notes: [String] = []
+    /// card on its own is a program of one step, and several are not a program yet. `counts`
+    /// answers Repeat numbers nobody could read, by the positions `Program.asks` gives.
+    public static func read(_ layout: Layout, deck: Deck, counts: [Int: Int] = [:]) -> Program {
+        var state = ReadState(deck: deck, counts: counts)
         var mainIndex: Int?, fallIndex: Int?
         for (k, row) in layout.rows.enumerated() {
             let codes = row.codes
@@ -380,45 +541,61 @@ public enum DuckCards {
             else if codes.contains("start") && mainIndex == nil { mainIndex = k }
         }
         if !layout.turned.isEmpty {
-            notes.append("Turned the other way from the rest, so not read: "
-                         + layout.turned.map(\.card.name).joined(separator: ", ") + ".")
+            state.notes.append("Turned the other way from the rest, so not read: "
+                               + layout.turned.map(\.card.name).joined(separator: ", ") + ".")
+        }
+        var kind = Program.Kind.none
+        var steps: [Step] = []
+        var ended = false
+        if let m = mainIndex {
+            kind = .row
+            let row = layout.rows[m]
+            let codes = row.codes
+            let start = codes.firstIndex(of: "start")!
+            let end = codes[start...].firstIndex(of: "end")
+            if start > 0 { state.notes.append("Cards before Start are not part of the row.") }
+            let body: [Slot]
+            if let e = end {
+                ended = true
+                if e + 1 < codes.count { state.notes.append("Cards after End are not part of the row.") }
+                body = Array(row.slots[(start + 1)..<e])
+            } else {
+                state.notes.append("There is a Start but no End yet.")
+                body = Array(row.slots[(start + 1)...])
+            }
+            steps = compile(body, &state)
+            if steps.count > maxSteps {
+                state.notes.append("The row unrolls to \(steps.count) steps; a duck runs at most \(maxSteps).")
+                steps = Array(steps.prefix(maxSteps))
+            }
+        } else {
+            let others = layout.rows.indices.filter { $0 != fallIndex }.flatMap { layout.rows[$0].slots }
+            let actions = others.filter { ["action", "yours"].contains($0.card.card.kind) }
+            let controls = others.filter { $0.card.card.kind == "control" }
+            if actions.count == 1 && controls.isEmpty {
+                kind = .card
+                steps = compile(actions, &state)
+            } else if !actions.isEmpty {
+                state.notes.append("These cards have no Start, so there is no row to run yet.")
+            }
         }
         var onFall: [Step] = []
         if let f = fallIndex {
             let body = Array(layout.rows[f].slots.dropFirst())
             let end = body.firstIndex { $0.card.card.code == "end" }
-            onFall = compile(end.map { Array(body[..<$0]) } ?? body, &notes, yours: yours, deck: deck)
+            onFall = compile(end.map { Array(body[..<$0]) } ?? body, &state)
         }
-        guard let m = mainIndex else {
-            let others = layout.rows.indices.filter { $0 != fallIndex }.flatMap { layout.rows[$0].slots }
-            let actions = others.filter { ["action", "yours"].contains($0.card.card.kind) }
-            let controls = others.filter { $0.card.card.kind == "control" }
-            if actions.count == 1 && controls.isEmpty {
-                let steps = compile(actions, &notes, yours: yours, deck: deck)
-                return Program(steps: steps, onFall: onFall, notes: notes, complete: !steps.isEmpty, kind: .card)
-            }
-            if !actions.isEmpty { notes.append("These cards have no Start, so there is no row to run yet.") }
-            return Program(steps: [], onFall: onFall, notes: notes, complete: false, kind: .none)
+        let complete: Bool
+        switch kind {
+        case .card: complete = !steps.isEmpty && state.asks.isEmpty
+        case .row: complete = ended && !steps.isEmpty && state.asks.isEmpty
+        case .none: complete = false
         }
-        let row = layout.rows[m]
-        let codes = row.codes
-        let start = codes.firstIndex(of: "start")!
-        let end = codes[start...].firstIndex(of: "end")
-        if start > 0 { notes.append("Cards before Start are not part of the row.") }
-        let body: [Slot]
-        if let e = end {
-            if e + 1 < codes.count { notes.append("Cards after End are not part of the row.") }
-            body = Array(row.slots[(start + 1)..<e])
-        } else {
-            notes.append("There is a Start but no End yet.")
-            body = Array(row.slots[(start + 1)...])
-        }
-        var steps = compile(body, &notes, yours: yours, deck: deck)
-        if steps.count > maxSteps {
-            notes.append("The row unrolls to \(steps.count) steps; a duck runs at most \(maxSteps).")
-            steps = Array(steps.prefix(maxSteps))
-        }
-        return Program(steps: steps, onFall: onFall, notes: notes, complete: end != nil && !steps.isEmpty, kind: .row)
+        // Two Repeats nobody could read, or two loose Speed cards, are said once: a note explains,
+        // and `asks` keeps the count.
+        var said: [String] = []
+        for note in state.notes where !said.contains(note) { said.append(note) }
+        return Program(steps: steps, onFall: onFall, notes: said, complete: complete, kind: kind, asks: state.asks)
     }
 
     // MARK: - the plan

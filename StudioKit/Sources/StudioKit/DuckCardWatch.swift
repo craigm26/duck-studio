@@ -75,11 +75,15 @@ extension DuckCards {
         public static let noCards = "No Duck Cards in the picture."
         public static let notACard = "A code in the picture is not a Duck Card."
 
+        /// A row whose Repeat number nobody could read: what the camera card leads with.
+        public static let waitsForRepeat = "Row, once Repeat has its number"
+
         /// One line for what the camera sees now: the row in its own words, or why there is none.
         public static func sees(_ reading: Reading) -> String {
             let program = reading.program
             if !program.steps.isEmpty {
-                let lead = program.kind == .card ? "Card" : (program.complete ? "Row" : "Row so far")
+                let lead = program.kind == .card ? "Card"
+                    : program.complete ? "Row" : program.asks.isEmpty ? "Row so far" : waitsForRepeat
                 return "\(lead): \(program.words)"
             }
             if let note = program.notes.first { return note }

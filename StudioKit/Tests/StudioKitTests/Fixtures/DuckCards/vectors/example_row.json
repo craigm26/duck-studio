@@ -1,4 +1,6 @@
 {
+ "counts": {},
+ "deck_cards": [],
  "detections": [
   {
    "corners": [
@@ -163,6 +165,7 @@
   }
  ],
  "expect": {
+  "asks": [],
   "complete": true,
   "kind": "row",
   "notes": [],
@@ -232,6 +235,5 @@
   ],
   "words": "Hello. Walk forward, slow. Turn left. Kick, right."
  },
- "name": "example_row",
- "yours": {}
+ "name": "example_row"
 }

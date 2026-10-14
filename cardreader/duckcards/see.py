@@ -48,7 +48,8 @@ class Look:
 
 
 def detections(gray: np.ndarray) -> list[dict]:
-    """The library's answer, as plain data: what the shared test vectors carry."""
+    """The library's answer, as plain data: what the shared test vectors carry. A Repeat's entry
+    gains `count` when `digits.read_counts` could read the number written on it."""
     if gray.dtype != np.uint8:
         gray = np.clip(gray, 0, 255).astype(np.uint8)
     gray = np.ascontiguousarray(gray)
@@ -70,7 +71,7 @@ def look(found: list[dict], deck: Deck) -> Look:
         if d.get("hamming", 0) > MAX_HAMMING or d.get("margin", 100.0) < MIN_MARGIN:
             doubtful += 1
             continue
-        seen.append(place(card, d["corners"], d.get("margin", 0.0), d.get("hamming", 0)))
+        seen.append(place(card, d["corners"], d.get("margin", 0.0), d.get("hamming", 0), d.get("count")))
     # Two copies of one code in one picture are two cards (a row can say Walk forward twice);
     # one card found twice is not possible, the library reports each square once.
     return Look(seen=seen, foreign=foreign, doubtful=doubtful)

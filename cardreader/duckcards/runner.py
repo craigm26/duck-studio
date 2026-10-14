@@ -151,6 +151,49 @@ def hold(robot, tw: tuple[float, float, float], seconds: float, sleep=time.sleep
         sleep(TICK)
 
 
+# robotd's idle look-around (robotd/src/idle_head.rs) starts once nobody has steered the head for
+# `[idle] after_s`, two seconds as shipped. The reader steers it more often than that.
+GAZE_EVERY = 1.0
+
+
+class Gaze:
+    """Holds the duck's head still while it watches for cards.
+
+    FOUND IN DUCK-SIM, 2026-10-14. A card held up in front of a duck that is standing still was
+    acted on three times in twenty seconds: robotd's idle look-around swung the head about 18°
+    each way, the card left the picture for longer than the watcher's `forget`, and came back as
+    a new card. A duck reading cards looks at them. So the reader steers the head itself, as
+    LookResult's own doc says to hold a gaze: `robot.look` once, then its answer's joints again
+    as `robot.head` every second. With no point to look at, the joints are the head's rest
+    (all zero), which is the view a duck nobody steers has, without the wandering."""
+
+    def __init__(self, robot, point: tuple[float, float, float] | None = None, every: float = GAZE_EVERY):
+        self.robot, self.point, self.every = robot, point, every
+        self.joints: dict | None = None
+        self.last = -1e9
+
+    def aim(self, now: float) -> None:
+        """Look at the point (again, after a row has moved the head) and keep the joints."""
+        self.last = now
+        if self.point is None:
+            self.joints = {}
+            self.robot.notify("robot.head", self.joints)
+            return
+        x, y, z = self.point
+        answer = self.robot.call("robot.look", {"x": x, "y": y, "z": z}) or {}
+        head = answer.get("head")
+        self.joints = head if isinstance(head, dict) else None
+
+    def tick(self, now: float) -> None:
+        if now - self.last < self.every:
+            return
+        if self.joints is None:
+            self.aim(now)
+        else:
+            self.last = now
+            self.robot.notify("robot.head", self.joints)
+
+
 # ---------------------------------------------------------------- watching
 @dataclass
 class Event:

@@ -1,4 +1,23 @@
 {
+ "counts": {},
+ "deck_cards": [
+  {
+   "category": "yours",
+   "code": "card_1",
+   "kind": "yours",
+   "name": "Your card",
+   "plan": null,
+   "row": [
+    {
+     "card": "sit_or_stand"
+    },
+    {
+     "card": "greet"
+    }
+   ],
+   "tag": 200
+  }
+ ],
  "detections": [
   {
    "corners": [
@@ -71,6 +90,7 @@
   }
  ],
  "expect": {
+  "asks": [],
   "complete": true,
   "kind": "row",
   "notes": [],
@@ -111,11 +131,5 @@
   ],
   "words": "Sit or stand. Hello."
  },
- "name": "your_card_saved",
- "yours": {
-  "200": [
-   "sit_or_stand",
-   "greet"
-  ]
- }
+ "name": "your_card_saved"
 }

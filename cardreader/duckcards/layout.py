@@ -13,7 +13,7 @@ share of a card's own size in this picture, so the same rules read a card held
 at 20 cm and a row on the floor at 60 cm:
 
 - a Speed or Look card is UNDER a card when it sits about one card lower and
-  overlaps it sideways (`tests/test_layout.py` holds the window),
+  overlaps it sideways (the Rows tests in `tests/test_reader.py` hold the window),
 - cards about one card or more apart across are on different ROWS,
 - along a row, order is position.
 
