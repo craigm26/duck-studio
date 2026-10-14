@@ -1,0 +1,6 @@
+# The reader, on the robot or beside it.
+numpy
+pupil-apriltags
+pillow
+# Only the tests' simulated camera frames.
+opencv-python-headless

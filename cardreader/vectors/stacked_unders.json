@@ -1,0 +1,213 @@
+{
+ "detections": [
+  {
+   "corners": [
+    [
+     143.1,
+     339.3
+    ],
+    [
+     123.9,
+     339.3
+    ],
+    [
+     123.9,
+     358.5
+    ],
+    [
+     143.1,
+     358.5
+    ]
+   ],
+   "hamming": 0,
+   "id": 100,
+   "margin": 80.0
+  },
+  {
+   "corners": [
+    [
+     255.1,
+     339.3
+    ],
+    [
+     235.9,
+     339.3
+    ],
+    [
+     235.9,
+     358.5
+    ],
+    [
+     255.1,
+     358.5
+    ]
+   ],
+   "hamming": 0,
+   "id": 4,
+   "margin": 80.0
+  },
+  {
+   "corners": [
+    [
+     259.1,
+     487.3
+    ],
+    [
+     239.9,
+     487.3
+    ],
+    [
+     239.9,
+     506.5
+    ],
+    [
+     259.1,
+     506.5
+    ]
+   ],
+   "hamming": 0,
+   "id": 40,
+   "margin": 80.0
+  },
+  {
+   "corners": [
+    [
+     367.1,
+     339.3
+    ],
+    [
+     347.9,
+     339.3
+    ],
+    [
+     347.9,
+     358.5
+    ],
+    [
+     367.1,
+     358.5
+    ]
+   ],
+   "hamming": 0,
+   "id": 1,
+   "margin": 80.0
+  },
+  {
+   "corners": [
+    [
+     371.1,
+     487.3
+    ],
+    [
+     351.9,
+     487.3
+    ],
+    [
+     351.9,
+     506.5
+    ],
+    [
+     371.1,
+     506.5
+    ]
+   ],
+   "hamming": 0,
+   "id": 21,
+   "margin": 80.0
+  },
+  {
+   "corners": [
+    [
+     371.1,
+     635.3
+    ],
+    [
+     351.9,
+     635.3
+    ],
+    [
+     351.9,
+     654.5
+    ],
+    [
+     371.1,
+     654.5
+    ]
+   ],
+   "hamming": 0,
+   "id": 42,
+   "margin": 80.0
+  },
+  {
+   "corners": [
+    [
+     479.1,
+     339.3
+    ],
+    [
+     459.9,
+     339.3
+    ],
+    [
+     459.9,
+     358.5
+    ],
+    [
+     479.1,
+     358.5
+    ]
+   ],
+   "hamming": 0,
+   "id": 101,
+   "margin": 80.0
+  }
+ ],
+ "expect": {
+  "complete": true,
+  "kind": "row",
+  "notes": [],
+  "on_fall": [],
+  "plan": {
+   "format": "duck-intent-plan/0",
+   "model": "duck-cards/0",
+   "request": "Stop, look left. Walk back, fast, look up.",
+   "steps": [
+    {
+     "clause": "Stop, look left",
+     "confidence": {
+      "action": 1.0,
+      "head": 1.0
+     },
+     "labels": {
+      "action": "stop",
+      "head": "look_left"
+     }
+    },
+    {
+     "clause": "Walk back, fast, look up",
+     "confidence": {
+      "action": 1.0,
+      "head": 1.0,
+      "speed": 1.0
+     },
+     "labels": {
+      "action": "walk_backward",
+      "head": "look_up",
+      "speed": "fast"
+     }
+    }
+   ]
+  },
+  "rows": [
+   [
+    "start",
+    "stop/look_left",
+    "walk_backward/fast/look_up",
+    "end"
+   ]
+  ],
+  "words": "Stop, look left. Walk back, fast, look up."
+ },
+ "name": "stacked_unders",
+ "yours": {}
+}

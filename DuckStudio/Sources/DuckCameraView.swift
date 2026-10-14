@@ -13,8 +13,18 @@ final class DuckCameraFeed: ObservableObject {
     @Published private(set) var problem: String?
     @Published private(set) var fps: Double = 0
     @Published private(set) var running = false
+    /// Read Duck Cards in each picture. Off by default: the finder costs a pass over every frame.
+    @Published var readCards = false {
+        didSet { if !readCards { cards = nil; watcher = DuckCards.Watcher() } }
+    }
+    /// What the camera sees, in `DuckCards.Words`.
+    @Published private(set) var cards: String?
+    /// The last card or row held still long enough to act on (`DuckCards.Watcher`).
+    @Published private(set) var cardEvent: DuckCards.Watcher.Event?
 
     private var task: Task<Void, Never>?
+    private var finder: DuckCards.Finder?
+    private var watcher = DuckCards.Watcher()
     private let session: URLSession = {
         let c = URLSessionConfiguration.ephemeral
         c.timeoutIntervalForRequest = DuckCamera.timeout
@@ -52,6 +62,7 @@ final class DuckCameraFeed: ObservableObject {
                 if let image = next.0 {
                     self.picture = image
                     self.problem = nil
+                    if self.readCards { self.read(image) }
                     stamps.append(Date())
                     stamps = stamps.filter { Date().timeIntervalSince($0) < 3 }
                     self.fps = Double(stamps.count) / 3
@@ -72,6 +83,20 @@ final class DuckCameraFeed: ObservableObject {
         task = nil
         running = false
         fps = 0
+    }
+
+    /// The cards in one picture. StudioKit reads; this only hands it the picture and keeps the
+    /// answer (`DuckCards`: the same rules as the duck's own reader, held to one set of vectors).
+    private func read(_ image: CGImage) {
+        guard let deck = DuckCards.Deck.bundled, let grey = DuckCards.grey(image) else { return }
+        let finder = self.finder ?? DuckCards.Finder()
+        self.finder = finder
+        let found = finder.find(grey: grey.bytes, width: grey.width, height: grey.height)
+        let reading = DuckCards.reading(found, deck: deck)
+        cards = DuckCards.Words.sees(reading)
+        if let event = watcher.feed(reading.program, at: Date().timeIntervalSinceReferenceDate) {
+            cardEvent = event
+        }
     }
 
     nonisolated static func decode(_ png: Data) -> CGImage? {
@@ -104,6 +129,16 @@ struct DuckCameraCard: View {
                             .padding(6)
                     }
                     .accessibilityLabel(Text("The duck's camera"))
+            }
+            if feed.running {
+                Toggle(DuckCards.Words.toggle, isOn: $feed.readCards)
+                    .font(.footnote)
+                    .tint(Theme.actionSecondary)
+                if feed.readCards, let line = feed.cards {
+                    Text(line)
+                        .font(.callout)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             TextField(DuckCamera.Words.addressPlaceholder, text: $address)
 #if os(iOS)

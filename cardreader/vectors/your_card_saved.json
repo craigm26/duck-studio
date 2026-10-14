@@ -1,0 +1,121 @@
+{
+ "detections": [
+  {
+   "corners": [
+    [
+     143.1,
+     339.3
+    ],
+    [
+     123.9,
+     339.3
+    ],
+    [
+     123.9,
+     358.5
+    ],
+    [
+     143.1,
+     358.5
+    ]
+   ],
+   "hamming": 0,
+   "id": 100,
+   "margin": 80.0
+  },
+  {
+   "corners": [
+    [
+     255.1,
+     339.3
+    ],
+    [
+     235.9,
+     339.3
+    ],
+    [
+     235.9,
+     358.5
+    ],
+    [
+     255.1,
+     358.5
+    ]
+   ],
+   "hamming": 0,
+   "id": 200,
+   "margin": 80.0
+  },
+  {
+   "corners": [
+    [
+     367.1,
+     339.3
+    ],
+    [
+     347.9,
+     339.3
+    ],
+    [
+     347.9,
+     358.5
+    ],
+    [
+     367.1,
+     358.5
+    ]
+   ],
+   "hamming": 0,
+   "id": 101,
+   "margin": 80.0
+  }
+ ],
+ "expect": {
+  "complete": true,
+  "kind": "row",
+  "notes": [],
+  "on_fall": [],
+  "plan": {
+   "format": "duck-intent-plan/0",
+   "model": "duck-cards/0",
+   "request": "Sit or stand. Hello.",
+   "steps": [
+    {
+     "clause": "Sit or stand",
+     "confidence": {
+      "action": 1.0
+     },
+     "labels": {
+      "action": "sit_or_stand"
+     }
+    },
+    {
+     "clause": "Hello",
+     "confidence": {
+      "action": 1.0,
+      "sound": 1.0
+     },
+     "labels": {
+      "action": "make_sound",
+      "sound": "greet"
+     }
+    }
+   ]
+  },
+  "rows": [
+   [
+    "start",
+    "card_1",
+    "end"
+   ]
+  ],
+  "words": "Sit or stand. Hello."
+ },
+ "name": "your_card_saved",
+ "yours": {
+  "200": [
+   "sit_or_stand",
+   "greet"
+  ]
+ }
+}

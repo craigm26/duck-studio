@@ -1,0 +1,135 @@
+{
+ "detections": [
+  {
+   "corners": [
+    [
+     143.1,
+     339.3
+    ],
+    [
+     123.9,
+     339.3
+    ],
+    [
+     123.9,
+     358.5
+    ],
+    [
+     143.1,
+     358.5
+    ]
+   ],
+   "hamming": 0,
+   "id": 100,
+   "margin": 80.0
+  },
+  {
+   "corners": [
+    [
+     255.1,
+     339.3
+    ],
+    [
+     235.9,
+     339.3
+    ],
+    [
+     235.9,
+     358.5
+    ],
+    [
+     255.1,
+     358.5
+    ]
+   ],
+   "hamming": 0,
+   "id": 0,
+   "margin": 80.0
+  },
+  {
+   "corners": [
+    [
+     367.1,
+     339.3
+    ],
+    [
+     347.9,
+     339.3
+    ],
+    [
+     347.9,
+     358.5
+    ],
+    [
+     367.1,
+     358.5
+    ]
+   ],
+   "hamming": 0,
+   "id": 21,
+   "margin": 80.0
+  },
+  {
+   "corners": [
+    [
+     479.1,
+     339.3
+    ],
+    [
+     459.9,
+     339.3
+    ],
+    [
+     459.9,
+     358.5
+    ],
+    [
+     479.1,
+     358.5
+    ]
+   ],
+   "hamming": 0,
+   "id": 101,
+   "margin": 80.0
+  }
+ ],
+ "expect": {
+  "complete": true,
+  "kind": "row",
+  "notes": [
+   "Fast is not under any card, so it was not used."
+  ],
+  "on_fall": [],
+  "plan": {
+   "format": "duck-intent-plan/0",
+   "model": "duck-cards/0",
+   "request": "Walk forward.",
+   "steps": [
+    {
+     "clause": "Walk forward",
+     "confidence": {
+      "action": 1.0,
+      "head": 1.0,
+      "speed": 1.0
+     },
+     "labels": {
+      "action": "walk_forward",
+      "head": "straight",
+      "speed": "normal"
+     }
+    }
+   ]
+  },
+  "rows": [
+   [
+    "start",
+    "walk_forward",
+    "fast",
+    "end"
+   ]
+  ],
+  "words": "Walk forward."
+ },
+ "name": "loose_speed",
+ "yours": {}
+}

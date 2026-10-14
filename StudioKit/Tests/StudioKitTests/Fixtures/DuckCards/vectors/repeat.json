@@ -1,0 +1,222 @@
+{
+ "detections": [
+  {
+   "corners": [
+    [
+     143.1,
+     339.3
+    ],
+    [
+     123.9,
+     339.3
+    ],
+    [
+     123.9,
+     358.5
+    ],
+    [
+     143.1,
+     358.5
+    ]
+   ],
+   "hamming": 0,
+   "id": 100,
+   "margin": 80.0
+  },
+  {
+   "corners": [
+    [
+     255.1,
+     339.3
+    ],
+    [
+     235.9,
+     339.3
+    ],
+    [
+     235.9,
+     358.5
+    ],
+    [
+     255.1,
+     358.5
+    ]
+   ],
+   "hamming": 0,
+   "id": 102,
+   "margin": 80.0
+  },
+  {
+   "corners": [
+    [
+     367.1,
+     339.3
+    ],
+    [
+     347.9,
+     339.3
+    ],
+    [
+     347.9,
+     358.5
+    ],
+    [
+     367.1,
+     358.5
+    ]
+   ],
+   "hamming": 0,
+   "id": 0,
+   "margin": 80.0
+  },
+  {
+   "corners": [
+    [
+     479.1,
+     339.3
+    ],
+    [
+     459.9,
+     339.3
+    ],
+    [
+     459.9,
+     358.5
+    ],
+    [
+     479.1,
+     358.5
+    ]
+   ],
+   "hamming": 0,
+   "id": 3,
+   "margin": 80.0
+  },
+  {
+   "corners": [
+    [
+     591.1,
+     339.3
+    ],
+    [
+     571.9,
+     339.3
+    ],
+    [
+     571.9,
+     358.5
+    ],
+    [
+     591.1,
+     358.5
+    ]
+   ],
+   "hamming": 0,
+   "id": 103,
+   "margin": 80.0
+  },
+  {
+   "corners": [
+    [
+     703.1,
+     339.3
+    ],
+    [
+     683.9,
+     339.3
+    ],
+    [
+     683.9,
+     358.5
+    ],
+    [
+     703.1,
+     358.5
+    ]
+   ],
+   "hamming": 0,
+   "id": 101,
+   "margin": 80.0
+  }
+ ],
+ "expect": {
+  "complete": true,
+  "kind": "row",
+  "notes": [
+   "Nothing reads the number written on Repeat yet, so it repeats 2 times."
+  ],
+  "on_fall": [],
+  "plan": {
+   "format": "duck-intent-plan/0",
+   "model": "duck-cards/0",
+   "request": "Walk forward. Turn right. Walk forward. Turn right.",
+   "steps": [
+    {
+     "clause": "Walk forward",
+     "confidence": {
+      "action": 1.0,
+      "head": 1.0,
+      "speed": 1.0
+     },
+     "labels": {
+      "action": "walk_forward",
+      "head": "straight",
+      "speed": "normal"
+     }
+    },
+    {
+     "clause": "Turn right",
+     "confidence": {
+      "action": 1.0,
+      "head": 1.0,
+      "speed": 1.0
+     },
+     "labels": {
+      "action": "turn_right",
+      "head": "straight",
+      "speed": "normal"
+     }
+    },
+    {
+     "clause": "Walk forward",
+     "confidence": {
+      "action": 1.0,
+      "head": 1.0,
+      "speed": 1.0
+     },
+     "labels": {
+      "action": "walk_forward",
+      "head": "straight",
+      "speed": "normal"
+     }
+    },
+    {
+     "clause": "Turn right",
+     "confidence": {
+      "action": 1.0,
+      "head": 1.0,
+      "speed": 1.0
+     },
+     "labels": {
+      "action": "turn_right",
+      "head": "straight",
+      "speed": "normal"
+     }
+    }
+   ]
+  },
+  "rows": [
+   [
+    "start",
+    "repeat",
+    "walk_forward",
+    "turn_right",
+    "end_repeat",
+    "end"
+   ]
+  ],
+  "words": "Walk forward. Turn right. Walk forward. Turn right."
+ },
+ "name": "repeat",
+ "yours": {}
+}

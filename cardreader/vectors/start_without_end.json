@@ -1,0 +1,87 @@
+{
+ "detections": [
+  {
+   "corners": [
+    [
+     143.1,
+     339.3
+    ],
+    [
+     123.9,
+     339.3
+    ],
+    [
+     123.9,
+     358.5
+    ],
+    [
+     143.1,
+     358.5
+    ]
+   ],
+   "hamming": 0,
+   "id": 100,
+   "margin": 80.0
+  },
+  {
+   "corners": [
+    [
+     255.1,
+     339.3
+    ],
+    [
+     235.9,
+     339.3
+    ],
+    [
+     235.9,
+     358.5
+    ],
+    [
+     255.1,
+     358.5
+    ]
+   ],
+   "hamming": 0,
+   "id": 0,
+   "margin": 80.0
+  }
+ ],
+ "expect": {
+  "complete": false,
+  "kind": "row",
+  "notes": [
+   "There is a Start but no End yet."
+  ],
+  "on_fall": [],
+  "plan": {
+   "format": "duck-intent-plan/0",
+   "model": "duck-cards/0",
+   "request": "Walk forward.",
+   "steps": [
+    {
+     "clause": "Walk forward",
+     "confidence": {
+      "action": 1.0,
+      "head": 1.0,
+      "speed": 1.0
+     },
+     "labels": {
+      "action": "walk_forward",
+      "head": "straight",
+      "speed": "normal"
+     }
+    }
+   ]
+  },
+  "rows": [
+   [
+    "start",
+    "walk_forward"
+   ]
+  ],
+  "words": "Walk forward."
+ },
+ "name": "start_without_end",
+ "yours": {}
+}

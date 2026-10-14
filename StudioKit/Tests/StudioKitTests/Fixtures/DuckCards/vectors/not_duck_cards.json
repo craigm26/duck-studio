@@ -1,0 +1,38 @@
+{
+ "detections": [
+  {
+   "corners": [
+    [
+     10,
+     10
+    ],
+    [
+     0,
+     10
+    ],
+    [
+     0,
+     20
+    ],
+    [
+     10,
+     20
+    ]
+   ],
+   "hamming": 0,
+   "id": 7,
+   "margin": 80.0
+  }
+ ],
+ "expect": {
+  "complete": false,
+  "kind": "none",
+  "notes": [],
+  "on_fall": [],
+  "plan": null,
+  "rows": [],
+  "words": ""
+ },
+ "name": "not_duck_cards",
+ "yours": {}
+}

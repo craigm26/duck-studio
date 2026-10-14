@@ -37,6 +37,18 @@ let package = Package(
         .package(url: "https://github.com/craigm26/duckkit.git", from: "1.37.0")
     ],
     targets: [
+        // THE APRILTAG LIBRARY, VENDORED, NOT RE-WRITTEN. AprilRobotics/apriltag
+        // at b7c0ebe (BSD-2, LICENSE.md beside it): the detector, tag36h11 and
+        // the `common/` it needs, unchanged. The duck's own card reader
+        // (`cardreader/`, through pupil_apriltags) runs the same C, so a Duck Card
+        // the phone finds in a frame is one the duck would find in it too.
+        .target(
+            name: "CAprilTag",
+            exclude: ["LICENSE.md"],
+            cSettings: [.headerSearchPath("include"), .headerSearchPath("include/common")],
+            linkerSettings: [.linkedLibrary("m", .when(platforms: [.linux])),
+                             .linkedLibrary("pthread", .when(platforms: [.linux]))]
+        ),
         .target(
             name: "StudioKit",
             dependencies: [
@@ -45,6 +57,7 @@ let package = Package(
                 // to be able to say when two files are the same network, and
                 // that is a digest question, not a filename one.
                 .product(name: "DuckEvidence", package: "duckkit"),
+                "CAprilTag",
             ],
             // THE CHALLENGE TRAVELS WITH THE APP, BYTE FOR BYTE. The stairs
             // challenge is a published dataset — a leaderboard and the intent
@@ -54,8 +67,11 @@ let package = Package(
             // `StairsChallengeResourceTests` pins every one of them by sha256
             // against the list the dataset publishes. `.copy` rather than
             // `.process`: processing is free to rewrite what it recognises,
-            // and a rewritten intent file is a different intent.
-            resources: [.copy("Resources/StairsChallenge"), .copy("Resources/Planner")]
+            // and a rewritten intent file is a different intent. The Duck Cards
+            // deck is the same kind of file: microduckstudio.com's
+            // `duck-cards.json`, pinned by sha256 in `DuckCardsTests`.
+            resources: [.copy("Resources/StairsChallenge"), .copy("Resources/Planner"),
+                        .copy("Resources/DuckCards")]
         ),
         .testTarget(
             name: "StudioKitTests",

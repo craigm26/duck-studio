@@ -1,0 +1,237 @@
+{
+ "detections": [
+  {
+   "corners": [
+    [
+     143.1,
+     339.3
+    ],
+    [
+     123.9,
+     339.3
+    ],
+    [
+     123.9,
+     358.5
+    ],
+    [
+     143.1,
+     358.5
+    ]
+   ],
+   "hamming": 0,
+   "id": 100,
+   "margin": 80.0
+  },
+  {
+   "corners": [
+    [
+     255.1,
+     339.3
+    ],
+    [
+     235.9,
+     339.3
+    ],
+    [
+     235.9,
+     358.5
+    ],
+    [
+     255.1,
+     358.5
+    ]
+   ],
+   "hamming": 0,
+   "id": 80,
+   "margin": 80.0
+  },
+  {
+   "corners": [
+    [
+     367.1,
+     339.3
+    ],
+    [
+     347.9,
+     339.3
+    ],
+    [
+     347.9,
+     358.5
+    ],
+    [
+     367.1,
+     358.5
+    ]
+   ],
+   "hamming": 0,
+   "id": 0,
+   "margin": 80.0
+  },
+  {
+   "corners": [
+    [
+     371.1,
+     487.3
+    ],
+    [
+     351.9,
+     487.3
+    ],
+    [
+     351.9,
+     506.5
+    ],
+    [
+     371.1,
+     506.5
+    ]
+   ],
+   "hamming": 0,
+   "id": 20,
+   "margin": 80.0
+  },
+  {
+   "corners": [
+    [
+     479.1,
+     339.3
+    ],
+    [
+     459.9,
+     339.3
+    ],
+    [
+     459.9,
+     358.5
+    ],
+    [
+     479.1,
+     358.5
+    ]
+   ],
+   "hamming": 0,
+   "id": 2,
+   "margin": 80.0
+  },
+  {
+   "corners": [
+    [
+     591.1,
+     339.3
+    ],
+    [
+     571.9,
+     339.3
+    ],
+    [
+     571.9,
+     358.5
+    ],
+    [
+     591.1,
+     358.5
+    ]
+   ],
+   "hamming": 0,
+   "id": 61,
+   "margin": 80.0
+  },
+  {
+   "corners": [
+    [
+     703.1,
+     339.3
+    ],
+    [
+     683.9,
+     339.3
+    ],
+    [
+     683.9,
+     358.5
+    ],
+    [
+     703.1,
+     358.5
+    ]
+   ],
+   "hamming": 0,
+   "id": 101,
+   "margin": 80.0
+  }
+ ],
+ "expect": {
+  "complete": true,
+  "kind": "row",
+  "notes": [],
+  "on_fall": [],
+  "plan": {
+   "format": "duck-intent-plan/0",
+   "model": "duck-cards/0",
+   "request": "Hello. Walk forward, slow. Turn left. Kick, right.",
+   "steps": [
+    {
+     "clause": "Hello",
+     "confidence": {
+      "action": 1.0,
+      "sound": 1.0
+     },
+     "labels": {
+      "action": "make_sound",
+      "sound": "greet"
+     }
+    },
+    {
+     "clause": "Walk forward, slow",
+     "confidence": {
+      "action": 1.0,
+      "head": 1.0,
+      "speed": 1.0
+     },
+     "labels": {
+      "action": "walk_forward",
+      "head": "straight",
+      "speed": "slow"
+     }
+    },
+    {
+     "clause": "Turn left",
+     "confidence": {
+      "action": 1.0,
+      "head": 1.0,
+      "speed": 1.0
+     },
+     "labels": {
+      "action": "turn_left",
+      "head": "straight",
+      "speed": "normal"
+     }
+    },
+    {
+     "clause": "Kick, right",
+     "confidence": {
+      "action": 1.0
+     },
+     "labels": {
+      "action": "kick_right"
+     }
+    }
+   ]
+  },
+  "rows": [
+   [
+    "start",
+    "greet",
+    "walk_forward/slow",
+    "turn_left",
+    "kick_right",
+    "end"
+   ]
+  ],
+  "words": "Hello. Walk forward, slow. Turn left. Kick, right."
+ },
+ "name": "example_row",
+ "yours": {}
+}

@@ -1,0 +1,5 @@
+module CAprilTag {
+    header "apriltag.h"
+    header "tag36h11.h"
+    export *
+}

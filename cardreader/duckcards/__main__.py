@@ -1,0 +1,186 @@
+"""python3 -m duckcards read PICTURE...        what the cards in a picture say, and the plan
+   python3 -m duckcards watch [options]         the duck reads cards and does them
+
+watch, on the robot:      python3 -m duckcards watch
+watch, beside duck-sim:   python3 -m duckcards watch --frame-url http://127.0.0.1:8080/frame \\
+                              --robot-socket ~/.cache/duck-sim/duck-a.sock
+watch, from a laptop:     python3 -m duckcards watch --frame-url http://duck.local:8080/frame \\
+                              --bridge duck.local:7788 --token-file ~/.microduck-bridge-token
+Add --dry-run to read and say what would be sent without sending it.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import time
+
+from .cards import Deck
+from .layout import arrange
+from .program import check_plan, plan, read
+from .see import see
+
+
+def _yours(path: str | None) -> dict[int, list[str]]:
+    if not path:
+        return {}
+    data = json.loads(open(path).read())
+    return {int(k): list(v) for k, v in data.items()}
+
+
+def cmd_read(args) -> int:
+    from PIL import Image
+    import numpy as np
+    deck = Deck.load()
+    yours = _yours(args.yours)
+    status = 0
+    for path in args.pictures:
+        gray = np.asarray(Image.open(path).convert("L"))
+        look = see(gray, deck)
+        layout = arrange(look.seen)
+        program = read(layout, yours, deck)
+        print(f"{path}: {len(look.seen)} cards, rows {layout.describe()}")
+        if look.foreign:
+            print(f"  {look.foreign} code(s) that are not Duck Cards")
+        for note in program.notes:
+            print(f"  note: {note}")
+        if program.steps:
+            print(f"  reads: {program.words}")
+            if args.plan:
+                print(json.dumps(check_plan(plan(program)), indent=2))
+        else:
+            status = 1
+    return status
+
+
+class DryRobot:
+    def call(self, method, params=None):
+        print(f"    -> {method} {json.dumps(params) if params else ''}")
+        if method == "robot.skills":
+            return {"skills": [], "built_in": ["kick_left", "kick_right", "sit_toggle", "roulade", "ground_pick"]}
+        return {"accepted": True}
+
+    def notify(self, method, params=None):
+        pass
+
+
+def cmd_watch(args) -> int:
+    from . import duck, runner
+    deck = Deck.load()
+    yours = _yours(args.yours)
+    frames = duck.FrameURL(args.frame_url) if args.frame_url else duck.FrameSocket(args.frame_socket)
+    if args.dry_run:
+        robot, connect = DryRobot(), None
+    elif args.bridge:
+        host, port = args.bridge.rsplit(":", 1)
+        token = open(os.path.expanduser(args.token_file)).read().strip()
+        connect = lambda: duck.Robot.bridge(host, int(port), token)   # noqa: E731
+        robot = connect()
+    else:
+        connect = lambda: duck.Robot.unix(os.path.expanduser(args.robot_socket))   # noqa: E731
+        robot = connect()
+    falls = duck.FallWatch(connect).start() if connect else None
+    say = lambda s: print(s, flush=True)   # noqa: E731
+
+    def voice(tag):
+        try:
+            robot.call("robot.sound", {"tag": tag})
+        except Exception:
+            pass
+
+    if args.floor:
+        x, y, z = runner.FLOOR_AT
+        robot.call("robot.look", {"x": x, "y": y, "z": z})
+    watcher = runner.Watcher(need=args.need)
+    on_fall = []
+    frame_n = 0
+    say("watching for cards; Ctrl-C to stop")
+    try:
+        while True:
+            t0 = time.time()
+            try:
+                frame = frames.grab()
+            except Exception as e:
+                say(f"no picture: {e}")
+                time.sleep(1.0)
+                continue
+            frame_n += 1
+            gray = frame.gray
+            if args.upscale and frame_n % 2 == 0:       # every other look, twice the pixels
+                import cv2
+                gray = cv2.resize(gray, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+            program = read(arrange(see(gray, deck).seen), yours, deck)
+            event = watcher.feed(program, time.time())
+            if event:
+                say(f"[{event.kind}] {event.program.words or '(nothing to run)'}")
+                for note in event.program.notes:
+                    say(f"  note: {note}")
+                if event.kind == "unfinished":
+                    voice("inquire")
+                else:
+                    voice("chirp" if event.kind == "card" else "greet")
+                    on_fall = event.program.on_fall or on_fall
+                    if event.kind == "row":
+                        time.sleep(args.hands_off)
+                    try:
+                        # A row cannot walk a duck whose policy is off. The pad's Start turns it on;
+                        # so does this, and only when there is something to run, never at startup.
+                        robot.call("robot.enable", {"on": True})
+                        outcome = runner.run(runner.beats(event.program.steps), robot, heads=args.heads, say=say)
+                    except runner.Refusal as r:
+                        outcome = str(r)
+                        voice("alarm")
+                    say(f"  {outcome}")
+                    if args.floor:
+                        x, y, z = runner.FLOOR_AT
+                        robot.call("robot.look", {"x": x, "y": y, "z": z})
+            if falls and falls.recovered.is_set():
+                falls.recovered.clear()
+                if on_fall:
+                    say("[fell] running the When it falls row")
+                    runner.run(runner.beats(on_fall), robot, heads=args.heads, say=say)
+            time.sleep(max(0.0, 1.0 / args.hz - (time.time() - t0)))
+    except KeyboardInterrupt:
+        pass
+    finally:
+        try:
+            robot.call("robot.stop")
+        except Exception:
+            pass
+        if falls:
+            falls.stop()
+    return 0
+
+
+def main(argv=None) -> int:
+    p = argparse.ArgumentParser(prog="python3 -m duckcards", description=__doc__,
+                                formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = p.add_subparsers(dest="cmd", required=True)
+    r = sub.add_parser("read", help="read the cards in pictures")
+    r.add_argument("pictures", nargs="+")
+    r.add_argument("--plan", action="store_true", help="print the duck-intent-plan/0 too")
+    r.add_argument("--yours", help="a JSON file: Your card code -> list of card codes it stands for")
+    r.set_defaults(fn=cmd_read)
+    w = sub.add_parser("watch", help="the duck reads cards and does them")
+    w.add_argument("--frame-socket", default="/run/mediad/media.sock")
+    w.add_argument("--frame-url", help="http://host:8080/frame instead of the socket")
+    w.add_argument("--robot-socket", default="/run/robotd.sock")
+    w.add_argument("--bridge", help="host:port of microduck-bridge instead of robotd's socket")
+    w.add_argument("--token-file", default="~/.microduck-bridge-token")
+    w.add_argument("--floor", action="store_true", help="look down at a row on the floor")
+    w.add_argument("--heads", action="store_true", help="send Look cards as robot.look (Studio does not yet)")
+    w.add_argument("--hz", type=float, default=4.0, help="pictures a second (default 4)")
+    w.add_argument("--need", type=int, default=3, help="pictures in a row that must agree (default 3)")
+    w.add_argument("--hands-off", type=float, default=1.5, help="seconds between reading a row and running it")
+    w.add_argument("--upscale", action="store_true", help="every other picture at twice the size: farther cards, more CPU")
+    w.add_argument("--yours", help="a JSON file: Your card code -> list of card codes it stands for")
+    w.add_argument("--dry-run", action="store_true", help="read and say, send nothing")
+    w.set_defaults(fn=cmd_watch)
+    args = p.parse_args(argv)
+    return args.fn(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

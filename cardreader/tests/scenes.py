@@ -1,0 +1,178 @@
+"""Pictures of cards as the duck's head camera would take them, for the tests.
+
+THE CAMERA IS POLLEN'S. `mediad/src/camera.rs` (pollen-robotics/microduck): an
+IMX219 behind a ~3.05 mm lens, the full ~62° width read out and delivered at
+1280x720, `fx = (W/2) / tan(62°/2)` ≈ 1065 px. The camera is mounted a quarter
+turn off, and `/frame` and the frame socket hand back the picture upright, so
+the picture a reader gets is 720 wide and 1280 tall: about 37° across and 62°
+up and down. The head is about 24 cm off the floor.
+
+THE CARDS ARE DRAWN FROM THE CARD'S OWN RULES. Every card here is a white card
+of the right proportions, its category's band, some clutter where the picture
+and words go, and the code in exactly the place `cards.py` says it is, drawn
+from the deck's own tag36h11 table. Nothing here is a photograph, so these
+tests say what the geometry allows, not what a classroom's light will do.
+"""
+
+from __future__ import annotations
+
+import math
+import pathlib
+
+import numpy as np
+
+HERE = pathlib.Path(__file__).resolve().parent
+W_MM, H_MM = 63.5, 88.9
+FRAME_W, FRAME_H = 720, 1280
+F = (1280 / 2) / math.tan(math.radians(31))     # ≈ 1065 px
+HEAD_MM = 240.0
+
+BAND = {"walk": (201, 100, 42), "speed": (122, 119, 11), "look": (194, 68, 112), "trick": (0, 149, 255),
+        "sound": (62, 110, 27), "control": (68, 60, 60), "when": (48, 194, 242), "yours": (250, 250, 250)}
+
+_TAGS: dict[int, list[str]] = {}
+
+
+def tag_rows(tag: int) -> list[str]:
+    if not _TAGS:
+        for line in (HERE / "tag36h11.txt").read_text().splitlines():
+            parts = line.split()
+            if parts and not parts[0].startswith("#"):
+                _TAGS[int(parts[0])] = parts[1:]
+    return _TAGS[tag]
+
+
+def card_image(tag: int, category: str, scale: float = 6.0, seed: int = 0) -> np.ndarray:
+    """One card, `scale` pixels per hundredth of its width, grey."""
+    import cv2
+    w, h = int(100 * scale), int(140 * scale)
+    img = np.full((h, w), 246, np.uint8)
+    rng = np.random.default_rng(seed + tag)
+    b = BAND.get(category, (128, 128, 128))
+    grey = int(0.114 * b[0] + 0.587 * b[1] + 0.299 * b[2])
+    img[: int(13 * scale), :] = grey
+    cv2.circle(img, (int(50 * scale), int(45 * scale)), int(26 * scale), 225, -1)
+    # the picture: a few strokes; the name and code word: bars
+    for _ in range(4):
+        p = rng.integers(int(30 * scale), int(70 * scale), size=4)
+        cv2.line(img, (int(p[0]), int(p[1] - 10 * scale)), (int(p[2]), int(p[3] - 10 * scale)), 60, max(2, int(2.2 * scale)))
+    cv2.rectangle(img, (int(6 * scale), int(80 * scale)), (int(70 * scale), int(90 * scale)), 30, -1)
+    cv2.rectangle(img, (int(6 * scale), int(94 * scale)), (int(40 * scale), int(98 * scale)), 120, -1)
+    cv2.rectangle(img, (int(6 * scale), int(120 * scale)), (int(24 * scale), int(126 * scale)), 200, -1)
+    # the code: its svg box is 71.5..95.5 across, 106.9..130.9 down, ten cells each way
+    x0, y0, cell = 71.5 * scale, 106.9 * scale, 2.4 * scale
+    grid = np.full((10, 10), 255, np.uint8)
+    grid[1:9, 1:9] = 0
+    for r, row in enumerate(tag_rows(tag)):
+        for c, bit in enumerate(row):
+            grid[2 + r, 2 + c] = 255 if bit == "1" else 0
+    for r in range(10):
+        for c in range(10):
+            ys, xs = int(round(y0 + r * cell)), int(round(x0 + c * cell))
+            ye, xe = int(round(y0 + (r + 1) * cell)), int(round(x0 + (c + 1) * cell))
+            img[ys:ye, xs:xe] = 18 if grid[r, c] == 0 else 250
+    cv2.rectangle(img, (0, 0), (w - 1, h - 1), 200, max(1, int(scale / 2)))
+    return img
+
+
+class Camera:
+    """A pinhole looking down +z, x right, y down, turned `pitch` degrees down and set `height`
+    mm above the floor (the floor is y = +height before the turn)."""
+
+    def __init__(self, pitch_deg: float = 0.0, height_mm: float = HEAD_MM):
+        self.pitch = math.radians(pitch_deg)
+        self.height = height_mm
+
+    def project(self, pts: np.ndarray) -> np.ndarray:
+        """World points (n, 3), mm, in a frame level with the floor; pixels (n, 2)."""
+        c, s = math.cos(self.pitch), math.sin(self.pitch)
+        # world y down; pitching the camera down by `pitch` is turning the world up about x
+        x = pts[:, 0]
+        y = c * pts[:, 1] - s * pts[:, 2]
+        z = s * pts[:, 1] + c * pts[:, 2]
+        if np.any(z <= 1):
+            raise ValueError("behind the camera")
+        return np.stack([F * x / z + FRAME_W / 2, F * y / z + FRAME_H / 2], axis=1)
+
+
+def card_corners(centre, right, down) -> np.ndarray:
+    """A card's four corners in the world: top-left, top-right, bottom-right, bottom-left."""
+    c, r, d = (np.asarray(v, float) for v in (centre, right, down))
+    r = r / np.linalg.norm(r) * W_MM / 2
+    d = d / np.linalg.norm(d) * H_MM / 2
+    return np.array([c - r - d, c + r - d, c + r + d, c - r + d])
+
+
+def background(seed: int = 0, level: int = 150) -> np.ndarray:
+    import cv2
+    rng = np.random.default_rng(seed)
+    bg = rng.normal(level, 10, (FRAME_H // 8, FRAME_W // 8)).astype(np.float32)
+    bg = cv2.resize(bg, (FRAME_W, FRAME_H), interpolation=cv2.INTER_CUBIC)
+    return np.clip(bg, 0, 255).astype(np.float32)
+
+
+def render(cards, camera: Camera, seed: int = 0, blur: float = 0.9, noise: float = 4.0,
+           contrast: float = 0.85, bg_level: int = 150) -> np.ndarray:
+    """`cards`: (tag, category, centre, right, down) in the world, mm. Returns the grey frame."""
+    import cv2
+    frame = background(seed, bg_level)
+    for tag, category, centre, right, down in cards:
+        tex = card_image(tag, category, seed=seed).astype(np.float32)
+        th, tw = tex.shape
+        src = np.float32([[0, 0], [tw, 0], [tw, th], [0, th]])
+        dst = camera.project(card_corners(centre, right, down)).astype(np.float32)
+        H = cv2.getPerspectiveTransform(src, dst)
+        warped = cv2.warpPerspective(tex, H, (FRAME_W, FRAME_H), flags=cv2.INTER_AREA,
+                                     borderMode=cv2.BORDER_CONSTANT, borderValue=-1)
+        mask = cv2.warpPerspective(np.ones_like(tex), H, (FRAME_W, FRAME_H), flags=cv2.INTER_LINEAR)
+        frame = frame * (1 - mask) + np.where(warped < 0, 0, warped) * mask
+    frame = 128 + (frame - 128) * contrast
+    if blur > 0:
+        frame = cv2.GaussianBlur(frame, (0, 0), blur)
+    rng = np.random.default_rng(seed + 99)
+    frame = frame + rng.normal(0, noise, frame.shape)
+    return np.clip(frame, 0, 255).astype(np.uint8)
+
+
+# ---------------------------------------------------------------- the three ways
+def held(tag, category, distance_mm, yaw_deg=0.0, roll_deg=0.0, x_mm=0.0, y_mm=0.0, **kw):
+    """One card held up facing the duck, its centre `distance_mm` in front of the lens."""
+    yaw, roll = math.radians(yaw_deg), math.radians(roll_deg)
+    right = np.array([math.cos(yaw) * math.cos(roll), math.sin(roll), math.sin(yaw)])
+    down = np.array([-math.cos(yaw) * math.sin(roll), math.cos(roll), 0.0])
+    return render([(tag, category, (x_mm, y_mm, distance_mm), right, down)], Camera(0), **kw)
+
+
+def rail(cards, distance_mm, gap_mm=8.0, y_mm=0.0, **kw):
+    """A row standing in a rail facing the duck. `cards`: [(tag, category, [(tag, category)...])]
+    where the inner list is what stands under that card."""
+    n = len(cards)
+    step = W_MM + gap_mm
+    placed = []
+    for i, (tag, cat, under) in enumerate(cards):
+        x = (i - (n - 1) / 2) * step
+        placed.append((tag, cat, (x, y_mm, distance_mm), (1, 0, 0), (0, 1, 0)))
+        for j, (ut, uc) in enumerate(under):
+            placed.append((ut, uc, (x + 3, y_mm + (j + 1) * (H_MM + 6), distance_mm), (1, 0, 0), (0, 1, 0)))
+    return render(placed, Camera(0), **kw)
+
+
+def floor(cards, distance_mm, pitch_deg, far_side=False, gap_mm=8.0, height_mm=HEAD_MM, **kw):
+    """A row lying on the floor across the duck's view, its middle `distance_mm` ahead.
+
+    From the near side the cards' tops point away from the duck; from the far side (a class
+    laid the row out facing themselves, across from the duck) they point at it, and the row reads
+    right to left in the picture."""
+    n = len(cards)
+    step = W_MM + gap_mm
+    sign = -1 if far_side else 1
+    right = np.array([sign, 0.0, 0.0])
+    down = np.array([0.0, 0.0, -sign])          # a card's down points at the duck from the near side
+    placed = []
+    for i, (tag, cat, under) in enumerate(cards):
+        x = sign * (i - (n - 1) / 2) * step
+        z = distance_mm
+        placed.append((tag, cat, (x, height_mm, z), right, down))
+        for j, (ut, uc) in enumerate(under):
+            placed.append((ut, uc, (x + sign * 3, height_mm, z - sign * (j + 1) * (H_MM + 6)), right, down))
+    return render(placed, Camera(pitch_deg, height_mm), **kw)
