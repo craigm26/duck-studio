@@ -454,6 +454,8 @@ struct PlanEditorView: View {
                                 robotLine = PlanEditorWords.onBeat(i + 1, of: total, beat.clause)
                             case .said(let line):
                                 robotLine = line
+                            case .cardEnded:
+                                break
                             }
                         }
                     },
@@ -462,6 +464,8 @@ struct PlanEditorView: View {
                 case .finished: robotLine = PlanEditorWords.robotFinished
                 case .refused(let beat, let reason):
                     robotLine = PlanEditorWords.robotRefused(step: beat + 1, reason)
+                case .stopped(_, let reason):
+                    robotLine = reason
                 }
             } catch let refusal as RobotPlanRunner.Refusal {
                 robotLine = refusal.message

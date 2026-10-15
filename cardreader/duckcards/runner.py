@@ -78,7 +78,17 @@ class Beat:
 # The same sentences as StudioKit's `DuckCardLoop.timedNote` and `.lostNote`.
 TIMED_NOTE = ("This duck does not report odometry, so Walk and Turn cards run as timed cards, "
               "two seconds each, and do not land on board squares.")
-LOST_NOTE = "The duck stopped reporting where it is, so this card stopped there."
+LOST_NOTE = "The duck stopped reporting where it is, so the row stopped there."
+FELL_NOTE = "The duck fell, so the row stopped there."
+# How a closed-loop card ended, and what is said when it did not arrive: the row ends there, the
+# duck commanded still (docs/PACKS.md, "Acceptance"). StudioKit's `RobotPlanRunner.CardEnd.said`.
+ENDED = {
+    "reached": None,
+    "lost": LOST_NOTE,
+    "fell": FELL_NOTE,
+    "out of time": "The card ran out of time before it got there, so the row stopped there.",
+    "trimmed out": "The card stopped short of a quarter turn after its trims, so the row stopped there.",
+}
 
 
 class Refusal(Exception):
@@ -160,6 +170,12 @@ def run(plan_beats: list[Beat], robot, heads: bool = False, sleep=time.sleep, sa
                 hold(robot, b.twist, b.seconds, sleep)
             elif b.kind == "card":
                 pose = _pose_now(state, clock)
+                if pose is None and board is not None:
+                    # A row that has been closing on odometry does not fall back to timed mid-row:
+                    # the pose going missing between cards is the duck losing its state.
+                    say(f"  {LOST_NOTE}")
+                    robot.call("robot.stop")
+                    return f"stopped at {b.clause}: {LOST_NOTE}"
                 if pose is None:
                     if not timed_said:
                         say(f"  {TIMED_NOTE}")
@@ -170,10 +186,10 @@ def run(plan_beats: list[Beat], robot, heads: bool = False, sleep=time.sleep, sa
                 loop = cardloop.CardLoop(b.action, board or pose, b.speed)
                 done = drive(loop, robot, state, sleep, clock)
                 board = loop.board_after
-                if done == "lost":
-                    say(f"  {LOST_NOTE}")
-                elif cardloop.DONE_WORDS.get(done):
-                    say(f"  The card {cardloop.DONE_WORDS[done]}.")
+                if ENDED.get(done):
+                    say(f"  {ENDED[done]}")
+                    robot.call("robot.stop")
+                    return f"stopped at {b.clause}: {ENDED[done]}"
                 hold(robot, (0.0, 0.0, 0.0), cardloop.SPEC["between_s"], sleep)
             elif b.kind == "move":
                 hold(robot, b.twist, b.seconds, sleep)
@@ -221,12 +237,21 @@ def _pose_now(state, clock) -> cardloop.Pose | None:
     return cardloop.odometry(params)
 
 
+def _fallen(state) -> bool:
+    """Whether the latest `robot.state` says the duck is down (`safety.fallen`)."""
+    got = state() if state is not None else None
+    return bool(got and ((got[0] or {}).get("safety") or {}).get("fallen") is True)
+
+
 def drive(loop: "cardloop.CardLoop", robot, state, sleep=time.sleep, clock=time.time) -> str:
     """One Walk or Turn card on odometry, `robot.move` at the spec's rate. Answers how it ended:
-    the loop's own word, or "lost" when the pose stops arriving."""
+    the loop's own word, "lost" when the pose stops arriving, or "fell"."""
     tick = 1.0 / cardloop.SPEC["control_hz"]
     n = 0
     while True:
+        if _fallen(state):
+            robot.notify("robot.move", {"vx": 0.0, "vy": 0.0, "vyaw": 0.0})
+            return "fell"
         pose = _pose_now(state, clock)
         if pose is None:
             robot.notify("robot.move", {"vx": 0.0, "vy": 0.0, "vyaw": 0.0})

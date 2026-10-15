@@ -110,12 +110,21 @@ final class DuckCardLoopTests: XCTestCase {
         let transportKind = DuckTransportKind.bridge
         let reach = DuckMethod.reach(for: .bridge)
         let odom: Bool
+        /// How far it walks per unit of vx, and the metres from the start at which it falls.
+        let walk: Double, fallsAt: Double?
         private let lock = NSLock()
         private var x = 0.0, y = 0.0, h = 0.0, vx = 0.0, vyaw = 0.0
         private var _moves: [DuckDrive.Twist] = []
         private var _calls: [String] = []
+        /// Its own clock, advanced by `advance`; starts at the wall clock so the default `now` sees
+        /// fresh states.
+        private var _clock = Date()
 
-        init(odom: Bool = true) { self.odom = odom }
+        init(odom: Bool = true, walk: Double = 0.45, fallsAt: Double? = nil) {
+            self.odom = odom; self.walk = walk; self.fallsAt = fallsAt
+        }
+
+        var clock: Date { lock.lock(); defer { lock.unlock() }; return _clock }
 
         var moves: [DuckDrive.Twist] { lock.lock(); defer { lock.unlock() }; return _moves }
         var calls: [String] { lock.lock(); defer { lock.unlock() }; return _calls }
@@ -138,14 +147,17 @@ final class DuckCardLoopTests: XCTestCase {
         func advance(_ dt: Double) {
             lock.lock()
             h += 0.9 * vyaw * dt
-            x += 0.45 * vx * dt * cos(h); y += 0.45 * vx * dt * sin(h)
+            x += walk * vx * dt * cos(h); y += walk * vx * dt * sin(h)
+            _clock = _clock.addingTimeInterval(dt)
             lock.unlock()
         }
 
         func state() -> DuckState? {
-            guard odom else { return DuckState(receivedAt: Date()) }
             let (x, y, h) = where_
-            return DuckState(odom: .init(position: [x, y, 0.12], yaw: h), receivedAt: Date())
+            let fallen = fallsAt.map { (x * x + y * y).squareRoot() >= $0 } ?? false
+            guard odom else { return DuckState(safety: .init(fallen: fallen), receivedAt: clock) }
+            return DuckState(safety: .init(fallen: fallen), odom: .init(position: [x, y, 0.12], yaw: h),
+                             receivedAt: clock)
         }
 
         nonisolated func states() -> AsyncStream<DuckState> { AsyncStream { $0.finish() } }
@@ -249,6 +261,36 @@ final class DuckCardLoopTests: XCTestCase {
         let duck = FakeDuck(), said = Said()
         _ = try await run(try cardPlan(["walk_forward"]), on: duck, said: said, state: false)
         XCTAssertEqual(said.lines, [DuckCardLoop.timedNote])
+    }
+
+    func testAFallMidCardEndsTheRowStillAndSaysSo() async throws {
+        let duck = FakeDuck(fallsAt: 0.1), said = Said()
+        let outcome = try await run(try cardPlan(["walk_forward", "turn_left", "walk_forward"]), on: duck, said: said)
+        XCTAssertEqual(outcome, .stopped(beat: 0, reason: DuckCardLoop.fellNote))
+        XCTAssertEqual(said.lines.last, DuckCardLoop.fellNote)
+        XCTAssertEqual(duck.moves.last, .still)
+        XCTAssertEqual(duck.calls.last, "robot.stop")
+        XCTAssertLessThan(duck.where_.0, 0.2, "the row did not go on")
+    }
+
+    func testACardThatRunsOutOfTimeEndsTheRow() async throws {
+        let duck = FakeDuck(walk: 0), said = Said()     // marches on the spot
+        let outcome = try await run(try cardPlan(["walk_forward", "turn_left"]), on: duck, said: said)
+        guard case .stopped(0, let reason) = outcome else { return XCTFail("\(outcome)") }
+        XCTAssertEqual(reason, RobotPlanRunner.CardEnd.outOfTime.said)
+        XCTAssertFalse(duck.moves.contains { $0.vyaw > 0.7 }, "the Turn card never ran")
+        XCTAssertEqual(duck.calls.last, "robot.stop")
+    }
+
+    func testTheEndingsSayTheReadersWords() {
+        // cardreader runner.ENDED, word for word.
+        XCTAssertEqual(RobotPlanRunner.CardEnd.lost.said, "The duck stopped reporting where it is, so the row stopped there.")
+        XCTAssertEqual(RobotPlanRunner.CardEnd.fell.said, "The duck fell, so the row stopped there.")
+        XCTAssertEqual(RobotPlanRunner.CardEnd.outOfTime.said,
+                       "The card ran out of time before it got there, so the row stopped there.")
+        XCTAssertEqual(RobotPlanRunner.CardEnd.trimmedOut.said,
+                       "The card stopped short of a quarter turn after its trims, so the row stopped there.")
+        XCTAssertNil(RobotPlanRunner.CardEnd.reached.said)
     }
 
     func testAPoseThatStopsArrivingStopsTheCard() async throws {

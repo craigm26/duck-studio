@@ -247,6 +247,33 @@ public enum RobotPlanRunner {
     public enum Event: Equatable, Sendable {
         case began(Int, RobotPlan.Beat)
         case said(String)
+        /// A closed-loop card ended: how (`CardEnd`), before the still moment after it.
+        case cardEnded(Int, CardEnd)
+    }
+
+    /// How a closed-loop Walk or Turn card ended. Anything but `reached` ends the row there, with
+    /// the duck commanded still and one sentence (docs/PACKS.md, "Acceptance": a stuck, stale,
+    /// fallen or cannot-reach row ends safely and says which).
+    public enum CardEnd: String, Equatable, Sendable, Codable {
+        case reached
+        /// The pose stopped arriving, or was older than the spec's `stale_s`.
+        case lost
+        /// robotd's `safety.fallen` said the duck is down.
+        case fell
+        case outOfTime = "out of time"
+        case trimmedOut = "trimmed out"
+
+        /// What a person hears when a card ends some other way than arriving. The card reader
+        /// says the same sentences (`runner.ENDED`).
+        public var said: String? {
+            switch self {
+            case .reached: return nil
+            case .lost: return DuckCardLoop.lostNote
+            case .fell: return DuckCardLoop.fellNote
+            case .outOfTime: return "The card ran out of time before it got there, so the row stopped there."
+            case .trimmedOut: return "The card stopped short of a quarter turn after its trims, so the row stopped there."
+            }
+        }
     }
 
     /// The latest `robot.state` the link has seen, or nil. Walk and Turn cards close on its
@@ -257,6 +284,9 @@ public enum RobotPlanRunner {
         case finished
         /// The robot refused a beat; the plan stopped there.
         case refused(beat: Int, reason: String)
+        /// A closed-loop card did not arrive (lost, fell, out of time, trimmed out); the plan
+        /// stopped there, the duck commanded still.
+        case stopped(beat: Int, reason: String)
     }
 
     public enum Refusal: Error, Equatable {
@@ -312,6 +342,10 @@ public enum RobotPlanRunner {
                   now().timeIntervalSince(s.receivedAt) <= DuckCardLoop.spec.staleS else { return nil }
             return DuckCardLoop.pose(of: s)
         }
+        let fallen: @Sendable () async -> Bool = {
+            guard let state, let s = await state() else { return false }
+            return s.safety?.fallen == true
+        }
         do {
             for (i, beat) in plan.beats.enumerated() {
                 await event(.began(i, beat))
@@ -319,6 +353,14 @@ public enum RobotPlanRunner {
                 case .move(let twist, let seconds, _):
                     try await hold(twist, for: seconds, on: peer, tick: tick, sleep: sleep)
                 case .card(let action, let speed, let timed, let seconds, _):
+                    // A ROW THAT HAS BEEN CLOSING ON ODOMETRY DOES NOT FALL BACK TO TIMED MID-ROW.
+                    // The pose going missing between cards is the duck losing its state: the row ends.
+                    if board != nil, await pose() == nil {
+                        await event(.cardEnded(i, .lost))
+                        await event(.said(DuckCardLoop.lostNote))
+                        _ = try await peer.call(.stop)
+                        return .stopped(beat: i, reason: DuckCardLoop.lostNote)
+                    }
                     guard let here = await pose(),
                           var card = DuckCardLoop.Card(action: action, board: board ?? here, speed: speed) else {
                         if !timedSaid { await event(.said(DuckCardLoop.timedNote)); timedSaid = true }
@@ -326,9 +368,14 @@ public enum RobotPlanRunner {
                         board = nil
                         continue
                     }
-                    let done = try await drive(&card, on: peer, pose: pose, sleep: sleep)
+                    let ended = try await drive(&card, on: peer, pose: pose, fallen: fallen, sleep: sleep)
                     board = card.boardAfter
-                    if let words = done { await event(.said(words)) }
+                    await event(.cardEnded(i, ended))
+                    if let words = ended.said {
+                        await event(.said(words))
+                        _ = try await peer.call(.stop)
+                        return .stopped(beat: i, reason: words)
+                    }
                     try await hold(.still, for: DuckCardLoop.spec.betweenS, on: peer, tick: tick, sleep: sleep)
                 case .sound(let tag, _):
                     let answer = RobotIntentAnswer.read(try await peer.call(.sound(tag)))
@@ -362,21 +409,30 @@ public enum RobotPlanRunner {
     }
 
     /// One Walk or Turn card on odometry, `robot.move` at the spec's rate, ending in a zero twist.
-    /// Answers what to say when it ended some other way than arriving, or nil.
+    /// Answers how it ended: the controller's own exits, a pose gone stale, or a fall.
     private static func drive(_ card: inout DuckCardLoop.Card, on peer: any DuckPeer,
-                              pose: @Sendable () async -> DuckCardLoop.Pose?, sleep: Sleep) async throws -> String? {
+                              pose: @Sendable () async -> DuckCardLoop.Pose?,
+                              fallen: @Sendable () async -> Bool, sleep: Sleep) async throws -> CardEnd {
         let tick = 1 / DuckCardLoop.spec.controlHz
         var n = 0
         while true {
             try Task.checkCancellation()
+            if await fallen() {
+                try await peer.notify(.move(.still))
+                return .fell
+            }
             guard let here = await pose() else {
                 try await peer.notify(.move(.still))
-                return DuckCardLoop.lostNote
+                return .lost
             }
             switch card.step(here, t: Double(n) * tick) {
             case .done(let done):
                 try await peer.notify(.move(.still))
-                return done.words.map { "The card " + $0 + "." }
+                switch done {
+                case .reached: return .reached
+                case .outOfTime: return .outOfTime
+                case .trimmedOut: return .trimmedOut
+                }
             case .send(let vx, let vyaw):
                 try await peer.notify(.move(DuckDrive.Twist(vx: vx, vy: 0, vyaw: vyaw)))
             }

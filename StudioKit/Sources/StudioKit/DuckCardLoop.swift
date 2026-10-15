@@ -134,8 +134,12 @@ public enum DuckCardLoop {
 
         public static func read(_ data: Data) throws -> Envelope {
             let env = try JSONDecoder().decode(Envelope.self, from: data)
-            guard env.format == Envelope.format,
-                  [env.vx, env.vy, env.vyaw].allSatisfy({ $0.count == 2 && $0[0] <= 0 && 0 <= $0[1] }) else {
+            func aroundZero(_ range: [Double]) -> Bool {
+                guard range.count == 2 else { return false }
+                let low: Double = range[0], high: Double = range[1]
+                return low <= 0 && 0 <= high
+            }
+            guard env.format == Envelope.format, aroundZero(env.vx), aroundZero(env.vy), aroundZero(env.vyaw) else {
                 throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "not \(Envelope.format)"))
             }
             return env
@@ -156,19 +160,28 @@ public enum DuckCardLoop {
     /// the spec's order: the same sentences as `cardloop.envelope_problems`. The shipped spec must
     /// answer empty; `scripts/check_duckcards_vectors.sh` fails when it does not.
     public static func envelopeProblems(_ spec: Spec, envelope env: Envelope = envelope) -> [String] {
+        struct Check { let name: String; let value: Double; let limit: Double }
         let w = spec.walk, t = spec.turn
-        func speeds(_ name: String, _ s: Spec.Speeds, _ limit: Double) -> [(String, Double, Double)] {
-            [("\(name).slow", s.slow, limit), ("\(name).normal", s.normal, limit), ("\(name).fast", s.fast, limit)]
+        func speeds(_ name: String, _ s: Spec.Speeds, _ limit: Double) -> [Check] {
+            [Check(name: name + ".slow", value: s.slow, limit: limit),
+             Check(name: name + ".normal", value: s.normal, limit: limit),
+             Check(name: name + ".fast", value: s.fast, limit: limit)]
         }
-        var checks = speeds("walk.speed", w.speed, env.forward) + speeds("walk.back_speed", w.backSpeed, env.backward)
-        checks.append(("walk.max_yaw", w.maxYaw, env.turn))
+        var checks: [Check] = speeds("walk.speed", w.speed, env.forward)
+        checks += speeds("walk.back_speed", w.backSpeed, env.backward)
+        checks.append(Check(name: "walk.max_yaw", value: w.maxYaw, limit: env.turn))
         checks += speeds("turn.yaw_rate", t.yawRate, env.turn)
-        checks.append(("turn.forward", abs(t.forward), t.forward >= 0 ? env.forward : env.backward))
-        checks.append(("turn.trim_rate", t.trimRate, env.turn))
-        checks.append(("turn.trim_forward", abs(t.trimForward), t.trimForward >= 0 ? env.forward : env.backward))
-        return checks.filter { !(0 <= $0.1 && $0.1 <= $0.2) }.map {
-            "\($0.0) is \(String(format: "%g", $0.1)), past Pollen's pad envelope of \(String(format: "%g", $0.2))"
+        let forwardLimit: Double = t.forward >= 0 ? env.forward : env.backward
+        checks.append(Check(name: "turn.forward", value: abs(t.forward), limit: forwardLimit))
+        checks.append(Check(name: "turn.trim_rate", value: t.trimRate, limit: env.turn))
+        let trimLimit: Double = t.trimForward >= 0 ? env.forward : env.backward
+        checks.append(Check(name: "turn.trim_forward", value: abs(t.trimForward), limit: trimLimit))
+        var out: [String] = []
+        for c in checks where !(0 <= c.value && c.value <= c.limit) {
+            out.append(c.name + " is " + String(format: "%g", c.value) + ", past Pollen's pad envelope of "
+                       + String(format: "%g", c.limit))
         }
+        return out
     }
 
     // MARK: - poses
@@ -221,8 +234,10 @@ public enum DuckCardLoop {
     /// (`cardloop.OFF_NOTE`).
     public static let offNote = "Walk and Turn cards on a duck are timed for now: two seconds each, and the "
         + "duck does not land on board squares. Measured cards are being tested."
-    /// Said when the pose stops arriving mid-card (`runner.LOST_NOTE`).
-    public static let lostNote = "The duck stopped reporting where it is, so this card stopped there."
+    /// Said when the pose stops arriving mid-card (`runner.LOST_NOTE`). The row ends there.
+    public static let lostNote = "The duck stopped reporting where it is, so the row stopped there."
+    /// Said when robotd reports the duck fell mid-card (`runner.FELL_NOTE`). The row ends there.
+    public static let fellNote = "The duck fell, so the row stopped there."
 
     /// One card as a person reads it before pressing Run.
     public static func spelled(_ action: String, speed: String?, spec: Spec = spec) -> String {

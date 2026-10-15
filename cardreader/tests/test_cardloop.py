@@ -107,7 +107,8 @@ class Odometry(unittest.TestCase):
 class FakeDuck:
     """A duck that goes where it is told, at a fraction of the command, and reports odometry."""
 
-    def __init__(self, odom=True, walk=0.45, turn=0.9):
+    def __init__(self, odom=True, walk=0.45, turn=0.9, falls_at=None):
+        self.falls_at = falls_at        # metres walked when it falls, or None
         self.x = self.y = self.h = 0.0
         self.twist = (0.0, 0.0)
         self.odom, self.walk, self.turn = odom, walk, turn
@@ -139,7 +140,8 @@ class FakeDuck:
         return self.now
 
     def state(self):
-        params = {"safety": {"fallen": False}}
+        fallen = self.falls_at is not None and math.hypot(self.x, self.y) >= self.falls_at
+        params = {"safety": {"fallen": fallen}}
         if self.odom:
             params["odom"] = {"position": [self.x, self.y, 0.12], "yaw": self.h}
         return params, self.now
@@ -190,6 +192,45 @@ class Runs(unittest.TestCase):
         runner.run(runner.beats([step("walk_forward")]), duck, sleep=duck.sleep, say=said.append,
                    state=lambda: frozen, clock=duck.clock, measured=True)
         self.assertTrue(any(runner.LOST_NOTE in s for s in said))
+
+    def test_a_fall_mid_card_ends_the_row_still_and_says_so(self):
+        duck, said = FakeDuck(falls_at=0.1), []
+        out = self.run_row(duck, ["walk_forward", "turn_left", "walk_forward"], said)
+        self.assertEqual(out, f"stopped at walk forward: {runner.FELL_NOTE}")
+        self.assertIn(f"  {runner.FELL_NOTE}", said)
+        self.assertEqual(duck.moves[-1], {"vx": 0.0, "vy": 0.0, "vyaw": 0.0})
+        self.assertEqual(duck.calls[-1][0], "robot.stop")
+        self.assertLess(duck.x, 0.2, "the row did not go on to the next card")
+
+    def test_a_card_that_runs_out_of_time_ends_the_row(self):
+        duck, said = FakeDuck(walk=0.0), []     # marches on the spot
+        out = self.run_row(duck, ["walk_forward", "turn_left"], said)
+        self.assertEqual(out, "stopped at walk forward: " + runner.ENDED["out of time"])
+        self.assertFalse(any(m["vyaw"] > 0.5 for m in duck.moves), "the Turn card never ran")
+        self.assertEqual(duck.calls[-1][0], "robot.stop")
+
+    def test_the_endings_say_studiokits_words(self):
+        # RobotPlanRunner.CardEnd.said, word for word.
+        self.assertEqual(runner.ENDED, {
+            "reached": None,
+            "lost": "The duck stopped reporting where it is, so the row stopped there.",
+            "fell": "The duck fell, so the row stopped there.",
+            "out of time": "The card ran out of time before it got there, so the row stopped there.",
+            "trimmed out": "The card stopped short of a quarter turn after its trims, so the row stopped there.",
+        })
+
+    def test_odometry_lost_mid_row_ends_the_row_rather_than_running_timed(self):
+        duck, said = FakeDuck(), []
+        frames = {"n": 0}
+
+        def state():
+            frames["n"] += 1
+            return duck.state() if frames["n"] < 30 else None
+        out = runner.run(runner.beats([step("walk_forward"), step("walk_forward")]), duck, sleep=duck.sleep,
+                         say=said.append, state=state, clock=duck.clock, measured=True)
+        self.assertTrue(out.startswith("stopped at walk forward: "), out)
+        self.assertIn(runner.LOST_NOTE, out)
+        self.assertFalse(any(runner.TIMED_NOTE in s for s in said))
 
     def test_speed_cards_set_the_walking_speed(self):
         for label in ("slow", "fast"):
