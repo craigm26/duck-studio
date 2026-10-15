@@ -43,6 +43,47 @@ def load_spec(path: pathlib.Path = SPEC_FILE) -> dict:
 
 SPEC = load_spec()
 
+# POLLEN'S PAD ENVELOPE, ONE SOURCE OF TRUTH. `pollen-pad-drive.json` is StudioKit's
+# `Resources/DuckCards/pollen-pad-drive.json` byte for byte: `PadDriveParams::default()` in
+# pollen-robotics/microduck `robotd-params/src/lib.rs`, with the commit it was read at. Pollen's
+# own words for it: what the v8 velstand "follows well on the robot". robotd does not clamp a
+# `robot.move` to it (the pad is bounded, other clients are not), so no card may ask for more.
+ENVELOPE_FILE = HERE / "pollen-pad-drive.json"
+ENVELOPE_FORMAT = "pollen-pad-drive/0"
+
+
+def load_envelope(path: pathlib.Path = ENVELOPE_FILE) -> dict:
+    env = json.loads(path.read_text())
+    if env.get("format") != ENVELOPE_FORMAT:
+        raise ValueError(f"{path.name} is not {ENVELOPE_FORMAT}")
+    for axis in ("vx", "vy", "vyaw"):
+        lo, hi = env[axis]
+        if not lo <= 0 <= hi:
+            raise ValueError(f"{path.name}: {axis} is not a range around zero")
+    return env
+
+
+ENVELOPE = load_envelope()
+
+
+def envelope_problems(spec: dict, env: dict | None = None) -> list[str]:
+    """Every number in a card-loop spec that would command more than Pollen's pad envelope, said
+    by name, in the spec's order. The shipped spec must answer empty
+    (`DuckCardLoop.envelopeProblems` says the same sentences)."""
+    env = env or ENVELOPE
+    forward, back = env["vx"][1], -env["vx"][0]
+    turn = min(env["vyaw"][1], -env["vyaw"][0])
+    w, t = spec["walk"], spec["turn"]
+    checks = [(f"walk.speed.{k}", w["speed"][k], forward) for k in ("slow", "normal", "fast")]
+    checks += [(f"walk.back_speed.{k}", w["back_speed"][k], back) for k in ("slow", "normal", "fast")]
+    checks += [("walk.max_yaw", w["max_yaw"], turn)]
+    checks += [(f"turn.yaw_rate.{k}", t["yaw_rate"][k], turn) for k in ("slow", "normal", "fast")]
+    checks += [("turn.forward", abs(t["forward"]), forward if t["forward"] >= 0 else back),
+               ("turn.trim_rate", t["trim_rate"], turn),
+               ("turn.trim_forward", abs(t["trim_forward"]), forward if t["trim_forward"] >= 0 else back)]
+    return [f"{where} is {v:g}, past Pollen's pad envelope of {limit:g}"
+            for where, v, limit in checks if not 0 <= v <= limit]
+
 
 def wrap(a: float) -> float:
     """An angle in (-pi, pi]."""

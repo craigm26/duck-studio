@@ -56,7 +56,7 @@ Beside Pollen's simulator, see [Proving it in duck-sim](#proving-it-in-duck-sim)
 6. **Makes Studio's plan.** `duck-intent-plan/0`, `model: "duck-cards/0"`, every label at
    confidence 1.0, checked against every rule `DuckIntentPlan.read` enforces.
 7. **Runs it the way Studio does.** `RobotPlan` and `RobotPlanRunner` in Python, number for number:
-   Pollen's pad limits (0.3 m/s, 1.5 rad/s), slow/normal/fast at a third, two thirds and all of
+   0.3 m/s and 1.0 rad/s, inside Pollen's pad envelope (`pollen-pad-drive.json`), slow/normal/fast at a third, two thirds and all of
    them, two seconds a step, `robot.move` at 20 Hz, the skill list checked before anything moves,
    a stop at the end. Walk and Turn cards are one board square and a quarter turn, closed on
    robotd's odometry (`cardloop.py`, the same spec and vectors as StudioKit's `DuckCardLoop`;

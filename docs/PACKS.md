@@ -406,15 +406,24 @@ stop each sample must produce (`cardreader/tests/make_cardloop_vectors.py` write
   Either is said, and the row goes on.
 - **Between cards** the duck holds still for `between_s`. Commands go at `control_hz` (20 Hz); a
   pose older than `stale_s` mid-card stops the card ("The duck stopped reporting where it is").
+- **Pollen's pad envelope bounds every card.** `pollen-pad-drive.json` (StudioKit
+  `Resources/DuckCards/`, copied byte for byte to `cardreader/duckcards/`) is
+  `PadDriveParams::default()` in pollen-robotics/microduck `robotd-params/src/lib.rs` (lines 144
+  to 158, commit 34b6e7d): vx -0.4 to 0.4 m/s, vy -0.3 to 0.3, vyaw -1.0 to 1.0 rad/s, "what
+  [the v8 velstand] follows well on the robot". Its training range for yaw is the same -1.0 to
+  1.0. robotd has no velocity clamp of its own (`duck-control/src/safety.rs`: deadman,
+  non-finite, travel; the pad is bounded, other clients are not), so this side holds it:
+  `DuckCardLoop.envelopeProblems` and `cardloop.envelope_problems` name any number in the spec
+  past it, both readers' tests fail on one, and so does `scripts/check_duckcards_vectors.sh`.
+  Studio's sticks are held inside it too (`DuckDrive.maxTurn` is 1.0, was 1.5).
 - **Speed cards on a distance card** set the speed, not the distance: Walk forward walks at
-  0.30, 0.35 or 0.45 (Slow, Normal, Fast), all above the gait's dead band (below about 0.25 the
-  canon plant marches on the spot). Walk back walks at 0.45 at every speed, the slowest that
-  moves it backward (0.3 does not). A Turn card turns at 1.5 at every speed: the only rate
-  measured that turns the duck in place (at 1.2, 34 cards in 40 rows never arrived; at 1.5,
-  none). These exceed Studio's timed Normal (0.2, 1.0), which on the canon plant does not move
-  the duck at all; robotd
-  has no velocity clamp (`duck-control/src/safety.rs`: deadman, non-finite, travel), so they reach
-  the policy as sent. Whether a real duck wants the same numbers is not measured.
+  0.30, 0.35 or 0.40 (Slow, Normal, Fast), all above the gait's dead band (below about 0.25 the
+  canon plant marches on the spot). Walk back walks at 0.40 at every speed and a Turn card turns
+  at 1.0 at every speed, the envelope's limits (2026-10-15, clamped from 0.45 and 1.5 with no
+  other tuning). **Both are below what duckbench's canon plant needed** (about 0.45 to walk back;
+  at 1.2, 34 Turn cards in 40 rows never arrived). Whether Pollen's v8 velstand, which tracks yaw
+  commands, walks back and turns in place at them is for the duck-sim run to measure against
+  "Acceptance", above. The duckbench numbers below were measured with the unclamped spec.
 - **When robotd does not report odometry** (no `odom` in its state, as from a robotd older than
   the estimator, or no state stream at all), Walk and Turn run as the timed cards they were, two
   seconds of Studio's twist, and the runner says once per row: "This duck does not report
@@ -423,6 +432,10 @@ stop each sample must produce (`cardreader/tests/make_cardloop_vectors.py` write
   its fall watch's latest frame at 20 Hz for the same purpose.
 
 ### Closed-loop cards: duckbench, 2026-10-15
+
+**Measured with the first spec, before it was clamped to Pollen's envelope** (Walk forward Fast
+0.45, Walk back 0.45, Turn 1.5). The shipped spec is not this one, and nothing below has been
+measured with it. Kept as what was measured.
 
 `duckbench/sim/cardloop.mjs` (results and the sweeps that chose the numbers in
 `duckbench/sim/cardloop/`): duckbench's canon plant (`scene.mjb`, Pollen's MJCF with their servo

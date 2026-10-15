@@ -125,18 +125,19 @@ final class BridgeDriveWireTests: XCTestCase {
         XCTAssertLessThan(turnRight.vyaw, 0, "right stick right must be −vyaw")
     }
 
-    /// THE SPEEDS ARE `padd`'S CLAP DEFAULTS AND NOT A GUESS: `--max-linear`
-    /// 0.3 m/s, `--max-linear-backward` 0.3, `--max-angular` 1.5 rad/s — which
-    /// is deliberately NOT the same range as the linear axes.
+    /// THE SPEEDS ARE POLLEN'S AND NOT A GUESS: `padd`'s `--max-linear` 0.3 m/s
+    /// and `--max-linear-backward` 0.3, and turning at Pollen's pad envelope,
+    /// 1.0 rad/s (`PadDriveParams::default()`, which was `--max-angular` 1.5
+    /// before the v8 velstand), deliberately NOT the same range as the linear axes.
     func testTheEnvelopeIsPaddsOwnLimits() {
         let full = DuckDrive.twist(for: DuckDrive.Sticks(left: .init(x: -1, y: 1),
                                                          right: .init(x: -1, y: 0)))
         XCTAssertLessThanOrEqual(abs(full.vx), 0.3 + 1e-12)
         XCTAssertLessThanOrEqual(abs(full.vy), 0.3 + 1e-12)
-        XCTAssertLessThanOrEqual(abs(full.vyaw), 1.5 + 1e-12)
+        XCTAssertLessThanOrEqual(abs(full.vyaw), 1.0 + 1e-12)
         // And the angular range really is wider than the linear one, so a
         // future edit that "tidied" them into one limit fails here.
-        XCTAssertGreaterThan(1.5, 0.3)
+        XCTAssertGreaterThan(DuckDrive.maxTurn, DuckDrive.maxForward)
     }
 
     /// A NaN NEVER REACHES THE WIRE. JSON cannot write one, so a robot would

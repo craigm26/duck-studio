@@ -53,6 +53,33 @@ final class DuckCardLoopTests: XCTestCase {
         }
     }
 
+    // MARK: - Pollen's envelope
+
+    func testTheEnvelopeIsPollensPadDriveDefaultsAtACitedCommit() {
+        let env = DuckCardLoop.envelope
+        XCTAssertEqual(env.vx, [-0.4, 0.4]); XCTAssertEqual(env.vy, [-0.3, 0.3]); XCTAssertEqual(env.vyaw, [-1.0, 1.0])
+        XCTAssertTrue(env.source.contains("robotd-params/src/lib.rs"), env.source)
+        XCTAssertTrue(env.source.contains("PadDriveParams"), env.source)
+        XCTAssertEqual(env.commit.count, 40)
+    }
+
+    func testNoCardCommandsMoreThanPollensEnvelope() throws {
+        XCTAssertEqual(DuckCardLoop.envelopeProblems(DuckCardLoop.spec), [])
+        // And it can fail, in the reader's words: the same spec with two numbers past it.
+        var json = try XCTUnwrap(try JSONSerialization.jsonObject(
+            with: Data(contentsOf: try XCTUnwrap(DuckCardLoop.specURL))) as? [String: Any])
+        var walk = try XCTUnwrap(json["walk"] as? [String: Any])
+        walk["back_speed"] = ["slow": 0.4, "normal": 0.4, "fast": 0.45]
+        json["walk"] = walk
+        var turn = try XCTUnwrap(json["turn"] as? [String: Any])
+        turn["yaw_rate"] = ["slow": 1.5, "normal": 1.0, "fast": 1.0]
+        json["turn"] = turn
+        let bad = try DuckCardLoop.Spec.read(try JSONSerialization.data(withJSONObject: json))
+        XCTAssertEqual(DuckCardLoop.envelopeProblems(bad),
+                       ["walk.back_speed.fast is 0.45, past Pollen's pad envelope of 0.4",
+                        "turn.yaw_rate.slow is 1.5, past Pollen's pad envelope of 1"])
+    }
+
     func testTheSpecLoadsAndOnlyFourCardsClose() {
         XCTAssertEqual(DuckCardLoop.spec.format, DuckCardLoop.format)
         XCTAssertGreaterThan(DuckCardLoop.spec.squareM, 0)

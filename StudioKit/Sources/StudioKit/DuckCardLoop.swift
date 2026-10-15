@@ -98,6 +98,71 @@ public enum DuckCardLoop {
         return spec
     }()
 
+    // MARK: - Pollen's envelope
+
+    /// Pollen's pad envelope: `PadDriveParams::default()` in pollen-robotics/microduck
+    /// `robotd-params/src/lib.rs`, read at the commit it names, in `Resources/DuckCards/
+    /// pollen-pad-drive.json` (the card reader carries it byte for byte). Pollen's own words: what
+    /// the v8 velstand "follows well on the robot". robotd does not clamp a `robot.move` to it (the
+    /// pad is bounded, other clients are not), so no card, and no stick here, asks for more.
+    public struct Envelope: Equatable, Sendable, Decodable {
+        public let format: String
+        /// Where the numbers were read: file, symbol and lines.
+        public let source: String
+        public let commit: String
+        /// Forward (positive) and back (negative), m/s.
+        public let vx: [Double]
+        /// Left (positive) and right (negative), m/s.
+        public let vy: [Double]
+        /// Turning left (positive) and right (negative), rad/s.
+        public let vyaw: [Double]
+
+        public var forward: Double { vx[1] }
+        public var backward: Double { -vx[0] }
+        public var sideways: Double { min(vy[1], -vy[0]) }
+        public var turn: Double { min(vyaw[1], -vyaw[0]) }
+
+        public static let format = "pollen-pad-drive/0"
+
+        public static func read(_ data: Data) throws -> Envelope {
+            let env = try JSONDecoder().decode(Envelope.self, from: data)
+            guard env.format == Envelope.format,
+                  [env.vx, env.vy, env.vyaw].allSatisfy({ $0.count == 2 && $0[0] <= 0 && 0 <= $0[1] }) else {
+                throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "not \(Envelope.format)"))
+            }
+            return env
+        }
+    }
+
+    static var envelopeURL: URL? { Bundle.module.url(forResource: "DuckCards/pollen-pad-drive", withExtension: "json") }
+
+    /// The shipped envelope; fatal at first use without it, like the spec.
+    public static let envelope: Envelope = {
+        guard let url = envelopeURL, let data = try? Data(contentsOf: url), let env = try? Envelope.read(data) else {
+            fatalError("StudioKit is missing Resources/DuckCards/pollen-pad-drive.json")
+        }
+        return env
+    }()
+
+    /// Every number in a spec that would command more than Pollen's pad envelope, said by name, in
+    /// the spec's order: the same sentences as `cardloop.envelope_problems`. The shipped spec must
+    /// answer empty; `scripts/check_duckcards_vectors.sh` fails when it does not.
+    public static func envelopeProblems(_ spec: Spec, envelope env: Envelope = envelope) -> [String] {
+        let w = spec.walk, t = spec.turn
+        func speeds(_ name: String, _ s: Spec.Speeds, _ limit: Double) -> [(String, Double, Double)] {
+            [("\(name).slow", s.slow, limit), ("\(name).normal", s.normal, limit), ("\(name).fast", s.fast, limit)]
+        }
+        var checks = speeds("walk.speed", w.speed, env.forward) + speeds("walk.back_speed", w.backSpeed, env.backward)
+        checks.append(("walk.max_yaw", w.maxYaw, env.turn))
+        checks += speeds("turn.yaw_rate", t.yawRate, env.turn)
+        checks.append(("turn.forward", abs(t.forward), t.forward >= 0 ? env.forward : env.backward))
+        checks.append(("turn.trim_rate", t.trimRate, env.turn))
+        checks.append(("turn.trim_forward", abs(t.trimForward), t.trimForward >= 0 ? env.forward : env.backward))
+        return checks.filter { !(0 <= $0.1 && $0.1 <= $0.2) }.map {
+            "\($0.0) is \(String(format: "%g", $0.1)), past Pollen's pad envelope of \(String(format: "%g", $0.2))"
+        }
+    }
+
     // MARK: - poses
 
     public struct Pose: Equatable, Sendable {

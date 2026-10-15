@@ -2,7 +2,7 @@
 
 ONE ROW, ONE BEHAVIOUR. `beats` and `run` are `RobotPlan` and
 `RobotPlanRunner` (StudioKit/Sources/StudioKit/RobotPlan.swift) in Python, with
-their numbers: Pollen's pad limits from `DuckDrive` (0.3 m/s, 1.5 rad/s), the
+their numbers: Pollen's pad limits from `DuckDrive` (0.3 m/s, 1.0 rad/s), the
 router's shares for slow, normal and fast, two seconds a step, a kick held 0.5
 s and a roll 1.0 s plus a second to settle, nothing over two minutes. So the
 same row of cards moves the duck the same way whether the duck read it itself
@@ -37,8 +37,9 @@ from . import cardloop, pan
 from .layout import Layout
 from .program import Program, Step, read
 
-# DuckDrive and RobotPlan, number for number.
-MAX_FORWARD, MAX_BACKWARD, MAX_TURN = 0.3, 0.3, 1.5
+# DuckDrive and RobotPlan, number for number. Inside Pollen's pad envelope (`cardloop.ENVELOPE`,
+# PadDriveParams::default(): 0.4 m/s, 1.0 rad/s); tests/test_cardloop.py holds them to it.
+MAX_FORWARD, MAX_BACKWARD, MAX_TURN = 0.3, 0.3, 1.0
 SHARES = {"slow": 1.0 / 3.0, "normal": 2.0 / 3.0, "fast": 1.0}
 DEFAULT_SECONDS = 2.0
 HOLD_SECONDS = 0.1

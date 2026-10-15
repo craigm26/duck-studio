@@ -24,13 +24,45 @@ class Spec(unittest.TestCase):
     def test_the_reader_carries_studiokits_spec_byte_for_byte(self):
         self.assertEqual(cardloop.SPEC_FILE.read_bytes(), KIT_SPEC.read_bytes())
 
-    def test_every_speed_clears_the_dead_band_measured_in_duckbench(self):
-        # duckbench cardloop.mjs probe, canon plant: below about 0.25 forward and about 1.2 of yaw
-        # on the spot the gait marches in place, and backward needs about 0.45.
+    def test_the_reader_carries_studiokits_envelope_byte_for_byte(self):
+        kit = KIT_SPEC.parent / "pollen-pad-drive.json"
+        self.assertEqual(cardloop.ENVELOPE_FILE.read_bytes(), kit.read_bytes())
+
+    def test_the_envelope_is_pollens_pad_drive_defaults_at_a_cited_commit(self):
+        env = cardloop.ENVELOPE
+        self.assertEqual((env["vx"], env["vy"], env["vyaw"]), ([-0.4, 0.4], [-0.3, 0.3], [-1.0, 1.0]))
+        self.assertIn("robotd-params/src/lib.rs", env["source"])
+        self.assertIn("PadDriveParams", env["source"])
+        self.assertRegex(env["commit"], r"^[0-9a-f]{40}$")
+
+    def test_no_card_commands_more_than_pollens_envelope(self):
+        self.assertEqual(cardloop.envelope_problems(cardloop.SPEC), [])
+
+    def test_a_spec_past_the_envelope_is_named(self):
+        import copy
+        spec = copy.deepcopy(cardloop.SPEC)
+        spec["walk"]["back_speed"]["fast"] = 0.45
+        spec["turn"]["yaw_rate"]["slow"] = 1.5
+        problems = cardloop.envelope_problems(spec)
+        self.assertEqual(len(problems), 2, problems)
+        self.assertEqual(problems, ["walk.back_speed.fast is 0.45, past Pollen's pad envelope of 0.4",
+                                    "turn.yaw_rate.slow is 1.5, past Pollen's pad envelope of 1"])
+
+    def test_the_runners_timed_twists_are_inside_the_envelope_too(self):
+        env = cardloop.ENVELOPE
+        self.assertLessEqual(runner.MAX_FORWARD, env["vx"][1])
+        self.assertLessEqual(runner.MAX_BACKWARD, -env["vx"][0])
+        self.assertLessEqual(runner.MAX_TURN, env["vyaw"][1])
+        self.assertEqual((runner.MAX_FORWARD, runner.MAX_BACKWARD, runner.MAX_TURN), (0.3, 0.3, 1.0),
+                         "DuckDrive.maxForward, maxBackward and maxTurn are these numbers; change both together")
+
+    def test_forward_speeds_clear_the_dead_band_measured_in_duckbench(self):
+        # duckbench cardloop.mjs probe, canon plant: below about 0.25 forward the gait marches in
+        # place. Walk back (0.4) and Turn (1.0) are held to Pollen's envelope, which is below what
+        # duckbench's canon plant needed (about 0.45 back, about 1.2 turning on the spot): whether
+        # the v8 velstand in Pollen's duck-sim moves at them is the duck-sim run's to measure.
         for label in ("slow", "normal", "fast"):
             self.assertGreaterEqual(cardloop.SPEC["walk"]["speed"][label], 0.25)
-            self.assertGreaterEqual(cardloop.SPEC["walk"]["back_speed"][label], 0.45)
-            self.assertGreaterEqual(cardloop.SPEC["turn"]["yaw_rate"][label], 1.2)
 
 
 class Vectors(unittest.TestCase):

@@ -97,7 +97,7 @@ final class CompareTests: XCTestCase {
     func testSequenceVariantsKeepTheOriginalAndStayInsideThePad() {
         let seq = DuckSequence(
             id: UUID(), name: "loop",
-            steps: [.init(atSim: 0, twist: .init(vx: 0.3, vy: 0, vyaw: 1.4), policySaid: "walk"),
+            steps: [.init(atSim: 0, twist: .init(vx: 0.3, vy: 0, vyaw: 0.9), policySaid: "walk"),
                     .init(atSim: 2, twist: .init(vx: 0, vy: 0, vyaw: 0), policySaid: "walk")],
             provenance: .said("go"), wallSeconds: 2, recordedAt: Date(), venue: .sim)
         let variants = Compare.variants(of: seq)

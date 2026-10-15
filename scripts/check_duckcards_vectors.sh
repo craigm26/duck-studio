@@ -34,7 +34,9 @@
 # max_yaw changed in the reader's duck-card-loop.json ("not StudioKit's, byte for
 # byte"), the fixture copy of cardloop/turn_left_arrives.json deleted ("Only in"),
 # and walk_forward_arrives.json's speed edited in both copies ("would change")
-# each made it exit 1.
+# each made it exit 1. For Pollen's envelope (pollen-pad-drive.json): the
+# unclamped duck-card-loop.json (back 0.45, Fast 0.45, turn and trim 1.5) made it
+# exit 1 with eight "past Pollen's pad envelope" lines, before the clamp.
 #
 # Usage:  scripts/check_duckcards_vectors.sh
 set -euo pipefail
@@ -59,6 +61,14 @@ if ! cmp -s "$LOOP" "$KIT_LOOP"; then
   fail=1
 fi
 
+ENV="$ROOT/cardreader/duckcards/pollen-pad-drive.json"
+KIT_ENV="$ROOT/StudioKit/Sources/StudioKit/Resources/DuckCards/pollen-pad-drive.json"
+if ! cmp -s "$ENV" "$KIT_ENV"; then
+  echo "check_duckcards_vectors: the reader's pollen-pad-drive.json is not StudioKit's, byte for byte" >&2
+  echo "  copy it: cp $KIT_ENV $ENV" >&2
+  fail=1
+fi
+
 DECK="$ROOT/cardreader/duckcards/duck-cards.json"
 KIT_DECK="$ROOT/StudioKit/Sources/StudioKit/Resources/DuckCards/duck-cards.json"
 if ! cmp -s "$DECK" "$KIT_DECK"; then
@@ -77,6 +87,19 @@ fi
 
 if command -v python3 >/dev/null; then
   python3 "$ROOT/scripts/check_duck_packs.py" || fail=1
+  # No closed-loop card may command more than Pollen's pad envelope (pollen-pad-drive.json).
+  if ! python3 - "$ROOT" <<'PY'
+import sys
+sys.path.insert(0, sys.argv[1] + "/cardreader")
+from duckcards import cardloop
+problems = cardloop.envelope_problems(cardloop.SPEC)
+for p in problems:
+    print(f"check_duckcards_vectors: duck-card-loop.json: {p}", file=sys.stderr)
+sys.exit(1 if problems else 0)
+PY
+  then
+    fail=1
+  fi
   python3 "$ROOT/cardreader/tests/make_cardloop_vectors.py" --check || fail=1
 fi
 

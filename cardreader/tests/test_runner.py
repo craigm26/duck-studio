@@ -67,7 +67,7 @@ class Beats(unittest.TestCase):
         self.assertEqual([(x.action, x.speed) for x in b[1:3]], [("walk_forward", "slow"), ("turn_left", "normal")])
         self.assertEqual(b[0].name, "greet")
         self.assertAlmostEqual(b[1].twist[0], 0.1)            # 0.3 m/s x 1/3
-        self.assertAlmostEqual(b[2].twist[2], 1.0)            # 1.5 rad/s x 2/3
+        self.assertAlmostEqual(b[2].twist[2], 2.0 / 3.0)      # 1.0 rad/s x 2/3
         self.assertEqual((b[1].seconds, b[2].seconds), (2.0, 2.0))
         self.assertEqual((b[3].name, b[3].seconds), ("kick_right", 0.5))
 

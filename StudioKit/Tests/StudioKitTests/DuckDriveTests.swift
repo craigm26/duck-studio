@@ -39,15 +39,28 @@ final class DuckDriveTests: XCTestCase {
 
     /// `vyaw: -right_x * max_angular`, and positive vyaw turns left.
     func testPushingTheRightStickRightTurnsRight() {
-        XCTAssertEqual(twist(right: (1, 0)).vyaw, -1.5, accuracy: 1e-12)
-        XCTAssertEqual(twist(right: (-1, 0)).vyaw, 1.5, accuracy: 1e-12)
+        XCTAssertEqual(twist(right: (1, 0)).vyaw, -1.0, accuracy: 1e-12)
+        XCTAssertEqual(twist(right: (-1, 0)).vyaw, 1.0, accuracy: 1e-12)
     }
 
-    /// Turning is not limited to the walking range — it is 1.5 rad/s, five
-    /// times the figure this file first guessed at.
+    /// Turning is not limited to the walking range: it is 1.0 rad/s, Pollen's
+    /// pad envelope since the v8 velstand (it was padd's old 1.5).
     func testTurningIsNotClampedToTheForwardRange() {
-        XCTAssertEqual(DuckDrive.maxTurn, 1.5)
+        XCTAssertEqual(DuckDrive.maxTurn, 1.0)
         XCTAssertNotEqual(DuckDrive.maxTurn, DuckDrive.maxForward)
+    }
+
+    /// EVERY STICK LIMIT IS INSIDE POLLEN'S PAD ENVELOPE, `PadDriveParams::default()`
+    /// (`DuckCardLoop.envelope`). robotd does not clamp a `robot.move`, so this is where it is held.
+    /// The card reader's `runner.MAX_*` are the same numbers (`test_cardloop.py`).
+    func testEveryStickLimitIsInsidePollensEnvelope() {
+        let env = DuckCardLoop.envelope
+        XCTAssertLessThanOrEqual(DuckDrive.maxForward, env.forward)
+        XCTAssertLessThanOrEqual(DuckDrive.maxBackward, env.backward)
+        XCTAssertLessThanOrEqual(DuckDrive.maxSideways, env.sideways)
+        XCTAssertLessThanOrEqual(DuckDrive.maxTurn, env.turn)
+        XCTAssertEqual([DuckDrive.maxForward, DuckDrive.maxBackward, DuckDrive.maxTurn], [0.3, 0.3, 1.0],
+                       "cardreader runner.MAX_* are these numbers; change both together")
     }
 
     /// The right stick's y drives nothing here: `padd` spends it on head pose,

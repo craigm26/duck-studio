@@ -5,8 +5,8 @@
   "stale_s": 0.5,
   "between_s": 0.5,
   "walk": {
-    "speed": { "slow": 0.30, "normal": 0.35, "fast": 0.45 },
-    "back_speed": { "slow": 0.45, "normal": 0.45, "fast": 0.45 },
+    "speed": { "slow": 0.30, "normal": 0.35, "fast": 0.40 },
+    "back_speed": { "slow": 0.40, "normal": 0.40, "fast": 0.40 },
     "heading_gain": 1.5,
     "cross_gain": 3.0,
     "max_yaw": 0.6,
@@ -15,11 +15,11 @@
     "max_s": 12
   },
   "turn": {
-    "yaw_rate": { "slow": 1.5, "normal": 1.5, "fast": 1.5 },
+    "yaw_rate": { "slow": 1.0, "normal": 1.0, "fast": 1.0 },
     "forward": 0.0,
     "stop_early_deg": 4,
     "tolerance_deg": 6,
-    "trim_rate": 1.5,
+    "trim_rate": 1.0,
     "trim_forward": 0.0,
     "trim_stop_early_deg": 3,
     "trims": 2,
