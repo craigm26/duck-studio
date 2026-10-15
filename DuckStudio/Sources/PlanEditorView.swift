@@ -427,10 +427,16 @@ struct PlanEditorView: View {
                                                client: FeedbackStore.client)) ?? [])
         let interval = robot.interval
         let total = robotPlan.beats.count
+        // DUCK CARDS' WALK AND TURN CLOSE ON ODOMETRY, so a card plan needs robotd's state stream.
+        // Asking again is harmless (`robot.subscribe` is idempotent per connection); a duck that
+        // refuses, or sends no `odom`, runs the cards timed and the runner says so.
+        let cards = robotPlan.closesOnOdometry
+        let state: RobotPlanRunner.State? = cards ? Self.latestState(of: robot) : nil
         robotLine = nil
         robotRun = Task { @MainActor in
             defer { robotRun = nil }
             await stopDriving?()
+            if cards { _ = try? await robot.subscribeToState() }
             do {
                 let outcome = try await RobotPlanRunner.run(
                     robotPlan, on: peer, interval: interval,
@@ -444,7 +450,8 @@ struct PlanEditorView: View {
                                 robotLine = line
                             }
                         }
-                    })
+                    },
+                    state: state)
                 switch outcome {
                 case .finished: robotLine = PlanEditorWords.robotFinished
                 case .refused(let beat, let reason):
@@ -460,6 +467,11 @@ struct PlanEditorView: View {
                 robotLine = Task.isCancelled ? PlanEditorWords.robotStopped : error.localizedDescription
             }
         }
+    }
+
+    /// The link's newest `robot.state`, for a card plan's Walk and Turn.
+    private static func latestState(of robot: BridgeLink) -> RobotPlanRunner.State {
+        { await MainActor.run { robot.lastState } }
     }
 
     /// Resolve, keep, record, and — from Control — play.

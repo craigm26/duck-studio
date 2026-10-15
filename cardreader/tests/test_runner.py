@@ -61,7 +61,10 @@ class Beats(unittest.TestCase):
         program = program_of(row_at(["start", "greet", "walk_forward", "turn_left", "kick_right", "end"],
                                     unders={2: ["slow"]}))
         b = runner.beats(program.steps)
-        self.assertEqual([x.kind for x in b], ["sound", "move", "move", "skill"])
+        # Walk and Turn are card beats: one square and a quarter turn on odometry, and this timed
+        # twist on a duck that does not report it (test_cardloop.py runs both).
+        self.assertEqual([x.kind for x in b], ["sound", "card", "card", "skill"])
+        self.assertEqual([(x.action, x.speed) for x in b[1:3]], [("walk_forward", "slow"), ("turn_left", "normal")])
         self.assertEqual(b[0].name, "greet")
         self.assertAlmostEqual(b[1].twist[0], 0.1)            # 0.3 m/s x 1/3
         self.assertAlmostEqual(b[2].twist[2], 1.0)            # 1.5 rad/s x 2/3

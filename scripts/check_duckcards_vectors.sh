@@ -19,12 +19,22 @@
 # the card vectors. A pack on one side only, or one byte apart, fails here; then
 # `check_duck_packs.py` checks every par and every row in them.
 #
+# SO DO WALK AND TURN ON ODOMETRY. `duck-card-loop.json` (the closed-loop card
+# spec) ships in StudioKit's Resources/DuckCards and in cardreader/duckcards, and
+# `vectors/cardloop/*.json` hold DuckCardLoop and cardloop.py to the same commands
+# on the same odometry traces; `make_cardloop_vectors.py --check` fails when the
+# reader would write different ones (it needs only python3).
+#
 # THIS GUARD CAN FAIL, AND IT WAS WATCHED TO: deleting one fixture vector, and
 # separately changing one byte of the StudioKit deck, each made it exit 1.
 # 2026-10-15, for the packs: changing one byte of the reader's copy of
 # duck-maze.duckpack, deleting the reader's copy of loop-the-course.duckpack,
 # and deleting the fixture copy of pack_solved.json each made it exit 1; so did
-# a wrong par in get-to-the-pond, through check_duck_packs.py.
+# a wrong par in get-to-the-pond, through check_duck_packs.py. For the card loop:
+# max_yaw changed in the reader's duck-card-loop.json ("not StudioKit's, byte for
+# byte"), the fixture copy of cardloop/turn_left_arrives.json deleted ("Only in"),
+# and walk_forward_arrives.json's speed edited in both copies ("would change")
+# each made it exit 1.
 #
 # Usage:  scripts/check_duckcards_vectors.sh
 set -euo pipefail
@@ -38,6 +48,14 @@ if ! diff -rq "$SRC" "$COPY" >/dev/null; then
   echo "check_duckcards_vectors: StudioKit's vectors differ from cardreader/vectors:" >&2
   diff -rq "$SRC" "$COPY" >&2 || true
   echo "  copy them: cp cardreader/vectors/*.json $COPY/" >&2
+  fail=1
+fi
+
+LOOP="$ROOT/cardreader/duckcards/duck-card-loop.json"
+KIT_LOOP="$ROOT/StudioKit/Sources/StudioKit/Resources/DuckCards/duck-card-loop.json"
+if ! cmp -s "$LOOP" "$KIT_LOOP"; then
+  echo "check_duckcards_vectors: the reader's duck-card-loop.json is not StudioKit's, byte for byte" >&2
+  echo "  copy it: cp $KIT_LOOP $LOOP" >&2
   fail=1
 fi
 
@@ -59,6 +77,7 @@ fi
 
 if command -v python3 >/dev/null; then
   python3 "$ROOT/scripts/check_duck_packs.py" || fail=1
+  python3 "$ROOT/cardreader/tests/make_cardloop_vectors.py" --check || fail=1
 fi
 
 if command -v python3 >/dev/null && python3 -c "import numpy, pupil_apriltags, cv2" 2>/dev/null; then
@@ -71,4 +90,6 @@ fi
 if [ "$fail" -ne 0 ]; then
   exit 1
 fi
-echo "check_duckcards_vectors: $(ls "$SRC" | wc -l | tr -d ' ') vectors, the deck and $(ls "$KIT_PACKS" | wc -l | tr -d ' ') packs agree on both sides"
+echo "check_duckcards_vectors: $(ls "$SRC"/*.json | wc -l | tr -d ' ') card and pack vectors," \
+     "$(ls "$SRC"/cardloop/*.json | wc -l | tr -d ' ') card-loop vectors, the deck, the card-loop spec" \
+     "and $(ls "$KIT_PACKS" | wc -l | tr -d ' ') packs agree on both sides"

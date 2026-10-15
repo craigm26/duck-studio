@@ -1,0 +1,165 @@
+"""Walk and Turn cards closed on what robotd reports: one board square, one quarter turn.
+
+A timed card is a twist held for two seconds, and a duck held to a twist does not land on a
+square: duckbench measured it (`duckbench/sim/cardsize.mjs`, `cardloop.mjs`). So when robotd's
+`robot.state` carries `odom` (Pollen's contact odometry, whose `yaw` is the trunk IMU's), a
+Walk card walks until odometry says the duck has covered one duck square along the card's
+heading, steering onto that line, and a Turn card turns until the yaw is a quarter turn from the
+card's heading, then settles and trims. Everything else a row does is unchanged.
+
+ONE SPEC, TWO READERS. The numbers are `duck-card-loop.json`, which is StudioKit's
+`Resources/DuckCards/duck-card-loop.json` byte for byte (`scripts/check_duckcards_vectors.sh`),
+and the stepping rules below are `DuckCardLoop` in StudioKit (`DuckCardLoop.swift`), held to
+each other by `cardreader/vectors/cardloop/*.json`: a card, a trace of odometry samples, and the
+command or the stop each sample must produce. `tests/make_cardloop_vectors.py` writes them.
+
+THE BOARD. A row keeps where the duck should be: the odometry pose it started the first card at,
+then one square or one quarter turn per card. Each card aims at that board pose rather than at
+"one more square from wherever the last card stopped", so an overshoot or the drift of a turn is
+taken back by the next card instead of adding up. A skill (a kick, a roll) moves the duck in ways
+the board does not count, so after one the board's position is put back where the duck now
+stands; its heading is kept.
+"""
+
+from __future__ import annotations
+
+import json
+import math
+import pathlib
+from dataclasses import dataclass
+
+HERE = pathlib.Path(__file__).resolve().parent
+SPEC_FILE = HERE / "duck-card-loop.json"
+FORMAT = "duck-card-loop/0"
+CARDS = ("walk_forward", "walk_backward", "turn_left", "turn_right")
+
+
+def load_spec(path: pathlib.Path = SPEC_FILE) -> dict:
+    spec = json.loads(path.read_text())
+    if spec.get("format") != FORMAT:
+        raise ValueError(f"{path.name} is not {FORMAT}")
+    return spec
+
+
+SPEC = load_spec()
+
+
+def wrap(a: float) -> float:
+    """An angle in (-pi, pi]."""
+    while a > math.pi:
+        a -= 2 * math.pi
+    while a <= -math.pi:
+        a += 2 * math.pi
+    return a
+
+
+@dataclass(frozen=True)
+class Pose:
+    x: float
+    y: float
+    h: float        # heading, radians, odometry's frame
+
+
+def odometry(state: dict | None) -> Pose | None:
+    """The duck's pose from one `robot.state` frame, or None when it does not say.
+
+    Pollen's `RobotState.odom` is `{position: [x, y, z], yaw}`; a robotd from before the
+    estimator sends no `odom` at all, which is the case this falls back from. A position shorter
+    than two, or a yaw that is not a number, is not a pose either."""
+    odom = (state or {}).get("odom")
+    if not isinstance(odom, dict):
+        return None
+    pos, yaw = odom.get("position"), odom.get("yaw")
+    if not isinstance(pos, list) or len(pos) < 2 or not all(isinstance(v, (int, float)) for v in pos[:2]):
+        return None
+    if not isinstance(yaw, (int, float)) or isinstance(yaw, bool):
+        return None
+    return Pose(float(pos[0]), float(pos[1]), float(yaw))
+
+
+def speed_of(spec: dict, action: str, speed: str | None) -> float:
+    """What a Speed card means on a distance card: how fast the duck walks or turns there.
+
+    The duck's gait has a dead band (below it the duck marches on the spot), so every speed is a
+    speed the gait answers to. A Turn card has one rate: the one that turns the duck in place."""
+    label = speed if speed in ("slow", "normal", "fast") else "normal"
+    if action == "walk_forward":
+        return spec["walk"]["speed"][label]
+    if action == "walk_backward":
+        return spec["walk"]["back_speed"][label]
+    return spec["turn"]["yaw_rate"][label]
+
+
+class CardLoop:
+    """One Walk or Turn card, stepped on odometry samples.
+
+    `step(pose, t)` takes the latest pose and the seconds since the card began and answers
+    `(vx, vyaw)` to send, or a string saying why the card is done: "reached", "out of time" or,
+    for a turn that could not be trimmed into tolerance, "trimmed out". `board_after` is where
+    the duck should be once the card is done, whatever happened."""
+
+    def __init__(self, action: str, board: Pose, speed: str | None = None, spec: dict | None = None):
+        if action not in CARDS:
+            raise ValueError(f"{action} is not a Walk or Turn card")
+        self.spec = spec or SPEC
+        self.action, self.board = action, board
+        self.rate = speed_of(self.spec, action, speed)
+        d = self.spec["square_m"]
+        if action.startswith("walk"):
+            self.sign = 1.0 if action == "walk_forward" else -1.0
+            self.board_after = Pose(board.x + self.sign * d * math.cos(board.h),
+                                    board.y + self.sign * d * math.sin(board.h), board.h)
+        else:
+            self.sign = 1.0 if action == "turn_left" else -1.0
+            self.board_after = Pose(board.x, board.y, wrap(board.h + self.sign * math.pi / 2))
+            self.phase, self.since = "turn", 0.0
+            self.trims_left = int(self.spec["turn"]["trims"])
+
+    def step(self, pose: Pose, t: float):
+        if self.action.startswith("walk"):
+            return self._walk(pose, t)
+        return self._turn(pose, t)
+
+    def _walk(self, pose: Pose, t: float):
+        w, b = self.spec["walk"], self.board
+        dx, dy = pose.x - b.x, pose.y - b.y
+        along = self.sign * (dx * math.cos(b.h) + dy * math.sin(b.h))
+        across = -dx * math.sin(b.h) + dy * math.cos(b.h)
+        early = w["stop_early_m"] if self.sign > 0 else w["back_stop_early_m"]
+        if along >= self.spec["square_m"] - early:
+            return "reached"
+        if t >= w["max_s"]:
+            return "out of time"
+        steer = w["heading_gain"] * wrap(b.h - pose.h) - self.sign * w["cross_gain"] * across
+        steer = max(-w["max_yaw"], min(w["max_yaw"], steer))
+        return (self.sign * self.rate, steer)
+
+    def _turn(self, pose: Pose, t: float):
+        c = self.spec["turn"]
+        e = wrap(self.board_after.h - pose.h)
+        off = abs(e) * 180.0 / math.pi
+        way = 1.0 if e >= 0 else -1.0
+        if t >= c["max_s"]:
+            return "out of time"
+        if self.phase in ("turn", "trim"):
+            trim = self.phase == "trim"
+            if off <= (c["trim_stop_early_deg"] if trim else c["stop_early_deg"]):
+                self.phase, self.since = "settle", t
+                return (0.0, 0.0)
+            return (c["trim_forward"] if trim else c["forward"], way * (c["trim_rate"] if trim else self.rate))
+        if t - self.since < c["settle_s"]:
+            return (0.0, 0.0)
+        if off <= c["tolerance_deg"]:
+            return "reached"
+        if self.trims_left <= 0:
+            return "trimmed out"
+        self.trims_left -= 1
+        self.phase = "trim"
+        return (c["trim_forward"], way * c["trim_rate"])
+
+
+DONE_WORDS = {
+    "reached": None,
+    "out of time": "ran out of time before it got there",
+    "trimmed out": "stopped short of a quarter turn after its trims",
+}

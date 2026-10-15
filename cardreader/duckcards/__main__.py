@@ -10,6 +10,10 @@ Add --dry-run to read and say what would be sent without sending it, and --deck 
 to read a class's own deck, with the Your cards it saved. A row longer than the picture is read
 by turning the head along it (`[scan]` lines say how); --no-scan keeps the head still.
 
+Walk and Turn cards are one board square and a quarter turn, closed on robotd's odometry
+(cardloop.py) when the duck's state stream carries `odom`; a duck that does not report it runs
+them as timed cards, two seconds each, and the reader says so.
+
 With --pack get-to-the-pond (a starter pack's id) or --pack class.duckpack, the reader lends the
 pack's Your cards and notes any card the pack does not play; it still runs it. Add --challenge
 pond-3 to hear each row played on that challenge's board: the board's answer, not where the duck
@@ -227,7 +231,8 @@ def cmd_watch(args) -> int:
                         # A row cannot walk a duck whose policy is off. The pad's Start turns it on;
                         # so does this, and only when there is something to run, never at startup.
                         robot.call("robot.enable", {"on": True})
-                        outcome = runner.run(runner.beats(event.program.steps), robot, heads=args.heads, say=say)
+                        outcome = runner.run(runner.beats(event.program.steps), robot, heads=args.heads, say=say,
+                                             state=falls.state if falls else None)
                     except runner.Refusal as r:
                         outcome = str(r)
                         voice("alarm")
@@ -240,7 +245,8 @@ def cmd_watch(args) -> int:
                 falls.recovered.clear()
                 if on_fall:
                     say("[fell] running the When it falls row")
-                    runner.run(runner.beats(on_fall), robot, heads=args.heads, say=say)
+                    runner.run(runner.beats(on_fall), robot, heads=args.heads, say=say,
+                               state=falls.state if falls else None)
                     watcher.ran(time.time())
                     look_again()
             if gaze:
