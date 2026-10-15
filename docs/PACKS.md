@@ -81,7 +81,8 @@ drifts. So a pack keeps two things apart:
   "par": 5,
   "solution": [ { "card": "walk_forward" }, { "card": "turn_right" } ],
   "buggy": null,
-  "hint": "Count the squares before you lay a card."
+  "hint": "Count the squares before you lay a card.",
+  "note": "Room 12 drew this one."
 }
 ```
 
@@ -102,6 +103,8 @@ drifts. So a pack keeps two things apart:
   shortest path by breadth-first search over (square, facing, gates passed), counting one step
   per Walk or Turn card, plus one if `finish_with` is set. For `cards` it is the card count of
   the shortest row the author found, and the checks hold `solution` to it.
+- `note`: optional; absent, `null`, or one line of words from whoever wrote the challenge, shown
+  beside it. It is never a rule and no check reads it.
 - `buggy`: `null`, or a row that does not solve the challenge but becomes a solution with one
   card swapped ("Find the bug"). The checks prove both halves. A swap replaces one card that acts
   on its own (a move, a sound, a trick or a Your card) with another such card in play, keeping
@@ -197,6 +200,9 @@ class period, paper first, a question to ask at the end.
   by `cardreader/tests/make_vectors.py` beside the card vectors and copied to StudioKit's fixtures.
   A vector carries everything a reader needs to play it: `score`, `cards`, `board`, `yours`,
   `challenge`, `row` and `expect`. Swift and Python must both produce `expect`.
+- `scripts/check_duck_packs.py FILE.duckpack` checks a pack from elsewhere, such as a class pack
+  Studio wrote, by the same rules except the two about what this repository ships (the file
+  named for its id, 3 to 6 lessons).
 - `scripts/check_duck_packs.py` checks every pack: schema, cards in the deck, the file named for
   its id, every goal reachable with every gate passed, `par` equal to the search (for `steps`),
   `par` no worse than the shortest plain row (for `cards`), `solution` solves at `par` and
@@ -231,6 +237,37 @@ sentence), `bundled`, `Pack.lent(to:replacing:)`, `Pack.notInPlay(_:deck:)`, `st
    score and par. "Run on the duck" sends the same row as a plan, as rows already do. Design a
    level adds a challenge editor (tap squares for start, goal, walls, gates; par is computed)
    and saves challenges into a class pack that shares as `.duckpack`.
+
+   **Which meaning plays.** One rule everywhere: on a clash between a pack's Your card and the
+   class deck's card of the same number, the class deck's own meaning wins. The camera reads it,
+   the board plays it and Run on the duck runs it; the pack's Your cards are lent only where the
+   class has none, unless the person chooses to replace the class's own. The pack screen and the
+   challenge screen say so when a clash exists. The card reader with `--pack` does the same.
+
+   **Opened packs, one per id.** An opened pack is kept as `Opened/<id>.duckpack`. Packs with
+   different ids sit side by side; one whose id is already open replaces it only after the person
+   chooses, with both named. The same bytes again are said to be open already.
+
+   **The class pack.** Each install mints its class pack's id once, `class-` and six small letters
+   and numbers (no 0, o, 1 or l), and keeps it in `class-settings.json` beside `class.duckpack`,
+   so two classes' packs never share an id. A pack written before this, with the old shared id
+   `our-class-pack`, is given a new id when Studio first finds it. The teacher sets, in Class pack
+   settings:
+   - the name (default "Our class pack");
+   - the score, `steps` or `cards`;
+   - the cards in play, by default every printed card, Start and End always in.
+
+   New settings recheck every challenge: par is worked out again, and a challenge that cannot be
+   solved with the cards chosen (or finishes with a card taken out) refuses the change in a
+   sentence, with nothing changed. In the editor:
+   - `finish_with` is a picker of the cards in play the duck does standing still (Pack.read's
+     rule, and a step on its own: Stop, sounds, tricks), or None; par counts it, live.
+   - A note, one optional line.
+   - Scored by `steps`, par is the search and the solution its shortest row.
+   - Scored by `cards`, par for a new challenge is the card count of the shortest plain row (the
+     same number `check_duck_packs.py` holds a `cards` par to). The author may lower it by laying
+     a shorter row, usually with Repeat; the editor plays it on the board as it is laid and it
+     counts only if it solves the challenge in fewer cards, and then it is the solution.
 3. **Card reader.** `python3 -m duckcards watch --pack get-to-the-pond.duckpack [--challenge
    pond-3]`: notes cards not in play, lends the pack's Your cards, and with a challenge prints
    the board play of each row it runs. It still runs what it reads; the board play is a report.

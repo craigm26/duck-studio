@@ -79,6 +79,7 @@ class Challenge:
     solution: tuple[Entry, ...]
     buggy: tuple[Entry, ...] | None
     hint: str
+    note: str | None = None     # one line from whoever wrote it, for the class; never a rule
 
 
 @dataclass(frozen=True)
@@ -282,9 +283,14 @@ def _challenge(c, board: Board, cards: tuple[str, ...], deck: Deck, n: int) -> C
     buggy = c.get("buggy")
     buggy = None if buggy is None else _row(buggy, deck, where, "the buggy row")
     hint = _text(c, "hint", where)
+    note = c.get("note")
+    if note is not None:
+        _need(isinstance(note, str) and note.strip() != "" and not any(ch in note for ch in "\n\r"),
+              f"{where}: a note is one line of words, or null.")
+        note = note.strip()
     return Challenge(id=cid, name=name, columns=columns, rows=rows, start=Place(at, facing), goal=goal,
                      walls=frozenset(walls), gates=tuple(gates), finish_with=finish, par=par,
-                     solution=solution, buggy=buggy, hint=hint)
+                     solution=solution, buggy=buggy, hint=hint, note=note)
 
 
 def challenge_of(c: dict, board: Board, cards, deck: Deck) -> Challenge:

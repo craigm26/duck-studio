@@ -9,6 +9,7 @@ import copy
 import importlib.util
 import json
 import pathlib
+import tempfile
 import unittest
 
 from helpers import DECK, class_deck, yours
@@ -94,6 +95,46 @@ class ReadingAPack(unittest.TestCase):
         self.refused(tiny(yours=[yours(150, [{"card": "greet"}])]), "numbered 200 to 299")
         self.refused(tiny(yours=[{**yours(200, [{"card": "greet"}]), "code": "card_9"}]), "is called card_1")
         self.refused(tiny(yours=[yours(200, [{"card": "nope"}])]), "cannot be read")
+
+    def test_a_class_pack_with_its_own_id_reads_and_passes_the_checker(self):
+        """A class pack Studio writes: a minted `class-` id, a name the teacher gave, scored by
+        cards, a narrowed set of cards, a note, and a Repeat row under the plain row's count."""
+        straight = {"id": "class-1", "name": "Long hall", "columns": 8, "rows": 2,
+                    "start": {"at": [0, 1], "facing": "north"}, "goal": [7, 0], "walls": [], "gates": [],
+                    "finish_with": "greet", "par": 6,
+                    "solution": [{"card": "walk_forward"}, {"card": "turn_right"}, {"card": "repeat", "times": 7},
+                                 {"card": "walk_forward"}, {"card": "end_repeat"}, {"card": "greet"}],
+                    "buggy": None, "hint": "Count the squares.", "note": "Room 12 drew this one."}
+        data = tiny(id="class-k3p9qz", name="Room 12's pack", grades="Any grade", grade_from=-1, grade_to=12,
+                    score="cards", cards=["start", "end", "walk_forward", "turn_left", "turn_right", "repeat",
+                                          "end_repeat", "greet"],
+                    board={"columns": 4, "rows": 4, "square_cm": 30.0, "duck_square_cm": None},
+                    challenges=[straight])
+        pack = P.Pack.read(data, DECK)
+        self.assertEqual((pack.id, pack.name, pack.score), ("class-k3p9qz", "Room 12's pack", "cards"))
+        self.assertEqual(pack.challenges[0].note, "Room 12 drew this one.")
+        self.assertEqual(P.par_steps(pack.challenges[0], pack.cards), 10, "the plain row, the finish counted")
+        self.assertTrue(P.play_row(pack, pack.challenges[0], pack.challenges[0].solution, DECK)["solved"])
+        self.assertIsNone(P.Pack.read(tiny(), DECK).challenges[0].note, "a challenge needs no note")
+        self.refused(tiny(challenges=[challenge(note="two\nlines")]), "a note is one line")
+        self.refused(tiny(challenges=[challenge(note=3)]), "a note is one line")
+        self.refused(tiny(id="Class_K3"), "an id in small letters")
+
+        spec = importlib.util.spec_from_file_location("check_duck_packs", ROOT / "scripts" / "check_duck_packs.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = pathlib.Path(tmp) / "class.duckpack"
+            path.write_text(json.dumps(data), encoding="utf-8")
+            self.assertEqual(mod.check(path, DECK, shipped=False), [])
+            self.assertEqual(mod.main([str(path)]), 0, "the checker takes a class pack from a file")
+            self.assertTrue(any("named class" in p for p in mod.check(path, DECK)),
+                            "as a shipped pack, the file must be named for its id")
+            worse = copy.deepcopy(data)
+            worse["challenges"][0]["par"] = 11
+            worse["challenges"][0]["solution"] = [{"card": "turn_right"}, {"card": "turn_left"}]
+            path.write_text(json.dumps(worse), encoding="utf-8")
+            self.assertTrue(mod.check(path, DECK, shipped=False), "a class pack is held to the same rules")
 
     def test_a_pack_lends_its_your_cards_but_not_over_the_classs_own(self):
         data = tiny(yours=[yours(200, [{"card": "greet"}, {"card": "greet"}], "Double hello")])

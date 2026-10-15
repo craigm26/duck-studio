@@ -88,6 +88,15 @@ extension DuckPacks {
         public static let replaceThem = "Replace with the pack's"
         public static let keepOurs = "Keep our own"
 
+        /// Said on a pack and its challenges when its Your cards clash with the class deck: the one
+        /// rule the board, the duck and the camera all keep.
+        public static func classMeaningWins(_ pack: Pack, _ clashes: [Int]) -> String {
+            let which = clashes.count == 1 ? "Card \(clashes[0]) means" : "Cards \(DuckCards.Words.listed(clashes.map { String($0) })) mean"
+            return "\(which) something else in your class deck. Your class's meaning is the one that plays, here on "
+                 + "the board, on the duck and on the camera; \(pack.name)'s own is lent only where your class has none. "
+                 + "Lend them to the class deck to use the pack's instead."
+        }
+
         /// What lending did.
         public static func lent(_ pack: Pack, clashes: [Int], replaced: Bool) -> String {
             let kept = clashes.count == 1 ? "card \(clashes[0])" : "cards \(DuckCards.Words.listed(clashes.map { String($0) }))"
@@ -111,6 +120,7 @@ extension DuckPacks {
         // MARK: - one challenge
 
         public static func hint(_ ch: Challenge) -> String { "Hint: \(ch.hint)" }
+        public static func note(_ note: String) -> String { "Note: \(note)" }
         public static func finishWith(_ code: String, deck: DuckCards.Deck) -> String {
             "Finish with \(deck.card(code: code)?.name ?? code)."
         }
@@ -133,6 +143,12 @@ extension DuckPacks {
         /// A card's line in the row: its place, counted from 1, and its name.
         public static func rowCard(_ index: Int, _ entry: DuckCards.Entry, deck: DuckCards.Deck) -> String {
             "\(index + 1). \(name(entry, deck: deck))"
+        }
+
+        /// A card of a row being laid, a Repeat with its number: "3. Repeat 7 times".
+        public static func laidCard(_ index: Int, _ entry: DuckCards.Entry, deck: DuckCards.Deck) -> String {
+            guard entry.card == "repeat", let times = entry.times else { return rowCard(index, entry, deck: deck) }
+            return "\(index + 1). \(DuckCards.Words.repeatTimes(0, of: 1, times: times))"
         }
 
         /// One card of the row: its name, what is under it.
@@ -209,8 +225,9 @@ extension DuckPacks {
         // MARK: - drawing a challenge
 
         public static let design = "Design a challenge"
-        public static let designFooter =
-            "Draw a board of your own. It is checked and saved in \(ClassPack.name), which you can share as a .duckpack file."
+        public static func designFooter(_ name: String) -> String {
+            "Draw a board of your own. It is checked and saved in \(name), which you can share as a .duckpack file."
+        }
         public static let toolHeading = "Tap to place"
 
         public enum Tool: String, CaseIterable, Sendable {
@@ -241,16 +258,68 @@ extension DuckPacks {
         public static let hintHeading = "Hint"
         public static let hintPlaceholder = "Count the squares before you lay a card."
         public static let parHeading = "Par"
-        /// Par while drawing, worked out by the search, or why there is none.
-        public static func draftPar(_ par: Int?) -> String {
+        /// Par while drawing, worked out by the search, or why there is none. Scored by cards, it is
+        /// the plain row's card count, which a shorter row the author lays may lower.
+        public static func draftPar(_ par: Int?, _ score: Score = .steps, finishing: Bool = false) -> String {
             guard let par else { return DraftRefusal.unreachable.message }
-            if par == 0 { return DraftRefusal.alreadyThere.message }
-            return "Par \(par) step\(par == 1 ? "" : "s"): the fewest Walk and Turn cards that reach the goal"
-                 + " through every gate. Worked out on the board, not typed in."
+            if par == (finishing ? 1 : 0) { return DraftRefusal.alreadyThere.message }
+            let finish = finishing ? ", and the card it finishes with" : ""
+            switch score {
+            case .steps:
+                return "Par \(par) step\(par == 1 ? "" : "s"): the fewest Walk and Turn cards that reach the goal"
+                     + " through every gate\(finish). Worked out on the board, not typed in."
+            case .cards:
+                return "Par \(par) card\(par == 1 ? "" : "s"): the plain row, one card for each Walk and Turn on the"
+                     + " shortest way through every gate\(finish). Worked out on the board, not typed in. You may"
+                     + " lower it by finding a shorter row with Repeat, below; the board plays it to check."
+            }
         }
-        public static let save = "Save to \(ClassPack.name)"
-        public static func saved(_ ch: Challenge) -> String { "Saved \(ch.name) to \(ClassPack.name)." }
-        public static let removeChallenge = "Remove from \(ClassPack.name)"
+
+        public static let finishHeading = "Finish with"
+        public static let finishNone = "None"
+        public static let finishFooter =
+            "A card the duck does standing still, as the last card of the row, like Hello at the pond. It adds one to par."
+        public static let noteHeading = "Note"
+        public static let notePlaceholder = "One line for the class, if you like"
+
+        public static let shorterHeading = "A shorter row"
+        public static let shorterFooter =
+            "Scored by cards, Repeat can beat the plain row. Lay the shortest row you can find, without Start and End. "
+          + "It counts only if the board plays it to the goal in fewer cards."
+        /// What the board said of the shorter row.
+        public static func shorter(_ verdict: Draft.Shorter) -> String {
+            switch verdict {
+            case .none: return "No shorter row yet, so par is the plain row."
+            case .beats(let n, let plain):
+                return "Solved in \(n) card\(n == 1 ? "" : "s"), fewer than the plain row's \(plain). Par will be \(n)."
+            case .noBetter(let n, let plain):
+                return "Solved in \(n) card\(n == 1 ? "" : "s"), but the plain row takes \(plain), so par stays \(plain)."
+            case .fails(let said): return "Not solved: \(said)"
+            case .notInPlay(let names):
+                return DraftRefusal.shorterNotInPlay(names).message
+            }
+        }
+
+        public static func save(to name: String) -> String { "Save to \(name)" }
+        public static func saved(_ ch: Challenge, in name: String) -> String { "Saved \(ch.name) to \(name)." }
+        public static func removeChallenge(from name: String) -> String { "Remove from \(name)" }
+
+        // MARK: - the class pack's settings
+
+        public static let settings = "Class pack settings"
+        public static let settingsNameHeading = "Pack name"
+        public static let settingsNamePlaceholder = "Room 12's pack"
+        public static let settingsScoreHeading = "Score"
+        public static func scoreName(_ score: Score) -> String { score == .steps ? "Steps" : "Cards" }
+        public static let settingsCardsHeading = "Cards in play"
+        public static let settingsCardsFooter =
+            "Start and End are always in play. A challenge is solved with the cards in play, so taking away a Walk or "
+          + "Turn card a challenge needs is refused."
+        public static let applySettings = "Save settings"
+        public static func settingsSaved(_ name: String) -> String { "Saved. \(name) uses these settings." }
+        public static func settingsID(_ id: String) -> String {
+            "This pack's id is \(id). It stays the same, so another phone keeps your class's pack apart from another class's."
+        }
 
         /// One square while drawing, for VoiceOver: where it is and what is on it.
         public static func square(_ s: Square, in draft: Draft) -> String {
@@ -281,5 +350,25 @@ extension DuckPacks {
             opened(pack) + " " + lent(pack, clashes: clashes, replaced: false) + " Open the pack to replace them."
         }
         public static func notKept(_ why: String) -> String { "The pack could not be kept. \(why)" }
+
+        /// A pack opened again with the same id as one already in Packs.
+        public static let sameIDTitle = "Replace an opened pack?"
+        public static func sameIDQuestion(_ incoming: Pack, _ existing: Pack) -> String {
+            let same = incoming.name == existing.name
+            return "\(existing.name) (\(existing.id), \(existing.challenges.count) challenge\(existing.challenges.count == 1 ? "" : "s")) "
+                 + "is already in Packs with the same id. Replace it with "
+                 + (same ? "this copy" : incoming.name)
+                 + " (\(incoming.challenges.count) challenge\(incoming.challenges.count == 1 ? "" : "s")), or keep the one you have."
+        }
+        public static func waitingToReplace(_ incoming: Pack, _ existing: Pack) -> String {
+            "\(existing.name) is already open with the same id as \(incoming.name). Open Packs to choose which to keep."
+        }
+        public static let replaceOpened = "Replace it"
+        public static let keepOpened = "Keep the one I have"
+        public static func keptOpened(_ existing: Pack) -> String { "Kept \(existing.name) as it was." }
+        public static func alreadyOpen(_ pack: Pack) -> String { "\(pack.name) is already in Packs, exactly as this file has it." }
+        public static func ownPack(_ pack: Pack) -> String {
+            "This is your own class pack, \(pack.name). It is already in Packs under Your class."
+        }
     }
 }

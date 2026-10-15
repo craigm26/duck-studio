@@ -71,7 +71,7 @@ public enum DuckPacks {
         public init(_ a: Square, _ b: Square) { squares = [a, b] }
     }
 
-    public enum Score: String, Sendable {
+    public enum Score: String, CaseIterable, Codable, Sendable {
         /// Fewest board steps, the floor robot's rule.
         case steps
         /// Fewest cards in the row, where Repeat and Your cards pay off.
@@ -106,6 +106,15 @@ public enum DuckPacks {
         /// A row one card swap away from a solution, for Find the bug.
         public let buggy: [DuckCards.Entry]?
         public let hint: String
+        /// One line from whoever wrote the challenge, for the class: optional, never a rule.
+        public internal(set) var note: String? = nil
+    }
+
+    /// Whether a card may be a challenge's `finish_with`: a card the duck does standing still, so
+    /// not a Walk or Turn, and not Start, End, Repeat or End repeat. `Pack.read` holds every file to
+    /// this, and the challenge editor offers only cards that pass it.
+    public static func canFinish(with code: String) -> Bool {
+        !moves.contains(code) && !["start", "end", "repeat", "end_repeat"].contains(code)
     }
 
     public struct Pack: Sendable {
@@ -323,7 +332,7 @@ public enum DuckPacks {
         if let f = c["finish_with"], !(f is NSNull) {
             try need((f as? String).map { cards.contains($0) } ?? false, "\(w): finish_with must be a card in play.")
             let code = f as! String
-            try need(!moves.contains(code) && !["start", "end", "repeat", "end_repeat"].contains(code),
+            try need(canFinish(with: code),
                      "\(w): finish_with is a card the duck does standing still, like Hello.")
             finish = code
         }
@@ -333,9 +342,15 @@ public enum DuckPacks {
         var buggy: [DuckCards.Entry]?
         if let b = c["buggy"], !(b is NSNull) { buggy = try row(b, deck: deck, w, "the buggy row") }
         let hint = try text(c, "hint", w)
+        var note: String?
+        if let n = c["note"], !(n is NSNull) {
+            let line = (n as? String)?.trimmingCharacters(in: .whitespaces) ?? ""
+            try need(!line.isEmpty && !line.contains(where: \.isNewline), "\(w): a note is one line of words, or null.")
+            note = line
+        }
         return Challenge(id: w, name: name, columns: cols, rows: rws, start: Place(at: at, facing: facing), goal: goal,
                          walls: walls, gates: gates, finishWith: finish, par: par!, solution: solution, buggy: buggy,
-                         hint: hint)
+                         hint: hint, note: note)
     }
 
     static func yourCards(_ any: Any?, deck: DuckCards.Deck) throws -> [DuckCards.Card] {

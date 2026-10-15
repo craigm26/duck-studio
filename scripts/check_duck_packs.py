@@ -29,7 +29,13 @@ THIS GUARD CAN FAIL, AND IT WAS WATCHED TO (2026-10-15), each change made by han
   - loop-the-course loop-4's par set 5 -> 12: exit 1, "worse than the plain row";
   - an em dash put in design-a-level's about: exit 1, "dash".
 
-Usage:  python3 scripts/check_duck_packs.py
+A CLASS'S OWN PACK IS CHECKED THE SAME WAY. Given files, it checks those instead: a class pack
+Studio wrote and shared (`class-` and six letters and numbers for an id, written as class.duckpack,
+no lessons) is held to every rule above except the two that are about what this repository ships,
+the file named for its id and 3 to 6 lessons.
+
+Usage:  python3 scripts/check_duck_packs.py                 # every pack this repository ships
+        python3 scripts/check_duck_packs.py FILE.duckpack   # a pack from elsewhere, a class's own
 """
 
 from __future__ import annotations
@@ -47,7 +53,7 @@ SOURCE = ROOT / "StudioKit" / "Sources" / "StudioKit" / "Resources" / "DuckPacks
 DASHES = ("\u2014", "\u2013")
 
 
-def check(path: pathlib.Path, deck: Deck) -> list[str]:
+def check(path: pathlib.Path, deck: Deck, shipped: bool = True) -> list[str]:
     name = path.name
     text = path.read_text(encoding="utf-8")
     problems: list[str] = []
@@ -58,9 +64,9 @@ def check(path: pathlib.Path, deck: Deck) -> list[str]:
         pack = P.Pack.read(text, deck)
     except P.PackError as e:
         return problems + [f"{name}: {e}"]
-    if path.stem != pack.id:
+    if shipped and path.stem != pack.id:
         problems.append(f"{name}: the file is named {path.stem}, and the pack's id is {pack.id}.")
-    if not 3 <= len(pack.lessons) <= 6:
+    if shipped and not 3 <= len(pack.lessons) <= 6:
         problems.append(f"{name}: has {len(pack.lessons)} lessons, and a pack carries 3 to 6.")
     played, _ = pack.lend(deck)
     lent = {y["code"] for y in pack.yours}
@@ -95,13 +101,14 @@ def check(path: pathlib.Path, deck: Deck) -> list[str]:
     return problems
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     deck = Deck.load()
-    files = sorted(SOURCE.glob(f"*.{P.EXTENSION}"))
+    given = [pathlib.Path(a) for a in (argv or [])]
+    files = given or sorted(SOURCE.glob(f"*.{P.EXTENSION}"))
     if not files:
         print(f"check_duck_packs: no packs found in {SOURCE}", file=sys.stderr)
         return 1
-    problems = [p for f in files for p in check(f, deck)]
+    problems = [p for f in files for p in check(f, deck, shipped=not given)]
     if problems:
         print("check_duck_packs:", file=sys.stderr)
         for p in problems:
@@ -113,4 +120,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv[1:]))
