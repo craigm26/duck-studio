@@ -266,3 +266,35 @@ Then `duck_square_cm` = the median distance of one Walk card, the goal becomes a
 enough for the measured spread, and the site prints the board at that size with the spread
 beside it. If the Turn card cannot be made a quarter turn, packs for a real duck treat turns
 and goals as zones and say so.
+
+### First measurement: duckbench, 2026-10-15
+
+`duckbench/sim/cardsize.mjs`: this repo's MuJoCo model of the duck with `alpha_walking.onnx`,
+rows of four identical cards, 2.0 s each, at Studio's own twists (walk 0.3 m/s x share, turn
+1.5 rad/s x share), ten starts at different gait phases. Medians, with the range in brackets.
+
+| card | Slow | Normal | Fast |
+|---|---|---|---|
+| Walk forward | does not move (0.4 cm) | **14 cm** [11 to 38], veers 11 to 15 degrees per card, never fell | 13 to 31 cm, fell in half the rows |
+| Walk back | does not move | does not move (0.1 cm) | 17 to 24 cm, fell in 9 of 40 cards |
+| Turn left | 9 degrees, then nothing | first card 81 degrees [55 to 105], later cards anywhere, fell in 8 of 40 | first card 108 degrees, fell in 17 of 40 |
+| Turn right | 6 degrees, then nothing | first card 81 degrees [62 to 177], fell in 7 of 40 | first card 112 degrees, fell in 16 of 40 |
+
+What it says, for this model only (not Pollen's duck-sim and not a real duck):
+
+- **Slow is a dead band.** 0.1 m/s and 0.5 rad/s sit under the gait's threshold (duckbench
+  measured about 0.25 command before), so a Slow card makes the duck stand still. Speed cards
+  should not be in the youngest packs until that changes.
+- **Only Normal Walk forward is dependable,** about 14 cm per card, but it turns the duck 11 to
+  15 degrees each time. Four cards in a row end well off the line.
+- **Walk back at Normal does not move,** so `duck-maze`'s Walk back challenges cannot run on
+  this duck as timed cards.
+- **Timed turns are not quarter turns and they topple the duck.** The first Normal turn lands
+  near 81 degrees; a second one, started from a moving gait, goes anywhere.
+
+So, for a duck, the board rule needs closed-loop cards: Walk forward = walk until odometry says
+one square, holding heading on the IMU; Turn = turn until the IMU says 90 degrees, slowly enough
+not to fall. Until robotd or the reader can do that, a pack played on a duck uses big goal zones
+and says the duck is approximate. A 14 cm square is also smaller than the duck itself, so a
+duck square will be several Walk cards' worth or a different card length, chosen after the same
+measurement in Pollen's duck-sim and on testers' ducks.
