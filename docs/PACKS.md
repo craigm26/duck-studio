@@ -356,6 +356,81 @@ Only when all three pass does `enabled_on_robot` become `true`, with `validated`
 citing the three results. Until then Studio's board and the paper board are the board rule, and
 a duck runs Walk and Turn as timed cards.
 
+## Measure my duck (`duck-measure/0`)
+
+Rung 3 of "Acceptance", in Studio: Packs, then Measure my duck. It is the one screen that runs
+closed-loop cards on a robot, and it opens by saying it is a test. It needs a duck connected on
+the Robot tab whose `robot.state` carries `odom`; it refuses before anything moves if the duck
+reports no odometry, says it is down, or the card spec is past Pollen's envelope.
+
+- **The grid.** Masking tape on a flat, hard floor: 30 cm squares (the spec's `square_m`), five
+  long and three wide, a start square in the middle of one short end with an arrow down the long
+  side. The duck stands in the middle of the start square facing the arrow before every run.
+  Video of each run, from above or the side, if the tester can.
+- **The rows.** One, two, three and four Walk forward cards, then four Turn left cards, each a
+  `RobotPlan` of closed-loop cards at Normal run by `RobotPlanRunner` (`DuckMeasure.plan`), so it
+  is exactly the controller the switch would turn on.
+- **Ending.** A Stop button cancels at once (the runner always ends in `robot.stop`). A row also
+  ends on its own, the duck commanded still and one sentence said, when a card runs out of time
+  or trims out (the controller's exits), when the pose goes stale, or when robotd's
+  `safety.fallen` says the duck is down. That is the runner's rule for every closed-loop row, in
+  Studio and the card reader alike: a row ends at the first card that does not arrive.
+- **The marks.** After each row the tester types three numbers from the tape: forward (cm from
+  the middle of the start square to the middle of the duck, along the arrow; behind is
+  negative), left (cm left of the arrow's line; right is negative) and heading (degrees turned
+  left from the arrow; right is negative).
+- **The judgement.** `DuckMeasure.evaluate` holds the marked rows to "Acceptance" (10 cm, 15
+  degrees, Walk 8 s and Turn 6 s per card) and says so, sentence by sentence, ending with: one
+  duck and a few runs cannot pass Acceptance alone. Unmarked rows are not judged; odometry is
+  recorded beside the tape, never instead of it.
+
+The report, shared as `duck-measure-<yyyyMMdd-HHmm>.json` (UTC):
+
+```json
+{
+  "format": "duck-measure/0",
+  "made_at": "2026-10-20T16:04:11Z",
+  "app": "1.1 (85)",
+  "bridge": "microduck-bridge 0.4.2",
+  "robotd": null,
+  "policy": "velstand",
+  "envelope": { "source": "pollen-robotics/microduck robotd-params/src/lib.rs, ...",
+                "commit": "34b6e7dc...", "vx": [-0.4, 0.4], "vy": [-0.3, 0.3], "vyaw": [-1, 1] },
+  "spec": { "digest": "sha256:...", "enabled_on_robot": false, "square_m": 0.3 },
+  "grid_cm": 30,
+  "runs": [ {
+    "id": "walk-2", "cards": ["walk_forward", "walk_forward"],
+    "expect": { "forward_cm": 60, "left_cm": 0, "heading_deg": 0 },
+    "ran_at": "2026-10-20T16:01:02Z",
+    "card_log": [ { "card": "walk_forward", "seconds": 2.3, "ended": "reached",
+                    "before": { "x_m": 0, "y_m": 0, "yaw_rad": 0 },
+                    "after":  { "x_m": 0.29, "y_m": 0.01, "yaw_rad": 0.03 } } ],
+    "odom_start": { "x_m": 0, "y_m": 0, "yaw_rad": 0 },
+    "odom_end":   { "x_m": 0.59, "y_m": 0.02, "yaw_rad": 0.04 },
+    "odometry": { "forward_cm": 59, "left_cm": 2, "heading_deg": 2.3 },
+    "ended": "finished", "said": null,
+    "tester": { "forward_cm": 63, "left_cm": -4, "heading_deg": 5 }
+  } ],
+  "evaluation": { "ran": 1, "judged": 1, "position_within": 1, "heading_within": 1, "in_time": 1,
+                  "fell": 0, "ended_badly": 0, "ended_badly_said": 0, "said": ["..."] }
+}
+```
+
+- `app` is the app's version and build; `bridge` the bridge's greeting, when connected through
+  one; `robotd` its version, `null` while robotd does not report one; `policy` the last
+  `robot.state` `policy`.
+- `envelope` is the `pollen-pad-drive.json` the app shipped with; `spec.digest` is the sha256 of
+  the `duck-card-loop.json` bytes that ran.
+- `card_log[].ended` is `reached`, `lost`, `fell`, `out of time` or `trimmed out`; `before` and
+  `after` are robotd's `odom.position` and `odom.yaw` (the trunk IMU's yaw) when the card began and
+  when it ended, before the still moment after it; `seconds` is the card's own time.
+- `ended` is `finished`, `stopped` (a card did not arrive; `said` says why), `refused` or
+  `cancelled` (Stop). `tester` is absent until all three marks are typed.
+- `odometry` is `odom_end` in `odom_start`'s frame, for comparing with `tester`.
+
+Code: `StudioKit/Sources/StudioKit/DuckMeasure.swift` (protocol, run, report, evaluation;
+`DuckMeasureTests`), `DuckStudio/Sources/MeasureDuckView.swift` (the screen, thin).
+
 ## Sizing (2026-10-15: measured in a simulator, not on a duck)
 
 The board rule is exact; the duck is not. What is measured, each as a median with its spread
@@ -407,9 +482,11 @@ stop each sample must produce (`cardreader/tests/make_cardloop_vectors.py` write
   minus a quarter turn. Within `stop_early_deg` of it: hold still for `settle_s`; then done if
   within `tolerance_deg`, else up to `trims` trims at `trim_rate` (stopping `trim_stop_early_deg`
   short), each followed by a settle; out of trims is "trimmed out", and `max_s` is "out of time".
-  Either is said, and the row goes on.
+  Either is said, and the row stops there (below: a row ends at the first card that does not
+  arrive; until 2026-10-15 the row went on).
 - **Between cards** the duck holds still for `between_s`. Commands go at `control_hz` (20 Hz); a
-  pose older than `stale_s` mid-card stops the card ("The duck stopped reporting where it is").
+  pose older than `stale_s` mid-card stops the card and the row ("The duck stopped reporting
+  where it is, so the row stopped there.").
 - **Pollen's pad envelope bounds every card.** `pollen-pad-drive.json` (StudioKit
   `Resources/DuckCards/`, copied byte for byte to `cardreader/duckcards/`) is
   `PadDriveParams::default()` in pollen-robotics/microduck `robotd-params/src/lib.rs` (lines 144
@@ -436,7 +513,12 @@ stop each sample must produce (`cardreader/tests/make_cardloop_vectors.py` write
   stays the board rule beside that sentence. Tests on both sides pin the default to false and the
   sentence. Two ways run them on a robot anyway, both labelled: the reader's developer flag
   `watch --measured-cards` (for duck-sim work; it says "DEVELOPER: --measured-cards is on." when
-  it starts), and Studio's "Measure my duck" screen, which is a test and says so. Studio has no
+  it starts), and Studio's "Measure my duck" screen, which is a test and says so.
+- **A row ends at the first card that does not arrive**: out of time, trimmed out, a pose gone
+  stale (mid-card, or missing when the next card starts), or robotd's `safety.fallen`. The duck
+  is commanded still, one sentence says which (`RobotPlanRunner.CardEnd.said`, `runner.ENDED`,
+  the same words), and the row stops there (`Outcome.stopped`; the reader returns "stopped at
+  ..."). A row on a duck that never reported odometry runs timed from its first card, as below. Studio has no
   developer setting to hang a switch on, so it offers none. The switch turns on only when every
   rung of "Acceptance" passes, with `validated` citing the results.
 - **When robotd does not report odometry** (no `odom` in its state, as from a robotd older than

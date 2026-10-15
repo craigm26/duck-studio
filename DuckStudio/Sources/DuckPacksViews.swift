@@ -68,6 +68,18 @@ struct DuckPacksView: View {
             }
 
             Section {
+                NavigationLink {
+                    MeasureDuckView(robot: robot, stopDriving: stopDriving)
+                } label: {
+                    Label(DuckMeasure.Words.entry, systemImage: "ruler")
+                }
+                .frame(minHeight: DesignMetric.minimumTarget)
+            } footer: {
+                Text(DuckMeasure.Words.entryFooter).foregroundStyle(Theme.textSecondary)
+            }
+            .listRowBackground(Theme.surfacePrimary)
+
+            Section {
                 if let mine = store.classPack {
                     link(mine, isClass: true)
                 } else {
