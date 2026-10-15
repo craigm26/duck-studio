@@ -1,0 +1,151 @@
+{
+  "format": "duck-pack/0",
+  "id": "get-to-the-pond",
+  "name": "Get to the pond",
+  "grades": "PreK to K",
+  "grade_from": -1,
+  "grade_to": 0,
+  "vocabulary": "r001",
+  "license": "CC-BY-4.0",
+  "credit": "Duck Cards, from microduckstudio.com",
+  "about": "A first game of three by three squares: lay Walk and Turn cards in a row to get the duck to the pond, in as few steps as you can.",
+  "cards": ["start", "end", "walk_forward", "turn_left", "turn_right"],
+  "score": "steps",
+  "board": {"columns": 3, "rows": 3, "square_cm": 30, "duck_square_cm": null},
+  "challenges": [
+    {
+      "id": "pond-1",
+      "name": "First waddle",
+      "start": {"at": [1, 2], "facing": "north"},
+      "goal": [1, 0],
+      "walls": [],
+      "gates": [],
+      "finish_with": null,
+      "par": 2,
+      "solution": [{"card": "walk_forward"}, {"card": "walk_forward"}],
+      "buggy": null,
+      "hint": "The pond is straight ahead. How many squares away is it?"
+    },
+    {
+      "id": "pond-2",
+      "name": "Turn to the bread",
+      "start": {"at": [0, 1], "facing": "north"},
+      "goal": [1, 1],
+      "walls": [],
+      "gates": [],
+      "finish_with": null,
+      "par": 2,
+      "solution": [{"card": "turn_right"}, {"card": "walk_forward"}],
+      "buggy": null,
+      "hint": "The bread is beside the duck, not in front. Which way does the duck turn to face it?"
+    },
+    {
+      "id": "pond-3",
+      "name": "Corner pond",
+      "start": {"at": [0, 2], "facing": "north"},
+      "goal": [2, 0],
+      "walls": [],
+      "gates": [],
+      "finish_with": null,
+      "par": 5,
+      "solution": [
+        {"card": "walk_forward"},
+        {"card": "walk_forward"},
+        {"card": "turn_right"},
+        {"card": "walk_forward"},
+        {"card": "walk_forward"}
+      ],
+      "buggy": null,
+      "hint": "Walk up the side first, then turn. Stand up and be the duck if you are not sure which way is right."
+    },
+    {
+      "id": "pond-4",
+      "name": "Round the reeds",
+      "start": {"at": [0, 2], "facing": "north"},
+      "goal": [0, 0],
+      "walls": [{"between": [[0, 2], [0, 1]]}],
+      "gates": [],
+      "finish_with": null,
+      "par": 7,
+      "solution": [
+        {"card": "turn_right"},
+        {"card": "walk_forward"},
+        {"card": "turn_left"},
+        {"card": "walk_forward"},
+        {"card": "walk_forward"},
+        {"card": "turn_left"},
+        {"card": "walk_forward"}
+      ],
+      "buggy": null,
+      "hint": "Reeds block the way up. Step to the side of them first."
+    },
+    {
+      "id": "pond-5",
+      "name": "Nest behind the log",
+      "start": {"at": [1, 0], "facing": "south"},
+      "goal": [1, 2],
+      "walls": [{"between": [[1, 1], [1, 2]]}, {"between": [[0, 1], [0, 2]]}],
+      "gates": [],
+      "finish_with": null,
+      "par": 7,
+      "solution": [
+        {"card": "walk_forward"},
+        {"card": "turn_left"},
+        {"card": "walk_forward"},
+        {"card": "turn_right"},
+        {"card": "walk_forward"},
+        {"card": "turn_right"},
+        {"card": "walk_forward"}
+      ],
+      "buggy": null,
+      "hint": "The log is across two squares. Find the gap and go around."
+    },
+    {
+      "id": "pond-6",
+      "name": "Under the little bridge",
+      "start": {"at": [0, 0], "facing": "east"},
+      "goal": [2, 2],
+      "walls": [{"between": [[1, 0], [1, 1]]}],
+      "gates": [{"at": [1, 2], "axis": "ew"}],
+      "finish_with": null,
+      "par": 6,
+      "solution": [
+        {"card": "turn_right"},
+        {"card": "walk_forward"},
+        {"card": "walk_forward"},
+        {"card": "turn_left"},
+        {"card": "walk_forward"},
+        {"card": "walk_forward"}
+      ],
+      "buggy": null,
+      "hint": "The duck has to walk through the bridge, going across the board, before it gets home."
+    }
+  ],
+  "lessons": [
+    {
+      "title": "Be the duck",
+      "skill": "Sequences",
+      "body": "Tape a three by three grid on the floor, 30 cm squares. One child is the duck and stands on the start square, facing the way the challenge says. The class lays the cards in a row and reads them aloud one at a time, and the duck does exactly what each card says, nothing more.",
+      "ask": "Did the duck end up where we meant? Which card took it somewhere else?"
+    },
+    {
+      "title": "Which way is right?",
+      "skill": "Left and right",
+      "body": "Put a sticker on every child's right hand. Before a Turn card goes down, everyone turns their own body the way the duck would. A Turn card turns the duck where it stands; it does not move it to a new square.",
+      "ask": "When the duck is facing you, is its right the same as your right?"
+    },
+    {
+      "title": "Count the squares",
+      "skill": "Counting",
+      "body": "Before any card goes down, point and count the squares from the duck to the pond, out loud. Lay that many Walk forward cards. Then act it out to check the count.",
+      "ask": "How did you know how many Walk cards you needed?"
+    },
+    {
+      "title": "Fewest steps",
+      "skill": "Fewest steps",
+      "body": "Two groups solve Corner pond and count their cards. Par on the activity card is the fewest steps any row can take. Is either row longer than par? Find the extra cards.",
+      "ask": "Why can two rows get to the same pond with a different number of steps?"
+    }
+  ],
+  "yours": []
+}

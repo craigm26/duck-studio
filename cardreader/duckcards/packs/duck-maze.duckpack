@@ -1,0 +1,279 @@
+{
+  "format": "duck-pack/0",
+  "id": "duck-maze",
+  "name": "Duck maze",
+  "grades": "1 to 2",
+  "grade_from": 1,
+  "grade_to": 2,
+  "vocabulary": "r001",
+  "license": "CC-BY-4.0",
+  "credit": "Duck Cards, from microduckstudio.com",
+  "about": "Ten mazes on a four by four board, with fences, tunnels and a duck that can walk backward: find the row with the fewest steps.",
+  "cards": [
+    "start",
+    "end",
+    "walk_forward",
+    "walk_backward",
+    "turn_left",
+    "turn_right",
+    "stop",
+    "greet",
+    "kick_right"
+  ],
+  "score": "steps",
+  "board": {"columns": 4, "rows": 4, "square_cm": 30, "duck_square_cm": null},
+  "challenges": [
+    {
+      "id": "maze-1",
+      "name": "Long walk to the reeds",
+      "start": {"at": [0, 3], "facing": "north"},
+      "goal": [0, 0],
+      "walls": [],
+      "gates": [],
+      "finish_with": null,
+      "par": 3,
+      "solution": [{"card": "walk_forward"}, {"card": "walk_forward"}, {"card": "walk_forward"}],
+      "buggy": null,
+      "hint": "Count the squares to the reeds before you lay a card. One Walk forward is one square."
+    },
+    {
+      "id": "maze-2",
+      "name": "Back into the nest",
+      "start": {"at": [2, 1], "facing": "north"},
+      "goal": [2, 3],
+      "walls": [],
+      "gates": [],
+      "finish_with": null,
+      "par": 2,
+      "solution": [{"card": "walk_backward"}, {"card": "walk_backward"}],
+      "buggy": null,
+      "hint": "The nest is behind the duck. A duck can walk backward without turning round."
+    },
+    {
+      "id": "maze-3",
+      "name": "The garden fence",
+      "start": {"at": [1, 3], "facing": "north"},
+      "goal": [2, 3],
+      "walls": [{"between": [[1, 3], [2, 3]]}],
+      "gates": [],
+      "finish_with": null,
+      "par": 5,
+      "solution": [
+        {"card": "walk_forward"},
+        {"card": "turn_right"},
+        {"card": "walk_forward"},
+        {"card": "turn_right"},
+        {"card": "walk_forward"}
+      ],
+      "buggy": null,
+      "hint": "The fence is only one square tall. Walk past the end of it and come back down."
+    },
+    {
+      "id": "maze-4",
+      "name": "Back out of the boathouse",
+      "start": {"at": [1, 0], "facing": "north"},
+      "goal": [1, 3],
+      "walls": [
+        {"between": [[0, 0], [1, 0]]},
+        {"between": [[1, 0], [2, 0]]},
+        {"between": [[0, 1], [1, 1]]},
+        {"between": [[1, 1], [2, 1]]},
+        {"between": [[1, 2], [2, 2]]}
+      ],
+      "gates": [],
+      "finish_with": null,
+      "par": 3,
+      "solution": [{"card": "walk_backward"}, {"card": "walk_backward"}, {"card": "walk_backward"}],
+      "buggy": null,
+      "hint": "The boathouse is narrow. Turning round takes two cards; is there a way with none?"
+    },
+    {
+      "id": "maze-5",
+      "name": "Puddle path",
+      "start": {"at": [0, 0], "facing": "south"},
+      "goal": [3, 0],
+      "walls": [
+        {"between": [[0, 1], [1, 1]]},
+        {"between": [[1, 0], [2, 0]]},
+        {"between": [[1, 1], [2, 1]]},
+        {"between": [[2, 2], [2, 3]]}
+      ],
+      "gates": [],
+      "finish_with": null,
+      "par": 9,
+      "solution": [
+        {"card": "walk_forward"},
+        {"card": "walk_forward"},
+        {"card": "turn_left"},
+        {"card": "walk_forward"},
+        {"card": "walk_forward"},
+        {"card": "walk_forward"},
+        {"card": "turn_left"},
+        {"card": "walk_forward"},
+        {"card": "walk_forward"}
+      ],
+      "buggy": null,
+      "hint": "The puddles make a wiggly path. Trace it with a finger first, then lay the cards along it."
+    },
+    {
+      "id": "maze-6",
+      "name": "Through the tunnel",
+      "start": {"at": [0, 3], "facing": "north"},
+      "goal": [3, 0],
+      "walls": [],
+      "gates": [{"at": [1, 1], "axis": "ew"}],
+      "finish_with": null,
+      "par": 8,
+      "solution": [
+        {"card": "walk_forward"},
+        {"card": "walk_forward"},
+        {"card": "turn_right"},
+        {"card": "walk_forward"},
+        {"card": "walk_forward"},
+        {"card": "walk_forward"},
+        {"card": "turn_left"},
+        {"card": "walk_forward"}
+      ],
+      "buggy": null,
+      "hint": "The tunnel only goes one way: across the board. Find the square to walk in from."
+    },
+    {
+      "id": "maze-7",
+      "name": "Hello at the pond",
+      "start": {"at": [3, 3], "facing": "north"},
+      "goal": [0, 1],
+      "walls": [{"between": [[3, 1], [3, 2]]}, {"between": [[2, 1], [2, 2]]}, {"between": [[1, 2], [1, 3]]}],
+      "gates": [],
+      "finish_with": "greet",
+      "par": 8,
+      "solution": [
+        {"card": "turn_left"},
+        {"card": "walk_forward"},
+        {"card": "walk_forward"},
+        {"card": "walk_forward"},
+        {"card": "turn_right"},
+        {"card": "walk_forward"},
+        {"card": "walk_forward"},
+        {"card": "greet"}
+      ],
+      "buggy": null,
+      "hint": "When the duck gets to the pond it says hello, so the last card is Hello."
+    },
+    {
+      "id": "maze-8",
+      "name": "Two tunnels",
+      "start": {"at": [0, 0], "facing": "east"},
+      "goal": [0, 3],
+      "walls": [{"between": [[0, 0], [0, 1]]}],
+      "gates": [{"at": [2, 1], "axis": "ns"}, {"at": [1, 2], "axis": "ew"}],
+      "finish_with": null,
+      "par": 10,
+      "solution": [
+        {"card": "walk_forward"},
+        {"card": "walk_forward"},
+        {"card": "turn_right"},
+        {"card": "walk_forward"},
+        {"card": "walk_forward"},
+        {"card": "turn_right"},
+        {"card": "walk_forward"},
+        {"card": "walk_forward"},
+        {"card": "turn_left"},
+        {"card": "walk_forward"}
+      ],
+      "buggy": null,
+      "hint": "Both tunnels, in any order. Which tunnel is closer to the duck?"
+    },
+    {
+      "id": "maze-9",
+      "name": "Kick it in the pond",
+      "start": {"at": [1, 3], "facing": "north"},
+      "goal": [3, 1],
+      "walls": [{"between": [[1, 2], [1, 1]]}, {"between": [[2, 3], [3, 3]]}, {"between": [[2, 2], [3, 2]]}],
+      "gates": [{"at": [2, 1], "axis": "ew"}],
+      "finish_with": "kick_right",
+      "par": 10,
+      "solution": [
+        {"card": "walk_forward"},
+        {"card": "turn_left"},
+        {"card": "walk_forward"},
+        {"card": "turn_right"},
+        {"card": "walk_forward"},
+        {"card": "turn_right"},
+        {"card": "walk_forward"},
+        {"card": "walk_forward"},
+        {"card": "walk_forward"},
+        {"card": "kick_right"}
+      ],
+      "buggy": null,
+      "hint": "Walk through the tunnel to the pond, then kick. Kick, right is the last card."
+    },
+    {
+      "id": "maze-10",
+      "name": "The big maze",
+      "start": {"at": [0, 3], "facing": "north"},
+      "goal": [3, 3],
+      "walls": [
+        {"between": [[0, 1], [1, 1]]},
+        {"between": [[1, 2], [1, 3]]},
+        {"between": [[2, 3], [3, 3]]},
+        {"between": [[2, 0], [2, 1]]},
+        {"between": [[3, 1], [3, 2]]}
+      ],
+      "gates": [{"at": [1, 0], "axis": "ew"}, {"at": [3, 2], "axis": "ns"}],
+      "finish_with": null,
+      "par": 15,
+      "solution": [
+        {"card": "walk_forward"},
+        {"card": "walk_forward"},
+        {"card": "walk_forward"},
+        {"card": "turn_right"},
+        {"card": "walk_forward"},
+        {"card": "turn_right"},
+        {"card": "walk_forward"},
+        {"card": "walk_forward"},
+        {"card": "turn_left"},
+        {"card": "walk_forward"},
+        {"card": "walk_forward"},
+        {"card": "turn_right"},
+        {"card": "walk_forward"},
+        {"card": "walk_backward"},
+        {"card": "walk_forward"}
+      ],
+      "buggy": null,
+      "hint": "Two tunnels and a lot of fences. Find the tunnels first, then join them up."
+    }
+  ],
+  "lessons": [
+    {
+      "title": "Plan on paper first",
+      "skill": "Sequences",
+      "body": "Draw the maze on squared paper. Draw the duck's path as one pencil line, then write a letter for each card along it: F, B, L, R. Only then lay out the cards and act the row out.",
+      "ask": "Where did the pencil line and the cards disagree?"
+    },
+    {
+      "title": "A duck that backs up",
+      "skill": "Walk back",
+      "body": "Play Back into the nest twice: once turning the duck round, once with Walk back. Count the steps both times. Then try Back out of the boathouse, where there is no room to turn.",
+      "ask": "When is walking backward better than turning round?"
+    },
+    {
+      "title": "Through the tunnel",
+      "skill": "Gates",
+      "body": "Make a tunnel from a shoebox with both ends cut off and stand it on its square. The duck has to walk through it the long way. Walking in from the side does not count, and neither does starting inside it.",
+      "ask": "From which squares can the duck walk into the tunnel?"
+    },
+    {
+      "title": "Bump!",
+      "skill": "Debugging",
+      "body": "When a row walks into a fence or off the board, the duck stops right there. Groups trade rows, act them out, and point to the card that bumped, without starting again from the beginning.",
+      "ask": "How did you find the card that bumped?"
+    },
+    {
+      "title": "Hello at the end",
+      "skill": "Endings",
+      "body": "Some challenges say how to finish: Hello at the pond, or a kick at the ball. That card goes last, after the duck has arrived, and it counts as a step.",
+      "ask": "What happens if Hello comes before the duck gets there?"
+    }
+  ],
+  "yours": []
+}

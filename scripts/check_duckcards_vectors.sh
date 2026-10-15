@@ -13,8 +13,18 @@
 # exists on one side only. `make_vectors.py --check` (run here too) fails when
 # the Python reader would now write different vectors than the ones on disk.
 #
+# THE PACKS TRAVEL THE SAME WAY. StudioKit ships the Duck Card packs
+# (`Resources/DuckPacks/*.duckpack`), the reader carries the same files in
+# `cardreader/duckcards/packs`, and the pack vectors (`pack_*.json`) sit beside
+# the card vectors. A pack on one side only, or one byte apart, fails here; then
+# `check_duck_packs.py` checks every par and every row in them.
+#
 # THIS GUARD CAN FAIL, AND IT WAS WATCHED TO: deleting one fixture vector, and
 # separately changing one byte of the StudioKit deck, each made it exit 1.
+# 2026-10-15, for the packs: changing one byte of the reader's copy of
+# duck-maze.duckpack, deleting the reader's copy of loop-the-course.duckpack,
+# and deleting the fixture copy of pack_solved.json each made it exit 1; so did
+# a wrong par in get-to-the-pond, through check_duck_packs.py.
 #
 # Usage:  scripts/check_duckcards_vectors.sh
 set -euo pipefail
@@ -38,6 +48,19 @@ if ! cmp -s "$DECK" "$KIT_DECK"; then
   fail=1
 fi
 
+PACKS="$ROOT/cardreader/duckcards/packs"
+KIT_PACKS="$ROOT/StudioKit/Sources/StudioKit/Resources/DuckPacks"
+if ! diff -rq "$KIT_PACKS" "$PACKS" >/dev/null; then
+  echo "check_duckcards_vectors: the reader's packs differ from StudioKit's:" >&2
+  diff -rq "$KIT_PACKS" "$PACKS" >&2 || true
+  echo "  copy them: cp $KIT_PACKS/*.duckpack $PACKS/" >&2
+  fail=1
+fi
+
+if command -v python3 >/dev/null; then
+  python3 "$ROOT/scripts/check_duck_packs.py" || fail=1
+fi
+
 if command -v python3 >/dev/null && python3 -c "import numpy, pupil_apriltags, cv2" 2>/dev/null; then
   (cd "$ROOT/cardreader/tests" && python3 make_vectors.py --check) || fail=1
 else
@@ -48,4 +71,4 @@ fi
 if [ "$fail" -ne 0 ]; then
   exit 1
 fi
-echo "check_duckcards_vectors: $(ls "$SRC" | wc -l | tr -d ' ') vectors and the deck agree on both sides"
+echo "check_duckcards_vectors: $(ls "$SRC" | wc -l | tr -d ' ') vectors, the deck and $(ls "$KIT_PACKS" | wc -l | tr -d ' ') packs agree on both sides"
