@@ -50,6 +50,20 @@ final class DuckCardsStore: ObservableObject {
         classDeck = held
     }
 
+    /// A pack's Your cards, lent into the deck the way `Pack.lent` lends them. Returns the numbers
+    /// the class already saved something else for; unless `replacing`, those keep the class's own
+    /// meaning, so a screen can ask. Throws the kit's refusal.
+    @discardableResult
+    func lend(_ pack: DuckPacks.Pack, replacing: Bool) throws -> [Int] {
+        guard var held = classDeck else { throw DuckCards.Refusal.noDeck }
+        let (lent, clashes) = try pack.lent(to: held.deck, replacing: replacing)
+        if lent.source != held.deck.source {
+            try held.take(lent.source)
+            classDeck = held
+        }
+        return clashes
+    }
+
     /// A `.duckcards` file through the import door, as the sentence that says what happened.
     func take(_ data: Data) -> String {
         let said: String

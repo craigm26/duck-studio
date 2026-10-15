@@ -191,11 +191,20 @@ struct DuckCameraCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             // THE CLASS DECK DOES NOT NEED A CAMERA. Sharing it or forgetting a card is something a
-            // teacher does at a desk, so the door is here whether or not a duck is in view.
-            Button {
-                opened = DuckCardsOpening(kind: .deck, held: nil)
-            } label: {
-                Label(DuckCards.Words.classDeck, systemImage: "rectangle.stack")
+            // teacher does at a desk, so the door is here whether or not a duck is in view. Nor do
+            // the packs: a challenge is laid and played on the board, and takes the camera's row
+            // only when there is one.
+            HStack(spacing: Theme.spacing(.standard)) {
+                Button {
+                    opened = DuckCardsOpening(kind: .deck, held: nil)
+                } label: {
+                    Label(DuckCards.Words.classDeck, systemImage: "rectangle.stack")
+                }
+                Button {
+                    opened = DuckCardsOpening(kind: .packs, held: nil)
+                } label: {
+                    Label(DuckPacks.Words.packs, systemImage: "square.grid.3x3")
+                }
             }
             .buttonStyle(.borderless)
             .font(.footnote)
@@ -204,7 +213,7 @@ struct DuckCameraCard: View {
         }
         .onDisappear { feed.stop() }
         .sheet(item: $opened) { opening in
-            DuckCardsSheet(opening: opening, robot: robot, models: models, stopDriving: stopDriving)
+            DuckCardsSheet(opening: opening, robot: robot, models: models, stopDriving: stopDriving, camera: feed)
         }
     }
 

@@ -130,6 +130,11 @@ extension DuckPacks {
             "Remove card \(index + 1), \(name(entry, deck: deck))"
         }
 
+        /// A card's line in the row: its place, counted from 1, and its name.
+        public static func rowCard(_ index: Int, _ entry: DuckCards.Entry, deck: DuckCards.Deck) -> String {
+            "\(index + 1). \(name(entry, deck: deck))"
+        }
+
         /// One card of the row: its name, what is under it.
         public static func name(_ entry: DuckCards.Entry, deck: DuckCards.Deck) -> String {
             let card = deck.card(code: entry.card)?.name ?? entry.card
@@ -206,7 +211,6 @@ extension DuckPacks {
         public static let design = "Design a challenge"
         public static let designFooter =
             "Draw a board of your own. It is checked and saved in \(ClassPack.name), which you can share as a .duckpack file."
-        public static let editCopy = "Draw a copy"
         public static let toolHeading = "Tap to place"
 
         public enum Tool: String, CaseIterable, Sendable {
