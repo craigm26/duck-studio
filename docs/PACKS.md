@@ -289,6 +289,70 @@ sentence), `bundled`, `Pack.lent(to:replacing:)`, `Pack.notInPlay(_:deck:)`, `st
   measurement; until then Studio's board is the board rule, and the sim duck runs the row
   beside it.
 
+## Acceptance (pre-registered 2026-10-15, before any result is in)
+
+Closed-loop Walk and Turn cards ship switched off for real ducks (`enabled_on_robot: false` in
+`duck-card-loop.json`). They are switched on only when every rung of the ladder below has passed
+every criterion below. These criteria were written down before Pollen's duck-sim or any real
+duck produced a number, and they are not loosened to fit a result. A change to them is a new
+dated paragraph here saying what changed and why, with the old text kept.
+
+### What a row must do
+
+A row is one program of Walk and Turn cards (the rows are listed under "Rows", below), run from a
+standing duck. Its error is where the duck ended against the board rule (one square per Walk
+card, a quarter turn per Turn card) at 30 cm a square, in the row's own start frame, measured by
+ground truth in a simulator and by tape on a floor; never by the duck's own odometry.
+
+| criterion | pass |
+|---|---|
+| end position | within one third of a square (10 cm at 30 cm) of the board's square, in **at least 95%** of rows in every condition |
+| end heading | within **15 degrees** of the board's heading, in **at least 95%** of rows in every condition |
+| falls | the **95% Wilson upper bound** (two-sided, z = 1.96) on the fall rate is **at most 1%** in every condition |
+| time, Walk card | each Walk card done in **at most 8 s** |
+| time, Turn card | each Turn card done in **at most 6 s** |
+| ending badly | every row that is stuck, loses its state (stale), falls, or cannot reach (out of time, trimmed out) ends with the duck commanded still and **one sentence** saying which; 100% of such rows |
+
+- The 95% figures are the observed share of rows. Each result also reports its Wilson interval.
+- The fall bound needs enough rows: with no falls at all, the upper bound is z^2 / (n + z^2),
+  which is 1.9% at 200 rows and first reaches 1% at **381 rows**. One fall needs 563
+  rows; two, 726. So 200 rows per condition can pass position and heading but cannot pass
+  falls alone; a condition that is to pass falls runs at least 381 rows.
+- The time bounds (Walk 8 s, Turn 6 s) are pre-registered as stated. If the data later justify
+  another bound, that is a new dated paragraph here with the data cited, not an edit to this one.
+  A card past its bound fails its row on time even if it arrives.
+- A row that ends badly but safely counts as a failure for position and heading (and for falls,
+  if it fell). Ending safely is its own criterion, and it must hold for every such row.
+
+### Rows
+
+The seven rows duckbench ran (F F L F R F; F R F R F R F R; F L L F; F F B; F(slow) F(fast)
+L(slow) F R(fast) B(slow); L L R R; F F F F), plus the Measure my duck rows (one, two, three and
+four Walk forward cards; four Turn left cards). F is Walk forward, B Walk back, L and R Turn left
+and right; a speed in brackets is a Speed card under it. Rows with Walk back are reported
+separately and must pass on their own.
+
+### The evidence ladder
+
+1. **Pollen's duck-sim, Monte Carlo.** Pollen's own robotd in duck-sim, computing `odom` itself,
+   with its standing policy between cards: at least **200 rows per condition** (381 for falls, as
+   above), each row randomized in ground friction, state latency, IMU yaw bias and drift,
+   odometry noise, the gait phase the row starts at, and the duck's mass. A condition is one set
+   of those ranges and one state rate (Studio subscribes at 10 Hz; the reader reads 20 Hz). The
+   ranges are fixed and written into the result before the rows run; at least one condition is
+   nominal and at least one is stressed (the far ends of every range together).
+2. **Reproduced on a second, clean machine.** The same commit, conditions and seeds, run again
+   from a fresh checkout on a different machine, passing the same criteria. A result one machine
+   produced is not yet a result.
+3. **A real tester duck on a taped 30 cm grid.** The Measure my duck protocol (Studio, below),
+   judged by tape-measured end positions and headings and by video of every run, against the
+   same position, heading, time and ending-badly criteria. A handful of runs cannot bound falls
+   at 1%: on a real duck any fall stops this rung and the work goes back to rung 1.
+
+Only when all three pass does `enabled_on_robot` become `true`, with `validated` set to a line
+citing the three results. Until then Studio's board and the paper board are the board rule, and
+a duck runs Walk and Turn as timed cards.
+
 ## Sizing (2026-10-15: measured in a simulator, not on a duck)
 
 The board rule is exact; the duck is not. What is measured, each as a median with its spread
