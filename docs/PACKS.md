@@ -242,3 +242,27 @@ sentence), `bundled`, `Pack.lent(to:replacing:)`, `Pack.notInPlay(_:deck:)`, `st
 - Physics-sim goal checks. Placing the board in Studio's simulated world needs the same
   measurement; until then Studio's board is the board rule, and the sim duck runs the row
   beside it.
+
+## Sizing (open, 2026-10-15)
+
+The board rule is exact; the duck is not. Before any pack prints a board for a duck, these are
+measured, each as a median with its spread, never one run:
+
+1. **One Walk card.** Walk forward and Walk back at slow, normal and fast for `defaultSeconds`
+   (2.0 s): distance along the heading, drift across it, heading change. In duckbench (this
+   repo's MuJoCo model of Pollen's duck), then in Pollen's duck-sim, then on testers' ducks.
+   Known before measuring: walking speeds of 0.078 to 0.23 m/s across policies, so 16 to 46 cm
+   per card.
+2. **One Turn card.** duckbench found that commanded yaw with no forward speed saturates at
+   about 14.4 degrees (`duckbench/sim/walk_to.py`). A timed Turn card is therefore not a quarter
+   turn. The question is whether a Turn card can be closed on the IMU's yaw ("turn until 90
+   degrees, arcing if it must") and what square that arc needs.
+3. **The footprint.** The duck is about 25 cm tall and 737 to 800 g; a square must hold it
+   with room to drift.
+4. **Real ducks.** A "Measure my duck" check in Studio: 1 to 4 Walk cards and four Turns, with
+   robotd's own odometry and a tape-measured mark, sent back by the tester.
+
+Then `duck_square_cm` = the median distance of one Walk card, the goal becomes a zone wide
+enough for the measured spread, and the site prints the board at that size with the spread
+beside it. If the Turn card cannot be made a quarter turn, packs for a real duck treat turns
+and goals as zones and say so.
