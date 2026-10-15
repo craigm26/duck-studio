@@ -191,6 +191,12 @@ final class LibraryModel: ObservableObject {
                        + "one."
         case "onnx":
             accept(data, named: name, origin: nil)
+        case DuckCards.ClassDeck.fileExtension:
+            // A CLASS'S DUCK CARDS DECK, WHICH IS NOT A LIBRARY ITEM. It is the deck file that says
+            // what the class's Your cards mean, and it replaces the one Studio reads cards with —
+            // read the way the duck reads one, refused in the reader's words. Said here, where
+            // every other arrival is said.
+            lastImport = DuckCardsStore.shared.take(data)
         default:
             lastImport = "\(name) was not added. Microduck Studio opens .onnx policies, .duckintent "
                        + "recordings and .duckmove motions — if this is a policy under another "

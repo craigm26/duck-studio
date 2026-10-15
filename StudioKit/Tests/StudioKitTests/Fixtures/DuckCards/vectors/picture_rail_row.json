@@ -1,0 +1,171 @@
+{
+ "counts": {},
+ "deck_cards": [],
+ "detections": [
+  {
+   "corners": [
+    [
+     340.99,
+     699.54
+    ],
+    [
+     311.73,
+     699.39
+    ],
+    [
+     311.82,
+     728.04
+    ],
+    [
+     340.99,
+     727.9
+    ]
+   ],
+   "hamming": 0,
+   "id": 0,
+   "margin": 72.24
+  },
+  {
+   "corners": [
+    [
+     510.03,
+     699.45
+    ],
+    [
+     480.95,
+     699.43
+    ],
+    [
+     481.02,
+     728.05
+    ],
+    [
+     509.95,
+     727.95
+    ]
+   ],
+   "hamming": 0,
+   "id": 2,
+   "margin": 74.15
+  },
+  {
+   "corners": [
+    [
+     348.14,
+     923.9
+    ],
+    [
+     319.01,
+     924.04
+    ],
+    [
+     318.77,
+     953.11
+    ],
+    [
+     347.95,
+     952.99
+    ]
+   ],
+   "hamming": 0,
+   "id": 20,
+   "margin": 73.72
+  },
+  {
+   "corners": [
+    [
+     171.18,
+     699.53
+    ],
+    [
+     141.84,
+     699.3
+    ],
+    [
+     142.11,
+     727.99
+    ],
+    [
+     170.97,
+     727.93
+    ]
+   ],
+   "hamming": 0,
+   "id": 100,
+   "margin": 79.92
+  },
+  {
+   "corners": [
+    [
+     679.08,
+     699.46
+    ],
+    [
+     649.95,
+     699.44
+    ],
+    [
+     649.93,
+     728.19
+    ],
+    [
+     678.97,
+     728.03
+    ]
+   ],
+   "hamming": 0,
+   "id": 101,
+   "margin": 78.58
+  }
+ ],
+ "expect": {
+  "asks": [],
+  "complete": true,
+  "kind": "row",
+  "notes": [],
+  "on_fall": [],
+  "plan": {
+   "format": "duck-intent-plan/0",
+   "model": "duck-cards/0",
+   "request": "Walk forward, slow. Turn left.",
+   "steps": [
+    {
+     "clause": "Walk forward, slow",
+     "confidence": {
+      "action": 1.0,
+      "head": 1.0,
+      "speed": 1.0
+     },
+     "labels": {
+      "action": "walk_forward",
+      "head": "straight",
+      "speed": "slow"
+     }
+    },
+    {
+     "clause": "Turn left",
+     "confidence": {
+      "action": 1.0,
+      "head": 1.0,
+      "speed": 1.0
+     },
+     "labels": {
+      "action": "turn_left",
+      "head": "straight",
+      "speed": "normal"
+     }
+    }
+   ]
+  },
+  "rows": [
+   [
+    "start",
+    "walk_forward/slow",
+    "turn_left",
+    "end"
+   ]
+  ],
+  "words": "Walk forward, slow. Turn left."
+ },
+ "name": "picture_rail_row"
+}

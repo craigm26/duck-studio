@@ -1,0 +1,59 @@
+{
+ "counts": {},
+ "deck_cards": [],
+ "detections": [
+  {
+   "corners": [
+    [
+     370.461,
+     341.272
+    ],
+    [
+     344.168,
+     346.861
+    ],
+    [
+     349.757,
+     373.154
+    ],
+    [
+     376.049,
+     367.565
+    ]
+   ],
+   "hamming": 0,
+   "id": 63,
+   "margin": 80.0
+  }
+ ],
+ "expect": {
+  "asks": [],
+  "complete": true,
+  "kind": "card",
+  "notes": [],
+  "on_fall": [],
+  "plan": {
+   "format": "duck-intent-plan/0",
+   "model": "duck-cards/0",
+   "request": "Roll.",
+   "steps": [
+    {
+     "clause": "Roll",
+     "confidence": {
+      "action": 1.0
+     },
+     "labels": {
+      "action": "roll"
+     }
+    }
+   ]
+  },
+  "rows": [
+   [
+    "roll"
+   ]
+  ],
+  "words": "Roll."
+ },
+ "name": "one_card"
+}

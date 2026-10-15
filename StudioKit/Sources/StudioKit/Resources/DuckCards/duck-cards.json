@@ -1,0 +1,81 @@
+{
+  "format": "duck-cards/0",
+  "name": "Duck Cards starter deck",
+  "home": "https://microduckstudio.com/cards/",
+  "license": "CC-BY-4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0/",
+  "credit": "Duck Cards, from microduckstudio.com",
+  "vocabulary": "r001",
+  "plan_format": "duck-intent-plan/0",
+  "tag_family": "tag36h11",
+  "categories": [
+    {"id": "walk", "name": "Walk", "codes": [0, 19], "about": "Where the duck goes, and when it holds still."},
+    {"id": "speed", "name": "Speed", "codes": [20, 39], "about": "How fast. A Speed card changes the card above it."},
+    {"id": "look", "name": "Look", "codes": [40, 59], "about": "Where the head points. A Look card changes the card above it."},
+    {"id": "trick", "name": "Trick", "codes": [60, 79], "about": "A whole move the duck already knows, from start to finish."},
+    {"id": "sound", "name": "Sound", "codes": [80, 99], "about": "The duck makes a sound."},
+    {"id": "control", "name": "Control", "codes": [100, 119], "about": "These shape the row. They never move the duck."},
+    {"id": "when", "name": "When", "codes": [120, 139], "about": "Starts a second row that waits for something to happen."},
+    {"id": "yours", "name": "Your card", "codes": [200, 299], "about": "Blank cards with codes of their own, for moves your class invents."}
+  ],
+  "cards": [
+    {"tag": 0, "code": "walk_forward", "name": "Walk forward", "category": "walk", "kind": "action", "plan": {"action": "walk_forward"}, "art": "walk-forward", "printed": true},
+    {"tag": 1, "code": "walk_backward", "name": "Walk back", "category": "walk", "kind": "action", "plan": {"action": "walk_backward"}, "art": "walk-back", "printed": true},
+    {"tag": 2, "code": "turn_left", "name": "Turn left", "category": "walk", "kind": "action", "plan": {"action": "turn_left"}, "art": "turn-left", "printed": true},
+    {"tag": 3, "code": "turn_right", "name": "Turn right", "category": "walk", "kind": "action", "plan": {"action": "turn_right"}, "art": "turn-right", "printed": true},
+    {"tag": 4, "code": "stop", "name": "Stop", "category": "walk", "kind": "action", "plan": {"action": "stop"}, "art": "stop", "printed": true},
+
+    {"tag": 20, "code": "slow", "name": "Slow", "category": "speed", "kind": "modifier", "plan": {"speed": "slow"}, "art": "speed-slow", "printed": true},
+    {"tag": 21, "code": "fast", "name": "Fast", "category": "speed", "kind": "modifier", "plan": {"speed": "fast"}, "art": "speed-fast", "printed": true},
+    {"tag": 22, "code": "normal", "name": "Normal", "category": "speed", "kind": "modifier", "plan": {"speed": "normal"}, "art": "speed-normal", "printed": false},
+
+    {"tag": 40, "code": "look_left", "name": "Look left", "category": "look", "kind": "modifier", "plan": {"head": "look_left"}, "art": "look-left", "printed": true},
+    {"tag": 41, "code": "look_right", "name": "Look right", "category": "look", "kind": "modifier", "plan": {"head": "look_right"}, "art": "look-right", "printed": true},
+    {"tag": 42, "code": "look_up", "name": "Look up", "category": "look", "kind": "modifier", "plan": {"head": "look_up"}, "art": "look-up", "printed": true},
+    {"tag": 43, "code": "look_down", "name": "Look down", "category": "look", "kind": "modifier", "plan": {"head": "look_down"}, "art": "look-down", "printed": true},
+    {"tag": 44, "code": "straight", "name": "Straight ahead", "category": "look", "kind": "modifier", "plan": {"head": "straight"}, "art": "look-straight", "printed": true},
+
+    {"tag": 60, "code": "kick_left", "name": "Kick, left", "category": "trick", "kind": "action", "plan": {"action": "kick_left"}, "art": "kick-left", "printed": true},
+    {"tag": 61, "code": "kick_right", "name": "Kick, right", "category": "trick", "kind": "action", "plan": {"action": "kick_right"}, "art": "kick-right", "printed": true},
+    {"tag": 62, "code": "sit_or_stand", "name": "Sit or stand", "category": "trick", "kind": "action", "plan": {"action": "sit_or_stand"}, "art": "sit-stand", "printed": true},
+    {"tag": 63, "code": "roll", "name": "Roll", "category": "trick", "kind": "action", "plan": {"action": "roll"}, "art": "roll", "printed": true},
+    {"tag": 64, "code": "peck_ground", "name": "Peck the ground", "category": "trick", "kind": "action", "plan": {"action": "peck_ground"}, "art": "peck", "printed": true},
+
+    {"tag": 80, "code": "greet", "name": "Hello", "category": "sound", "kind": "action", "plan": {"action": "make_sound", "sound": "greet"}, "art": "sound-hello", "printed": true},
+    {"tag": 81, "code": "chirp", "name": "Chirp", "category": "sound", "kind": "action", "plan": {"action": "make_sound", "sound": "chirp"}, "art": "sound-chirp", "printed": true},
+    {"tag": 82, "code": "coo", "name": "Coo", "category": "sound", "kind": "action", "plan": {"action": "make_sound", "sound": "coo"}, "art": "sound-coo", "printed": true},
+    {"tag": 83, "code": "alarm", "name": "Alarm", "category": "sound", "kind": "action", "plan": {"action": "make_sound", "sound": "alarm"}, "art": "sound-alarm", "printed": true},
+    {"tag": 84, "code": "wheee", "name": "Wheee", "category": "sound", "kind": "action", "plan": {"action": "make_sound", "sound": "wheee"}, "art": "sound-wheee", "printed": true},
+    {"tag": 85, "code": "inquire", "name": "Inquire", "category": "sound", "kind": "action", "plan": {"action": "make_sound", "sound": "inquire"}, "art": "sound-inquire", "printed": false},
+    {"tag": 86, "code": "peck", "name": "Peck", "category": "sound", "kind": "action", "plan": {"action": "make_sound", "sound": "peck"}, "art": "sound-peck", "printed": false},
+
+    {"tag": 100, "code": "start", "name": "Start", "category": "control", "kind": "control", "plan": null, "art": "start", "printed": true},
+    {"tag": 101, "code": "end", "name": "End", "category": "control", "kind": "control", "plan": null, "art": "end", "printed": true},
+    {"tag": 102, "code": "repeat", "name": "Repeat", "category": "control", "kind": "control", "plan": null, "art": "repeat", "write_in": "times", "printed": true},
+    {"tag": 103, "code": "end_repeat", "name": "End repeat", "category": "control", "kind": "control", "plan": null, "art": "end-repeat", "printed": true},
+
+    {"tag": 120, "code": "when_falls", "name": "When it falls", "category": "when", "kind": "event", "plan": null, "art": "fall", "printed": true},
+
+    {"tag": 200, "code": "card_1", "name": "Your card", "category": "yours", "kind": "yours", "plan": null, "art": null, "printed": true},
+    {"tag": 201, "code": "card_2", "name": "Your card", "category": "yours", "kind": "yours", "plan": null, "art": null, "printed": true},
+    {"tag": 202, "code": "card_3", "name": "Your card", "category": "yours", "kind": "yours", "plan": null, "art": null, "printed": true},
+    {"tag": 203, "code": "card_4", "name": "Your card", "category": "yours", "kind": "yours", "plan": null, "art": null, "printed": true},
+    {"tag": 204, "code": "card_5", "name": "Your card", "category": "yours", "kind": "yours", "plan": null, "art": null, "printed": true},
+    {"tag": 205, "code": "card_6", "name": "Your card", "category": "yours", "kind": "yours", "plan": null, "art": null, "printed": true},
+    {"tag": 206, "code": "card_7", "name": "Your card", "category": "yours", "kind": "yours", "plan": null, "art": null, "printed": true},
+    {"tag": 207, "code": "card_8", "name": "Your card", "category": "yours", "kind": "yours", "plan": null, "art": null, "printed": true},
+    {"tag": 208, "code": "card_9", "name": "Your card", "category": "yours", "kind": "yours", "plan": null, "art": null, "printed": true}
+  ],
+  "example": {
+    "row": [
+      {"card": "start"},
+      {"card": "greet"},
+      {"card": "walk_forward", "under": ["slow"]},
+      {"card": "turn_left"},
+      {"card": "kick_right"},
+      {"card": "end"}
+    ],
+    "said": "Start. Say hello. Walk forward, slowly. Turn left. Kick with the right foot. End."
+  },
+  "promo": ["walk_forward", "turn_left", "kick_right"]
+}

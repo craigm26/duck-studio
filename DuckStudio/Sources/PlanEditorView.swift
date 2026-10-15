@@ -38,6 +38,10 @@ struct PlanEditorView: View {
     /// Hands the duck over from the sticks before a plan drives it: the drive loop and a plan
     /// writing one twist slot would interleave into a duck that obeys neither.
     var stopDriving: (() async -> Void)? = nil
+    /// A plan read somewhere else and handed in to be checked: Duck Cards held up to the duck's
+    /// camera (`DuckCards.handed`). It arrives as proposed, under who proposed it and the reader's
+    /// notes, and is decided here like a router's: nothing moves until Run.
+    var handed: DuckIntentPlan.Handed? = nil
 
     /// A typed address wins; otherwise the router on the bench's own machine.
     private var routerBase: URL? {
@@ -62,6 +66,8 @@ struct PlanEditorView: View {
     @State private var checkResult: String?
     @State private var robotRun: Task<Void, Never>?
     @State private var robotLine: String?
+    /// The reader's notes on a handed plan, shown while that plan is the one on screen.
+    @State private var handedNotes: [String] = []
 
     var body: some View {
         List {
@@ -93,7 +99,16 @@ struct PlanEditorView: View {
             // ON A DUCK THERE IS NO BENCH MACHINE TO FIND A ROUTER ON, so the planner starts as
             // the model chosen in Settings — Apple's on-device model unless somebody chose
             // another — rather than a router address nobody has typed.
-            .onAppear { if venue == .real, routerBase == nil, models != nil { useModel = true } }
+            .onAppear {
+                if venue == .real, routerBase == nil, models != nil { useModel = true }
+                // A HANDED PLAN IS PUT ON SCREEN ONCE, AS IT CAME. Its provenance goes with it, so
+                // what the person keeps, changes and discards is recorded against what proposed it.
+                if plan == nil, let handed {
+                    plan = handed.plan
+                    plannedBy = handed.by
+                    handedNotes = handed.notes
+                }
+            }
             .onDisappear { robotRun?.cancel() }
             .navigationTitle(PlanEditorWords.title)
             .navigationBarTitleDisplayMode(.inline)
@@ -241,6 +256,7 @@ struct PlanEditorView: View {
             do {
                 plan = try await planner.plan(for: asked)
                 plannedBy = planner.identity
+                handedNotes = []
                 took = Date().timeIntervalSince(started)
             } catch let error as ModelIntentPlanner.ReadError {
                 refusal = error.message
@@ -271,6 +287,7 @@ struct PlanEditorView: View {
         do {
             plan = try await router.plan(for: asked)
             plannedBy = router.identity
+            handedNotes = []
             took = Date().timeIntervalSince(started)
         } catch let error as DuckIntentPlan.ReadError {
             refusal = error.message
@@ -285,6 +302,11 @@ struct PlanEditorView: View {
         Section {
             Text(PlanEditorWords.proposedBy(plan.model, seconds: took))
                 .font(.caption).foregroundStyle(Theme.textSecondary)
+            ForEach(handedNotes, id: \.self) { line in
+                Label(line, systemImage: "info.circle")
+                    .font(.caption).foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             ForEach(Array(plan.nodes.enumerated()), id: \.element.id) { index, node in
                 PlanNodeCard(node: node, number: index + 1,
                              isFirst: index == 0, isLast: index == plan.nodes.count - 1,

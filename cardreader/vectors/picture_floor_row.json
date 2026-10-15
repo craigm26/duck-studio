@@ -1,0 +1,111 @@
+{
+ "counts": {},
+ "deck_cards": [],
+ "detections": [
+  {
+   "corners": [
+    [
+     437.14,
+     681.91
+    ],
+    [
+     402.64,
+     682.06
+    ],
+    [
+     404.04,
+     704.88
+    ],
+    [
+     439.26,
+     704.76
+    ]
+   ],
+   "hamming": 0,
+   "id": 0,
+   "margin": 66.82
+  },
+  {
+   "corners": [
+    [
+     236.86,
+     681.89
+    ],
+    [
+     202.39,
+     681.84
+    ],
+    [
+     198.25,
+     704.64
+    ],
+    [
+     233.55,
+     704.77
+    ]
+   ],
+   "hamming": 0,
+   "id": 100,
+   "margin": 69.3
+  },
+  {
+   "corners": [
+    [
+     637.4,
+     681.9
+    ],
+    [
+     602.94,
+     681.87
+    ],
+    [
+     609.62,
+     704.82
+    ],
+    [
+     644.88,
+     704.62
+    ]
+   ],
+   "hamming": 0,
+   "id": 101,
+   "margin": 70.73
+  }
+ ],
+ "expect": {
+  "asks": [],
+  "complete": true,
+  "kind": "row",
+  "notes": [],
+  "on_fall": [],
+  "plan": {
+   "format": "duck-intent-plan/0",
+   "model": "duck-cards/0",
+   "request": "Walk forward.",
+   "steps": [
+    {
+     "clause": "Walk forward",
+     "confidence": {
+      "action": 1.0,
+      "head": 1.0,
+      "speed": 1.0
+     },
+     "labels": {
+      "action": "walk_forward",
+      "head": "straight",
+      "speed": "normal"
+     }
+    }
+   ]
+  },
+  "rows": [
+   [
+    "start",
+    "walk_forward",
+    "end"
+   ]
+  ],
+  "words": "Walk forward."
+ },
+ "name": "picture_floor_row"
+}

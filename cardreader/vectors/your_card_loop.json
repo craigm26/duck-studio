@@ -1,0 +1,189 @@
+{
+ "counts": {},
+ "deck_cards": [
+  {
+   "category": "yours",
+   "code": "card_2",
+   "kind": "yours",
+   "name": "Your card",
+   "plan": null,
+   "row": [
+    {
+     "card": "kick_left"
+    },
+    {
+     "card": "card_3"
+    }
+   ],
+   "tag": 201
+  },
+  {
+   "category": "yours",
+   "code": "card_3",
+   "kind": "yours",
+   "name": "Your card",
+   "plan": null,
+   "row": [
+    {
+     "card": "kick_right"
+    },
+    {
+     "card": "card_2"
+    }
+   ],
+   "tag": 202
+  },
+  {
+   "category": "yours",
+   "code": "card_4",
+   "kind": "yours",
+   "name": "Your card",
+   "plan": null,
+   "row": [
+    {
+     "card": "card_4"
+    }
+   ],
+   "tag": 203
+  }
+ ],
+ "detections": [
+  {
+   "corners": [
+    [
+     143.1,
+     339.3
+    ],
+    [
+     123.9,
+     339.3
+    ],
+    [
+     123.9,
+     358.5
+    ],
+    [
+     143.1,
+     358.5
+    ]
+   ],
+   "hamming": 0,
+   "id": 100,
+   "margin": 80.0
+  },
+  {
+   "corners": [
+    [
+     255.1,
+     339.3
+    ],
+    [
+     235.9,
+     339.3
+    ],
+    [
+     235.9,
+     358.5
+    ],
+    [
+     255.1,
+     358.5
+    ]
+   ],
+   "hamming": 0,
+   "id": 201,
+   "margin": 80.0
+  },
+  {
+   "corners": [
+    [
+     367.1,
+     339.3
+    ],
+    [
+     347.9,
+     339.3
+    ],
+    [
+     347.9,
+     358.5
+    ],
+    [
+     367.1,
+     358.5
+    ]
+   ],
+   "hamming": 0,
+   "id": 203,
+   "margin": 80.0
+  },
+  {
+   "corners": [
+    [
+     479.1,
+     339.3
+    ],
+    [
+     459.9,
+     339.3
+    ],
+    [
+     459.9,
+     358.5
+    ],
+    [
+     479.1,
+     358.5
+    ]
+   ],
+   "hamming": 0,
+   "id": 101,
+   "margin": 80.0
+  }
+ ],
+ "expect": {
+  "asks": [],
+  "complete": true,
+  "kind": "row",
+  "notes": [
+   "Your card 202 holds Your card 201, which leads back to 202, so the loop was cut there.",
+   "Your card 203 holds itself, so the loop was cut there."
+  ],
+  "on_fall": [],
+  "plan": {
+   "format": "duck-intent-plan/0",
+   "model": "duck-cards/0",
+   "request": "Kick, left. Kick, right.",
+   "steps": [
+    {
+     "clause": "Kick, left",
+     "confidence": {
+      "action": 1.0
+     },
+     "labels": {
+      "action": "kick_left"
+     }
+    },
+    {
+     "clause": "Kick, right",
+     "confidence": {
+      "action": 1.0
+     },
+     "labels": {
+      "action": "kick_right"
+     }
+    }
+   ]
+  },
+  "rows": [
+   [
+    "start",
+    "card_2",
+    "card_4",
+    "end"
+   ]
+  ],
+  "words": "Kick, left. Kick, right."
+ },
+ "name": "your_card_loop"
+}

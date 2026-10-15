@@ -471,7 +471,7 @@ struct MyMicroduckView: View {
 
     private var cameraSection: some View {
         Section {
-            DuckCameraCard(address: $cameraAddress)
+            DuckCameraCard(address: $cameraAddress, robot: robot, models: models)
         } header: {
             SectionHeading(text: DuckCamera.Words.heading)
         } footer: {

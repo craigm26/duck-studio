@@ -125,6 +125,13 @@ FILES=(
   PoseCaptureView.swift
   MimicChrome.swift
   PoseCaptureEngine.swift
+  # Duck Cards: the camera card that reads them, the sheet that holds a reading still, asks for
+  # Repeat numbers, saves a row as a Your card and shares the class deck, and the store behind
+  # it. Added with the files, contributing nothing to the allow-list: the camera card's one
+  # literal, its picture's VoiceOver label, moved into DuckCamera.Words to join.
+  DuckCameraView.swift
+  DuckCardsViews.swift
+  DuckCardsStore.swift
   )
 
 if [ ! -d "$SRC" ]; then

@@ -1,0 +1,59 @@
+{
+ "counts": {},
+ "deck_cards": [],
+ "detections": [
+  {
+   "corners": [
+    [
+     445.57,
+     702.49
+    ],
+    [
+     412.31,
+     708.31
+    ],
+    [
+     417.16,
+     744.56
+    ],
+    [
+     450.31,
+     738.25
+    ]
+   ],
+   "hamming": 0,
+   "id": 61,
+   "margin": 82.98
+  }
+ ],
+ "expect": {
+  "asks": [],
+  "complete": true,
+  "kind": "card",
+  "notes": [],
+  "on_fall": [],
+  "plan": {
+   "format": "duck-intent-plan/0",
+   "model": "duck-cards/0",
+   "request": "Kick, right.",
+   "steps": [
+    {
+     "clause": "Kick, right",
+     "confidence": {
+      "action": 1.0
+     },
+     "labels": {
+      "action": "kick_right"
+     }
+    }
+   ]
+  },
+  "rows": [
+   [
+    "kick_right"
+   ]
+  ],
+  "words": "Kick, right."
+ },
+ "name": "picture_held_card"
+}

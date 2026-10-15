@@ -25,4 +25,8 @@ final class DuckCameraTests: XCTestCase {
         XCTAssertEqual(DuckCamera.read(status: 200, body: Data("<html>".utf8)), .notACamera(200))
         XCTAssertEqual(DuckCamera.read(status: 404, body: Data()), .notACamera(404))
     }
+
+    func testWhatTheCameraCardCallsThePicture() {
+        XCTAssertEqual(DuckCamera.Words.pictureLabel, "The duck's camera")
+    }
 }

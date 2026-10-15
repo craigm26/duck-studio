@@ -1,0 +1,239 @@
+{
+ "counts": {},
+ "deck_cards": [],
+ "detections": [
+  {
+   "corners": [
+    [
+     122.453,
+     353.833
+    ],
+    [
+     105.052,
+     345.718
+    ],
+    [
+     96.938,
+     363.12
+    ],
+    [
+     114.339,
+     371.234
+    ]
+   ],
+   "hamming": 0,
+   "id": 100,
+   "margin": 80.0
+  },
+  {
+   "corners": [
+    [
+     223.959,
+     401.166
+    ],
+    [
+     206.558,
+     393.052
+    ],
+    [
+     198.444,
+     410.453
+    ],
+    [
+     215.845,
+     418.567
+    ]
+   ],
+   "hamming": 0,
+   "id": 80,
+   "margin": 80.0
+  },
+  {
+   "corners": [
+    [
+     325.466,
+     448.499
+    ],
+    [
+     308.065,
+     440.385
+    ],
+    [
+     299.951,
+     457.786
+    ],
+    [
+     317.352,
+     465.9
+    ]
+   ],
+   "hamming": 0,
+   "id": 0,
+   "margin": 80.0
+  },
+  {
+   "corners": [
+    [
+     266.544,
+     584.323
+    ],
+    [
+     249.143,
+     576.209
+    ],
+    [
+     241.028,
+     593.61
+    ],
+    [
+     258.429,
+     601.724
+    ]
+   ],
+   "hamming": 0,
+   "id": 20,
+   "margin": 80.0
+  },
+  {
+   "corners": [
+    [
+     426.972,
+     495.832
+    ],
+    [
+     409.571,
+     487.718
+    ],
+    [
+     401.457,
+     505.119
+    ],
+    [
+     418.858,
+     513.234
+    ]
+   ],
+   "hamming": 0,
+   "id": 2,
+   "margin": 80.0
+  },
+  {
+   "corners": [
+    [
+     528.479,
+     543.166
+    ],
+    [
+     511.078,
+     535.051
+    ],
+    [
+     502.963,
+     552.453
+    ],
+    [
+     520.365,
+     560.567
+    ]
+   ],
+   "hamming": 0,
+   "id": 61,
+   "margin": 80.0
+  },
+  {
+   "corners": [
+    [
+     629.985,
+     590.499
+    ],
+    [
+     612.584,
+     582.385
+    ],
+    [
+     604.47,
+     599.786
+    ],
+    [
+     621.871,
+     607.9
+    ]
+   ],
+   "hamming": 0,
+   "id": 101,
+   "margin": 80.0
+  }
+ ],
+ "expect": {
+  "asks": [],
+  "complete": true,
+  "kind": "row",
+  "notes": [],
+  "on_fall": [],
+  "plan": {
+   "format": "duck-intent-plan/0",
+   "model": "duck-cards/0",
+   "request": "Hello. Walk forward, slow. Turn left. Kick, right.",
+   "steps": [
+    {
+     "clause": "Hello",
+     "confidence": {
+      "action": 1.0,
+      "sound": 1.0
+     },
+     "labels": {
+      "action": "make_sound",
+      "sound": "greet"
+     }
+    },
+    {
+     "clause": "Walk forward, slow",
+     "confidence": {
+      "action": 1.0,
+      "head": 1.0,
+      "speed": 1.0
+     },
+     "labels": {
+      "action": "walk_forward",
+      "head": "straight",
+      "speed": "slow"
+     }
+    },
+    {
+     "clause": "Turn left",
+     "confidence": {
+      "action": 1.0,
+      "head": 1.0,
+      "speed": 1.0
+     },
+     "labels": {
+      "action": "turn_left",
+      "head": "straight",
+      "speed": "normal"
+     }
+    },
+    {
+     "clause": "Kick, right",
+     "confidence": {
+      "action": 1.0
+     },
+     "labels": {
+      "action": "kick_right"
+     }
+    }
+   ]
+  },
+  "rows": [
+   [
+    "start",
+    "greet",
+    "walk_forward/slow",
+    "turn_left",
+    "kick_right",
+    "end"
+   ]
+  ],
+  "words": "Hello. Walk forward, slow. Turn left. Kick, right."
+ },
+ "name": "example_row_slanted"
+}

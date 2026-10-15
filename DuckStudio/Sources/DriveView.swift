@@ -2499,7 +2499,10 @@ struct DriveView: View {
     private var robotControls: some View {
         List {
             Section {
-                DuckCameraCard(address: $cameraAddress)
+                // A row of Duck Cards read here opens in the plan editor with this screen's duck,
+                // and the sticks hand it over first, as they do for a plan opened from the pad.
+                DuckCameraCard(address: $cameraAddress, robot: robot, models: settingsModels,
+                               stopDriving: { await halt() })
             } header: {
                 SectionHeading(text: DuckCamera.Words.heading)
             } footer: {
