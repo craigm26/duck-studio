@@ -69,9 +69,11 @@ let package = Package(
             // `.process`: processing is free to rewrite what it recognises,
             // and a rewritten intent file is a different intent. The Duck Cards
             // deck is the same kind of file: microduckstudio.com's
-            // `duck-cards.json`, pinned by sha256 in `DuckCardsTests`.
+            // `duck-cards.json`, pinned by sha256 in `DuckCardsTests`. The Duck Card packs
+            // are copied too: `cardreader/duckcards/packs` holds the same files, byte for
+            // byte (`scripts/check_duckcards_vectors.sh`).
             resources: [.copy("Resources/StairsChallenge"), .copy("Resources/Planner"),
-                        .copy("Resources/DuckCards")]
+                        .copy("Resources/DuckCards"), .copy("Resources/DuckPacks")]
         ),
         .testTarget(
             name: "StudioKitTests",
