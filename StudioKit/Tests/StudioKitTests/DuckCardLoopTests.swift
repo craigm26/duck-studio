@@ -151,14 +151,17 @@ final class DuckCardLoopTests: XCTestCase {
         nonisolated func states() -> AsyncStream<DuckState> { AsyncStream { $0.finish() } }
     }
 
-    private func cardPlan(_ actions: [String]) throws -> RobotPlan {
+    /// A Duck Cards plan. Measured cards on by default here, as "Measure my duck" turns them on: they
+    /// ship off for real ducks (`testTheSwitchShipsOff...`).
+    private func cardPlan(_ actions: [String], measured: Bool = true) throws -> RobotPlan {
         let rows = actions.map { a -> [String: Any] in
             let labels = ["action": a]
             return ["clause": a, "labels": labels, "confidence": ["action": 1.0]]
         }
         let json: [String: Any] = ["format": DuckIntentPlan.format, "request": "cards",
                                    "model": DuckCards.model, "steps": rows]
-        return try RobotPlan(DuckIntentPlan.read(try JSONSerialization.data(withJSONObject: json)))
+        return try RobotPlan(DuckIntentPlan.read(try JSONSerialization.data(withJSONObject: json)),
+                             measuredCards: measured)
     }
 
     private final class Said: @unchecked Sendable {
@@ -174,6 +177,35 @@ final class DuckCardLoopTests: XCTestCase {
             plan, on: duck, interval: 0.05, sleep: { duck.advance($0) },
             event: { if case .said(let s) = $0 { said.add(s) } },
             state: state ? { @Sendable () async -> DuckState? in duck.state() } : nil)
+    }
+
+    // MARK: - the off switch
+
+    func testTheSwitchShipsOffAndUnvalidatedWithItsSentence() {
+        XCTAssertFalse(DuckCardLoop.spec.enabledOnRobot)
+        XCTAssertNil(DuckCardLoop.spec.validated)
+        XCTAssertEqual(DuckCardLoop.offNote,
+                       "Walk and Turn cards on a duck are timed for now: two seconds each, and the duck does not "
+                     + "land on board squares. Measured cards are being tested.")
+    }
+
+    func testOffACardPlanRunsTimedMovesEvenWithOdometryAndSaysSoOnce() async throws {
+        let plan = try cardPlan(["walk_forward", "turn_left", "walk_forward", "kick_left"], measured: false)
+        XCTAssertEqual(plan, try RobotPlan(DuckIntentPlan.read(try JSONSerialization.data(withJSONObject: [
+            "format": DuckIntentPlan.format, "request": "cards", "model": DuckCards.model,
+            "steps": ["walk_forward", "turn_left", "walk_forward", "kick_left"].map {
+                ["clause": $0, "labels": ["action": $0], "confidence": ["action": 1.0]] as [String: Any] }]))),
+            "off is the default")
+        XCTAssertTrue(plan.cardsTimed)
+        XCTAssertFalse(plan.closesOnOdometry)
+        guard case .move(let t, 2.0, _) = plan.beats[0] else { return XCTFail("\(plan.beats[0])") }
+        XCTAssertEqual(t, try SequenceProposal.twist(for: "forward", share: 2.0 / 3.0))
+        let duck = FakeDuck(), said = Said()
+        _ = try await run(plan, on: duck, said: said)
+        XCTAssertEqual(said.lines.filter { $0 == DuckCardLoop.offNote }.count, 1)
+        XCTAssertFalse(said.lines.contains(DuckCardLoop.timedNote))
+        XCTAssertEqual(duck.moves.filter { $0 != .still }.count, 3 * Int((DuckIntentPlan.defaultSeconds / 0.05).rounded()))
+        XCTAssertFalse(try cardPlan(["stop", "kick_left"], measured: false).cardsTimed)
     }
 
     func testACardPlanHasCardBeatsAndOtherPlansDoNot() throws {

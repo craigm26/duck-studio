@@ -382,6 +382,12 @@ struct PlanEditorView: View {
                         .font(.caption).foregroundStyle(Theme.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                if robotPlan.cardsTimed {
+                    // Closed-loop cards are off for real ducks: said before Run, and again by the runner.
+                    Label(DuckCardLoop.offNote, systemImage: "info.circle")
+                        .font(.caption).foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 if plan.flaggedCount > 0 {
                     Label(PlanEditorWords.flaggedLeft(plan.flaggedCount),
                           systemImage: "exclamationmark.circle")

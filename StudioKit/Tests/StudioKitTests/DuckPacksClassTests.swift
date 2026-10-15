@@ -379,6 +379,8 @@ final class DuckPacksClassTests: XCTestCase {
             XCTAssertFalse(s.contains("\u{2014}") || s.contains("\u{2013}"), s)
             XCTAssertNil(s.range(of: "(will|would) (land|stop) on", options: .regularExpression), s)
         }
-        XCTAssertTrue(DuckPacks.Words.runFooter.contains("has not been measured"))
+        // Closed-loop cards are off for real ducks, so the board and Run on the duck say a duck's cards are timed.
+        XCTAssertTrue(DuckPacks.Words.runFooter.hasSuffix(DuckCardLoop.offNote))
+        XCTAssertTrue(DuckPacks.Words.boardRule.hasSuffix(DuckCardLoop.offNote))
     }
 }

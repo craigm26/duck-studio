@@ -3,9 +3,10 @@ import Foundation
 /// Every sentence Studio's pack screens say. Here rather than in a view, so `swift test` reads them.
 ///
 /// THE BOARD IS THE BOARD RULE. One Walk card is one square and one Turn card a quarter turn on the
-/// board. A duck that reports odometry walks a Walk card one duck square and turns a Turn card a
-/// quarter turn (`DuckCardLoop`), but that was measured in a simulator only (`Board.duckSquareSource`),
-/// so nothing here says a duck will stop on a square. `DuckPacksClassTests` holds every sentence to that.
+/// board. On a duck, Walk and Turn are timed cards for now: closed-loop cards (`DuckCardLoop`) ship
+/// off for real ducks until docs/PACKS.md "Acceptance" passes, and these sentences say so
+/// (`DuckCardLoop.offNote`). Nothing here says a duck will stop on a square. `DuckPacksClassTests`
+/// holds every sentence to that.
 extension DuckPacks {
 
     public enum Words {
@@ -53,13 +54,16 @@ extension DuckPacks {
             }
         }
 
-        public static let boardRule =
-            "On the board, one Walk card moves one square and one Turn card is a quarter turn. On a duck "
-          + "that reports where it is, a Walk card walks one "
-          + String(format: "%.0f", DuckCardLoop.spec.squareM * 100)
-          + " cm square by the duck's own odometry and a Turn card turns a quarter turn by it. That was "
-          + "measured in a simulator, not on a real duck, so the board is the rule and not a map of where "
-          + "a duck stops."
+        /// Beside every board. Closed-loop cards are off for real ducks (`DuckCardLoop.spec.enabledOnRobot`),
+        /// so a duck's Walk and Turn are timed and the board is the rule, not a map of where it stops.
+        public static var boardRule: String {
+            let rule = "On the board, one Walk card moves one square and one Turn card is a quarter turn. "
+            guard DuckCardLoop.spec.enabledOnRobot else { return rule + DuckCardLoop.offNote }
+            return rule + "On a duck that reports where it is, a Walk card walks one "
+              + String(format: "%.0f", DuckCardLoop.spec.squareM * 100)
+              + " cm square by the duck's own odometry and a Turn card turns a quarter turn by it, so the board "
+              + "is the rule and the duck tries to follow it."
+        }
 
         public static func ask(_ lesson: Lesson) -> String { "Ask: \(lesson.ask)" }
         public static func skill(_ lesson: Lesson) -> String { "Skill: \(lesson.skill)" }
@@ -184,9 +188,12 @@ extension DuckPacks {
         }
 
         public static let run = "Run on the duck"
-        public static let runFooter =
+        public static var runFooter: String {
             "The duck runs the same row as a plan, and nothing moves until you press Run in the plan editor. "
-          + "How far one Walk card carries a real duck has not been measured, so the board does not say where the duck will stop."
+          + (DuckCardLoop.spec.enabledOnRobot
+             ? "How far one Walk card carries a real duck has not been measured on yours, so the board does not say where the duck will stop."
+             : DuckCardLoop.offNote)
+        }
 
         // MARK: - the board, in words
 

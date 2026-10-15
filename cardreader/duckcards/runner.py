@@ -14,7 +14,11 @@ the plan and does not send it ("the head stays where it is"). On the robot,
 `robot.look` is one call away, so `--heads` sends it; it is off by default so
 that the two stay the same until Studio sends heads too.
 
-WALK AND TURN CARDS CLOSE ON ODOMETRY WHEN THE DUCK REPORTS IT. A Walk card is one board square
+WALK AND TURN CARDS ARE TIMED ON A DUCK FOR NOW. Closed-loop cards ship off for real ducks
+(`duck-card-loop.json` `enabled_on_robot: false`, docs/PACKS.md "Acceptance"): a Walk or Turn card
+runs as the timed card it was and the reader says `cardloop.OFF_NOTE` once per row.
+`--measured-cards` turns them on, for duck-sim work. On, they close on odometry when the duck
+reports it: a Walk card is one board square
 and a Turn card a quarter turn (`cardloop.py`, the same spec and rules as StudioKit's
 `DuckCardLoop`), driven on `odom` from robotd's state stream when `run` is given one that carries
 it. A duck that does not report odometry (a robotd from before the estimator, or no state stream)
@@ -118,11 +122,15 @@ def beats(steps: list[Step]) -> list[Beat]:
 
 
 def run(plan_beats: list[Beat], robot, heads: bool = False, sleep=time.sleep, say=print,
-        state=None, clock=time.time) -> str:
+        state=None, clock=time.time, measured: bool | None = None) -> str:
     """RobotPlanRunner.run: skills checked first, every move held at 20 Hz, a stop at the end.
 
     `state()`, when given, answers the latest `robot.state` params and when they arrived (on
-    `clock`), or None: Walk and Turn cards close on its `odom` when it has one."""
+    `clock`), or None: Walk and Turn cards close on its `odom` when it has one AND measured cards
+    are on. `measured` is the spec's `enabled_on_robot` unless given (`--measured-cards`); off,
+    every Walk and Turn card runs timed and `cardloop.OFF_NOTE` is said once."""
+    if measured is None:
+        measured = cardloop.ENABLED_ON_ROBOT
     wanted = sorted({b.name for b in plan_beats if b.kind == "skill"})
     durations: dict[str, float] = {}
     if wanted:
@@ -145,7 +153,12 @@ def run(plan_beats: list[Beat], robot, heads: bool = False, sleep=time.sleep, sa
                 x, y, z = LOOK_AT[b.head]
                 robot.call("robot.look", {"x": x, "y": y, "z": z})
                 looking = b.head
-            if b.kind == "card":
+            if b.kind == "card" and not measured:
+                if not timed_said:
+                    say(f"  {cardloop.OFF_NOTE}")
+                    timed_said = True
+                hold(robot, b.twist, b.seconds, sleep)
+            elif b.kind == "card":
                 pose = _pose_now(state, clock)
                 if pose is None:
                     if not timed_said:

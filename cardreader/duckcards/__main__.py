@@ -87,10 +87,17 @@ def _outside(pack, program, deck: Deck, say, indent: str = "  ") -> None:
             say(f"{indent}note: {note}")
 
 
-def _board(pack, challenge, program, deck: Deck, say, indent: str = "  ") -> None:
+# DEVELOPER ONLY: `watch --measured-cards`. Closed-loop Walk and Turn cards ship off for real ducks
+# (duck-card-loop.json `enabled_on_robot: false`, docs/PACKS.md "Acceptance"); this turns them on
+# for duck-sim work, and says so when the reader starts.
+MEASURED_CARDS_LABEL = ("DEVELOPER: --measured-cards is on. Walk and Turn cards close on robotd's odometry, "
+                        "which is off for real ducks until docs/PACKS.md Acceptance passes. For duck-sim work.")
+
+
+def _board(pack, challenge, program, deck: Deck, say, indent: str = "  ", measured_cards: bool | None = None) -> None:
     """With a challenge, the row played on its board, as a report after the row has run."""
     if pack is not None and challenge is not None and program.steps:
-        for line in packs.report(pack, challenge, program, deck)[1]:
+        for line in packs.report(pack, challenge, program, deck, measured_cards)[1]:
             say(f"{indent}{line}")
 
 
@@ -153,6 +160,9 @@ def cmd_watch(args) -> int:
         robot = connect()
     falls = duck.FallWatch(connect).start() if connect else None
     say = lambda s: print(s, flush=True)   # noqa: E731
+    measured = True if args.measured_cards else None
+    if measured:
+        say(MEASURED_CARDS_LABEL)
 
     def voice(tag):
         try:
@@ -232,13 +242,13 @@ def cmd_watch(args) -> int:
                         # so does this, and only when there is something to run, never at startup.
                         robot.call("robot.enable", {"on": True})
                         outcome = runner.run(runner.beats(event.program.steps), robot, heads=args.heads, say=say,
-                                             state=falls.state if falls else None)
+                                             state=falls.state if falls else None, measured=measured)
                     except runner.Refusal as r:
                         outcome = str(r)
                         voice("alarm")
                     say(f"  {outcome}")
                     # The board play is a report on a row that has run; it never stops one.
-                    _board(pack, challenge, event.program, deck, say)
+                    _board(pack, challenge, event.program, deck, say, measured_cards=measured)
                     watcher.ran(time.time())
                     look_again()
             if falls and falls.recovered.is_set():
@@ -246,7 +256,7 @@ def cmd_watch(args) -> int:
                 if on_fall:
                     say("[fell] running the When it falls row")
                     runner.run(runner.beats(on_fall), robot, heads=args.heads, say=say,
-                               state=falls.state if falls else None)
+                               state=falls.state if falls else None, measured=measured)
                     watcher.ran(time.time())
                     look_again()
             if gaze:
@@ -305,6 +315,9 @@ def main(argv=None) -> int:
     w.add_argument("--challenge", help="a challenge in the pack, such as pond-3: each row is played on its "
                         "board and reported (the board's answer, not where the duck stopped)")
     w.add_argument("--dry-run", action="store_true", help="read and say, send nothing")
+    w.add_argument("--measured-cards", action="store_true",
+                   help="DEVELOPER, for duck-sim work: run Walk and Turn closed on robotd's odometry. They ship "
+                        "off for real ducks until docs/PACKS.md Acceptance passes; without this they are timed")
     w.add_argument("--no-numbers", action="store_true", help="do not read the number written on Repeat; ask for it")
     w.set_defaults(fn=cmd_watch)
     args = p.parse_args(argv)

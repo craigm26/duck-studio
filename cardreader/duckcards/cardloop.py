@@ -38,10 +38,23 @@ def load_spec(path: pathlib.Path = SPEC_FILE) -> dict:
     spec = json.loads(path.read_text())
     if spec.get("format") != FORMAT:
         raise ValueError(f"{path.name} is not {FORMAT}")
+    if not isinstance(spec.get("enabled_on_robot"), bool):
+        raise ValueError(f"{path.name} does not say enabled_on_robot, true or false")
+    if not (spec.get("validated") is None or isinstance(spec["validated"], str)):
+        raise ValueError(f"{path.name}: validated is null or one line citing the results")
     return spec
 
 
 SPEC = load_spec()
+
+# THE OFF SWITCH. Closed-loop cards ship OFF for real ducks (`enabled_on_robot: false`, with
+# `validated: null`) until they pass docs/PACKS.md, "Acceptance": Pollen's duck-sim, a second
+# machine, and a tester's duck on a taped grid. Off, a duck runs Walk and Turn as the timed cards
+# they were and the reader says this once per row (StudioKit's `DuckCardLoop.offNote`, the same
+# words). `python3 -m duckcards watch --measured-cards` forces them on, for duck-sim work only.
+ENABLED_ON_ROBOT: bool = SPEC["enabled_on_robot"]
+OFF_NOTE = ("Walk and Turn cards on a duck are timed for now: two seconds each, and the duck does not "
+            "land on board squares. Measured cards are being tested.")
 
 # POLLEN'S PAD ENVELOPE, ONE SOURCE OF TRUTH. `pollen-pad-drive.json` is StudioKit's
 # `Resources/DuckCards/pollen-pad-drive.json` byte for byte: `PadDriveParams::default()` in

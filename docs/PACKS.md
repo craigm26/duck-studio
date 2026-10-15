@@ -19,11 +19,13 @@ drifts. So a pack keeps two things apart:
 - **The board rule.** On the board, one Walk card moves one square and one Turn card is a quarter
   turn. This is exact and is what the paper game, Studio's board and every check use.
 - **The duck.** How far one Walk forward carries a real or simulated duck is measured, not
-  assumed. A Walk or Turn card read off Duck Cards now closes on robotd's odometry: walk until
-  one duck square, turn until a quarter turn ("Closed-loop cards", below). `duck_square_cm` is
-  that square, with `duck_square_source` saying where it was measured and how far off a duck
-  ended. It was measured in duckbench's simulator only, so no page or screen says a real duck
-  will land on a square; the simulator's bound is said with its source.
+  assumed. Closed-loop cards (walk until one duck square on robotd's odometry, turn until a
+  quarter turn; "Closed-loop cards", below) exist, but they **ship off for real ducks** until they
+  pass "Acceptance", below. Until then a duck runs Walk and Turn as timed cards, two seconds each,
+  and every surface says so: "Walk and Turn cards on a duck are timed for now: two seconds each,
+  and the duck does not land on board squares. Measured cards are being tested." `duck_square_cm`
+  is the square a closed-loop Walk card walks, with `duck_square_source` saying where it was
+  measured; no page or screen says a real duck will land on a square.
 
 ## The file: `duck-pack/0`
 
@@ -242,7 +244,8 @@ sentence), `bundled`, `Pack.lent(to:replacing:)`, `Pack.notInPlay(_:deck:)`, `st
    challenges in order; a challenge shows the board, lets you lay a row from the pack's cards
    (or take the row the camera read), plays it on the board step by step, and says solved, the
    score and par. "Run on the duck" sends the same row as a plan, as rows already do; its Walk
-   and Turn cards close on the duck's odometry ("Closed-loop cards", under Sizing). Design a
+   and Turn cards are timed on a duck for now, and the screen says so (the off switch, under
+   Closed-loop cards). Design a
    level adds a challenge editor (tap squares for start, goal, walls, gates; par is computed)
    and saves challenges into a class pack that shares as `.duckpack`.
 
@@ -282,9 +285,9 @@ sentence), `bundled`, `Pack.lent(to:replacing:)`, `Pack.notInPlay(_:deck:)`, `st
 
 ## Not promised
 
-- That a real duck lands on a square. `duck_square_cm` is measured in duckbench's simulator
-  only; what is said is that simulator's bound, with its source (Sizing, below). Pollen's
-  duck-sim and testers' ducks are not measured yet.
+- That a real duck lands on a square. Closed-loop cards are off for real ducks (the off switch,
+  under Closed-loop cards); a duck's Walk and Turn are timed. The shipped spec is not measured
+  in any simulator yet, and Pollen's duck-sim and testers' ducks are not measured at all.
 - Physics-sim goal checks. Placing the board in Studio's simulated world needs the same
   measurement; until then Studio's board is the board rule, and the sim duck runs the row
   beside it.
@@ -370,7 +373,8 @@ over many rows, never one run:
 3. **The footprint.** The duck is about 25 cm tall and 737 to 800 g; a square must hold it with
    room to drift. A 30 cm square (every starter pack's printed square) holds it.
 4. **Real ducks.** A "Measure my duck" check in Studio: 1 to 4 Walk cards and four Turns, with
-   robotd's own odometry and a tape-measured mark, sent back by the tester. **Not built yet.**
+   robotd's own odometry and a tape-measured mark, sent back by the tester ("Measure my duck",
+   below). **Built; no duck has run it yet.**
 
 `duck_square_cm` is the square a Walk card walks, 30 cm, the same as every starter pack's
 printed `square_cm`, so on the floor one card is one taped square. Its `duck_square_source` says
@@ -424,6 +428,17 @@ stop each sample must produce (`cardreader/tests/make_cardloop_vectors.py` write
   at 1.2, 34 Turn cards in 40 rows never arrived). Whether Pollen's v8 velstand, which tracks yaw
   commands, walks back and turns in place at them is for the duck-sim run to measure against
   "Acceptance", above. The duckbench numbers below were measured with the unclamped spec.
+- **The off switch.** `duck-card-loop.json` carries `"enabled_on_robot": false` and
+  `"validated": null`, read by both StudioKit (`DuckCardLoop.spec.enabledOnRobot`) and the reader
+  (`cardloop.ENABLED_ON_ROBOT`). Off, `RobotPlan` turns a Duck Cards plan's Walk and Turn into
+  timed moves and the runner says `DuckCardLoop.offNote` once (the reader: `cardloop.OFF_NOTE`,
+  the same words), and the board in Studio, on paper and in the reader's `--challenge` report
+  stays the board rule beside that sentence. Tests on both sides pin the default to false and the
+  sentence. Two ways run them on a robot anyway, both labelled: the reader's developer flag
+  `watch --measured-cards` (for duck-sim work; it says "DEVELOPER: --measured-cards is on." when
+  it starts), and Studio's "Measure my duck" screen, which is a test and says so. Studio has no
+  developer setting to hang a switch on, so it offers none. The switch turns on only when every
+  rung of "Acceptance" passes, with `validated` citing the results.
 - **When robotd does not report odometry** (no `odom` in its state, as from a robotd older than
   the estimator, or no state stream at all), Walk and Turn run as the timed cards they were, two
   seconds of Studio's twist, and the runner says once per row: "This duck does not report

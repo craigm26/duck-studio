@@ -1,5 +1,7 @@
 {
   "format": "duck-card-loop/0",
+  "enabled_on_robot": false,
+  "validated": null,
   "square_m": 0.30,
   "control_hz": 20,
   "stale_s": 0.5,

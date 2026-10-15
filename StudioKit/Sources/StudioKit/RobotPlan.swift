@@ -16,11 +16,13 @@ import DuckEvidence
 /// the same door the bench path resolves through, so slow, normal and fast mean the same thing
 /// on both and nothing a model said about a velocity reaches a motor.
 ///
-/// A DUCK CARD'S WALK AND TURN ARE A SQUARE AND A QUARTER TURN. In a plan read off Duck Cards
-/// (`DuckCards.model`), Walk forward, Walk back, Turn left and Turn right become `.card` beats,
-/// which `RobotPlanRunner` closes on robotd's odometry (`DuckCardLoop`) when the duck reports it,
-/// and runs as the timed twist they carry when it does not. Every other plan, and every other
-/// card, is unchanged.
+/// A DUCK CARD'S WALK AND TURN ARE TIMED ON A DUCK FOR NOW. Closed-loop cards ship off for real
+/// ducks (`DuckCardLoop.spec.enabledOnRobot`, docs/PACKS.md "Acceptance"): a plan read off Duck
+/// Cards runs Walk and Turn as `.move` beats, two seconds each, and says `DuckCardLoop.offNote`
+/// once (`cardsTimed`). With measured cards on (the spec's switch, or `measuredCards: true`, which
+/// only "Measure my duck" passes), they become `.card` beats, which `RobotPlanRunner` closes on
+/// robotd's odometry (`DuckCardLoop`) when the duck reports it, and runs as the timed twist they
+/// carry when it does not. Every other plan, and every other card, is unchanged.
 ///
 /// WHAT `robot.stop` DOES AND DOES NOT DO, read from robotd (`intents.rs` `stop`, 1fa8438): it
 /// zeroes the twist. It does not cancel a skill already running — a kick is half a second and
@@ -49,6 +51,9 @@ public struct RobotPlan: Equatable, Sendable {
     public let beats: [Beat]
     /// Parts of the plan that stay in it but are not sent, each said once.
     public let notSent: [String]
+    /// A Duck Cards plan whose Walk and Turn run timed because measured cards are off: the screen
+    /// and the runner say `DuckCardLoop.offNote`.
+    public let cardsTimed: Bool
 
     /// The plan's skill labels as the names a stock robotd answers to (`do_names`, robotd
     /// 1fa8438: `ground_pick` and `sit_toggle` are built in; the kicks and the roll are the
@@ -89,10 +94,12 @@ public struct RobotPlan: Equatable, Sendable {
         }
     }
 
-    /// The kept nodes, in their current order.
-    public init(_ plan: DuckIntentPlan) throws {
+    /// The kept nodes, in their current order. `measuredCards` is the spec's off switch unless a
+    /// caller that runs a test on purpose says otherwise.
+    public init(_ plan: DuckIntentPlan, measuredCards: Bool = DuckCardLoop.spec.enabledOnRobot) throws {
         var beats: [Beat] = []
         var heads = false
+        var timed = false
         let cards = plan.model == DuckCards.model
         var total = 0.0
         for node in plan.nodes where !node.discarded && !node.isRefusal {
@@ -113,10 +120,11 @@ public struct RobotPlan: Equatable, Sendable {
                 : DuckIntentPlan.shares[node.labels["speed"] ?? "normal"] ?? 2.0 / 3.0
             let seconds = min(max(node.seconds, DuckDrive.holdSeconds), DuckSequence.maximumMoveSeconds)
             let twist = try SequenceProposal.twist(for: go, share: share)
-            if cards && DuckCardLoop.cards.contains(node.action) {
+            if cards && DuckCardLoop.cards.contains(node.action) && measuredCards {
                 beats.append(.card(node.action, speed: node.labels["speed"], timed: twist, seconds: seconds,
                                    clause: node.clause))
             } else {
+                if cards && DuckCardLoop.cards.contains(node.action) { timed = true }
                 beats.append(.move(twist, seconds: seconds, clause: node.clause))
             }
             total += seconds
@@ -125,6 +133,7 @@ public struct RobotPlan: Equatable, Sendable {
         guard total <= DuckSequence.maximumSeconds else { throw Refusal.tooLong(total) }
         self.request = plan.request
         self.beats = beats
+        self.cardsTimed = timed
         self.notSent = heads
             ? ["Where the head looks is kept in the plan but not sent yet: a plan drives the body, "
              + "and the head stays where it is."]
@@ -297,6 +306,7 @@ public enum RobotPlanRunner {
         let tick = max(interval, 0.02)
         var board: DuckCardLoop.Pose?
         var timedSaid = false
+        if plan.cardsTimed { await event(.said(DuckCardLoop.offNote)) }
         let pose: @Sendable () async -> DuckCardLoop.Pose? = {
             guard let state, let s = await state(),
                   now().timeIntervalSince(s.receivedAt) <= DuckCardLoop.spec.staleS else { return nil }

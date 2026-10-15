@@ -63,6 +63,13 @@ public enum DuckCardLoop {
             }
         }
         public let format: String
+        /// THE OFF SWITCH. Closed-loop cards ship OFF for real ducks until they pass
+        /// docs/PACKS.md, "Acceptance". Off, `RobotPlan` runs a Duck Card's Walk and Turn as the
+        /// timed cards they were and says `offNote`; only "Measure my duck" (`DuckMeasure`) runs
+        /// them closed on a robot, as a test. The card reader reads the same key.
+        public let enabledOnRobot: Bool
+        /// Null until every rung has passed; then one line citing the three results.
+        public let validated: String?
         /// One duck square: how far a Walk card carries the duck.
         public let squareM: Double
         /// How often the controller sends `robot.move`.
@@ -74,7 +81,8 @@ public enum DuckCardLoop {
         public let walk: Walk
         public let turn: Turn
         enum CodingKeys: String, CodingKey {
-            case format, squareM = "square_m", controlHz = "control_hz", staleS = "stale_s",
+            case format, enabledOnRobot = "enabled_on_robot", validated,
+                 squareM = "square_m", controlHz = "control_hz", staleS = "stale_s",
                  betweenS = "between_s", walk, turn
         }
 
@@ -208,6 +216,11 @@ public enum DuckCardLoop {
     /// the same sentence (`runner.TIMED_NOTE`).
     public static let timedNote = "This duck does not report odometry, so Walk and Turn cards run as timed "
         + "cards, two seconds each, and do not land on board squares."
+    /// Said once per row while closed-loop cards are off for real ducks (`spec.enabledOnRobot`),
+    /// and wherever a board is shown beside a duck. The card reader says the same sentence
+    /// (`cardloop.OFF_NOTE`).
+    public static let offNote = "Walk and Turn cards on a duck are timed for now: two seconds each, and the "
+        + "duck does not land on board squares. Measured cards are being tested."
     /// Said when the pose stops arriving mid-card (`runner.LOST_NOTE`).
     public static let lostNote = "The duck stopped reporting where it is, so this card stopped there."
 

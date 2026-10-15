@@ -151,8 +151,9 @@ def step(action, speed="normal"):
 
 class Runs(unittest.TestCase):
     def run_row(self, duck, actions, said):
+        # Measured cards on, as `watch --measured-cards` turns them on: they ship off (OffSwitch).
         return runner.run(runner.beats([step(a) if isinstance(a, str) else step(*a) for a in actions]), duck,
-                          sleep=duck.sleep, say=said.append, state=duck.state, clock=duck.clock)
+                          sleep=duck.sleep, say=said.append, state=duck.state, clock=duck.clock, measured=True)
 
     def test_walk_turn_walk_lands_on_the_board(self):
         duck, said = FakeDuck(), []
@@ -180,14 +181,14 @@ class Runs(unittest.TestCase):
 
     def test_no_state_stream_at_all_is_timed_too(self):
         duck, said = FakeDuck(), []
-        runner.run(runner.beats([step("walk_forward")]), duck, sleep=duck.sleep, say=said.append)
+        runner.run(runner.beats([step("walk_forward")]), duck, sleep=duck.sleep, say=said.append, measured=True)
         self.assertTrue(any(runner.TIMED_NOTE in s for s in said))
 
     def test_a_pose_that_stops_arriving_stops_the_card(self):
         duck, said = FakeDuck(), []
         frozen = duck.state()
         runner.run(runner.beats([step("walk_forward")]), duck, sleep=duck.sleep, say=said.append,
-                   state=lambda: frozen, clock=duck.clock)
+                   state=lambda: frozen, clock=duck.clock, measured=True)
         self.assertTrue(any(runner.LOST_NOTE in s for s in said))
 
     def test_speed_cards_set_the_walking_speed(self):
@@ -199,6 +200,53 @@ class Runs(unittest.TestCase):
     def test_stop_and_sounds_are_unchanged(self):
         b = runner.beats([step("stop"), Step(labels={"action": "make_sound", "sound": "chirp"}, clause="chirp", cards=["chirp"])])
         self.assertEqual([x.kind for x in b], ["move", "sound"])
+
+
+class OffSwitch(unittest.TestCase):
+    """Closed-loop cards ship OFF for real ducks until docs/PACKS.md "Acceptance" passes.
+    StudioKit pins the same default and the same sentence (DuckCardLoopTests)."""
+
+    OFF = ("Walk and Turn cards on a duck are timed for now: two seconds each, and the duck does not "
+           "land on board squares. Measured cards are being tested.")
+
+    def test_the_switch_ships_off_and_unvalidated(self):
+        self.assertIs(cardloop.SPEC["enabled_on_robot"], False)
+        self.assertIsNone(cardloop.SPEC["validated"])
+        self.assertIs(cardloop.ENABLED_ON_ROBOT, False)
+        self.assertEqual(cardloop.OFF_NOTE, self.OFF)
+
+    def test_a_spec_without_the_switch_is_refused(self):
+        import tempfile
+        spec = dict(cardloop.SPEC)
+        del spec["enabled_on_robot"]
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+            json.dump(spec, f)
+        with self.assertRaises(ValueError):
+            cardloop.load_spec(pathlib.Path(f.name))
+        pathlib.Path(f.name).unlink()
+
+    def test_off_a_duck_with_odometry_still_runs_timed_cards_and_says_so_once(self):
+        duck, said = FakeDuck(), []
+        runner.run(runner.beats([step("walk_forward"), step("turn_left"), step("walk_forward")]), duck,
+                   sleep=duck.sleep, say=said.append, state=duck.state, clock=duck.clock)
+        self.assertEqual(sum(1 for s in said if self.OFF in s), 1)
+        self.assertFalse(any(runner.TIMED_NOTE in s for s in said))
+        self.assertEqual(len(duck.moves), 3 * round(runner.DEFAULT_SECONDS / runner.TICK))
+        self.assertEqual(duck.moves[0], {"vx": runner.MAX_FORWARD * 2 / 3, "vy": 0.0, "vyaw": 0.0})
+        self.assertEqual(duck.calls[-1][0], "robot.stop")
+
+    def test_the_board_report_says_the_duck_is_timed(self):
+        from duckcards import packs as P
+        line = P.measured(P.Board(columns=3, rows=3, square_cm=30, duck_square_cm=30,
+                                  duck_square_source="somewhere"))
+        self.assertEqual(line, " " + self.OFF)
+        on = P.measured(P.Board(columns=3, rows=3, square_cm=30, duck_square_cm=30,
+                                duck_square_source="somewhere"), measured_cards=True)
+        self.assertIn("A Walk card walks one duck square, 30 cm, on odometry (somewhere)", on)
+
+    def test_the_developer_flag_is_labelled(self):
+        from duckcards import __main__ as cli
+        self.assertTrue(cli.MEASURED_CARDS_LABEL.startswith("DEVELOPER: --measured-cards is on."))
 
 
 if __name__ == "__main__":

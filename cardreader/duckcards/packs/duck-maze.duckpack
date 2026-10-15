@@ -21,7 +21,7 @@
     "kick_right"
   ],
   "score": "steps",
-  "board": {"columns": 4, "rows": 4, "square_cm": 30, "duck_square_cm": 30, "duck_square_source": "duckbench simulator (Pollen's MJCF, alpha_walking), 2026-10-15: Walk and Turn closed on odometry, 140 rows of 700 cards, no falls, every row ended within 4.6 cm of the board (6.4 cm with Walk back); not measured in Pollen's duck-sim or on a real duck"},
+  "board": {"columns": 4, "rows": 4, "square_cm": 30, "duck_square_cm": 30, "duck_square_source": "duckbench simulator (Pollen's MJCF, alpha_walking), 2026-10-15, with a first spec past Pollen's pad envelope; the shipped spec is not measured yet, so on a real duck Walk and Turn cards are timed until Pollen's duck-sim and a tester's duck pass (docs/PACKS.md, Acceptance)"},
   "challenges": [
     {
       "id": "maze-1",

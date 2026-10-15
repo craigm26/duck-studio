@@ -639,14 +639,20 @@ NOT_THE_DUCK = "This is the board's answer for the row (one Walk card, one squar
 UNMEASURED = " One Walk card has not been measured on a duck yet."
 
 
-def measured(board: Board) -> str:
-    """What the reader says about the duck square, after NOT_THE_DUCK."""
+def measured(board: Board, measured_cards: bool | None = None) -> str:
+    """What the reader says about the duck square, after NOT_THE_DUCK. With closed-loop cards off
+    for real ducks (the spec's `enabled_on_robot`, unless `--measured-cards`), that a duck's Walk
+    and Turn cards are timed, whatever the pack measured."""
+    from . import cardloop
+    if not (cardloop.ENABLED_ON_ROBOT if measured_cards is None else measured_cards):
+        return " " + cardloop.OFF_NOTE
     if board.duck_square_cm is None:
         return UNMEASURED
     return f" A Walk card walks one duck square, {board.duck_square_cm:g} cm, on odometry ({board.duck_square_source})."
 
 
-def report(pack: Pack, ch: Challenge, program, deck: Deck) -> tuple[dict, list[str]]:
+def report(pack: Pack, ch: Challenge, program, deck: Deck,
+           measured_cards: bool | None = None) -> tuple[dict, list[str]]:
     """The board play of a row the reader ran, and the lines it says about it. The row is played
     as laid: the steps the reader made, the cards between Start and End, any Repeat left open."""
     result = play(ch, program.steps, card_count(program.row), pack.score, deck, open_repeats(program.row))
@@ -654,7 +660,7 @@ def report(pack: Pack, ch: Challenge, program, deck: Deck) -> tuple[dict, list[s
     lines = [f"[board] {ch.name} ({ch.id}): {result['said']}",
              f"[board] {'solved' if result['solved'] else 'not solved'}, score {result['score']} {unit}, "
              f"par {result['par']}.",
-             "[board] " + NOT_THE_DUCK + measured(pack.board)]
+             "[board] " + NOT_THE_DUCK + measured(pack.board, measured_cards)]
     return result, lines
 
 

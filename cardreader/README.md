@@ -105,15 +105,17 @@ takes a `.duckpack` file, or the id of a starter pack in `duckcards/packs/` (`ge
   ```
     [board] Corner pond (pond-3): Solved in 5 steps, which is par.
     [board] solved, score 5 steps, par 5.
-    [board] This is the board's answer for the row (one Walk card, one square), not where the duck stopped. A Walk card walks one duck square, 30 cm, on odometry (duckbench simulator (Pollen's MJCF, alpha_walking), 2026-10-15: ... not measured in Pollen's duck-sim or on a real duck).
+    [board] This is the board's answer for the row (one Walk card, one square), not where the duck stopped. Walk and Turn cards on a duck are timed for now: two seconds each, and the duck does not land on board squares. Measured cards are being tested.
   ```
 
   That is a report on the row, not on the duck. The board rule moves one square per Walk card and
-  turns a quarter per Turn card; nothing here watches where the duck stopped. On a duck that
-  reports odometry a Walk card walks one 30 cm duck square and a Turn card a quarter turn, and in
-  duckbench's simulator 140 rows ended within 4.6 cm of the board (6.4 cm with Walk back;
-  docs/PACKS.md, Sizing), but no real duck has been measured. So the reader never says the duck
-  reached the goal, only that the row does on the board.
+  turns a quarter per Turn card; nothing here watches where the duck stopped. Closed-loop cards
+  (a Walk card walks one 30 cm duck square on odometry, a Turn card a quarter turn) ship off for
+  real ducks until they pass docs/PACKS.md "Acceptance", so on a duck they are timed and the
+  reader says so once per row. So the reader never says the duck reached the goal, only that the
+  row does on the board.
+- **`--measured-cards`** (developer, for duck-sim work) turns closed-loop cards on. The reader says
+  so when it starts: "DEVELOPER: --measured-cards is on."
 
 A pack that cannot be found or read, and a challenge the pack does not have, are refused with a
 sentence before the duck reads anything.
