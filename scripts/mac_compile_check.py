@@ -26,6 +26,9 @@ Usage:
     python3 scripts/mac_compile_check.py             # build HEAD
     python3 scripts/mac_compile_check.py --worktree  # build the working tree,
                                                      # uncommitted changes and all
+    python3 scripts/mac_compile_check.py --worktree --platform macos --launch
+                                                     # and then run the built Mac
+                                                     # app headless for 15 s
 """
 
 import argparse
@@ -198,7 +201,54 @@ xcodebuild -project DuckStudio.xcodeproj -scheme DuckStudio \
 # `pipefail` the pipeline reports grep's status, so a BUILD FAILED whose
 # errors grep matched successfully came back as exit 0 — a red build read as
 # a green one, which is the single worst thing a gate can do.
-exit ${{PIPESTATUS[0]}}
+status=${{PIPESTATUS[0]}}
+__LAUNCH__
+exit $status
+"""
+
+# THE ONLY RUNTIME CHECK THIS MAC ALLOWS. MacInCloud over ssh has no GUI session
+# (`open` fails with launchd error 125, `screencapture` fails), so the built Mac
+# app's own binary is started directly, left 15 s, and asked whether it is still
+# alive. Still running = it got through launch without crashing; exited early =
+# its status, the last lines it printed, and any crash report written since. It
+# is not a look at a window. The app's own lines are prefixed `LAUNCH|` and any
+# `error:` in them is respelled so `mac_gate.sh`, which reads compiler errors,
+# does not mistake the app's logging for a failed build. The exit status stays
+# xcodebuild's; read the LAUNCH: verdict line.
+REMOTE_LAUNCH = f"""set +e
+settings=$(xcodebuild -project DuckStudio.xcodeproj -scheme DuckStudio \
+    -destination 'generic/platform=macOS' -configuration Release \
+    -skipPackagePluginValidation -skipMacroValidation -showBuildSettings 2>/dev/null)
+dir=$(printf '%s\\n' "$settings" | awk -F' = ' '$1 ~ / BUILT_PRODUCTS_DIR$/ {{print $2; exit}}')
+exe=$(printf '%s\\n' "$settings" | awk -F' = ' '$1 ~ / EXECUTABLE_PATH$/ {{print $2; exit}}')
+bin="$dir/$exe"
+echo "LAUNCH: binary $bin" | sed -e 's|{REMOTE_HOME}|~|g'
+if [ ! -x "$bin" ]; then
+  echo "LAUNCH: NOT RUN, no built binary at that path"
+else
+  out={Q_HOME}/duck-launch.log
+  stamp={Q_HOME}/duck-launch.stamp
+  touch "$stamp"
+  "$bin" > "$out" 2>&1 &
+  pid=$!
+  sleep 15
+  if kill -0 "$pid" 2>/dev/null; then
+    echo "LAUNCH: ALIVE after 15 s, no crash (pid $pid); stopping it"
+    kill "$pid"; sleep 2; kill -9 "$pid" 2>/dev/null
+  else
+    wait "$pid"; code=$?
+    echo "LAUNCH: EXITED before 15 s with status $code"
+  fi
+  tail -n 25 "$out" | sed -e 's/error:/error -/g' -e 's/^/LAUNCH| /'
+  reports=$(find {Q_HOME}/Library/Logs/DiagnosticReports -newer "$stamp" -name '*Duck*' 2>/dev/null)
+  if [ -n "$reports" ]; then
+    echo "LAUNCH: crash report(s) written:"
+    printf '%s\\n' "$reports" | sed 's/^/LAUNCH|   /'
+    head -n 40 $(printf '%s\\n' "$reports" | head -n 1) | sed -e 's/error:/error -/g' -e 's/^/LAUNCH| /'
+  else
+    echo "LAUNCH: no crash report written"
+  fi
+fi
 """
 
 
@@ -215,8 +265,14 @@ def main() -> int:
     # `note:` lines under it, which the default filter drops.
     parser.add_argument("--notes", action="store_true",
                         help="keep compiler note: lines (and a longer tail)")
+    # Start the built Mac app headless for 15 s after a green build (macOS only).
+    parser.add_argument("--launch", action="store_true",
+                        help="after a green macOS build, run the app binary 15 s and report whether it crashed")
     args = parser.parse_args()
+    if args.launch and args.platform != "macos":
+        parser.error("--launch runs the Mac app, so it needs --platform macos")
     remote_build = (REMOTE_BUILD
+        .replace("__LAUNCH__", REMOTE_LAUNCH if args.launch else "")
         .replace("__PLATFORM__", {"ios": "iOS", "macos": "macOS"}[args.platform])
         .replace("__GREP__", r"error:|note:|warning: [A-Z]|\*\* BUILD" if args.notes
                  else r"error:|warning: [A-Z]|\*\* BUILD")
