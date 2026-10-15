@@ -224,6 +224,22 @@ def _open(card: Card, notes: list[str], state: _Reading, inside: tuple[int, ...]
     return _compile(slots, notes, state, inside + (tag,))
 
 
+def table(row, deck: Deck) -> Layout:
+    """A saved row laid out the way a reader lays out a table: Start, the row, End.
+
+    ONE WAY TO TURN A SAVED ROW INTO STEPS. Studio reads a Your card back this way
+    (`DuckCards.table`), and a pack's rows go the same way (`packs.py`), so a row written in a
+    file unrolls its Repeats and opens its Your cards exactly as the same cards laid on the floor
+    would. Where each card lies does not matter to `read`, only what it is and what is under it.
+    `row` is a list of `Entry`; every code in it must be in the deck."""
+    slots = [Slot(card=_saved(deck.by_code("start")))]
+    for e in row:
+        slots.append(Slot(card=_saved(deck.by_code(e.card), e.times),
+                          under=[_saved(deck.by_code(u)) for u in e.under]))
+    slots.append(Slot(card=_saved(deck.by_code("end"))))
+    return Layout(rows=[Row(slots=slots)], turned=[], direction=(1.0, 0.0))
+
+
 def read(layout: Layout, deck: Deck, counts: dict[int, int] | None = None) -> Program:
     """The program in a picture's rows.
 
