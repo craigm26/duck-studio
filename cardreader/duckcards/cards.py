@@ -160,6 +160,27 @@ class Deck:
             by_tag[e["tag"]] = e
         return Deck({**self.data, "cards": [by_tag[t] for t in sorted(by_tag)]})
 
+    def lend(self, data: dict) -> tuple["Deck", list[int]]:
+        """A class's deck file laid over this deck: its Your cards, and nothing else.
+
+        A NUMBER NEVER CHANGES MEANING. What a printed card means is the deck this reader ships;
+        a class's file gives it the 200s it saved a row for. So a file written under an older
+        starter deck still reads every card this one has, and a file that says code 0 is
+        something else cannot make it so. Studio's class deck (`DuckCards.ClassDeck.overlaid`)
+        takes a file the same way. Returns the deck and the other cards the file would have
+        changed, which kept their own meaning."""
+        given = Deck(data)                  # read first, and refused, the way any deck is
+        lo, hi = self.yours_range
+        lent, ignored = [], []
+        for c in data["cards"]:
+            tag = c["tag"]
+            if lo <= tag <= hi and c.get("kind") == "yours":
+                if given.cards[tag].row:
+                    lent.append(c)
+            elif given.cards.get(tag) != self.cards.get(tag):
+                ignored.append(tag)
+        return (self.with_cards(lent) if lent else self), sorted(ignored)
+
     def card(self, tag: int) -> Card | None:
         """The card a code means, or None for a code the deck does not use.
 

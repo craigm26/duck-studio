@@ -352,6 +352,35 @@ final class DuckCardDeckTests: XCTestCase {
         XCTAssertEqual(theirs.deck.card(201)?.does, "Walk forward fast, then roll.")
     }
 
+    /// A NUMBER NEVER CHANGES MEANING. A deck file lends a class deck its Your cards and nothing
+    /// else: a file that says code 0 is something else leaves Walk forward as it is, and says so,
+    /// and a file written under an older starter deck still reads every card this app ships.
+    func testADeckFileLendsOnlyItsYourCards() throws {
+        var top = try XCTUnwrap(try JSONSerialization.jsonObject(with: try starter().source) as? [String: Any])
+        var cards = try XCTUnwrap(top["cards"] as? [[String: Any]])
+        for i in cards.indices {
+            if cards[i]["tag"] as? Int == 0 { cards[i]["name"] = "Run away" }
+            if cards[i]["tag"] as? Int == 203 {
+                cards[i]["name"] = "Bow"
+                cards[i]["row"] = [["card": "sit_or_stand"]]
+            }
+        }
+        top["cards"] = cards.filter { $0["tag"] as? Int != 61 }      // a deck from before Kick, right
+        var classDeck = try classDeck()
+        let taken = try classDeck.take(try JSONSerialization.data(withJSONObject: top))
+        XCTAssertEqual(taken.ignored, [0])
+        XCTAssertEqual(classDeck.deck.card(0)?.name, try starter().card(0)?.name)
+        XCTAssertEqual(classDeck.deck.card(61)?.code, "kick_right", "a card the file did not have is still read")
+        XCTAssertEqual(classDeck.deck.card(203)?.name, "Bow")
+        XCTAssertEqual(DuckCards.Words.opened(taken),
+                       "Opened the class deck. It gives a meaning to 1 Your card: 203 Bow. It also said something "
+                     + "else about card 0, which kept its own meaning: a number never changes what it means.")
+        let named = try XCTUnwrap(try JSONSerialization.jsonObject(with: classDeck.exported) as? [String: Any])
+        XCTAssertEqual(named["name"] as? String, DuckCards.ClassDeck.deckName)
+        try classDeck.forget(203)
+        XCTAssertEqual(classDeck.exported, try starter().source, "with no Your card it is the starter deck again")
+    }
+
     func testADeckFileTheReaderCannotFollowIsRefusedInItsWords() throws {
         var classDeck = try classDeck()
         let bad: [String: Any] = ["tag": 200, "code": "card_1", "name": "Fly", "category": "yours", "kind": "yours",

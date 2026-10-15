@@ -146,7 +146,7 @@ struct DuckCameraCard: View {
                             .background(.thinMaterial, in: Capsule())
                             .padding(6)
                     }
-                    .accessibilityLabel(Text("The duck's camera"))
+                    .accessibilityLabel(Text(DuckCamera.Words.pictureLabel))
             }
             if feed.running {
                 Toggle(DuckCards.Words.toggle, isOn: $feed.readCards)

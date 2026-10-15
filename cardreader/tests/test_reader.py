@@ -237,6 +237,21 @@ class YourCards(unittest.TestCase):
                 class_deck(card)
             self.assertIn(why, str(e.exception))
 
+    def test_a_class_deck_file_lends_its_your_cards_and_nothing_else(self):
+        data = json.loads(json.dumps(DECK.data))
+        for c in data["cards"]:
+            if c["tag"] == 0:
+                c["name"] = "Run away"
+            if c["tag"] == 203:
+                c.update(name="Bow", row=[{"card": "sit_or_stand"}])
+        data["cards"] = [c for c in data["cards"] if c["tag"] != 61]      # a deck from before Kick, right
+        deck, ignored = DECK.lend(data)
+        self.assertEqual(ignored, [0])
+        self.assertEqual(deck.card(0).name, "Walk forward")
+        self.assertEqual(deck.card(61).code, "kick_right")
+        self.assertEqual(deck.card(203).name, "Bow")
+        self.assertIs(DECK.lend(DECK.data)[0], DECK)
+
     def test_a_class_deck_file_round_trips_through_load(self):
         import tempfile, pathlib
         deck = class_deck(yours(205, [{"card": "sit_or_stand"}], "Bow"))

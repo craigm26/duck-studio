@@ -218,7 +218,7 @@ extension DuckCards {
             var problem: String?
             if FileManager.default.fileExists(atPath: file.path) {
                 do {
-                    deck = try ClassDeck.read(try Data(contentsOf: file))
+                    deck = try ClassDeck.overlaid(try Data(contentsOf: file), on: starter).deck
                 } catch let refusal as Refusal {
                     problem = Words.classDeckUnread(refusal)
                 } catch {
@@ -233,6 +233,47 @@ extension DuckCards {
         /// The class deck at `file`, over the deck this app ships.
         public static func opened(at file: URL) -> ClassDeck? {
             Deck.bundled.map { ClassDeck(file: file, starter: $0) }
+        }
+
+        /// The name a class deck file carries once it gives a Your card a meaning.
+        public static let deckName = "Duck Cards class deck"
+
+        /// A DECK FILE LENDS ONLY ITS YOUR CARDS. What a printed card means is the deck this app
+        /// ships, and a number never changes meaning (the cards page: a new card joins its range
+        /// "without renumbering anything"). So a deck file opened or kept here gives the starter
+        /// deck its Your card entries, the 200s with a row saved, and nothing else: a later starter
+        /// deck reaches a class deck saved under an earlier one, and a file that says code 0 is
+        /// something else cannot make it so. Read first the way the duck reads one, refused in its
+        /// words; `ignored` names the other cards it would have changed.
+        public static func overlaid(_ data: Data, on starter: Deck) throws -> (deck: Deck, ignored: [Int]) {
+            let given = try read(data)
+            guard let top = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+                  let rows = top["cards"] as? [[String: Any]]
+            else { throw Refusal.notADeck("not a \(DuckCards.deckFormat) deck") }
+            var lent: [[String: Any]] = []
+            var ignored: [Int] = []
+            for c in rows {
+                guard let tag = c["tag"] as? Int else { continue }
+                if starter.yours.contains(tag), (c["kind"] as? String) == "yours" {
+                    if let row = given.cards[tag]?.row, !row.isEmpty { lent.append(c) }
+                } else if given.cards[tag] != starter.cards[tag] {
+                    ignored.append(tag)
+                }
+            }
+            guard !lent.isEmpty else { return (starter, ignored.sorted()) }
+            do {
+                let deck = try starter.replacing(lent)
+                guard var named = (try? JSONSerialization.jsonObject(with: deck.source)) as? [String: Any] else {
+                    return (deck, ignored.sorted())
+                }
+                named["name"] = deckName
+                return (try Deck.read(JSONSerialization.data(withJSONObject: named, options: [.prettyPrinted, .sortedKeys])),
+                        ignored.sorted())
+            } catch let error as Deck.ReadError {
+                switch error {
+                case .notADeck(let why), .badCard(let why): throw Refusal.notADeck(why)
+                }
+            }
         }
 
         /// A deck file, read the way the duck's reader reads one, refused in its words.
@@ -325,11 +366,13 @@ extension DuckCards {
             if said.isEmpty { entry.removeValue(forKey: "does") } else { entry["does"] = said }
             let next: Deck
             do {
-                next = try deck.replacing([entry])
+                next = try ClassDeck.overlaid(try deck.replacing([entry]).source, on: starter).deck
             } catch let error as Deck.ReadError {
                 switch error {
                 case .notADeck(let why), .badCard(let why): throw Refusal.notADeck(why)
                 }
+            } catch let refusal as Refusal {
+                throw refusal
             } catch {
                 throw Refusal.notADeck("not a \(DuckCards.deckFormat) deck")
             }
@@ -362,7 +405,7 @@ extension DuckCards {
             } catch {
                 throw Refusal.notADeck("not a \(DuckCards.deckFormat) deck")
             }
-            try keep(try ClassDeck.read(data))
+            try keep(try ClassDeck.overlaid(data, on: starter).deck)
         }
 
         // MARK: sharing
@@ -376,17 +419,24 @@ extension DuckCards {
             public let cards: [Card]
             /// Cards this deck meant something by that the opened one does not mean the same way.
             public let replaced: [Card]
+            /// Cards outside the Your cards that the file would have changed, left as the starter
+            /// deck has them.
+            public let ignored: [Int]
+            public init(cards: [Card], replaced: [Card], ignored: [Int] = []) {
+                self.cards = cards; self.replaced = replaced; self.ignored = ignored
+            }
         }
 
         /// A deck file from another phone, through the import door. Read the way the duck reads
-        /// one and refused in its words; taken whole, byte for byte, as this phone's class deck.
+        /// one and refused in its words; its Your cards become this phone's class deck, laid over
+        /// the starter deck (`overlaid`), so two phones with the same app hold the same bytes.
         @discardableResult
         public mutating func take(_ data: Data) throws -> Taken {
-            let next = try ClassDeck.read(data)
+            let (next, ignored) = try ClassDeck.overlaid(data, on: starter)
             let before = saved
             try keep(next)
             let after = saved
-            return Taken(cards: after, replaced: before.filter { !after.contains($0) })
+            return Taken(cards: after, replaced: before.filter { !after.contains($0) }, ignored: ignored)
         }
 
         // MARK: the file

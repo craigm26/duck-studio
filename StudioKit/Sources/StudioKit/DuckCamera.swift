@@ -110,6 +110,8 @@ public enum DuckCamera {
         public static let start = "Show the camera"
         public static let stop = "Stop the camera"
         public static let liveVideo = "Open live video in Safari"
+        /// What VoiceOver says the picture is.
+        public static let pictureLabel = "The duck's camera"
         public static func rate(_ fps: Double) -> String { String(format: "%.1f frames a second", fps) }
     }
 }

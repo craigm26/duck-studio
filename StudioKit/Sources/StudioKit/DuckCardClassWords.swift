@@ -125,6 +125,12 @@ extension DuckCards.Words {
             out += " It replaced what \(DeviceWords.current.this) had saved for "
                  + listed(taken.replaced.map { "\($0.tag) \($0.name)" }) + "."
         }
+        if !taken.ignored.isEmpty {
+            let cards = listed(taken.ignored.map { String($0) })
+            out += taken.ignored.count == 1
+                ? " It also said something else about card \(cards), which kept its own meaning: a number never changes what it means."
+                : " It also said something else about cards \(cards), which kept their own meanings: a number never changes what it means."
+        }
         return out
     }
 

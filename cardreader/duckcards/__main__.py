@@ -27,14 +27,21 @@ from .see import see
 
 
 def _deck(path: str | None) -> Deck:
-    """The starter deck, or a class's copy of it: a `.duckcards` file Studio exported, or any
-    `duck-cards/0` deck file. Refused by name if it says something the reader cannot follow."""
+    """The starter deck, with a class's Your cards laid over it: a `.duckcards` file Studio
+    exported, or any `duck-cards/0` deck file. Refused by name if it says something the reader
+    cannot follow; anything it says about a printed card is left as the starter deck has it."""
+    starter = Deck.load()
     if not path:
-        return Deck.load()
+        return starter
     try:
-        return Deck.load(os.path.expanduser(path))
-    except (OSError, ValueError) as e:
+        deck, ignored = starter.lend(json.loads(open(os.path.expanduser(path), "rb").read()))
+    except (OSError, ValueError, KeyError, TypeError) as e:
         raise SystemExit(f"cannot read the deck {path}: {e}")
+    if ignored:
+        print(f"{path} also says something about card{'s' if len(ignored) > 1 else ''} "
+              f"{', '.join(map(str, ignored))}; a number never changes what it means, so "
+              f"{'they keep their' if len(ignored) > 1 else 'it keeps its'} own meaning.")
+    return deck
 
 
 def cmd_read(args) -> int:
@@ -78,6 +85,9 @@ class DryRobot:
 def cmd_watch(args) -> int:
     from . import duck, runner
     deck = _deck(args.deck)
+    # How a card's place in the picture becomes an angle, for joining looks: the real camera's,
+    # unless this is a camera with another lens (duck-sim's renders 72.7° along its long side).
+    pan.LONG_SIDE_DEG = args.camera_degrees
     frames = duck.FrameURL(args.frame_url) if args.frame_url else duck.FrameSocket(args.frame_socket)
     if args.dry_run:
         robot, connect = DryRobot(), None
@@ -221,6 +231,9 @@ def main(argv=None) -> int:
                         "takes a held card out of the picture and it is read again (and nothing is scanned)")
     w.add_argument("--no-scan", action="store_true",
                    help="do not turn the head along a row that runs off the picture; read what one look sees")
+    w.add_argument("--camera-degrees", type=float, default=pan.LONG_SIDE_DEG,
+                   help="the camera's view along the picture's long side, degrees: 62 on a Microduck "
+                        "(the default); 72.7 for duck-sim's head camera, which joining looks needs")
     w.add_argument("--hz", type=float, default=4.0, help="pictures a second (default 4)")
     w.add_argument("--need", type=int, default=3, help="pictures in a row that must agree (default 3)")
     w.add_argument("--hands-off", type=float, default=1.5, help="seconds between reading a row and running it")
