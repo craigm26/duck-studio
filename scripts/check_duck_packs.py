@@ -14,7 +14,10 @@ shorter row than par, or cannot solve a challenge at all, has been handed a brok
   5. every solution solves its challenge at par, and unrolls to no more steps than a duck runs;
   6. every `buggy` row fails, and one card swapped makes it a solution;
   7. solutions, buggy rows and finish_with use only cards in play, and Your cards the pack lends;
-  8. 3 to 6 lessons, and no em or en dash anywhere in the file (the website rejects them).
+  8. 3 to 6 lessons, and no em or en dash anywhere in the file (the website rejects them);
+  9. a shipped pack's duck square is the square the closed-loop cards walk
+     (`duck-card-loop.json` square_m), and it says where that was measured (`duck_square_source`;
+     both readers refuse a number without a source, or a source without a number).
 
 The board rule, the search and the swap are `cardreader/duckcards/packs.py`; nothing is worked
 out a second time here. scripts/check_duckcards_vectors.sh keeps the cardreader copies of these
@@ -27,7 +30,9 @@ THIS GUARD CAN FAIL, AND IT WAS WATCHED TO (2026-10-15), each change made by han
   - loop-the-course loop-3's buggy row replaced by its solution: exit 1, "the buggy row solves it";
   - the same buggy row replaced by three Turn left cards: exit 1, "no single card swap fixes the buggy row";
   - loop-the-course loop-4's par set 5 -> 12: exit 1, "worse than the plain row";
-  - an em dash put in design-a-level's about: exit 1, "dash".
+  - an em dash put in design-a-level's about: exit 1, "dash";
+  - duck-maze's duck_square_cm set 30 -> 25: exit 1, "a Walk card walks 30 cm";
+  - duck-maze's duck_square_source taken out: exit 1, "carries duck_square_source".
 
 A CLASS'S OWN PACK IS CHECKED THE SAME WAY. Given files, it checks those instead: a class pack
 Studio wrote and shared (`class-` and six letters and numbers for an id, written as class.duckpack,
@@ -48,6 +53,7 @@ sys.path.insert(0, str(ROOT / "cardreader"))
 
 from duckcards.cards import Deck  # noqa: E402
 from duckcards import packs as P  # noqa: E402
+from duckcards.cardloop import SPEC as LOOP  # noqa: E402
 
 SOURCE = ROOT / "StudioKit" / "Sources" / "StudioKit" / "Resources" / "DuckPacks"
 DASHES = ("\u2014", "\u2013")
@@ -68,6 +74,10 @@ def check(path: pathlib.Path, deck: Deck, shipped: bool = True) -> list[str]:
         problems.append(f"{name}: the file is named {path.stem}, and the pack's id is {pack.id}.")
     if shipped and not 3 <= len(pack.lessons) <= 6:
         problems.append(f"{name}: has {len(pack.lessons)} lessons, and a pack carries 3 to 6.")
+    walked = round(LOOP["square_m"] * 100, 6)
+    if shipped and pack.board.duck_square_cm is not None and pack.board.duck_square_cm != walked:
+        problems.append(f"{name}: says a duck square is {pack.board.duck_square_cm:g} cm, and a Walk card "
+                        f"walks {walked:g} cm (duck-card-loop.json).")
     played, _ = pack.lend(deck)
     lent = {y["code"] for y in pack.yours}
     for ch in pack.challenges:

@@ -5,8 +5,9 @@ names the cards in play, a board, a ramp of challenges and the teacher's lessons
 reads one and refuses it in sentences, plays a row on a challenge's board, and works out par.
 
 THE BOARD RULE IS EXACT; THE DUCK IS NOT. On the board one Walk card moves one square and one
-Turn card is a quarter turn. A Microduck walks for a time, and drifts, so nothing here says where
-a real duck would stop. `duck_square_cm` stays null until someone measures it.
+Turn card is a quarter turn. A Microduck walks and drifts, so nothing here says where a real duck
+stopped. `duck_square_cm` is null until a Walk card has been measured, and then it carries
+`duck_square_source`: where the number came from and how far off it was.
 
 A ROW BECOMES STEPS THE WAY THE READER ALREADY MAKES THEM. A challenge's `solution` is a saved
 row, in the shape a Your card's row is saved in, so it goes through `program.table` and
@@ -96,6 +97,7 @@ class Board:
     rows: int
     square_cm: float
     duck_square_cm: float | None
+    duck_square_source: str | None = None
 
 
 @dataclass
@@ -365,7 +367,12 @@ def _read(data, deck: Deck) -> Pack:
     duck = b.get("duck_square_cm")
     _need(duck is None or (isinstance(duck, (int, float)) and not isinstance(duck, bool) and duck > 0),
           "duck_square_cm is null until one Walk forward has been measured, then centimetres.")
-    board = Board(columns=columns, rows=rows, square_cm=square, duck_square_cm=duck)
+    source = b.get("duck_square_source")
+    _need((duck is None and source is None)
+          or (duck is not None and isinstance(source, str) and source.strip() != "" and "\n" not in source),
+          "A measured duck_square_cm carries duck_square_source, one line saying where it was measured "
+          "and how far off it was; an unmeasured one carries none.")
+    board = Board(columns=columns, rows=rows, square_cm=square, duck_square_cm=duck, duck_square_source=source)
 
     raw = data.get("challenges")
     _need(isinstance(raw, list) and len(raw) > 0, "The pack needs at least one challenge.")
@@ -632,6 +639,13 @@ NOT_THE_DUCK = "This is the board's answer for the row (one Walk card, one squar
 UNMEASURED = " One Walk card has not been measured on a duck yet."
 
 
+def measured(board: Board) -> str:
+    """What the reader says about the duck square, after NOT_THE_DUCK."""
+    if board.duck_square_cm is None:
+        return UNMEASURED
+    return f" A Walk card walks one duck square, {board.duck_square_cm:g} cm, on odometry ({board.duck_square_source})."
+
+
 def report(pack: Pack, ch: Challenge, program, deck: Deck) -> tuple[dict, list[str]]:
     """The board play of a row the reader ran, and the lines it says about it. The row is played
     as laid: the steps the reader made, the cards between Start and End, any Repeat left open."""
@@ -640,7 +654,7 @@ def report(pack: Pack, ch: Challenge, program, deck: Deck) -> tuple[dict, list[s
     lines = [f"[board] {ch.name} ({ch.id}): {result['said']}",
              f"[board] {'solved' if result['solved'] else 'not solved'}, score {result['score']} {unit}, "
              f"par {result['par']}.",
-             "[board] " + NOT_THE_DUCK + (UNMEASURED if pack.board.duck_square_cm is None else "")]
+             "[board] " + NOT_THE_DUCK + measured(pack.board)]
     return result, lines
 
 

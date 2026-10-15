@@ -12,8 +12,9 @@ import Foundation
 /// `cardreader/vectors/pack_*.json` to the same JSON, and `DuckPacksTests` reads every one.
 ///
 /// THE BOARD RULE IS EXACT; THE DUCK IS NOT. One Walk card is one square and one Turn card a
-/// quarter turn, on the board. A Microduck walks for a time and drifts, so nothing here says where a
-/// real duck would stop: `Board.duckSquareCm` is nil until someone measures it.
+/// quarter turn, on the board. A Microduck walks and drifts, so nothing here says where a real duck
+/// stopped: `Board.duckSquareCm` is nil until a Walk card has been measured, and then
+/// `duckSquareSource` says where it was measured and how far off it was.
 public enum DuckPacks {
 
     public static let format = "duck-pack/0"
@@ -84,6 +85,14 @@ public enum DuckPacks {
         public let squareCm: Double
         /// How far one Walk forward carries a duck, measured; nil until it is.
         public let duckSquareCm: Double?
+        /// One line: where `duckSquareCm` was measured and how far off it was. Nil exactly when
+        /// `duckSquareCm` is.
+        public let duckSquareSource: String?
+
+        public init(columns: Int, rows: Int, squareCm: Double, duckSquareCm: Double?, duckSquareSource: String? = nil) {
+            self.columns = columns; self.rows = rows; self.squareCm = squareCm
+            self.duckSquareCm = duckSquareCm; self.duckSquareSource = duckSquareSource
+        }
     }
 
     public struct Lesson: Equatable, Sendable {
@@ -434,7 +443,13 @@ public enum DuckPacks {
         let duck = number(rawDuck)
         try need(rawDuck == nil || (duck.map { $0 > 0 } ?? false),
                  "duck_square_cm is null until one Walk forward has been measured, then centimetres.")
-        let board = Board(columns: columns!, rows: rows!, squareCm: square!, duckSquareCm: duck)
+        let rawSource = b["duck_square_source"].flatMap { $0 is NSNull ? nil : $0 }
+        let source = rawSource as? String
+        try need((rawDuck == nil && rawSource == nil)
+                 || (rawDuck != nil && source.map { !$0.trimmingCharacters(in: .whitespaces).isEmpty && !$0.contains("\n") } == true),
+                 "A measured duck_square_cm carries duck_square_source, one line saying where it was measured "
+                 + "and how far off it was; an unmeasured one carries none.")
+        let board = Board(columns: columns!, rows: rows!, squareCm: square!, duckSquareCm: duck, duckSquareSource: source)
 
         guard let raw = top["challenges"] as? [Any], !raw.isEmpty else {
             throw Refusal.notAPack("The pack needs at least one challenge.")

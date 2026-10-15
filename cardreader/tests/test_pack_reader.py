@@ -128,7 +128,8 @@ class TheChallengeReport(unittest.TestCase):
         self.assertEqual(lines[1], f"[board] solved, score {ch.par} steps, par {ch.par}.")
         self.assertIn("the board's answer for the row", lines[2])
         self.assertIn("not where the duck stopped", lines[2])
-        self.assertIn("One Walk card has not been measured on a duck", lines[2])
+        self.assertIn("A Walk card walks one duck square, 30 cm, on odometry (duckbench simulator", lines[2])
+        self.assertIn("not measured in Pollen's duck-sim or on a real duck).", lines[2])
         for line in lines:
             self.assertNotIn("landed", line)
 

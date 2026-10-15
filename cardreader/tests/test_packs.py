@@ -69,6 +69,21 @@ class ReadingAPack(unittest.TestCase):
         self.assertEqual(pack.challenge("t-1").goal, (1, 1))
         self.assertEqual(pack.board.duck_square_cm, None)
 
+    def test_a_duck_square_comes_with_its_source_and_not_without(self):
+        board = {"columns": 3, "rows": 3, "square_cm": 30}
+        with self.assertRaisesRegex(P.PackError, "carries duck_square_source"):
+            P.Pack.read(tiny(board={**board, "duck_square_cm": 30}), DECK)
+        with self.assertRaisesRegex(P.PackError, "an unmeasured one carries none"):
+            P.Pack.read(tiny(board={**board, "duck_square_cm": None, "duck_square_source": "a guess"}), DECK)
+        pack = P.Pack.read(tiny(board={**board, "duck_square_cm": 30, "duck_square_source": "measured somewhere"}), DECK)
+        self.assertEqual(pack.board.duck_square_source, "measured somewhere")
+
+    def test_every_shipped_pack_walks_the_card_loops_square(self):
+        from duckcards import cardloop
+        for pack in P.bundled(DECK):
+            self.assertEqual(pack.board.duck_square_cm, cardloop.SPEC["square_m"] * 100, pack.id)
+            self.assertIn("not measured", pack.board.duck_square_source, pack.id)
+
     def refused(self, data, words):
         with self.assertRaises(P.PackError) as e:
             P.Pack.read(data, DECK)

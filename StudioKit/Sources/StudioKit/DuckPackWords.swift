@@ -3,8 +3,9 @@ import Foundation
 /// Every sentence Studio's pack screens say. Here rather than in a view, so `swift test` reads them.
 ///
 /// THE BOARD IS THE BOARD RULE. One Walk card is one square and one Turn card a quarter turn on the
-/// board; nothing here says a duck will stop on a square, because how far a duck walks for one card
-/// is not measured (`Board.duckSquareCm` is nil). `DuckPacksClassTests` holds every sentence to that.
+/// board. A duck that reports odometry walks a Walk card one duck square and turns a Turn card a
+/// quarter turn (`DuckCardLoop`), but that was measured in a simulator only (`Board.duckSquareSource`),
+/// so nothing here says a duck will stop on a square. `DuckPacksClassTests` holds every sentence to that.
 extension DuckPacks {
 
     public enum Words {
@@ -53,9 +54,12 @@ extension DuckPacks {
         }
 
         public static let boardRule =
-            "On the board, one Walk card moves one square and one Turn card is a quarter turn. A real duck "
-          + "walks for a time and drifts, and how far it goes for one card has not been measured, so the "
-          + "board is the rule and not a map of where a duck will stop."
+            "On the board, one Walk card moves one square and one Turn card is a quarter turn. On a duck "
+          + "that reports where it is, a Walk card walks one "
+          + String(format: "%.0f", DuckCardLoop.spec.squareM * 100)
+          + " cm square by the duck's own odometry and a Turn card turns a quarter turn by it. That was "
+          + "measured in a simulator, not on a real duck, so the board is the rule and not a map of where "
+          + "a duck stops."
 
         public static func ask(_ lesson: Lesson) -> String { "Ask: \(lesson.ask)" }
         public static func skill(_ lesson: Lesson) -> String { "Skill: \(lesson.skill)" }
@@ -182,7 +186,7 @@ extension DuckPacks {
         public static let run = "Run on the duck"
         public static let runFooter =
             "The duck runs the same row as a plan, and nothing moves until you press Run in the plan editor. "
-          + "How far one Walk card carries a duck has not been measured, so the board does not say where the duck will stop."
+          + "How far one Walk card carries a real duck has not been measured, so the board does not say where the duck will stop."
 
         // MARK: - the board, in words
 

@@ -58,7 +58,10 @@ Beside Pollen's simulator, see [Proving it in duck-sim](#proving-it-in-duck-sim)
 7. **Runs it the way Studio does.** `RobotPlan` and `RobotPlanRunner` in Python, number for number:
    Pollen's pad limits (0.3 m/s, 1.5 rad/s), slow/normal/fast at a third, two thirds and all of
    them, two seconds a step, `robot.move` at 20 Hz, the skill list checked before anything moves,
-   a stop at the end. The policy is switched on (`robot.enable`) only when there is something to
+   a stop at the end. Walk and Turn cards are one board square and a quarter turn, closed on
+   robotd's odometry (`cardloop.py`, the same spec and vectors as StudioKit's `DuckCardLoop`;
+   docs/PACKS.md, "Closed-loop cards") when the duck's state stream carries `odom`; without it
+   they run timed, as above, and the reader says so once per row. The policy is switched on (`robot.enable`) only when there is something to
    run. Look cards are sent as `robot.look` only with `--heads`, because Studio does not send heads
    yet and the two should not differ.
 8. **Answers, and looks at the cards.** A chirp for a card, a hello before a row, the rising
@@ -102,14 +105,15 @@ takes a `.duckpack` file, or the id of a starter pack in `duckcards/packs/` (`ge
   ```
     [board] Corner pond (pond-3): Solved in 5 steps, which is par.
     [board] solved, score 5 steps, par 5.
-    [board] This is the board's answer for the row (one Walk card, one square), not where the duck stopped. One Walk card has not been measured on a duck yet.
+    [board] This is the board's answer for the row (one Walk card, one square), not where the duck stopped. A Walk card walks one duck square, 30 cm, on odometry (duckbench simulator (Pollen's MJCF, alpha_walking), 2026-10-15: ... not measured in Pollen's duck-sim or on a real duck).
   ```
 
   That is a report on the row, not on the duck. The board rule moves one square per Walk card and
-  turns a quarter per Turn card; nothing here watches where the duck stopped, and a Walk card on
-  a duck is not yet a square (docs/PACKS.md, Sizing: in duckbench a Normal Walk forward carries
-  the duck about 14 cm and turns it 11 to 15 degrees, and a timed Turn is not a quarter turn). So
-  the reader never says the duck reached the goal, only that the row does on the board.
+  turns a quarter per Turn card; nothing here watches where the duck stopped. On a duck that
+  reports odometry a Walk card walks one 30 cm duck square and a Turn card a quarter turn, and in
+  duckbench's simulator 140 rows ended within 4.6 cm of the board (6.4 cm with Walk back;
+  docs/PACKS.md, Sizing), but no real duck has been measured. So the reader never says the duck
+  reached the goal, only that the row does on the board.
 
 A pack that cannot be found or read, and a challenge the pack does not have, are refused with a
 sentence before the duck reads anything.

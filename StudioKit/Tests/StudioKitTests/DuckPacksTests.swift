@@ -75,7 +75,26 @@ final class DuckPacksTests: XCTestCase {
         let pack = try XCTUnwrap(DuckPacks.bundled.first)
         let again = try DuckPacks.Pack.read(pack.source, deck: try deck())
         XCTAssertEqual(again.challenges, pack.challenges)
-        XCTAssertNil(pack.board.duckSquareCm, "no pack may say where a duck lands until it is measured")
+        // A duck square is the square the closed-loop cards walk, with where it was measured.
+        for p in DuckPacks.bundled {
+            XCTAssertEqual(p.board.duckSquareCm, DuckCardLoop.spec.squareM * 100, p.id)
+            XCTAssertTrue(p.board.duckSquareSource?.contains("not measured") == true, p.id)
+        }
+    }
+
+    func testADuckSquareComesWithItsSourceAndNotWithout() throws {
+        try refused(try tiny { d in
+            d["board"] = ["columns": 3, "rows": 3, "square_cm": 30, "duck_square_cm": 30]
+        }, "carries duck_square_source")
+        try refused(try tiny { d in
+            d["board"] = ["columns": 3, "rows": 3, "square_cm": 30, "duck_square_cm": NSNull(),
+                          "duck_square_source": "a guess"]
+        }, "an unmeasured one carries none")
+        let pack = try DuckPacks.Pack.read(try tiny { d in
+            d["board"] = ["columns": 3, "rows": 3, "square_cm": 30, "duck_square_cm": 30,
+                          "duck_square_source": "measured somewhere"]
+        }, deck: try deck())
+        XCTAssertEqual(pack.board.duckSquareSource, "measured somewhere")
     }
 
     // MARK: - reading a pack

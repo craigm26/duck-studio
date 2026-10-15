@@ -11,7 +11,7 @@
   "about": "A first game of three by three squares: lay Walk and Turn cards in a row to get the duck to the pond, in as few steps as you can.",
   "cards": ["start", "end", "walk_forward", "turn_left", "turn_right"],
   "score": "steps",
-  "board": {"columns": 3, "rows": 3, "square_cm": 30, "duck_square_cm": null},
+  "board": {"columns": 3, "rows": 3, "square_cm": 30, "duck_square_cm": 30, "duck_square_source": "duckbench simulator (Pollen's MJCF, alpha_walking), 2026-10-15: Walk and Turn closed on odometry, 140 rows of 700 cards, no falls, every row ended within 4.6 cm of the board (6.4 cm with Walk back); not measured in Pollen's duck-sim or on a real duck"},
   "challenges": [
     {
       "id": "pond-1",

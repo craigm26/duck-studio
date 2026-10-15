@@ -19,8 +19,11 @@ drifts. So a pack keeps two things apart:
 - **The board rule.** On the board, one Walk card moves one square and one Turn card is a quarter
   turn. This is exact and is what the paper game, Studio's board and every check use.
 - **The duck.** How far one Walk forward carries a real or simulated duck is measured, not
-  assumed. Until it is measured, `duck_square_cm` is `null`, and no page or screen says a duck
-  will land on a square.
+  assumed. A Walk or Turn card read off Duck Cards now closes on robotd's odometry: walk until
+  one duck square, turn until a quarter turn ("Closed-loop cards", below). `duck_square_cm` is
+  that square, with `duck_square_source` saying where it was measured and how far off a duck
+  ended. It was measured in duckbench's simulator only, so no page or screen says a real duck
+  will land on a square; the simulator's bound is said with its source.
 
 ## The file: `duck-pack/0`
 
@@ -38,7 +41,8 @@ drifts. So a pack keeps two things apart:
   "about": "One sentence a teacher reads first.",
   "cards": ["start", "end", "walk_forward", "turn_left", "turn_right"],
   "score": "steps",
-  "board": { "columns": 3, "rows": 3, "square_cm": 30, "duck_square_cm": null },
+  "board": { "columns": 3, "rows": 3, "square_cm": 30, "duck_square_cm": 30,
+             "duck_square_source": "duckbench simulator, 2026-10-15: ..." },
   "challenges": [ ... ],
   "lessons": [ { "title": "...", "skill": "...", "body": "...", "ask": "..." } ],
   "yours": [ ]
@@ -55,7 +59,10 @@ drifts. So a pack keeps two things apart:
   which is where Repeat and Your cards pay off).
 - `board`: the default board. A challenge may give its own `columns` and `rows`, 1 to 12 each.
   `square_cm` is the printed or taped floor square for people. `duck_square_cm` is the measured
-  distance of one Walk forward card, or `null`.
+  distance of one Walk forward card, or `null`. `duck_square_source` is one line saying where
+  `duck_square_cm` was measured and how far off a duck ended (rows, the error bound, falls, what
+  was not measured); it is required with a number and absent or `null` without one. Both readers
+  refuse a pack that has one without the other.
 - `yours`: Your card entries, exactly as a `.duckcards` deck carries them (`tag`, `code`, `name`,
   `does`, `row`). Opening a pack lends these to the class deck the same way `Deck.lend` does:
   only Your cards, and never replacing one the class already saved without asking: a number the
@@ -234,7 +241,8 @@ sentence), `bundled`, `Pack.lent(to:replacing:)`, `Pack.notInPlay(_:deck:)`, `st
 2. **Studio.** A Packs screen: the bundled packs and any opened `.duckpack`. A pack shows its
    challenges in order; a challenge shows the board, lets you lay a row from the pack's cards
    (or take the row the camera read), plays it on the board step by step, and says solved, the
-   score and par. "Run on the duck" sends the same row as a plan, as rows already do. Design a
+   score and par. "Run on the duck" sends the same row as a plan, as rows already do; its Walk
+   and Turn cards close on the duck's odometry ("Closed-loop cards", under Sizing). Design a
    level adds a challenge editor (tap squares for start, goal, walls, gates; par is computed)
    and saves challenges into a class pack that shares as `.duckpack`.
 
@@ -274,35 +282,122 @@ sentence), `bundled`, `Pack.lent(to:replacing:)`, `Pack.notInPlay(_:deck:)`, `st
 
 ## Not promised
 
-- That a duck lands on a square. Not until `duck_square_cm` is measured, and then only as a
-  measurement with its spread.
+- That a real duck lands on a square. `duck_square_cm` is measured in duckbench's simulator
+  only; what is said is that simulator's bound, with its source (Sizing, below). Pollen's
+  duck-sim and testers' ducks are not measured yet.
 - Physics-sim goal checks. Placing the board in Studio's simulated world needs the same
   measurement; until then Studio's board is the board rule, and the sim duck runs the row
   beside it.
 
-## Sizing (open, 2026-10-15)
+## Sizing (2026-10-15: measured in a simulator, not on a duck)
 
-The board rule is exact; the duck is not. Before any pack prints a board for a duck, these are
-measured, each as a median with its spread, never one run:
+The board rule is exact; the duck is not. What is measured, each as a median with its spread
+over many rows, never one run:
 
-1. **One Walk card.** Walk forward and Walk back at slow, normal and fast for `defaultSeconds`
-   (2.0 s): distance along the heading, drift across it, heading change. In duckbench (this
-   repo's MuJoCo model of Pollen's duck), then in Pollen's duck-sim, then on testers' ducks.
-   Known before measuring: walking speeds of 0.078 to 0.23 m/s across policies, so 16 to 46 cm
-   per card.
-2. **One Turn card.** duckbench found that commanded yaw with no forward speed saturates at
-   about 14.4 degrees (`duckbench/sim/walk_to.py`). A timed Turn card is therefore not a quarter
-   turn. The question is whether a Turn card can be closed on the IMU's yaw ("turn until 90
-   degrees, arcing if it must") and what square that arc needs.
-3. **The footprint.** The duck is about 25 cm tall and 737 to 800 g; a square must hold it
-   with room to drift.
+1. **One Walk card.** Timed, a Walk card is two seconds of a twist and its distance is whatever
+   the gait makes of it (First measurement, below, and its correction). Closed on odometry, it is
+   one duck square by construction, and what is measured is how far off the duck ends.
+   **Measured in duckbench (Closed-loop cards, below). Not yet in Pollen's duck-sim or on a duck.**
+2. **One Turn card.** A timed turn is not a quarter turn. Closed on the IMU's yaw it is, within a
+   tolerance. On duckbench's canon plant a yaw command of 1.0 with no forward speed turns the
+   duck about 12 degrees and stops (this is the 14.4 degree saturation `walk_to.py` saw), and 1.5
+   turns it on the spot, about 47 degrees a second, moving it 2 cm: no arc is needed.
+   **Measured in duckbench. Not yet elsewhere.**
+3. **The footprint.** The duck is about 25 cm tall and 737 to 800 g; a square must hold it with
+   room to drift. A 30 cm square (every starter pack's printed square) holds it.
 4. **Real ducks.** A "Measure my duck" check in Studio: 1 to 4 Walk cards and four Turns, with
-   robotd's own odometry and a tape-measured mark, sent back by the tester.
+   robotd's own odometry and a tape-measured mark, sent back by the tester. **Not built yet.**
 
-Then `duck_square_cm` = the median distance of one Walk card, the goal becomes a zone wide
-enough for the measured spread, and the site prints the board at that size with the spread
-beside it. If the Turn card cannot be made a quarter turn, packs for a real duck treat turns
-and goals as zones and say so.
+`duck_square_cm` is the square a Walk card walks, 30 cm, the same as every starter pack's
+printed `square_cm`, so on the floor one card is one taped square. Its `duck_square_source` says
+it was measured in a simulator only. Packs played on a real duck still treat the goal as the
+square the duck should reach and say the duck is approximate, until testers' ducks are measured.
+
+### Closed-loop cards
+
+A Walk forward, Walk back, Turn left or Turn right card read off Duck Cards (a plan whose model
+is `duck-cards/0`, or a row the card reader runs) closes on what robotd's `robot.state` reports:
+`odom.position` and `odom.yaw`, Pollen's contact odometry, whose heading is the trunk IMU's yaw.
+Every other card is unchanged. One spec, two readers: `duck-card-loop.json` (StudioKit
+`Resources/DuckCards/`, copied byte for byte to `cardreader/duckcards/`), stepped by
+`DuckCardLoop` (StudioKit) and `cardloop.py` (the reader), held to each other by
+`cardreader/vectors/cardloop/*.json`: a card, a trace of odometry samples, and the command or the
+stop each sample must produce (`cardreader/tests/make_cardloop_vectors.py` writes them;
+`scripts/check_duckcards_vectors.sh` checks the copies and regenerates them).
+
+- **The board.** A row keeps the board pose in odometry's frame: the pose the duck was at when
+  the first card began, then one square or one quarter turn per card. Each card aims at the board
+  pose, so the next card takes back an overshoot or a turn's drift instead of adding to it. A
+  skill (a kick, a roll) moves the duck in ways the board does not count, so after one the board's
+  position is put back where the duck stands and its heading is kept.
+- **Walk.** Walk at the card's speed along the board heading, steering
+  `vyaw = heading_gain x heading error - cross_gain x (distance left of the line)` (the sign of the
+  second term flips walking back), clamped to `max_yaw`. Stop when the distance along the board
+  heading from the card's board pose reaches `square_m - stop_early_m` (`back_stop_early_m` walking
+  back, which coasts further), or after `max_s`.
+- **Turn.** Turn at the card's yaw rate, with `forward` speed, toward the board heading plus or
+  minus a quarter turn. Within `stop_early_deg` of it: hold still for `settle_s`; then done if
+  within `tolerance_deg`, else up to `trims` trims at `trim_rate` (stopping `trim_stop_early_deg`
+  short), each followed by a settle; out of trims is "trimmed out", and `max_s` is "out of time".
+  Either is said, and the row goes on.
+- **Between cards** the duck holds still for `between_s`. Commands go at `control_hz` (20 Hz); a
+  pose older than `stale_s` mid-card stops the card ("The duck stopped reporting where it is").
+- **Speed cards on a distance card** set the speed, not the distance: Walk forward walks at
+  0.30, 0.35 or 0.45 (Slow, Normal, Fast), all above the gait's dead band (below about 0.25 the
+  canon plant marches on the spot). Walk back walks at 0.45 at every speed, the slowest that
+  moves it backward (0.3 does not). A Turn card turns at 1.5 at every speed: the only rate
+  measured that turns the duck in place (at 1.2, 34 cards in 40 rows never arrived; at 1.5,
+  none). These exceed Studio's timed Normal (0.2, 1.0), which on the canon plant does not move
+  the duck at all; robotd
+  has no velocity clamp (`duck-control/src/safety.rs`: deadman, non-finite, travel), so they reach
+  the policy as sent. Whether a real duck wants the same numbers is not measured.
+- **When robotd does not report odometry** (no `odom` in its state, as from a robotd older than
+  the estimator, or no state stream at all), Walk and Turn run as the timed cards they were, two
+  seconds of Studio's twist, and the runner says once per row: "This duck does not report
+  odometry, so Walk and Turn cards run as timed cards, two seconds each, and do not land on board
+  squares." Studio subscribes to the state stream before a card plan runs; the card reader keeps
+  its fall watch's latest frame at 20 Hz for the same purpose.
+
+### Closed-loop cards: duckbench, 2026-10-15
+
+`duckbench/sim/cardloop.mjs` (results and the sweeps that chose the numbers in
+`duckbench/sim/cardloop/`): duckbench's canon plant (`scene.mjb`, Pollen's MJCF with their servo
+class) under `alpha_walking.onnx`, through the bench's own live lane, running
+`duck-card-loop.json` as above. The controller reads only what robotd would report: odometry
+computed the way Pollen's `odometry` crate computes it (ALPHA16 sole anchors, forward kinematics
+of the reported joints, the trunk orientation as the IMU's), 40 ms old, at 50 Hz and again at
+Studio's 10 Hz subscription; ground truth only scores. Seven rows (F F L F R F; F R F R F R F R;
+F L L F; F F B; F(slow) F(fast) L(slow) F R(fast) B(slow); L L R R; F F F F), ten starts each at
+different gait phases, at both rates. Error is where the duck ended against the board rule at
+30 cm a square, in the row's own frame.
+
+| what | measured |
+|---|---|
+| duck square | **30 cm** |
+| rows | **140** (700 cards, every one arrived) |
+| falls | **0** |
+| position error, rows without Walk back | median **2.5 cm**, max **4.6 cm** (100 rows) |
+| position error, rows with Walk back | median **3.8 cm**, max **6.4 cm** (40 rows) |
+| heading error, rows without Walk back | median **3.6 degrees**, max **10.3 degrees** |
+| heading error, rows with Walk back | median **7.5 degrees**, max **22.9 degrees** |
+| one Walk card, ground truth | median 30.6 cm [27.5 to 35.4] at 50 Hz, 32.3 cm [27.8 to 36.3] at 10 Hz |
+| one Turn card, from its own start | median 91 degrees [81 to 104] (it also takes back the card before's heading) |
+| time | a Walk card median 2.1 s (max 2.6), a Turn card 2.4 s (max 3.8), then 0.5 s still |
+| odometry against truth at a row's end | median 1.1 cm, max 2.6 cm |
+
+Square sizes 20, 25, 30 and 40 cm ended rows equally close (no falls in any), so 30 cm was
+chosen for the floor: it is every starter pack's printed square, it holds the duck, and a Walk
+card takes about two seconds. The 10 Hz state Studio subscribes at ends rows about a centimetre
+further off than 50 Hz; the bounds above are the worse of the two.
+
+What this does and does not say. In this simulator, a duck that reports odometry, running these
+cards, ended a row within 4.6 cm of the board's square (6.4 cm with Walk back) and within 10.3
+degrees of its heading (22.9 with Walk back, which veers). It says nothing yet about Pollen's
+duck-sim, where robotd computes `odom` itself and stands the duck on its standing policy between
+cards, or about a real duck: the odometry here was fed exact joint angles and an exact trunk
+orientation, where a real IMU's yaw drifts and real feet slip on a classroom floor. Packs carry
+this as `duck_square_source`, and every page and screen that mentions a duck square says it was
+measured in a simulator.
 
 ### First measurement: duckbench, 2026-10-15
 
@@ -331,7 +426,13 @@ What it says, for this model only (not Pollen's duck-sim and not a real duck):
 
 So, for a duck, the board rule needs closed-loop cards: Walk forward = walk until odometry says
 one square, holding heading on the IMU; Turn = turn until the IMU says 90 degrees, slowly enough
-not to fall. Until robotd or the reader can do that, a pack played on a duck uses big goal zones
-and says the duck is approximate. A 14 cm square is also smaller than the duck itself, so a
-duck square will be several Walk cards' worth or a different card length, chosen after the same
-measurement in Pollen's duck-sim and on testers' ducks.
+not to fall. That is what "Closed-loop cards" above does.
+
+**Correction, the same day.** `cardsize.mjs` ran on `scene.xml`, the floor-and-box-soles plant
+with invented kp 9 servos that duckbench retired as its canon on 2026-08-27, and with DuckKit's
+on-robot loop (0.9 action scale, low-pass) rather than the bench's training loop. The same timed
+rows on the canon plant (`cardloop.mjs canon`, `duckbench/sim/cardloop/canon-timed.json`): Slow
+and Normal move nothing (walks 0 to 1 cm, turns 0 to 52 degrees, median 11 or less); Fast Walk
+forward carries the duck 26 cm [22.6 to 26.9]; Fast turns land at 88 and 95 degrees; Walk back
+does not move at any of Studio's speeds; nothing fell in 120 rows. The table above is kept as
+what was measured; its 14 cm, its falls and its veer belong to the retired plant.
