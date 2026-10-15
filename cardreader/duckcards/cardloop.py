@@ -13,6 +13,15 @@ and the stepping rules below are `DuckCardLoop` in StudioKit (`DuckCardLoop.swif
 each other by `cardreader/vectors/cardloop/*.json`: a card, a trace of odometry samples, and the
 command or the stop each sample must produce. `tests/make_cardloop_vectors.py` writes them.
 
+THE NUMBERS ARE MEASURED ON POLLEN'S STACK (duck-card-loop/1). `cardreader/sim/sysid/` identified
+v8 velstand under Pollen's robotd in duck-sim through `robot.move` only: forward it stands still
+up to 0.20 m/s and walks every time from 0.25 (about a third of the command, 0.09 to 0.135 m/s);
+backward it stands still up to -0.30 and walks from -0.35; it turns in place from 0.625 rad/s
+left and 0.5 right, about 64 degrees a second at 1.0, and coasts about 8 degrees after a turn
+stops. So the speeds clear those dead bands, the caps fit docs/PACKS.md's time bounds, and a
+card that makes no progress for `stall_s` ends as "stuck" (a duck that cannot do the card at the
+speeds it may be sent). `cardreader/sim/results/` is the Monte Carlo.
+
 THE BOARD. A row keeps where the duck should be: the odometry pose it started the first card at,
 then one square or one quarter turn per card. Each card aims at that board pose rather than at
 "one more square from wherever the last card stopped", so an overshoot or the drift of a turn is
@@ -30,7 +39,7 @@ from dataclasses import dataclass
 
 HERE = pathlib.Path(__file__).resolve().parent
 SPEC_FILE = HERE / "duck-card-loop.json"
-FORMAT = "duck-card-loop/0"
+FORMAT = "duck-card-loop/1"
 CARDS = ("walk_forward", "walk_backward", "turn_left", "turn_right")
 
 
@@ -148,9 +157,10 @@ class CardLoop:
     """One Walk or Turn card, stepped on odometry samples.
 
     `step(pose, t)` takes the latest pose and the seconds since the card began and answers
-    `(vx, vyaw)` to send, or a string saying why the card is done: "reached", "out of time" or,
-    for a turn that could not be trimmed into tolerance, "trimmed out". `board_after` is where
-    the duck should be once the card is done, whatever happened."""
+    `(vx, vyaw)` to send, or a string saying why the card is done: "reached", "out of time",
+    "stuck" (not `stall_m` or `stall_deg` closer in `stall_s`) or, for a turn that could not be
+    trimmed into tolerance, "trimmed out". `board_after` is where the duck should be once the
+    card is done, whatever happened."""
 
     def __init__(self, action: str, board: Pose, speed: str | None = None, spec: dict | None = None):
         if action not in CARDS:
@@ -159,6 +169,7 @@ class CardLoop:
         self.action, self.board = action, board
         self.rate = speed_of(self.spec, action, speed)
         d = self.spec["square_m"]
+        self.mark, self.mark_t = None, 0.0          # the last progress made, and when
         if action.startswith("walk"):
             self.sign = 1.0 if action == "walk_forward" else -1.0
             self.board_after = Pose(board.x + self.sign * d * math.cos(board.h),
@@ -174,6 +185,13 @@ class CardLoop:
             return self._walk(pose, t)
         return self._turn(pose, t)
 
+    def _stalled(self, progress: float, t: float, enough: float, window: float) -> bool:
+        """No `enough` more progress for `window` seconds."""
+        if self.mark is None or progress >= self.mark + enough:
+            self.mark, self.mark_t = progress, t
+            return False
+        return t - self.mark_t >= window
+
     def _walk(self, pose: Pose, t: float):
         w, b = self.spec["walk"], self.board
         dx, dy = pose.x - b.x, pose.y - b.y
@@ -184,6 +202,8 @@ class CardLoop:
             return "reached"
         if t >= w["max_s"]:
             return "out of time"
+        if self._stalled(along, t, w["stall_m"], w["stall_s"]):
+            return "stuck"
         steer = w["heading_gain"] * wrap(b.h - pose.h) - self.sign * w["cross_gain"] * across
         steer = max(-w["max_yaw"], min(w["max_yaw"], steer))
         return (self.sign * self.rate, steer)
@@ -200,6 +220,8 @@ class CardLoop:
             if off <= (c["trim_stop_early_deg"] if trim else c["stop_early_deg"]):
                 self.phase, self.since = "settle", t
                 return (0.0, 0.0)
+            if self._stalled(-off, t, c["stall_deg"], c["stall_s"]):
+                return "stuck"
             return (c["trim_forward"] if trim else c["forward"], way * (c["trim_rate"] if trim else self.rate))
         if t - self.since < c["settle_s"]:
             return (0.0, 0.0)
@@ -209,11 +231,13 @@ class CardLoop:
             return "trimmed out"
         self.trims_left -= 1
         self.phase = "trim"
+        self.mark = None                            # a trim's progress counts from its own start
         return (c["trim_forward"], way * c["trim_rate"])
 
 
 DONE_WORDS = {
     "reached": None,
     "out of time": "ran out of time before it got there",
+    "stuck": "could not get there at the speeds a duck may be sent",
     "trimmed out": "stopped short of a quarter turn after its trims",
 }

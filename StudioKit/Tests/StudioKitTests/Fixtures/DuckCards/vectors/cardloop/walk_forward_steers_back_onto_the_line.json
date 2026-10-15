@@ -2,7 +2,7 @@
  "action": "walk_forward",
  "board": [0.2, -0.1, 0.5],
  "board_after": [0.463275, 0.043828, 0.5],
- "format": "duck-card-loop/0",
+ "format": "duck-card-loop/1",
  "name": "walk_forward_steers_back_onto_the_line",
  "speed": "fast",
  "trace": [

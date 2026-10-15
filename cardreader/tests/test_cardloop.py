@@ -56,13 +56,20 @@ class Spec(unittest.TestCase):
         self.assertEqual((runner.MAX_FORWARD, runner.MAX_BACKWARD, runner.MAX_TURN), (0.3, 0.3, 1.0),
                          "DuckDrive.maxForward, maxBackward and maxTurn are these numbers; change both together")
 
-    def test_forward_speeds_clear_the_dead_band_measured_in_duckbench(self):
-        # duckbench cardloop.mjs probe, canon plant: below about 0.25 forward the gait marches in
-        # place. Walk back (0.4) and Turn (1.0) are held to Pollen's envelope, which is below what
-        # duckbench's canon plant needed (about 0.45 back, about 1.2 turning on the spot): whether
-        # the v8 velstand in Pollen's duck-sim moves at them is the duck-sim run's to measure.
+    def test_every_speed_clears_the_dead_band_measured_in_duck_sim(self):
+        # cardreader/sim/sysid/sysid.md: v8 velstand under Pollen's robotd in duck-sim stands still
+        # at 0.20 forward and walks every time from 0.25; stands still at -0.30 and walks from
+        # -0.35; turns in place every time from 0.625 left and 0.5 right.
         for label in ("slow", "normal", "fast"):
             self.assertGreaterEqual(cardloop.SPEC["walk"]["speed"][label], 0.25)
+            self.assertGreaterEqual(cardloop.SPEC["walk"]["back_speed"][label], 0.35)
+            self.assertGreaterEqual(cardloop.SPEC["turn"]["yaw_rate"][label], 0.625)
+        self.assertGreaterEqual(cardloop.SPEC["turn"]["trim_rate"], 0.625)
+
+    def test_the_caps_fit_the_acceptance_time_bounds(self):
+        # docs/PACKS.md, "Acceptance": a Walk card in at most 8 s, a Turn card in at most 6 s.
+        self.assertLessEqual(cardloop.SPEC["walk"]["max_s"], 8)
+        self.assertLessEqual(cardloop.SPEC["turn"]["max_s"], 6)
 
 
 class Vectors(unittest.TestCase):
@@ -203,9 +210,18 @@ class Runs(unittest.TestCase):
         self.assertLess(duck.x, 0.2, "the row did not go on to the next card")
 
     def test_a_card_that_runs_out_of_time_ends_the_row(self):
-        duck, said = FakeDuck(walk=0.0), []     # marches on the spot
+        duck, said = FakeDuck(walk=0.07), []    # creeps: never stalls, never arrives in max_s
         out = self.run_row(duck, ["walk_forward", "turn_left"], said)
         self.assertEqual(out, "stopped at walk forward: " + runner.ENDED["out of time"])
+        self.assertFalse(any(m["vyaw"] > 0.7 for m in duck.moves), "the Turn card never ran")
+        self.assertEqual(duck.calls[-1][0], "robot.stop")
+
+    def test_a_card_that_makes_no_progress_is_stuck_and_ends_the_row(self):
+        # v8 velstand in duck-sim stands still below 0.25 forward and -0.35 back
+        # (cardreader/sim/sysid): a duck that does not move is told so in stall_s, not max_s.
+        duck, said = FakeDuck(walk=0.0), []     # stands still
+        out = self.run_row(duck, ["walk_forward", "turn_left"], said)
+        self.assertEqual(out, "stopped at walk forward: " + runner.ENDED["stuck"])
         self.assertFalse(any(m["vyaw"] > 0.5 for m in duck.moves), "the Turn card never ran")
         self.assertEqual(duck.calls[-1][0], "robot.stop")
 
@@ -217,6 +233,7 @@ class Runs(unittest.TestCase):
             "fell": "The duck fell, so the row stopped there.",
             "out of time": "The card ran out of time before it got there, so the row stopped there.",
             "trimmed out": "The card stopped short of a quarter turn after its trims, so the row stopped there.",
+            "stuck": "The duck could not do this card at the speeds it may be sent, so the row stopped there.",
         })
 
     def test_odometry_lost_mid_row_ends_the_row_rather_than_running_timed(self):

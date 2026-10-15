@@ -2,7 +2,7 @@
  "action": "walk_forward",
  "board": [1.0, 1.0, 1.570796],
  "board_after": [1.0, 1.3, 1.570796],
- "format": "duck-card-loop/0",
+ "format": "duck-card-loop/1",
  "name": "walk_forward_from_a_long_way_behind",
  "speed": null,
  "trace": [

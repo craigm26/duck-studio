@@ -9,7 +9,7 @@ samples `[t, x, y, yaw]` (t is seconds into the card), and what each sample must
 duck is once the card is done. `cardloop.CardLoop` here and `DuckCardLoop.Card` in StudioKit
 must both produce `expect` from `trace`, under the shipped `duck-card-loop.json`; the traces are
 synthetic, built to walk each rule (arriving, steering, the clamp, the time cap, settling,
-trimming, giving up, and a heading that wraps past pi).
+trimming, giving up, a card that makes no progress (stuck), and a heading that wraps past pi).
 
 Pure Python: no numpy, no AprilTag library.
 """
@@ -99,17 +99,24 @@ def cases():
            walk_trace((1.0, 1.0, math.pi / 2), 1, 0.2, 60, start=(-0.2, 0.0)))
     yield ("walk_backward_arrives", "walk_backward", "normal", (0.5, 0.5, math.pi / 2),
            walk_trace((0.5, 0.5, math.pi / 2), -1, 0.2, 60, drift=-0.01, yaw_off=deg(3)))
+    # Slow enough never to arrive before max_s, fast enough never to stall.
+    creep = 1.5 * SPEC["walk"]["stall_m"] / SPEC["walk"]["stall_s"]
+    stall = int(round(SPEC["walk"]["stall_s"] / TICK))
     yield ("walk_forward_out_of_time", "walk_forward", "normal", (0.0, 0.0, 0.0),
-           walk_trace((0.0, 0.0, 0.0), 1, 0.0, max_walk + 3))
+           walk_trace((0.0, 0.0, 0.0), 1, creep, max_walk + 3))
+    yield ("walk_backward_is_stuck", "walk_backward", "normal", (0.0, 0.0, 0.0),
+           walk_trace((0.0, 0.0, 0.0), -1, 0.0, stall + 3))
     yield ("turn_left_arrives", "turn_left", "normal", (0.0, 0.0, 0.0),
            turn_trace("turn_left", "normal", (0.0, 0.0, 0.0)))
     yield ("turn_right_overshoots_and_trims_back", "turn_right", "fast", (0.1, 0.2, deg(30)),
-           turn_trace("turn_right", "fast", (0.1, 0.2, deg(30)), coast_deg=14.0, then_coast_deg=1.0))
+           turn_trace("turn_right", "fast", (0.1, 0.2, deg(30)), coast_deg=25.0, then_coast_deg=1.0))
     yield ("turn_left_trims_out", "turn_left", "slow", (0.0, 0.0, 0.0),
-           turn_trace("turn_left", "slow", (0.0, 0.0, 0.0), coast_deg=16.0))
+           turn_trace("turn_left", "slow", (0.0, 0.0, 0.0), coast_deg=26.0))
     yield ("turn_left_across_pi", "turn_left", "normal", (0.0, 0.0, deg(170)),
            turn_trace("turn_left", "normal", (0.0, 0.0, deg(170))))
     yield ("turn_right_out_of_time", "turn_right", "normal", (0.0, 0.0, 0.0),
+           turn_trace("turn_right", "normal", (0.0, 0.0, 0.0), k=0.08))
+    yield ("turn_right_is_stuck", "turn_right", "normal", (0.0, 0.0, 0.0),
            turn_trace("turn_right", "normal", (0.0, 0.0, 0.0), k=0.0))
 
 

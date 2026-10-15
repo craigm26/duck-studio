@@ -262,6 +262,8 @@ public enum RobotPlanRunner {
         case fell
         case outOfTime = "out of time"
         case trimmedOut = "trimmed out"
+        /// No progress for the spec's `stall_s` (DuckCardLoop.Done.stuck).
+        case stuck
 
         /// What a person hears when a card ends some other way than arriving. The card reader
         /// says the same sentences (`runner.ENDED`).
@@ -272,6 +274,7 @@ public enum RobotPlanRunner {
             case .fell: return DuckCardLoop.fellNote
             case .outOfTime: return "The card ran out of time before it got there, so the row stopped there."
             case .trimmedOut: return "The card stopped short of a quarter turn after its trims, so the row stopped there."
+            case .stuck: return "The duck could not do this card at the speeds it may be sent, so the row stopped there."
             }
         }
     }
@@ -432,6 +435,7 @@ public enum RobotPlanRunner {
                 case .reached: return .reached
                 case .outOfTime: return .outOfTime
                 case .trimmedOut: return .trimmedOut
+                case .stuck: return .stuck
                 }
             case .send(let vx, let vyaw):
                 try await peer.notify(.move(DuckDrive.Twist(vx: vx, vy: 0, vyaw: vyaw)))

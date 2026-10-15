@@ -1,5 +1,5 @@
 {
-  "format": "duck-card-loop/0",
+  "format": "duck-card-loop/1",
   "enabled_on_robot": false,
   "validated": null,
   "square_m": 0.30,
@@ -12,20 +12,24 @@
     "heading_gain": 1.5,
     "cross_gain": 3.0,
     "max_yaw": 0.6,
-    "stop_early_m": 0.015,
-    "back_stop_early_m": 0.07,
-    "max_s": 12
+    "stop_early_m": 0.012,
+    "back_stop_early_m": 0.035,
+    "max_s": 8,
+    "stall_s": 2.0,
+    "stall_m": 0.02
   },
   "turn": {
     "yaw_rate": { "slow": 1.0, "normal": 1.0, "fast": 1.0 },
     "forward": 0.0,
-    "stop_early_deg": 4,
-    "tolerance_deg": 6,
+    "stop_early_deg": 10,
+    "tolerance_deg": 12,
     "trim_rate": 1.0,
     "trim_forward": 0.0,
-    "trim_stop_early_deg": 3,
+    "trim_stop_early_deg": 6,
     "trims": 2,
     "settle_s": 0.5,
-    "max_s": 10
+    "max_s": 6,
+    "stall_s": 1.5,
+    "stall_deg": 5
   }
 }

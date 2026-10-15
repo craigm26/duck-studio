@@ -24,7 +24,7 @@ import DuckKit
 /// its heading is kept.
 public enum DuckCardLoop {
 
-    public static let format = "duck-card-loop/0"
+    public static let format = "duck-card-loop/1"
     /// The four cards that close on odometry. Every other card is unchanged.
     public static let cards: Set<String> = ["walk_forward", "walk_backward", "turn_left", "turn_right"]
 
@@ -46,9 +46,12 @@ public enum DuckCardLoop {
             public let backSpeed: Speeds
             public let headingGain: Double, crossGain: Double, maxYaw: Double
             public let stopEarlyM: Double, backStopEarlyM: Double, maxS: Double
+            /// A Walk card less than `stallM` further along its line in `stallS` is stuck.
+            public let stallS: Double, stallM: Double
             enum CodingKeys: String, CodingKey {
                 case speed, backSpeed = "back_speed", headingGain = "heading_gain", crossGain = "cross_gain",
-                     maxYaw = "max_yaw", stopEarlyM = "stop_early_m", backStopEarlyM = "back_stop_early_m", maxS = "max_s"
+                     maxYaw = "max_yaw", stopEarlyM = "stop_early_m", backStopEarlyM = "back_stop_early_m", maxS = "max_s",
+                     stallS = "stall_s", stallM = "stall_m"
             }
         }
         public struct Turn: Equatable, Sendable, Decodable {
@@ -56,10 +59,12 @@ public enum DuckCardLoop {
             public let forward: Double, stopEarlyDeg: Double, toleranceDeg: Double
             public let trimRate: Double, trimForward: Double, trimStopEarlyDeg: Double
             public let trims: Int, settleS: Double, maxS: Double
+            /// A turn or trim not `stallDeg` closer to its heading in `stallS` is stuck.
+            public let stallS: Double, stallDeg: Double
             enum CodingKeys: String, CodingKey {
                 case yawRate = "yaw_rate", forward, stopEarlyDeg = "stop_early_deg", toleranceDeg = "tolerance_deg",
                      trimRate = "trim_rate", trimForward = "trim_forward", trimStopEarlyDeg = "trim_stop_early_deg",
-                     trims, settleS = "settle_s", maxS = "max_s"
+                     trims, settleS = "settle_s", maxS = "max_s", stallS = "stall_s", stallDeg = "stall_deg"
             }
         }
         public let format: String
@@ -262,6 +267,8 @@ public enum DuckCardLoop {
     public enum Done: String, Equatable, Sendable {
         case reached
         case outOfTime = "out of time"
+        /// No progress for the spec's `stall_s`: a duck that cannot do the card at the speeds it may be sent.
+        case stuck
         case trimmedOut = "trimmed out"
 
         /// What a person hears when a card ends some other way than arriving.
@@ -269,6 +276,7 @@ public enum DuckCardLoop {
             switch self {
             case .reached: return nil
             case .outOfTime: return "ran out of time before it got there"
+            case .stuck: return "could not get there at the speeds a duck may be sent"
             case .trimmedOut: return "stopped short of a quarter turn after its trims"
             }
         }
@@ -286,6 +294,9 @@ public enum DuckCardLoop {
         var phase = "turn"
         var since = 0.0
         var trimsLeft: Int
+        /// The last progress made, and when: what `stuck` is measured from.
+        var mark: Double?
+        var markT = 0.0
 
         public init?(action: String, board: Pose, speed: String? = nil, spec: Spec = DuckCardLoop.spec) {
             guard DuckCardLoop.cards.contains(action) else { return nil }
@@ -307,13 +318,22 @@ public enum DuckCardLoop {
             action.hasPrefix("walk") ? walk(pose, t) : turn(pose, t)
         }
 
-        func walk(_ pose: Pose, _ t: Double) -> Answer {
+        /// No `enough` more progress for `window` seconds.
+        mutating func stalled(_ progress: Double, _ t: Double, enough: Double, window: Double) -> Bool {
+            if let m = mark, progress < m + enough { return t - markT >= window }
+            mark = progress
+            markT = t
+            return false
+        }
+
+        mutating func walk(_ pose: Pose, _ t: Double) -> Answer {
             let w = spec.walk, b = board
             let dx = pose.x - b.x, dy = pose.y - b.y
             let along = sign * (dx * cos(b.h) + dy * sin(b.h))
             let across = -dx * sin(b.h) + dy * cos(b.h)
             if along >= spec.squareM - (sign > 0 ? w.stopEarlyM : w.backStopEarlyM) { return .done(.reached) }
             if t >= w.maxS { return .done(.outOfTime) }
+            if stalled(along, t, enough: w.stallM, window: w.stallS) { return .done(.stuck) }
             var steer = w.headingGain * DuckCardLoop.wrap(b.h - pose.h) - sign * w.crossGain * across
             steer = max(-w.maxYaw, min(w.maxYaw, steer))
             return .send(vx: sign * rate, vyaw: steer)
@@ -331,6 +351,7 @@ public enum DuckCardLoop {
                     phase = "settle"; since = t
                     return .send(vx: 0, vyaw: 0)
                 }
+                if stalled(-off, t, enough: c.stallDeg, window: c.stallS) { return .done(.stuck) }
                 return .send(vx: trim ? c.trimForward : c.forward, vyaw: way * (trim ? c.trimRate : rate))
             }
             if t - since < c.settleS { return .send(vx: 0, vyaw: 0) }
@@ -338,6 +359,7 @@ public enum DuckCardLoop {
             if trimsLeft <= 0 { return .done(.trimmedOut) }
             trimsLeft -= 1
             phase = "trim"
+            mark = nil                       // a trim's progress counts from its own start
             return .send(vx: c.trimForward, vyaw: way * c.trimRate)
         }
     }

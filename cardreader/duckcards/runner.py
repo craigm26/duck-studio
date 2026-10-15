@@ -88,6 +88,7 @@ ENDED = {
     "fell": FELL_NOTE,
     "out of time": "The card ran out of time before it got there, so the row stopped there.",
     "trimmed out": "The card stopped short of a quarter turn after its trims, so the row stopped there.",
+    "stuck": "The duck could not do this card at the speeds it may be sent, so the row stopped there.",
 }
 
 

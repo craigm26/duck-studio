@@ -273,8 +273,16 @@ final class DuckCardLoopTests: XCTestCase {
         XCTAssertLessThan(duck.where_.0, 0.2, "the row did not go on")
     }
 
+    func testACardThatMakesNoProgressIsStuckAndEndsTheRow() async throws {
+        let duck = FakeDuck(walk: 0), said = Said()     // stands still
+        let outcome = try await run(try cardPlan(["walk_forward", "turn_left"]), on: duck, said: said)
+        guard case .stopped(0, let reason) = outcome else { return XCTFail("\(outcome)") }
+        XCTAssertEqual(reason, RobotPlanRunner.CardEnd.stuck.said)
+        XCTAssertEqual(duck.calls.last, "robot.stop")
+    }
+
     func testACardThatRunsOutOfTimeEndsTheRow() async throws {
-        let duck = FakeDuck(walk: 0), said = Said()     // marches on the spot
+        let duck = FakeDuck(walk: 0.07), said = Said()  // creeps: never stalls, never arrives in max_s
         let outcome = try await run(try cardPlan(["walk_forward", "turn_left"]), on: duck, said: said)
         guard case .stopped(0, let reason) = outcome else { return XCTFail("\(outcome)") }
         XCTAssertEqual(reason, RobotPlanRunner.CardEnd.outOfTime.said)
@@ -290,6 +298,8 @@ final class DuckCardLoopTests: XCTestCase {
                        "The card ran out of time before it got there, so the row stopped there.")
         XCTAssertEqual(RobotPlanRunner.CardEnd.trimmedOut.said,
                        "The card stopped short of a quarter turn after its trims, so the row stopped there.")
+        XCTAssertEqual(RobotPlanRunner.CardEnd.stuck.said,
+                       "The duck could not do this card at the speeds it may be sent, so the row stopped there.")
         XCTAssertNil(RobotPlanRunner.CardEnd.reached.said)
     }
 
