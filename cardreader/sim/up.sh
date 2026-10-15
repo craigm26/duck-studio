@@ -3,10 +3,16 @@
 # it (eye.py) and served by Pollen's own mediad as /frame and media.frame: the
 # duck the card reader was proved against on 2026-10-14.
 #
-#   MICRODUCK=~/microduck MICRODUCK_RL=~/microduck_rl cardreader/sim/up.sh scene_card.xml
+#   export MICRODUCK=~/microduck MICRODUCK_RL=~/microduck_rl
+#   cardreader/sim/up.sh                                  # the duck, no cards yet
+#   $MICRODUCK_RL/.venv/bin/python cardreader/sim/scene.py --from-duck row.xml start.png,roll.png,end.png
+#   cardreader/sim/look.sh row.xml                        # the duck sees them
 #   cd cardreader && python3 -m duckcards watch --frame-url http://127.0.0.1:8080/frame \
 #       --robot-socket ~/.cache/duck-sim/duck-a.sock --camera-degrees 72.7
 #   cardreader/sim/down.sh
+#
+# `up.sh SCENE.xml` starts with cards already in place instead, where scene.py
+# put them; the duck seldom stands where a scene made in advance expects it.
 #
 # NEEDS, ONCE (the README's "Proving it in duck-sim" has the whole list):
 #   - pollen-robotics/microduck, built: cargo build -p robotd -p robotctl -p tof
@@ -21,31 +27,19 @@
 # DUCK-SIM'S OWN CAMERA IS LEFT OFF ON PURPOSE (DUCK_SIM_CAMERAS unset): without a
 # GPU it slows the world to half speed and the duck falls (eye.py says more).
 set -eu
-SCENE="$(realpath "${1:?usage: up.sh SCENE.xml (cardreader/sim/scene.py writes one)}")"
 : "${MICRODUCK:?set MICRODUCK to a built checkout of pollen-robotics/microduck}"
 : "${MICRODUCK_RL:?set MICRODUCK_RL to a checkout of pollen-robotics/microduck_rl (develop) with its .venv}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 S="${DUCK_SIM_STATE:-$HOME/.cache/duck-sim}"
+mkdir -p "$S"
+if [ $# -ge 1 ]; then
+    SCENE="$(realpath "$1")"
+else
+    SCENE="$S/scene-no-cards.xml"
+    python3 "$HERE/scene.py" --rl "$MICRODUCK_RL" "$SCENE"
+fi
 export DUCK_SIM_RL="$MICRODUCK_RL" DUCK_SIM_VIEWER=0 DUCK_SIM_SCENE="$SCENE" MUJOCO_GL="${MUJOCO_GL:-egl}"
 unset DUCK_SIM_CAMERAS
-cd "$MICRODUCK"
-scripts/duck-sim
-
-MUJOCO_GL="$MUJOCO_GL" setsid nohup "$MICRODUCK_RL/.venv/bin/python" "$HERE/eye.py" "$SCENE" \
-    --body-port 7801 --frame-port 7901 --fps 4 > "$S/eye.log" 2>&1 &
-echo $! > "$S/eye.pid"
-sleep 6
-
-# mediad, with the arguments duck-sim gives it when it starts one for a camera.
-printf '[media]\nquality = "360p30"\n' > "$S/mediad-duck-a.toml"
-DUCK_RUNTIME_DIR="$S" RUST_LOG=info setsid nohup "$MICRODUCK/target/debug/mediad" \
-    --sim-camera 127.0.0.1:7901 --config "$S/mediad-duck-a.toml" \
-    --robot-socket "$S/duck-a.sock" --tof-socket "$S/duck-a-tof.sock" \
-    --config-socket "$S/duck-a-config.sock" --updater-socket "$S/duck-a-updater.sock" \
-    --token "$S/duck-a/hf-token" --frame-socket "$S/duck-a-frame.sock" \
-    --port 8443 --web-port 8080 > "$S/duck-a-media.log" 2>&1 &
-echo $! > "$S/duck-a-media.pid"
-sleep 5
-
-scripts/duck-sim realtime
-curl -s -o /dev/null -w "/frame: %{http_code} %{content_type} %{size_download} bytes\n" http://127.0.0.1:8080/frame
+(cd "$MICRODUCK" && scripts/duck-sim)
+"$HERE/look.sh" "$SCENE"
+(cd "$MICRODUCK" && scripts/duck-sim realtime)

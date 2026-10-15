@@ -315,6 +315,25 @@ def main_row(layout: Layout) -> Row | None:
     return longest if longest is not None and len(longest.slots) >= 3 else None
 
 
+def part_of(layout: Layout, cards: list[str]) -> bool:
+    """Whether the row this picture shows holds only cards of `cards`, in its order: what a
+    picture of part of a row already read looks like, from wherever the duck now stands. A card
+    the picture missed is allowed (a code can go unread for a frame); a card that is not in the
+    row, or two in the wrong order, is not."""
+    row = main_row(layout)
+    if row is None:
+        return False
+    seen = ["/".join([s.card.card.code] + [u.card.code for u in s.under]) for s in row.slots]
+    at = 0
+    for card in seen:
+        while at < len(cards) and cards[at] != card:
+            at += 1
+        if at == len(cards):
+            return False
+        at += 1
+    return True
+
+
 def _wants(row: Row) -> tuple[bool, bool]:
     """Whether a row wants cards after its last (a Start with no End after it) and before its first
     (an End with no Start: the Start is somewhere before it). A row with neither wants both."""

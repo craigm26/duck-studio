@@ -167,18 +167,23 @@ class Gaze:
     each way, the card left the picture for longer than the watcher's `forget`, and came back as
     a new card. A duck reading cards looks at them. So the reader steers the head itself, as
     LookResult's own doc says to hold a gaze: `robot.look` once, then its answer's joints again
-    as `robot.head` every second. With no point to look at, the joints are the head's rest
-    (all zero), which is the view a duck nobody steers has, without the wandering."""
+    as `robot.head` every second. With no point to look at, the command is robotd's zero head
+    command, the head's rest: the view a duck nobody steers has, without the wandering. (A zero
+    command is not zero joints: in duck-sim it held the neck at 12.5° and the head pitched 26°.)
+
+    Checked in duck-sim on 2026-10-14: a card held up for 45 s was kicked for once, and robotd's
+    idle look-around stopped and stayed stopped; with --let-head-wander, five kicks."""
 
     def __init__(self, robot, point: tuple[float, float, float] | None = None, every: float = GAZE_EVERY):
         self.robot, self.point, self.every = robot, point, every
         self.joints: dict | None = None         # what the head is held at now
         self.watching: dict | None = None       # what it is held at while it watches
         self.last = -1e9
+        self.aimed = -1e9                       # when it last looked back to where it watches
 
     def aim(self, now: float) -> None:
         """Look at the point (again, after a row has moved the head) and keep the joints."""
-        self.last = now
+        self.last = self.aimed = now
         if self.point is None:
             self.joints = self.watching = {}
             self.robot.notify("robot.head", self.joints)
@@ -240,6 +245,13 @@ class Watcher:
         self._start_since = None
         self._asked = False
 
+    def ran(self, now: float) -> None:
+        """A run has ended. The seconds it took are not seconds the cards were gone: the duck was
+        busy, not looking, and the row is still on the table. Found in duck-sim on 2026-10-14: a
+        row took about 7 s to run, longer than `forget`, and ran again as soon as it was seen."""
+        if self._fired_key is not None:
+            self._last_seen_fired = now
+
     def feed(self, program: Program, now: float) -> Event | None:
         key = (program.kind, program.words, program.complete)
         if program.kind == "none" or not program.steps:
@@ -286,6 +298,12 @@ MOST_LOOKS = 6
 # A scan whose row came back unfinished is taken again after this many seconds, if the duck still
 # sees the same part of the row: the End may have been put down where the duck cannot see it.
 RESCAN = 10.0
+# How long after the head is sent back to where it watches before a look is worth scanning from:
+# robotd fades its idle look-around out over `[idle] fade_s` (1.5 s as shipped) once the head is
+# steered, and then the head settles. Found in duck-sim on 2026-10-14: a scan begun as the reader
+# started took its first look with the head still 11 to 14° round, called it straight ahead, and
+# both of its turns were refused as not lining up.
+HEAD_QUIET = 1.5 + SETTLE_HEAD
 
 
 def _sides(way: int) -> str:
@@ -347,6 +365,7 @@ class _Scanned:
     key: tuple
     program: Program
     when: float
+    cards: list[str] | None = None      # the joined main row, as `Layout.describe` spells its cards
 
 
 class Scanner:
@@ -381,6 +400,16 @@ class Scanner:
         last = self.last
         if last and last.key == key and (last.program.complete or self.clock() - last.when < self.rescan):
             return last.program
+        # A ROW THAT RAN IS STILL THAT ROW FROM WHERE THE DUCK NOW STANDS. A kick moves the duck a
+        # few centimetres and turns it a few degrees, so the next picture cuts the same row in
+        # another place. Seen in duck-sim on 2026-10-14: the scan read the whole row again and it
+        # ran three times. So a complete joined row stands in for any view whose cards it holds,
+        # in order; a row changed where the duck can see it reads as changed.
+        if last and last.program.complete and last.cards and pan.part_of(layout, last.cards):
+            return last.program
+        if self.clock() - self.gaze.aimed < HEAD_QUIET:
+            self._key, self._count = None, 0
+            return program
         self._count = self._count + 1 if key == self._key else 1
         self._key = key
         if self._count < self.need:
@@ -397,5 +426,7 @@ class Scanner:
         joined = scan(look, layout, self.gaze, self.take, sleep=self.sleep, say=self.say, clock=self.clock,
                       settle=self.settle)
         result = read(joined, self.deck)
-        self.last = _Scanned(key, result, self.clock())
+        row = pan.main_row(joined)
+        cards = ["/".join([s.card.card.code] + [u.card.code for u in s.under]) for s in row.slots] if row else None
+        self.last = _Scanned(key, result, self.clock(), cards)
         return result

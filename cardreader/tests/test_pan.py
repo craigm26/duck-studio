@@ -345,7 +345,7 @@ class Pictures(unittest.TestCase):
         row = self.row(EXAMPLE, {2: ["slow"]})
         duck = Duck(lambda yaw: self.scenes.rail(row, 450, x_mm=120, yaw_deg=yaw))
         gaze = runner.Gaze(duck)
-        gaze.aim(0.0)
+        gaze.aim(-10.0)                 # long enough ago for the head to have settled
         said = []
         scanner = runner.Scanner(gaze, duck.take, DECK, need=3, sleep=lambda s: None, say=said.append,
                                  clock=lambda: 0.0)
@@ -369,13 +369,74 @@ class Pictures(unittest.TestCase):
         gaze = runner.Gaze(duck)
         gaze.aim(0.0)
         said = []
-        scanner = runner.Scanner(gaze, duck.take, DECK, need=1, dry=True, say=said.append, clock=lambda: 0.0)
+        scanner = runner.Scanner(gaze, duck.take, DECK, need=1, dry=True, say=said.append, clock=lambda: 10.0)
         seen, size = duck.take()
         layout = arrange(seen)
         program = scanner.read(pan.Look(seen=seen, yaw=0.0, size=size), layout, read(layout, DECK))
         self.assertFalse(program.complete)
         self.assertEqual(duck.heads, [{}])
         self.assertRegex(said[0], r"^\[scan\] would look right \d+ degrees")
+
+    def test_no_scan_while_the_head_is_still_coming_back(self):
+        # duck-sim, 2026-10-14: a scan begun as the reader started took its first look with the
+        # head still 11 to 14 degrees round from robotd's idle look-around fading out.
+        row = self.row(EXAMPLE)
+        duck = Duck(lambda yaw: self.scenes.rail(row, 450, x_mm=120, yaw_deg=yaw))
+        gaze = runner.Gaze(duck)
+        gaze.aim(0.0)
+        now = [0.5]
+        said = []
+        scanner = runner.Scanner(gaze, duck.take, DECK, need=1, dry=True, say=said.append, clock=lambda: now[0])
+        seen, size = duck.take()
+        layout = arrange(seen)
+        scanner.read(pan.Look(seen=seen, yaw=0.0, size=size), layout, read(layout, DECK))
+        self.assertEqual(said, [])
+        now[0] = runner.HEAD_QUIET + 0.1
+        scanner.read(pan.Look(seen=seen, yaw=0.0, size=size), layout, read(layout, DECK))
+        self.assertEqual(len(said), 1)
+
+    def test_a_row_that_ran_is_not_run_again_from_where_the_kick_left_the_duck(self):
+        # duck-sim, 2026-10-14: running the row took about 7 s and the kick moved the duck, so the
+        # next picture cut the row somewhere else, the scan read it whole again, and it ran 3 times.
+        row = self.row(EXAMPLE, {2: ["slow"]})
+        where = [120.0]
+        duck = Duck(lambda yaw: self.scenes.rail(row, 450, x_mm=where[0], yaw_deg=yaw))
+        gaze = runner.Gaze(duck)
+        gaze.aim(-10.0)
+        now = [0.0]
+        said = []
+        scanner = runner.Scanner(gaze, duck.take, DECK, need=3, sleep=lambda s: None, say=said.append,
+                                 clock=lambda: now[0])
+        watcher = runner.Watcher(need=3)
+        events = []
+
+        def frames(n, step=0.25):
+            for _ in range(n):
+                seen, size = duck.take()
+                layout = arrange(seen)
+                program = scanner.read(pan.Look(seen=seen, yaw=gaze.yaw, size=size), layout, read(layout, DECK))
+                event = watcher.feed(program, now[0])
+                if event:
+                    events.append(event.kind)
+                now[0] += step
+
+        frames(8)
+        self.assertEqual(events, ["row"])
+        now[0] += 7.0                       # the run
+        watcher.ran(now[0])
+        gaze.aim(now[0])
+        where[0] = 60.0                     # the kick moved the duck: the row is cut elsewhere now
+        frames(40)
+        self.assertEqual(events, ["row"], said)
+        self.assertEqual(sum(s.startswith("[scan] looked back") for s in said), 1)
+
+    def test_part_of_a_row_is_its_cards_in_order(self):
+        cards = ["start", "greet", "walk_forward/slow", "turn_left", "kick_right", "end"]
+        self.assertTrue(pan.part_of(arrange(row_at(["turn_left", "kick_right", "end"])), cards))
+        self.assertTrue(pan.part_of(arrange(row_at(["start", "greet", "turn_left"])), cards))    # one unread
+        self.assertFalse(pan.part_of(arrange(row_at(["turn_left", "greet", "end"])), cards))     # out of order
+        self.assertFalse(pan.part_of(arrange(row_at(["start", "roll", "end"])), cards))          # changed
+        self.assertFalse(pan.part_of(arrange(row_at(["start", "walk_forward", "end"])), cards))  # lost its Slow
 
 
 if __name__ == "__main__":

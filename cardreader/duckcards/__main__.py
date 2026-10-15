@@ -183,12 +183,14 @@ def cmd_watch(args) -> int:
                         outcome = str(r)
                         voice("alarm")
                     say(f"  {outcome}")
+                    watcher.ran(time.time())
                     look_again()
             if falls and falls.recovered.is_set():
                 falls.recovered.clear()
                 if on_fall:
                     say("[fell] running the When it falls row")
                     runner.run(runner.beats(on_fall), robot, heads=args.heads, say=say)
+                    watcher.ran(time.time())
                     look_again()
             if gaze:
                 try:
