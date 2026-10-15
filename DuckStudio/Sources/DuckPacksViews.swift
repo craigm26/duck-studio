@@ -11,6 +11,10 @@ import StudioKit
 /// A PACK'S YOUR CARDS ARE ASKED ABOUT HERE. A pack opened through the import door lends its Your
 /// cards to the class deck and keeps the class's own where they clash; the question waits in
 /// `DuckPacksStore.asking` and is asked when this screen is in front.
+///
+/// SO IS A PACK WITH AN ID ALREADY OPEN. Two classes' packs have two ids and sit side by side; one
+/// whose id matches a pack already here replaces it only after the person picks, with both named
+/// (`DuckPacksStore.replacing`).
 struct DuckPacksView: View {
     var camera: DuckCameraFeed? = nil
     var robot: BridgeLink? = nil
@@ -78,6 +82,12 @@ struct DuckPacksView: View {
                     Label(DuckPacks.Words.design, systemImage: "square.grid.3x3.square")
                 }
                 .frame(minHeight: DesignMetric.minimumTarget)
+                NavigationLink {
+                    DuckPackClassSettingsView()
+                } label: {
+                    Label(DuckPacks.Words.settings, systemImage: "slider.horizontal.3")
+                }
+                .frame(minHeight: DesignMetric.minimumTarget)
             } header: {
                 SectionHeading(text: DuckPacks.Words.classHeading)
             } footer: {
@@ -92,6 +102,16 @@ struct DuckPacksView: View {
         .onAppear { inFront = true }
         .onDisappear { inFront = false }
         .modifier(DuckPacksAsking(when: { _ in inFront }))
+        .confirmationDialog(DuckPacks.Words.sameIDTitle,
+                            isPresented: Binding(get: { inFront && store.replacing != nil },
+                                                 set: { if !$0, let q = store.replacing { store.answer(q, replace: false) } }),
+                            titleVisibility: .visible,
+                            presenting: store.replacing) { question in
+            Button(DuckPacks.Words.replaceOpened, role: .destructive) { store.answer(question, replace: true) }
+            Button(DuckPacks.Words.keepOpened, role: .cancel) { store.answer(question, replace: false) }
+        } message: { question in
+            Text(DuckPacks.Words.sameIDQuestion(question.incoming, question.existing))
+        }
     }
 
     private func link(_ pack: DuckPacks.Pack, isClass: Bool) -> some View {
@@ -210,6 +230,11 @@ struct DuckPackView: View {
                                     .font(.footnote).foregroundStyle(Theme.textSecondary)
                             }
                         }
+                        if let note = ch.note {
+                            Text(DuckPacks.Words.note(note))
+                                .font(.footnote).foregroundStyle(Theme.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                     .padding(.vertical, Theme.spacing(.hairline))
                 }
@@ -256,6 +281,12 @@ struct DuckPackView: View {
                     .font(.footnote).foregroundStyle(Theme.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            let clashes = store.clashes(shown)
+            if !clashes.isEmpty {
+                Label(DuckPacks.Words.classMeaningWins(shown, clashes), systemImage: "info.circle")
+                    .font(.footnote).foregroundStyle(Theme.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             Button {
                 store.lend(shown, replacing: false)
             } label: {
@@ -285,7 +316,7 @@ struct DuckPackView: View {
             }
             .frame(minHeight: DesignMetric.minimumTarget)
         } footer: {
-            Text(DuckPacks.Words.designFooter).foregroundStyle(Theme.textSecondary)
+            Text(DuckPacks.Words.designFooter(store.settings.shownName)).foregroundStyle(Theme.textSecondary)
         }
         .listRowBackground(Theme.surfacePrimary)
     }

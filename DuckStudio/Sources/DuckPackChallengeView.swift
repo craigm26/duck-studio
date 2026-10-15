@@ -15,6 +15,10 @@ import StudioKit
 /// `PlanEditorView` as a proposal (`DuckPacks.handed`, the board's twin of `DuckCards.handed`), every
 /// step shown, and nothing moves until Run is pressed there. The deck is the one the board played
 /// with, so the duck runs the steps the board showed.
+///
+/// ONE DECK, THE CLASS'S. Board play and Run on the duck use the class deck, with the pack's Your
+/// cards lent only where the class has none (`DuckPacksStore.playDeck`): on a clash the class's own
+/// meaning plays, as the camera reads it and the duck's card reader runs it, and this screen says so.
 struct DuckPackChallengeView: View {
     let pack: DuckPacks.Pack
     let challenge: DuckPacks.Challenge
@@ -69,6 +73,11 @@ struct DuckPackChallengeView: View {
             Text(DuckPacks.Words.hint(challenge))
                 .font(.callout).foregroundStyle(Theme.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
+            if let note = challenge.note {
+                Text(DuckPacks.Words.note(note))
+                    .font(.footnote).foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             Text(DuckPacks.Words.par(par, pack.score))
                 .font(.footnote.monospacedDigit()).foregroundStyle(Theme.textSecondary)
             if let finish = challenge.finishWith, let deck {
@@ -130,6 +139,12 @@ struct DuckPackChallengeView: View {
             }
             ForEach(notes, id: \.self) { note in
                 Label(note, systemImage: "info.circle")
+                    .font(.caption).foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            let clashes = store.clashes(pack)
+            if !clashes.isEmpty {
+                Label(DuckPacks.Words.classMeaningWins(pack, clashes), systemImage: "info.circle")
                     .font(.caption).foregroundStyle(Theme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
