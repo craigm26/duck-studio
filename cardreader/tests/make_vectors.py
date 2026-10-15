@@ -116,15 +116,73 @@ def expected(detections, deck_cards, counts):
             "plan": plan(program) if program.steps else None}
 
 
+# PACK VECTORS: a challenge from a starter pack, a row, and what the board rule makes of it.
+# (name, pack id, challenge id, row or the challenge's own "solution"/"buggy"). Each case is
+# here for one rule of docs/PACKS.md, named in the case.
+PACK_CASES = [
+    ("pack_solved", "get-to-the-pond", "pond-3", "solution"),
+    ("pack_bumped_wall", "duck-maze", "maze-3", [{"card": "turn_right"}, {"card": "walk_forward"}]),
+    ("pack_bumped_edge", "loop-the-course", "loop-3", "buggy"),
+    ("pack_gate_missed", "get-to-the-pond", "pond-6",
+     [{"card": "walk_forward"}, {"card": "walk_forward"}, {"card": "turn_right"}, {"card": "walk_forward"},
+      {"card": "walk_forward"}]),
+    ("pack_gate_wrong_axis", "duck-maze", "maze-6",
+     [{"card": c} for c in ["turn_right", "walk_forward", "turn_left", "walk_forward", "walk_forward",
+                            "walk_forward", "turn_right", "walk_forward", "walk_forward"]]),
+    ("pack_finish_with_satisfied", "duck-maze", "maze-7", "solution"),
+    ("pack_finish_with_missed", "duck-maze", "maze-7",
+     [{"card": c} for c in ["turn_left", "walk_forward", "walk_forward", "walk_forward", "turn_right",
+                            "walk_forward", "greet", "walk_forward"]]),
+    ("pack_repeat_unrolled", "loop-the-course", "loop-4", "solution"),
+    ("pack_repeat_unclosed", "loop-the-course", "loop-2", [{"card": "repeat", "times": 4}, {"card": "walk_forward"}]),
+    ("pack_repeat_bug_in_loop", "loop-the-course", "loop-6", "buggy"),
+    ("pack_your_card_opened", "design-a-level", "design-1", "solution"),
+    ("pack_your_card_shortcut", "design-a-level", "design-3", "solution"),
+    ("pack_walk_backward", "duck-maze", "maze-4", "solution"),
+    ("pack_ended_short", "get-to-the-pond", "pond-3",
+     [{"card": "walk_forward"}, {"card": "walk_forward"}, {"card": "turn_right"}, {"card": "walk_forward"}]),
+    ("pack_over_par", "get-to-the-pond", "pond-2",
+     [{"card": c} for c in ["turn_left", "turn_left", "turn_left", "walk_forward"]]),
+    ("pack_under_cards_count", "loop-the-course", "loop-1",
+     [{"card": "walk_forward", "under": ["slow", "look_left"]}, {"card": "turn_right"}, {"card": "walk_forward"}]),
+    ("pack_empty_row", "get-to-the-pond", "pond-1", []),
+]
+
+
+def pack_cases():
+    from duckcards.packs import PACKS
+    out = []
+    for name, pid, cid, row in PACK_CASES:
+        data = json.loads((PACKS / f"{pid}.duckpack").read_text())
+        challenge = next(c for c in data["challenges"] if c["id"] == cid)
+        if isinstance(row, str):
+            row = challenge[row]
+        out.append((name, {"pack": pid, "score": data["score"], "cards": data["cards"], "board": data["board"],
+                           "yours": data["yours"], "challenge": challenge, "row": row}))
+    return out
+
+
+def pack_expected(v: dict) -> dict:
+    """Only what the vector carries: a reader that can play it needs nothing else."""
+    from duckcards.packs import Board, challenge_of, entries, lend_yours, play_entries
+    deck, _ = lend_yours(DECK, v["yours"])
+    ch = challenge_of(v["challenge"], Board(**v["board"]), v["cards"], deck)
+    return play_entries(ch, entries(v["row"]), v["score"], deck)
+
+
 def main() -> int:
     check = "--check" in sys.argv
     OUT.mkdir(exist_ok=True)
     stale = []
     names = set()
+    bodies = []
     for name, dets, deck_cards, counts in cases():
+        bodies.append((name, json.dumps({"name": name, "detections": dets, "deck_cards": deck_cards, "counts": counts,
+                                         "expect": expected(dets, deck_cards, counts)}, indent=1, sort_keys=True) + "\n"))
+    for name, v in pack_cases():
+        bodies.append((name, json.dumps({"name": name, **v, "expect": pack_expected(v)}, indent=1, sort_keys=True) + "\n"))
+    for name, body in bodies:
         names.add(name)
-        body = json.dumps({"name": name, "detections": dets, "deck_cards": deck_cards, "counts": counts,
-                           "expect": expected(dets, deck_cards, counts)}, indent=1, sort_keys=True) + "\n"
         path = OUT / f"{name}.json"
         if not path.exists() or path.read_text() != body:
             stale.append(name)
@@ -136,7 +194,7 @@ def main() -> int:
         return 1
     for g in gone:
         (OUT / f"{g}.json").unlink()
-    print(f"{len(cases())} vectors" + (f", rewrote {len(stale)}" if stale and not check else ""))
+    print(f"{len(bodies)} vectors" + (f", rewrote {len(stale)}" if stale and not check else ""))
     return 0
 
 

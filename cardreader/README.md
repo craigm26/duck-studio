@@ -188,8 +188,9 @@ long side, the robot's 62°, which `--camera-degrees` tells the joins.
 ## Tests
 
 ```sh
-python3 -m unittest discover -s cardreader/tests -v     # 98 tests, about 35 s
+python3 -m unittest discover -s cardreader/tests -v     # 118 tests, about 35 s
 scripts/check_duckcards_vectors.sh                       # the two readers' contract
+python3 scripts/check_duck_packs.py                      # every pack's pars and rows
 ```
 
 `tests/make_vectors.py` writes `vectors/`: twenty-eight cases, three of them the library's own
@@ -198,6 +199,10 @@ plan the reader must produce, and some with a class's own cards or answers to Re
 StudioKit's `DuckCardsTests` reads every one; the gate keeps the copies identical. The bridge test
 runs a row's calls through this repository's own `microduck-bridge` and `mock-robotd`; the scan
 tests turn a simulated camera with the head and hold a row read once to running once.
+
+The same script writes the pack vectors, `vectors/pack_*.json`: a challenge from one of the
+starter packs in `duckcards/packs/`, a row, and the board play `duckcards/packs.py` makes of it
+(docs/PACKS.md). StudioKit's `DuckPacksTests` plays every one to the same JSON.
 
 ## Not done
 

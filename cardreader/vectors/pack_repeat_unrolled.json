@@ -1,0 +1,271 @@
+{
+ "board": {
+  "columns": 5,
+  "duck_square_cm": null,
+  "rows": 5,
+  "square_cm": 30
+ },
+ "cards": [
+  "start",
+  "end",
+  "walk_forward",
+  "walk_backward",
+  "turn_left",
+  "turn_right",
+  "stop",
+  "greet",
+  "kick_right",
+  "repeat",
+  "end_repeat",
+  "slow",
+  "fast",
+  "look_left",
+  "look_right"
+ ],
+ "challenge": {
+  "buggy": null,
+  "finish_with": null,
+  "gates": [
+   {
+    "at": [
+     3,
+     1
+    ],
+    "axis": "ew"
+   },
+   {
+    "at": [
+     3,
+     3
+    ],
+    "axis": "ns"
+   },
+   {
+    "at": [
+     1,
+     3
+    ],
+    "axis": "ew"
+   }
+  ],
+  "goal": [
+   1,
+   1
+  ],
+  "hint": "The duck walks all the way round and comes home. What part of the walk happens again and again?",
+  "id": "loop-4",
+  "name": "Round the pond",
+  "par": 5,
+  "solution": [
+   {
+    "card": "repeat",
+    "times": 4
+   },
+   {
+    "card": "walk_forward"
+   },
+   {
+    "card": "walk_forward"
+   },
+   {
+    "card": "turn_right"
+   },
+   {
+    "card": "end_repeat"
+   }
+  ],
+  "start": {
+   "at": [
+    1,
+    1
+   ],
+   "facing": "east"
+  },
+  "walls": [
+   {
+    "between": [
+     [
+      2,
+      2
+     ],
+     [
+      2,
+      1
+     ]
+    ]
+   },
+   {
+    "between": [
+     [
+      2,
+      2
+     ],
+     [
+      1,
+      2
+     ]
+    ]
+   },
+   {
+    "between": [
+     [
+      2,
+      2
+     ],
+     [
+      3,
+      2
+     ]
+    ]
+   },
+   {
+    "between": [
+     [
+      2,
+      2
+     ],
+     [
+      2,
+      3
+     ]
+    ]
+   }
+  ]
+ },
+ "expect": {
+  "bumped_at": null,
+  "cards": 5,
+  "ended": {
+   "at": [
+    1,
+    1
+   ],
+   "facing": "east"
+  },
+  "gates_passed": [
+   0,
+   1,
+   2
+  ],
+  "par": 5,
+  "path": [
+   {
+    "at": [
+     1,
+     1
+    ],
+    "facing": "east"
+   },
+   {
+    "at": [
+     2,
+     1
+    ],
+    "facing": "east"
+   },
+   {
+    "at": [
+     3,
+     1
+    ],
+    "facing": "east"
+   },
+   {
+    "at": [
+     3,
+     1
+    ],
+    "facing": "south"
+   },
+   {
+    "at": [
+     3,
+     2
+    ],
+    "facing": "south"
+   },
+   {
+    "at": [
+     3,
+     3
+    ],
+    "facing": "south"
+   },
+   {
+    "at": [
+     3,
+     3
+    ],
+    "facing": "west"
+   },
+   {
+    "at": [
+     2,
+     3
+    ],
+    "facing": "west"
+   },
+   {
+    "at": [
+     1,
+     3
+    ],
+    "facing": "west"
+   },
+   {
+    "at": [
+     1,
+     3
+    ],
+    "facing": "north"
+   },
+   {
+    "at": [
+     1,
+     2
+    ],
+    "facing": "north"
+   },
+   {
+    "at": [
+     1,
+     1
+    ],
+    "facing": "north"
+   },
+   {
+    "at": [
+     1,
+     1
+    ],
+    "facing": "east"
+   }
+  ],
+  "said": "Solved with 5 cards, which is par.",
+  "score": 5,
+  "solved": true,
+  "steps": 12
+ },
+ "name": "pack_repeat_unrolled",
+ "pack": "loop-the-course",
+ "row": [
+  {
+   "card": "repeat",
+   "times": 4
+  },
+  {
+   "card": "walk_forward"
+  },
+  {
+   "card": "walk_forward"
+  },
+  {
+   "card": "turn_right"
+  },
+  {
+   "card": "end_repeat"
+  }
+ ],
+ "score": "cards",
+ "yours": []
+}

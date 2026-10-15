@@ -1,0 +1,196 @@
+{
+ "board": {
+  "columns": 4,
+  "duck_square_cm": null,
+  "rows": 4,
+  "square_cm": 30
+ },
+ "cards": [
+  "start",
+  "end",
+  "walk_forward",
+  "walk_backward",
+  "turn_left",
+  "turn_right",
+  "stop",
+  "greet",
+  "kick_right"
+ ],
+ "challenge": {
+  "buggy": null,
+  "finish_with": null,
+  "gates": [
+   {
+    "at": [
+     1,
+     1
+    ],
+    "axis": "ew"
+   }
+  ],
+  "goal": [
+   3,
+   0
+  ],
+  "hint": "The tunnel only goes one way: across the board. Find the square to walk in from.",
+  "id": "maze-6",
+  "name": "Through the tunnel",
+  "par": 8,
+  "solution": [
+   {
+    "card": "walk_forward"
+   },
+   {
+    "card": "walk_forward"
+   },
+   {
+    "card": "turn_right"
+   },
+   {
+    "card": "walk_forward"
+   },
+   {
+    "card": "walk_forward"
+   },
+   {
+    "card": "walk_forward"
+   },
+   {
+    "card": "turn_left"
+   },
+   {
+    "card": "walk_forward"
+   }
+  ],
+  "start": {
+   "at": [
+    0,
+    3
+   ],
+   "facing": "north"
+  },
+  "walls": []
+ },
+ "expect": {
+  "bumped_at": null,
+  "cards": 9,
+  "ended": {
+   "at": [
+    3,
+    0
+   ],
+   "facing": "east"
+  },
+  "gates_passed": [],
+  "par": 8,
+  "path": [
+   {
+    "at": [
+     0,
+     3
+    ],
+    "facing": "north"
+   },
+   {
+    "at": [
+     0,
+     3
+    ],
+    "facing": "east"
+   },
+   {
+    "at": [
+     1,
+     3
+    ],
+    "facing": "east"
+   },
+   {
+    "at": [
+     1,
+     3
+    ],
+    "facing": "north"
+   },
+   {
+    "at": [
+     1,
+     2
+    ],
+    "facing": "north"
+   },
+   {
+    "at": [
+     1,
+     1
+    ],
+    "facing": "north"
+   },
+   {
+    "at": [
+     1,
+     0
+    ],
+    "facing": "north"
+   },
+   {
+    "at": [
+     1,
+     0
+    ],
+    "facing": "east"
+   },
+   {
+    "at": [
+     2,
+     0
+    ],
+    "facing": "east"
+   },
+   {
+    "at": [
+     3,
+     0
+    ],
+    "facing": "east"
+   }
+  ],
+  "said": "The duck reached the goal but missed 1 gate.",
+  "score": 9,
+  "solved": false,
+  "steps": 9
+ },
+ "name": "pack_gate_wrong_axis",
+ "pack": "duck-maze",
+ "row": [
+  {
+   "card": "turn_right"
+  },
+  {
+   "card": "walk_forward"
+  },
+  {
+   "card": "turn_left"
+  },
+  {
+   "card": "walk_forward"
+  },
+  {
+   "card": "walk_forward"
+  },
+  {
+   "card": "walk_forward"
+  },
+  {
+   "card": "turn_right"
+  },
+  {
+   "card": "walk_forward"
+  },
+  {
+   "card": "walk_forward"
+  }
+ ],
+ "score": "steps",
+ "yours": []
+}

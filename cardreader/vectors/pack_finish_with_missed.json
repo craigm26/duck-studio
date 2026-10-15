@@ -1,0 +1,215 @@
+{
+ "board": {
+  "columns": 4,
+  "duck_square_cm": null,
+  "rows": 4,
+  "square_cm": 30
+ },
+ "cards": [
+  "start",
+  "end",
+  "walk_forward",
+  "walk_backward",
+  "turn_left",
+  "turn_right",
+  "stop",
+  "greet",
+  "kick_right"
+ ],
+ "challenge": {
+  "buggy": null,
+  "finish_with": "greet",
+  "gates": [],
+  "goal": [
+   0,
+   1
+  ],
+  "hint": "When the duck gets to the pond it says hello, so the last card is Hello.",
+  "id": "maze-7",
+  "name": "Hello at the pond",
+  "par": 8,
+  "solution": [
+   {
+    "card": "turn_left"
+   },
+   {
+    "card": "walk_forward"
+   },
+   {
+    "card": "walk_forward"
+   },
+   {
+    "card": "walk_forward"
+   },
+   {
+    "card": "turn_right"
+   },
+   {
+    "card": "walk_forward"
+   },
+   {
+    "card": "walk_forward"
+   },
+   {
+    "card": "greet"
+   }
+  ],
+  "start": {
+   "at": [
+    3,
+    3
+   ],
+   "facing": "north"
+  },
+  "walls": [
+   {
+    "between": [
+     [
+      3,
+      1
+     ],
+     [
+      3,
+      2
+     ]
+    ]
+   },
+   {
+    "between": [
+     [
+      2,
+      1
+     ],
+     [
+      2,
+      2
+     ]
+    ]
+   },
+   {
+    "between": [
+     [
+      1,
+      2
+     ],
+     [
+      1,
+      3
+     ]
+    ]
+   }
+  ]
+ },
+ "expect": {
+  "bumped_at": null,
+  "cards": 8,
+  "ended": {
+   "at": [
+    0,
+    1
+   ],
+   "facing": "north"
+  },
+  "gates_passed": [],
+  "par": 8,
+  "path": [
+   {
+    "at": [
+     3,
+     3
+    ],
+    "facing": "north"
+   },
+   {
+    "at": [
+     3,
+     3
+    ],
+    "facing": "west"
+   },
+   {
+    "at": [
+     2,
+     3
+    ],
+    "facing": "west"
+   },
+   {
+    "at": [
+     1,
+     3
+    ],
+    "facing": "west"
+   },
+   {
+    "at": [
+     0,
+     3
+    ],
+    "facing": "west"
+   },
+   {
+    "at": [
+     0,
+     3
+    ],
+    "facing": "north"
+   },
+   {
+    "at": [
+     0,
+     2
+    ],
+    "facing": "north"
+   },
+   {
+    "at": [
+     0,
+     2
+    ],
+    "facing": "north"
+   },
+   {
+    "at": [
+     0,
+     1
+    ],
+    "facing": "north"
+   }
+  ],
+  "said": "The duck reached the goal but did not finish with Hello.",
+  "score": 8,
+  "solved": false,
+  "steps": 8
+ },
+ "name": "pack_finish_with_missed",
+ "pack": "duck-maze",
+ "row": [
+  {
+   "card": "turn_left"
+  },
+  {
+   "card": "walk_forward"
+  },
+  {
+   "card": "walk_forward"
+  },
+  {
+   "card": "walk_forward"
+  },
+  {
+   "card": "turn_right"
+  },
+  {
+   "card": "walk_forward"
+  },
+  {
+   "card": "greet"
+  },
+  {
+   "card": "walk_forward"
+  }
+ ],
+ "score": "steps",
+ "yours": []
+}
