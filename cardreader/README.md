@@ -13,6 +13,8 @@ python3 -m duckcards watch                         # on the robot: frames from m
 python3 -m duckcards watch --floor                 # look down at a row on the floor first
 python3 -m duckcards watch --deck class.duckcards  # with a class's own Your cards
 python3 -m duckcards watch --dry-run               # read and say what would be sent, send nothing
+python3 -m duckcards watch --pack get-to-the-pond  # play a pack: a starter pack's id, or a .duckpack file
+python3 -m duckcards watch --pack get-to-the-pond --challenge pond-3   # and hear each row on its board
 ```
 
 From a laptop to a real duck, through this repository's `bridge/`:
@@ -82,6 +84,35 @@ number never changes meaning, so whatever a file says about a printed card is le
 deck has it, and said; a file saved under an older starter deck still reads every card this one
 has. A deck that says something the reader cannot follow (a card that is not a card, a Repeat
 with no number) is refused by name.
+
+## Packs
+
+A pack is a game for the cards, set for a grade band ([docs/PACKS.md](../docs/PACKS.md)). `--pack`
+takes a `.duckpack` file, or the id of a starter pack in `duckcards/packs/` (`get-to-the-pond`,
+`duck-maze`, `loop-the-course`, `design-a-level`), and works on `watch` and `read`.
+
+- **It lends the pack's Your cards**, the way `--deck` lends a class's. With `--deck` too, a
+  number the class already saved a different row for keeps the class's meaning, as in Studio,
+  and the reader says which numbers clashed.
+- **It narrows, it does not refuse.** A card the pack does not play still runs, and the reader
+  says so beside the row's other notes: `note: Roll is not in Get to the pond.`
+- **`--challenge pond-3`** plays each row the duck runs on that challenge's board, after it has
+  run, and prints what the board says, solved or not, and the score against par:
+
+  ```
+    [board] Corner pond (pond-3): Solved in 5 steps, which is par.
+    [board] solved, score 5 steps, par 5.
+    [board] This is the board's answer for the row (one Walk card, one square), not where the duck stopped. One Walk card has not been measured on a duck yet.
+  ```
+
+  That is a report on the row, not on the duck. The board rule moves one square per Walk card and
+  turns a quarter per Turn card; nothing here watches where the duck stopped, and a Walk card on
+  a duck is not yet a square (docs/PACKS.md, Sizing: in duckbench a Normal Walk forward carries
+  the duck about 14 cm and turns it 11 to 15 degrees, and a timed Turn is not a quarter turn). So
+  the reader never says the duck reached the goal, only that the row does on the board.
+
+A pack that cannot be found or read, and a challenge the pack does not have, are refused with a
+sentence before the duck reads anything.
 
 ## What the duck's camera can read
 
@@ -188,7 +219,7 @@ long side, the robot's 62°, which `--camera-degrees` tells the joins.
 ## Tests
 
 ```sh
-python3 -m unittest discover -s cardreader/tests -v     # 118 tests, about 35 s
+python3 -m unittest discover -s cardreader/tests -v     # 136 tests, about 35 s
 scripts/check_duckcards_vectors.sh                       # the two readers' contract
 python3 scripts/check_duck_packs.py                      # every pack's pars and rows
 ```

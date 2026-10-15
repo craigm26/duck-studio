@@ -571,6 +571,73 @@ def swaps(pack: Pack, row, deck: Deck) -> list[tuple[int, str, tuple[Entry, ...]
     return out
 
 
+# ---------------------------------------------------------------------------------------------
+# the card reader with a pack (`python3 -m duckcards watch --pack ...`)
+
+def listed(items: list[str]) -> str:
+    """Words joined the way a sentence lists them: a, b and c."""
+    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
+
+
+def find(path_or_id: str, deck: Deck) -> Pack:
+    """A pack named the way a person types it: a `.duckpack` file, or the id of a starter pack this
+    reader carries. Refused with a sentence that says which, and what the starter packs are."""
+    path = pathlib.Path(path_or_id).expanduser()
+    if not path.is_file() and ID.match(path_or_id) and (PACKS / f"{path_or_id}.{EXTENSION}").is_file():
+        path = PACKS / f"{path_or_id}.{EXTENSION}"
+    if not path.is_file():
+        ids = sorted(p.stem for p in PACKS.glob(f"*.{EXTENSION}"))
+        raise PackError(f"There is no pack file at {path_or_id}, and no starter pack is called that. "
+                        f"The starter packs are {listed(ids)}.")
+    try:
+        data = path.read_bytes()
+    except OSError as e:
+        raise PackError(f"The pack {path_or_id} could not be opened: {e.strerror or e}.") from None
+    return Pack.read(data, deck)
+
+
+def lent_words(pack: Pack, deck: Deck, clashes: list[int]) -> list[str]:
+    """What lending a pack's Your cards did, for the reader to say. The class deck's own card wins
+    a clash, as it does in Studio until someone there chooses to replace it."""
+    if not pack.yours:
+        return []
+    kept = set(clashes)
+    lent = [f"{y['tag']} {y['name']}" for y in pack.yours if y["tag"] not in kept]
+    out = []
+    if lent:
+        out.append(f"{pack.name} lends its Your card{'s' if len(lent) > 1 else ''}: {'; '.join(lent)}.")
+    if clashes:
+        nums = listed([str(t) for t in clashes])
+        one = len(clashes) == 1
+        out.append(f"The class deck already saved something else for card{'' if one else 's'} {nums}, so "
+                   f"{'it keeps' if one else 'they keep'} the class's own meaning, not {pack.name}'s.")
+    return out
+
+
+def outside(pack: Pack, program, deck: Deck) -> list[str]:
+    """Notes for the cards a program laid that the pack does not play. They still run: a pack
+    narrows what is printed and offered, not what a duck may do."""
+    return pack.not_in_play(program.laid, deck)
+
+
+# Said beside every board play the reader prints. The board rule is exact; the duck is not, and
+# nothing watched where the duck itself stopped.
+NOT_THE_DUCK = "This is the board's answer for the row (one Walk card, one square), not where the duck stopped."
+UNMEASURED = " One Walk card has not been measured on a duck yet."
+
+
+def report(pack: Pack, ch: Challenge, program, deck: Deck) -> tuple[dict, list[str]]:
+    """The board play of a row the reader ran, and the lines it says about it. The row is played
+    as laid: the steps the reader made, the cards between Start and End, any Repeat left open."""
+    result = play(ch, program.steps, card_count(program.row), pack.score, deck, open_repeats(program.row))
+    unit = "steps" if pack.score == "steps" else "cards"
+    lines = [f"[board] {ch.name} ({ch.id}): {result['said']}",
+             f"[board] {'solved' if result['solved'] else 'not solved'}, score {result['score']} {unit}, "
+             f"par {result['par']}.",
+             "[board] " + NOT_THE_DUCK + (UNMEASURED if pack.board.duck_square_cm is None else "")]
+    return result, lines
+
+
 __all__ = ["FORMAT", "EXTENSION", "PACKS", "MAX_STEPS", "PackError", "Pack", "Challenge", "Place", "Gate",
            "Board", "Lesson", "bundled", "steps_of", "card_count", "play", "play_row", "play_entries", "open_repeats", "lend_yours", "entries", "par_steps", "par",
-           "swaps", "challenge_of"]
+           "swaps", "challenge_of", "find", "lent_words", "outside", "report"]
