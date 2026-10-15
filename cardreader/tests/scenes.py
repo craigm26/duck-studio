@@ -18,6 +18,12 @@ writes the number in and the word "times" where the cut sheet puts them
 (`cards.WRITE_EDGE`, measured), and `write=` puts a handwritten figure in the
 box. Every other card is drawn exactly as before, pixel for pixel, because the
 shared vectors hold the library's answers to pictures of them.
+
+THE HEAD TURNS ABOUT THE NECK. `yaw_deg` turns the camera the way robotd's
+head_yaw does (more is left): about the picture's own vertical, through a point
+55.6 mm behind the lens, which is where Pollen's alpha head carries the camera
+(the head_camera site in `robot_walk.xml` at 648bf22, in front of the head_yaw
+axis). A camera that is not turned takes exactly the pictures it took before.
 """
 
 from __future__ import annotations
@@ -36,6 +42,7 @@ W_MM, H_MM = 63.5, 88.9
 FRAME_W, FRAME_H = 720, 1280
 F = (1280 / 2) / math.tan(math.radians(31))     # ≈ 1065 px
 HEAD_MM = 240.0
+NECK_MM = 55.6          # the head_yaw axis, behind the lens
 
 BAND = {"walk": (201, 100, 42), "speed": (122, 119, 11), "look": (194, 68, 112), "trick": (0, 149, 255),
         "sound": (62, 110, 27), "control": (68, 60, 60), "when": (48, 194, 242), "yours": (250, 250, 250)}
@@ -146,11 +153,15 @@ def card_image(tag: int, category: str, scale: float = 6.0, seed: int = 0,
 
 class Camera:
     """A pinhole looking down +z, x right, y down, turned `pitch` degrees down and set `height`
-    mm above the floor (the floor is y = +height before the turn)."""
+    mm above the floor (the floor is y = +height before the turn), and then turned `yaw` degrees
+    to the left about its own vertical through a point `neck_mm` behind the lens."""
 
-    def __init__(self, pitch_deg: float = 0.0, height_mm: float = HEAD_MM):
+    def __init__(self, pitch_deg: float = 0.0, height_mm: float = HEAD_MM, yaw_deg: float = 0.0,
+                 neck_mm: float = NECK_MM):
         self.pitch = math.radians(pitch_deg)
         self.height = height_mm
+        self.yaw = math.radians(yaw_deg)
+        self.neck = neck_mm
 
     def project(self, pts: np.ndarray) -> np.ndarray:
         """World points (n, 3), mm, in a frame level with the floor; pixels (n, 2)."""
@@ -159,6 +170,11 @@ class Camera:
         x = pts[:, 0]
         y = c * pts[:, 1] - s * pts[:, 2]
         z = s * pts[:, 1] + c * pts[:, 2]
+        if self.yaw:
+            # the lens goes round the neck: points from the neck, turned the other way, and back
+            cy, sy = math.cos(self.yaw), math.sin(self.yaw)
+            ahead = z + self.neck
+            x, z = cy * x + sy * ahead, -sy * x + cy * ahead - self.neck
         if np.any(z <= 1):
             raise ValueError("behind the camera")
         return np.stack([F * x / z + FRAME_W / 2, F * y / z + FRAME_H / 2], axis=1)
@@ -214,22 +230,44 @@ def held(tag, category, distance_mm, yaw_deg=0.0, roll_deg=0.0, x_mm=0.0, y_mm=0
     return render([(tag, category, (x_mm, y_mm, distance_mm), right, down, write)], Camera(0), **kw)
 
 
-def rail(cards, distance_mm, gap_mm=8.0, y_mm=0.0, **kw):
+def _in_sight(placed, camera: Camera):
+    """The cards some part of which is in front of the camera and inside the picture: a long row
+    seen with the head turned runs out of the picture, and round behind a turned camera."""
+    out = []
+    for card in placed:
+        tag, cat, centre, right, down = card[:5]
+        corners = card_corners(centre, right, down)
+        try:
+            p = camera.project(corners)
+        except ValueError:
+            continue
+        if p[:, 0].max() >= 0 and p[:, 0].min() < FRAME_W and p[:, 1].max() >= 0 and p[:, 1].min() < FRAME_H:
+            out.append(card)
+    return out
+
+
+def rail(cards, distance_mm, gap_mm=8.0, y_mm=0.0, yaw_deg=0.0, x_mm=0.0, **kw):
     """A row standing in a rail facing the duck. `cards`: [(tag, category, [(tag, category)...])]
-    where the inner list is what stands under that card."""
+    where the inner list is what stands under that card. `x_mm` moves the row's middle to the
+    right; `yaw_deg` turns the head (more is left)."""
     n = len(cards)
     step = W_MM + gap_mm
     placed = []
     for i, (tag, cat, under) in enumerate(cards):
-        x = (i - (n - 1) / 2) * step
+        x = x_mm + (i - (n - 1) / 2) * step
         placed.append((tag, cat, (x, y_mm, distance_mm), (1, 0, 0), (0, 1, 0)))
         for j, (ut, uc) in enumerate(under):
             placed.append((ut, uc, (x + 3, y_mm + (j + 1) * (H_MM + 6), distance_mm), (1, 0, 0), (0, 1, 0)))
-    return render(placed, Camera(0), **kw)
+    if not yaw_deg:
+        return render(placed, Camera(0), **kw)
+    camera = Camera(0, yaw_deg=yaw_deg)
+    return render(_in_sight(placed, camera), camera, **kw)
 
 
-def floor(cards, distance_mm, pitch_deg, far_side=False, gap_mm=8.0, height_mm=HEAD_MM, **kw):
-    """A row lying on the floor across the duck's view, its middle `distance_mm` ahead.
+def floor(cards, distance_mm, pitch_deg, far_side=False, gap_mm=8.0, height_mm=HEAD_MM, yaw_deg=0.0,
+          x_mm=0.0, **kw):
+    """A row lying on the floor across the duck's view, its middle `distance_mm` ahead and `x_mm`
+    to the right; `yaw_deg` turns the head (more is left) about its own vertical, pitched down.
 
     From the near side the cards' tops point away from the duck; from the far side (a class
     laid the row out facing themselves, across from the duck) they point at it, and the row reads
@@ -241,9 +279,12 @@ def floor(cards, distance_mm, pitch_deg, far_side=False, gap_mm=8.0, height_mm=H
     down = np.array([0.0, 0.0, -sign])          # a card's down points at the duck from the near side
     placed = []
     for i, (tag, cat, under) in enumerate(cards):
-        x = sign * (i - (n - 1) / 2) * step
+        x = x_mm + sign * (i - (n - 1) / 2) * step
         z = distance_mm
         placed.append((tag, cat, (x, height_mm, z), right, down))
         for j, (ut, uc) in enumerate(under):
             placed.append((ut, uc, (x + sign * 3, height_mm, z - sign * (j + 1) * (H_MM + 6)), right, down))
-    return render(placed, Camera(pitch_deg, height_mm), **kw)
+    if not yaw_deg:
+        return render(placed, Camera(pitch_deg, height_mm), **kw)
+    camera = Camera(pitch_deg, height_mm, yaw_deg=yaw_deg)
+    return render(_in_sight(placed, camera), camera, **kw)

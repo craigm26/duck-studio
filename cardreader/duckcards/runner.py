@@ -23,10 +23,13 @@ reader can have.
 
 from __future__ import annotations
 
+import math
 import time
 from dataclasses import dataclass
 
-from .program import Program, Step
+from . import pan
+from .layout import Layout
+from .program import Program, Step, read
 
 # DuckDrive and RobotPlan, number for number.
 MAX_FORWARD, MAX_BACKWARD, MAX_TURN = 0.3, 0.3, 1.5
@@ -169,20 +172,42 @@ class Gaze:
 
     def __init__(self, robot, point: tuple[float, float, float] | None = None, every: float = GAZE_EVERY):
         self.robot, self.point, self.every = robot, point, every
-        self.joints: dict | None = None
+        self.joints: dict | None = None         # what the head is held at now
+        self.watching: dict | None = None       # what it is held at while it watches
         self.last = -1e9
 
     def aim(self, now: float) -> None:
         """Look at the point (again, after a row has moved the head) and keep the joints."""
         self.last = now
         if self.point is None:
-            self.joints = {}
+            self.joints = self.watching = {}
             self.robot.notify("robot.head", self.joints)
             return
         x, y, z = self.point
         answer = self.robot.call("robot.look", {"x": x, "y": y, "z": z}) or {}
         head = answer.get("head")
-        self.joints = head if isinstance(head, dict) else None
+        self.joints = self.watching = head if isinstance(head, dict) else None
+
+    @property
+    def yaw(self) -> float:
+        """The head_yaw the head is held at, radians (0 when nothing has steered it)."""
+        return float((self.joints or {}).get("head_yaw", 0.0))
+
+    def turn(self, yaw: float, now: float) -> dict:
+        """Turn the head to `yaw` (robotd's head_yaw, radians, more is left), every other joint
+        where it is held while watching, and hold it there.
+
+        ONLY THE YAW TURNS. `robot.look` would solve head_pitch afresh for every point, and a look
+        that pitches as well as turns is not the turn `pan.join` undoes. A turn of head_yaw alone
+        is a turn about the picture's own vertical at any pitch, so it slides the view along a row
+        in a rail, and along a row on the floor too: the row lies in the plane the turn sweeps."""
+        if self.joints is None:
+            self.aim(now)
+        joints = {"neck_pitch": 0.0, "head_pitch": 0.0, "head_roll": 0.0, **(self.watching or {}),
+                  "head_yaw": yaw}
+        self.joints, self.last = joints, now
+        self.robot.notify("robot.head", joints)
+        return joints
 
     def tick(self, now: float) -> None:
         if now - self.last < self.every:
@@ -241,3 +266,136 @@ class Watcher:
             self._fired_key, self._last_seen_fired = key, now
             return Event("card" if program.kind == "card" else "row", program)
         return None
+
+
+# ---------------------------------------------------------------- scanning
+# How long the head takes to settle after a turn before a picture is worth reading. robotd eases
+# every head command in, 0.2 of the way a tick at 50 Hz (`head_alpha`, robotd-params: a 0.09 s
+# time constant, 99% of a turn in 0.41 s), then the policy's own 0.5 low-pass and the servo
+# follow, and a frame can be a thirtieth of a second old. At 0.6 s a thousandth of the turn is
+# left, 0.02° of an 18° turn; the looks are lined up on the cards they share in any case.
+SETTLE_HEAD = 0.6
+# How far the head turns from where it watches, each way. robotd's head_yaw travels ±170° (the
+# MJCF), so `clamped` never stops a scan first; this does. A card standing in a rail that far round
+# is turned that far from the camera and half again as far away, and in `tools/pan_envelope.py`
+# no rail card more than about 35° (soft) to 45° (sharp) round was read at 35 to 60 cm, nor any
+# floor card past 49°: a duck looking further round is looking away from the row.
+YAW_MOST = math.radians(50.0)
+# The most looks a scan takes, the first included.
+MOST_LOOKS = 6
+# A scan whose row came back unfinished is taken again after this many seconds, if the duck still
+# sees the same part of the row: the End may have been put down where the duck cannot see it.
+RESCAN = 10.0
+
+
+def _sides(way: int) -> str:
+    return "right" if way > 0 else "left"
+
+
+def scan(first: pan.Look, layout: Layout, gaze: Gaze, take, sleep=time.sleep, say=print, clock=time.time,
+         settle: float = SETTLE_HEAD, most: float = YAW_MOST, looks: int = MOST_LOOKS) -> pan.Joined:
+    """Turn the head along a row the first look cut off, a look at a time, and join the looks.
+
+    The head turns (`pan.turns`) toward the cards a Start is waiting for, or toward the Start an
+    End is waiting for, or both ways for a row cut off at both ends, by `pan.step` each time, so
+    that every picture shares a whole card with the one before it. Each way stops when it finds
+    what it was looking for, when the row ends inside the picture, when the head is as far round
+    as YAW_MOST, after `looks` looks in all, or when a look does not line up with the ones before
+    it (`pan.JoinError`), which is said. Then the head looks back to where it watches.
+
+    `take()` is one picture's cards and its size: (list of Seen, (width, height))."""
+    taken = [first]
+    joined = pan.join(taken)
+    home, turned = first.yaw, False
+    for way, ahead in pan.turns(layout, first.size):
+        side = _sides(way)
+        at, k = home, 0
+        while len(taken) < looks and not pan.done(joined, ahead):
+            to = at - way * pan.step(taken[k], pan.row_in(joined, k))    # to the right is less yaw
+            to = max(home - most, min(home + most, to))
+            if abs(to - at) < 1e-6:
+                say(f"[scan] the head turns no further {side}")
+                break
+            gaze.turn(to, clock())
+            turned = True
+            sleep(settle)
+            gaze.tick(clock())
+            seen, size = take()
+            look = pan.Look(seen=seen, yaw=to, size=size)
+            degrees = abs(math.degrees(to - home))
+            try:
+                joined = pan.join(taken + [look])
+            except pan.JoinError as e:
+                say(f"[scan] looked {side} {degrees:.0f} degrees, and the look was not used: {e}")
+                break
+            taken.append(look)
+            at, k = to, len(taken) - 1
+            n = joined.new[k]
+            say(f"[scan] looked {side} {degrees:.0f} degrees: {n} more card{'' if n == 1 else 's'}")
+            if not pan.runs_on(joined, k, ahead):
+                break
+    if turned:
+        gaze.aim(clock())
+        sleep(settle)
+        row = pan.main_row(joined)
+        say(f"[scan] looked back: {len(taken)} looks, {len(row.slots) if row else 0} cards in the row")
+    return joined
+
+
+@dataclass
+class _Scanned:
+    key: tuple
+    program: Program
+    when: float
+
+
+class Scanner:
+    """When to scan, and what the duck read when it did.
+
+    A ROW THE PICTURE CUTS OFF MUST HOLD STILL FIRST. A scan is a few seconds of a turning head, so
+    it starts only when `need` pictures in a row show the same cards cut off the same way: a row
+    still being laid out is not scanned at every card. Then the joined reading stands in for that
+    view, picture after picture, while the duck sees the same cards (they are part of it), so the
+    watcher's own rules decide: a complete row is read `need` times and runs after the hello; an
+    unfinished one gets the "inquire". An unfinished reading is scanned again after RESCAN seconds,
+    because the End may have been put down out of sight; a complete one stands until the view
+    changes, so it runs once.
+
+    A DRY RUN TURNS NOTHING. It sends nothing, so the head stays where it is and a joined reading
+    would be one picture joined to itself; it says which way it would look and reads the one look."""
+
+    def __init__(self, gaze: Gaze, take, deck, need: int = 3, rescan: float = RESCAN, dry: bool = False,
+                 sleep=time.sleep, say=print, clock=time.time, settle: float = SETTLE_HEAD):
+        self.gaze, self.take, self.deck, self.need, self.rescan, self.dry = gaze, take, deck, need, rescan, dry
+        self.sleep, self.say, self.clock, self.settle = sleep, say, clock, settle
+        self._key, self._count = None, 0
+        self.last: _Scanned | None = None
+
+    def read(self, look: pan.Look, layout: Layout, program: Program) -> Program:
+        """The program to feed the watcher for this picture: its own, or the scan's."""
+        wanted = pan.turns(layout, look.size)
+        if not wanted:
+            self._key, self._count = None, 0
+            return program
+        key = (tuple(tuple(r) for r in layout.describe()), tuple(wanted))
+        last = self.last
+        if last and last.key == key and (last.program.complete or self.clock() - last.when < self.rescan):
+            return last.program
+        self._count = self._count + 1 if key == self._key else 1
+        self._key = key
+        if self._count < self.need:
+            return program
+        self._count = 0
+        if self.dry:
+            way, ahead = wanted[0]
+            step = math.degrees(pan.step(look, [s.card for s in pan.main_row(layout).slots]))
+            self.say(f"[scan] would look {_sides(way)} {step:.0f} degrees for the "
+                     f"{'cards after' if ahead else 'Start before'} these (a dry run turns nothing, so "
+                     "nothing is joined)")
+            self.last = _Scanned(key, program, self.clock())
+            return program
+        joined = scan(look, layout, self.gaze, self.take, sleep=self.sleep, say=self.say, clock=self.clock,
+                      settle=self.settle)
+        result = read(joined, self.deck)
+        self.last = _Scanned(key, result, self.clock())
+        return result

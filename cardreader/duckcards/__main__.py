@@ -7,7 +7,8 @@ watch, beside duck-sim:   python3 -m duckcards watch --frame-url http://127.0.0.
 watch, from a laptop:     python3 -m duckcards watch --frame-url http://duck.local:8080/frame \\
                               --bridge duck.local:7788 --token-file ~/.microduck-bridge-token
 Add --dry-run to read and say what would be sent without sending it, and --deck class.duckcards
-to read a class's own deck, with the Your cards it saved.
+to read a class's own deck, with the Your cards it saved. A row longer than the picture is read
+by turning the head along it (`[scan]` lines say how); --no-scan keeps the head still.
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ import os
 import sys
 import time
 
+from . import pan
 from .cards import Deck
 from .layout import arrange
 from .program import check_plan, plan, read
@@ -110,6 +112,19 @@ def cmd_watch(args) -> int:
 
     look_again()
     watcher = runner.Watcher(need=args.need)
+
+    def take():
+        """One picture's cards, for a scan: read the way the watcher reads, twice the size with
+        --upscale because a scan's looks are few."""
+        gray = frames.grab().gray
+        if args.upscale:
+            import cv2
+            gray = cv2.resize(gray, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+        return see(gray, deck, numbers=not args.no_numbers).seen, (gray.shape[1], gray.shape[0])
+
+    # Turning the head along a row needs the head steered, so --let-head-wander turns it off too.
+    scanner = None if args.no_scan or gaze is None else runner.Scanner(
+        gaze, take, deck, need=args.need, dry=args.dry_run, say=say)
     on_fall = []
     frame_n = 0
     say("watching for cards; Ctrl-C to stop")
@@ -127,7 +142,16 @@ def cmd_watch(args) -> int:
             if args.upscale and frame_n % 2 == 0:       # every other look, twice the pixels
                 import cv2
                 gray = cv2.resize(gray, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
-            program = read(arrange(see(gray, deck, numbers=not args.no_numbers).seen), deck)
+            seen = see(gray, deck, numbers=not args.no_numbers).seen
+            layout = arrange(seen)
+            program = read(layout, deck)
+            if scanner:
+                try:
+                    program = scanner.read(pan.Look(seen=seen, yaw=gaze.yaw, size=(gray.shape[1], gray.shape[0])),
+                                           layout, program)
+                except Exception as e:      # a scan that fails leaves the duck reading what it sees
+                    say(f"  (could not scan: {e})")
+                    look_again()
             event = watcher.feed(program, time.time())
             if event:
                 say(f"[{event.kind}] {event.program.words or '(nothing to run)'}")
@@ -194,7 +218,9 @@ def main(argv=None) -> int:
     w.add_argument("--heads", action="store_true", help="send Look cards as robot.look (Studio does not yet)")
     w.add_argument("--let-head-wander", action="store_true",
                    help="do not hold the head still while watching; robotd's idle look-around then "
-                        "takes a held card out of the picture and it is read again")
+                        "takes a held card out of the picture and it is read again (and nothing is scanned)")
+    w.add_argument("--no-scan", action="store_true",
+                   help="do not turn the head along a row that runs off the picture; read what one look sees")
     w.add_argument("--hz", type=float, default=4.0, help="pictures a second (default 4)")
     w.add_argument("--need", type=int, default=3, help="pictures in a row that must agree (default 3)")
     w.add_argument("--hands-off", type=float, default=1.5, help="seconds between reading a row and running it")
