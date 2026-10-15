@@ -40,6 +40,14 @@ else
 fi
 export DUCK_SIM_RL="$MICRODUCK_RL" DUCK_SIM_VIEWER=0 DUCK_SIM_SCENE="$SCENE" MUJOCO_GL="${MUJOCO_GL:-egl}"
 unset DUCK_SIM_CAMERAS
+# duck-sim seeds a set only when there is none, so an old one is never moved up; this does.
+sh "$MICRODUCK/scripts/seed-policies.sh" "$S/policies"
 (cd "$MICRODUCK" && scripts/duck-sim)
+# THE ROBOT'S POLICY, NOT DUCK-SIM'S. duck-sim's params pin the retired alpha_walking +
+# alpha_stand pair, which does not turn in place at the pad's 1.0 rad/s nor walk below 0.3; a
+# robot runs v8 velstand with no standing network (docs/POLLEN-ISSUE-duck-sim-walk.md). robotctl
+# swaps it live, the way a person would on a duck; it changes nothing a robot does.
+(cd "$MICRODUCK" && scripts/duck-sim ctl policy load walk "$S/policies/current/velstand.onnx" \
+    && scripts/duck-sim ctl policy load stand none) >/dev/null
 "$HERE/look.sh" "$SCENE"
 (cd "$MICRODUCK" && scripts/duck-sim realtime)
