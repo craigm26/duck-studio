@@ -21,13 +21,14 @@
   "turn": {
     "yaw_rate": { "slow": 1.0, "normal": 1.0, "fast": 1.0 },
     "forward": 0.0,
-    "stop_early_deg": 10,
-    "tolerance_deg": 12,
+    "approach_deg": 20,
+    "lead_deg": [4, 35],
+    "tolerance_deg": 14,
     "trim_rate": 1.0,
     "trim_forward": 0.0,
-    "trim_stop_early_deg": 6,
     "trims": 2,
-    "settle_s": 0.5,
+    "trim_min_s": 0.3,
+    "settle_s": 0.8,
     "max_s": 6,
     "stall_s": 1.5,
     "stall_deg": 5

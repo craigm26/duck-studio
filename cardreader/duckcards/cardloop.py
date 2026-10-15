@@ -162,7 +162,8 @@ class CardLoop:
     trimmed into tolerance, "trimmed out". `board_after` is where the duck should be once the
     card is done, whatever happened."""
 
-    def __init__(self, action: str, board: Pose, speed: str | None = None, spec: dict | None = None):
+    def __init__(self, action: str, board: Pose, speed: str | None = None, spec: dict | None = None,
+                 lead_deg: float | None = None):
         if action not in CARDS:
             raise ValueError(f"{action} is not a Walk or Turn card")
         self.spec = spec or SPEC
@@ -170,6 +171,20 @@ class CardLoop:
         self.rate = speed_of(self.spec, action, speed)
         d = self.spec["square_m"]
         self.mark, self.mark_t = None, 0.0          # the last progress made, and when
+        # THE LEAD. A turn is commanded still `lead` degrees short of its heading, because the duck
+        # coasts on after the zero twist, and how far is not known in advance: 6 to 17 degrees
+        # at 1.0 rad/s in duck-sim, 20 to 31 on a slippery floor with a late state stream
+        # (cardreader/sim/sysid, results/). So the first stop is followed by a settle in which
+        # the coast is measured (`coast_deg`), and a trim stops that far short. A card that knows
+        # nothing yet (`lead_deg` None: the row's first turn) stops `approach_deg` short, far
+        # enough that it seldom overshoots, measures, then trims if it must; the runner hands the
+        # mean of the row's measured coasts to each later Turn card as its `lead_deg`. A short
+        # trim turns the trunk and springs back, so a trim is held `trim_min_s` and only an error
+        # past `tolerance_deg` is trimmed.
+        t = self.spec["turn"]
+        self.lead = self._clamp_lead(t["approach_deg"] if lead_deg is None else lead_deg)
+        self.coast_deg: float | None = None
+        self.stop_e, self.stop_way = 0.0, 1.0
         if action.startswith("walk"):
             self.sign = 1.0 if action == "walk_forward" else -1.0
             self.board_after = Pose(board.x + self.sign * d * math.cos(board.h),
@@ -217,22 +232,42 @@ class CardLoop:
             return "out of time"
         if self.phase in ("turn", "trim"):
             trim = self.phase == "trim"
-            if off <= (c["trim_stop_early_deg"] if trim else c["stop_early_deg"]):
+            # A trim is held at least `trim_min_s`: a shorter one never gets past the gait's dead band.
+            if off <= (self.trim_lead() if trim else self.lead) and (not trim or t - self.since >= c["trim_min_s"]):
                 self.phase, self.since = "settle", t
+                self.stop_e, self.stop_way = e, way
                 return (0.0, 0.0)
             if self._stalled(-off, t, c["stall_deg"], c["stall_s"]):
                 return "stuck"
             return (c["trim_forward"] if trim else c["forward"], way * (c["trim_rate"] if trim else self.rate))
         if t - self.since < c["settle_s"]:
             return (0.0, 0.0)
+        if self.phase == "settle":
+            if self.coast_deg is None:
+                # How far it went on after the first zero twist, in the direction it was turning.
+                # Only the first: a trim may be too short a command to say anything about it.
+                self.coast_deg = self._clamp_lead((self.stop_e - e) * self.stop_way * 180.0 / math.pi)
+            self.phase = "settled"
         if off <= c["tolerance_deg"]:
             return "reached"
         if self.trims_left <= 0:
             return "trimmed out"
         self.trims_left -= 1
-        self.phase = "trim"
+        self.phase, self.since = "trim", t
         self.mark = None                            # a trim's progress counts from its own start
         return (c["trim_forward"], way * c["trim_rate"])
+
+    def _clamp_lead(self, v: float) -> float:
+        lo, hi = self.spec["turn"]["lead_deg"]
+        return max(lo, min(hi, v))
+
+    def trim_lead(self) -> float:
+        """How far short a trim stops: the coast this card measured at its first stop (a trim
+        only ever follows a settle, so it is always known by then)."""
+        # The coast was measured turning at the card's rate; a trim turns at `trim_rate`, and the coast
+        # scales with how fast it was going.
+        known = self.coast_deg if self.coast_deg is not None else self.lead
+        return known * self.spec["turn"]["trim_rate"] / self.rate
 
 
 DONE_WORDS = {

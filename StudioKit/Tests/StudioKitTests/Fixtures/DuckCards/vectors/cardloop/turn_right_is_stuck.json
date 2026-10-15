@@ -2,7 +2,9 @@
  "action": "turn_right",
  "board": [0.0, 0.0, 0.0],
  "board_after": [0.0, 0.0, -1.570796],
+ "coast_deg": null,
  "format": "duck-card-loop/1",
+ "lead_deg": null,
  "name": "turn_right_is_stuck",
  "speed": "normal",
  "trace": [

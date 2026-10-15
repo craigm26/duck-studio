@@ -14,6 +14,8 @@ final class DuckCardLoopTests: XCTestCase {
         let board: [Double], boardAfter: [Double]
         let trace: [[Double]]
         let expect: [Any]
+        /// The lead the card is given, and the coast it must have measured, when any.
+        let leadDeg: Double?, coastDeg: Double?
     }
 
     func vectors() throws -> [Vector] {
@@ -25,7 +27,8 @@ final class DuckCardLoopTests: XCTestCase {
             return Vector(name: top["name"] as? String ?? "", action: top["action"] as? String ?? "",
                           speed: top["speed"] as? String,
                           board: top["board"] as? [Double] ?? [], boardAfter: top["board_after"] as? [Double] ?? [],
-                          trace: top["trace"] as? [[Double]] ?? [], expect: top["expect"] as? [Any] ?? [])
+                          trace: top["trace"] as? [[Double]] ?? [], expect: top["expect"] as? [Any] ?? [],
+                          leadDeg: top["lead_deg"] as? Double, coastDeg: top["coast_deg"] as? Double)
         }
     }
 
@@ -34,7 +37,7 @@ final class DuckCardLoopTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(all.count, 10)
         for v in all {
             var card = try XCTUnwrap(DuckCardLoop.Card(action: v.action, board: .init(x: v.board[0], y: v.board[1], h: v.board[2]),
-                                                       speed: v.speed), v.name)
+                                                       speed: v.speed, leadDeg: v.leadDeg), v.name)
             XCTAssertEqual(v.trace.count, v.expect.count, v.name)
             for (sample, want) in zip(v.trace, v.expect) {
                 let got = card.step(.init(x: sample[1], y: sample[2], h: sample[3]), t: sample[0])
@@ -50,6 +53,11 @@ final class DuckCardLoopTests: XCTestCase {
             XCTAssertEqual(card.boardAfter.x, v.boardAfter[0], accuracy: 1e-6, v.name)
             XCTAssertEqual(card.boardAfter.y, v.boardAfter[1], accuracy: 1e-6, v.name)
             XCTAssertEqual(card.boardAfter.h, v.boardAfter[2], accuracy: 1e-6, v.name)
+            if let want = v.coastDeg {
+                XCTAssertEqual(try XCTUnwrap(card.coastDeg, v.name), want, accuracy: 1e-5, v.name)
+            } else {
+                XCTAssertNil(card.coastDeg, v.name)
+            }
         }
     }
 

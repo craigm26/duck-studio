@@ -56,15 +56,23 @@ public enum DuckCardLoop {
         }
         public struct Turn: Equatable, Sendable, Decodable {
             public let yawRate: Speeds
-            public let forward: Double, stopEarlyDeg: Double, toleranceDeg: Double
-            public let trimRate: Double, trimForward: Double, trimStopEarlyDeg: Double
-            public let trims: Int, settleS: Double, maxS: Double
+            public let forward: Double, toleranceDeg: Double
+            /// How far short the row's first turn stops, knowing nothing yet of how far it coasts.
+            public let approachDeg: Double
+            /// The lead a turn may use, and the coast it may record, `[least, most]`.
+            public let leadDeg: [Double]
+            public let trimRate: Double, trimForward: Double
+            public let trims: Int
+            /// A trim is held at least this long: a shorter one never gets past the dead band.
+            public let trimMinS: Double
+            public let settleS: Double, maxS: Double
             /// A turn or trim not `stallDeg` closer to its heading in `stallS` is stuck.
             public let stallS: Double, stallDeg: Double
             enum CodingKeys: String, CodingKey {
-                case yawRate = "yaw_rate", forward, stopEarlyDeg = "stop_early_deg", toleranceDeg = "tolerance_deg",
-                     trimRate = "trim_rate", trimForward = "trim_forward", trimStopEarlyDeg = "trim_stop_early_deg",
-                     trims, settleS = "settle_s", maxS = "max_s", stallS = "stall_s", stallDeg = "stall_deg"
+                case yawRate = "yaw_rate", forward, toleranceDeg = "tolerance_deg", approachDeg = "approach_deg",
+                     leadDeg = "lead_deg", trimRate = "trim_rate", trimForward = "trim_forward",
+                     trims, trimMinS = "trim_min_s", settleS = "settle_s", maxS = "max_s",
+                     stallS = "stall_s", stallDeg = "stall_deg"
             }
         }
         public let format: String
@@ -297,12 +305,20 @@ public enum DuckCardLoop {
         /// The last progress made, and when: what `stuck` is measured from.
         var mark: Double?
         var markT = 0.0
+        /// How far short of its heading the turn is commanded still (`cardloop.py`, THE LEAD).
+        public let lead: Double
+        /// How far the duck went on after this card's first zero twist, once measured; the runner
+        /// hands the mean of a row's coasts to its later Turn cards as their `leadDeg`.
+        public private(set) var coastDeg: Double?
+        var stopE = 0.0, stopWay = 1.0
 
-        public init?(action: String, board: Pose, speed: String? = nil, spec: Spec = DuckCardLoop.spec) {
+        public init?(action: String, board: Pose, speed: String? = nil, spec: Spec = DuckCardLoop.spec,
+                     leadDeg: Double? = nil) {
             guard DuckCardLoop.cards.contains(action) else { return nil }
             self.action = action; self.board = board; self.spec = spec
             self.rate = DuckCardLoop.speed(action, speed, spec: spec)
             self.trimsLeft = spec.turn.trims
+            self.lead = Card.clampLead(leadDeg ?? spec.turn.approachDeg, spec)
             if action.hasPrefix("walk") {
                 sign = action == "walk_forward" ? 1 : -1
                 boardAfter = Pose(x: board.x + sign * spec.squareM * cos(board.h),
@@ -347,20 +363,36 @@ public enum DuckCardLoop {
             if t >= c.maxS { return .done(.outOfTime) }
             if phase == "turn" || phase == "trim" {
                 let trim = phase == "trim"
-                if off <= (trim ? c.trimStopEarlyDeg : c.stopEarlyDeg) {
+                // A trim is held at least `trimMinS`: a shorter one never gets past the dead band.
+                if off <= (trim ? trimLead : lead) && (!trim || t - since >= c.trimMinS) {
                     phase = "settle"; since = t
+                    stopE = e; stopWay = way
                     return .send(vx: 0, vyaw: 0)
                 }
                 if stalled(-off, t, enough: c.stallDeg, window: c.stallS) { return .done(.stuck) }
                 return .send(vx: trim ? c.trimForward : c.forward, vyaw: way * (trim ? c.trimRate : rate))
             }
             if t - since < c.settleS { return .send(vx: 0, vyaw: 0) }
+            if phase == "settle" {
+                if coastDeg == nil {
+                    // How far it went on after the first zero twist, in the direction it was turning.
+                    coastDeg = Card.clampLead((stopE - e) * stopWay * 180 / .pi, spec)
+                }
+                phase = "settled"
+            }
             if off <= c.toleranceDeg { return .done(.reached) }
             if trimsLeft <= 0 { return .done(.trimmedOut) }
             trimsLeft -= 1
-            phase = "trim"
+            phase = "trim"; since = t
             mark = nil                       // a trim's progress counts from its own start
             return .send(vx: c.trimForward, vyaw: way * c.trimRate)
         }
+
+        static func clampLead(_ v: Double, _ spec: Spec) -> Double {
+            min(max(v, spec.turn.leadDeg[0]), spec.turn.leadDeg[1])
+        }
+
+        /// How far short a trim stops: this card's measured coast, scaled to the trim's rate.
+        var trimLead: Double { (coastDeg ?? lead) * spec.turn.trimRate / rate }
     }
 }

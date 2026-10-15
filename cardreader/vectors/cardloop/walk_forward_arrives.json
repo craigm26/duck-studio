@@ -2,7 +2,9 @@
  "action": "walk_forward",
  "board": [0.0, 0.0, 0.0],
  "board_after": [0.3, 0.0, 0.0],
+ "coast_deg": null,
  "format": "duck-card-loop/1",
+ "lead_deg": null,
  "name": "walk_forward_arrives",
  "speed": "normal",
  "trace": [

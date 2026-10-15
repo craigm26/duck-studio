@@ -49,13 +49,13 @@ def walk_trace(board, sign, speed_mps, n, drift=0.0, yaw_off=0.0, start=(0.0, 0.
     return out
 
 
-def turn_trace(action, speed, board, k=0.9, coast_deg=2.0, then_coast_deg=None, n=400):
+def turn_trace(action, speed, board, k=0.9, coast_deg=2.0, then_coast_deg=None, n=400, lead=None):
     """A duck turned by the card itself: yaw follows k x the commanded vyaw, and when a command
     stops the duck keeps turning `coast_deg` the same way over the next five samples (and
     `then_coast_deg` after every later stop, when given). Built closed loop, so the trace ends
     with the card."""
     board = tuple(r(v) for v in board)
-    loop = cardloop.CardLoop(action, cardloop.Pose(*board), speed)
+    loop = cardloop.CardLoop(action, cardloop.Pose(*board), speed, lead_deg=lead)
     bx, by, yaw = board
     out, last, coast = [], 0.0, []
     for i in range(n):
@@ -72,6 +72,10 @@ def turn_trace(action, speed, board, k=0.9, coast_deg=2.0, then_coast_deg=None, 
         yaw += k * vyaw * TICK + (coast.pop() if coast else 0.0)
         last = vyaw
     return out
+
+
+# The lead a case's card is given (`lead_deg`), when it is not the row's first turn.
+LEADS = {"turn_left_with_a_known_lead": 15.0}
 
 
 def deg(d: float) -> float:
@@ -108,10 +112,12 @@ def cases():
            walk_trace((0.0, 0.0, 0.0), -1, 0.0, stall + 3))
     yield ("turn_left_arrives", "turn_left", "normal", (0.0, 0.0, 0.0),
            turn_trace("turn_left", "normal", (0.0, 0.0, 0.0)))
+    yield ("turn_left_with_a_known_lead", "turn_left", "normal", (0.0, 0.0, 0.0),
+           turn_trace("turn_left", "normal", (0.0, 0.0, 0.0), coast_deg=13.0, lead=LEADS["turn_left_with_a_known_lead"]))
     yield ("turn_right_overshoots_and_trims_back", "turn_right", "fast", (0.1, 0.2, deg(30)),
-           turn_trace("turn_right", "fast", (0.1, 0.2, deg(30)), coast_deg=25.0, then_coast_deg=1.0))
+           turn_trace("turn_right", "fast", (0.1, 0.2, deg(30)), coast_deg=40.0, then_coast_deg=1.0))
     yield ("turn_left_trims_out", "turn_left", "slow", (0.0, 0.0, 0.0),
-           turn_trace("turn_left", "slow", (0.0, 0.0, 0.0), coast_deg=26.0))
+           turn_trace("turn_left", "slow", (0.0, 0.0, 0.0), coast_deg=40.0))
     yield ("turn_left_across_pi", "turn_left", "normal", (0.0, 0.0, deg(170)),
            turn_trace("turn_left", "normal", (0.0, 0.0, deg(170))))
     yield ("turn_right_out_of_time", "turn_right", "normal", (0.0, 0.0, 0.0),
@@ -120,9 +126,9 @@ def cases():
            turn_trace("turn_right", "normal", (0.0, 0.0, 0.0), k=0.0))
 
 
-def run(action, speed, board, trace):
+def run(action, speed, board, trace, lead=None):
     """What the reader makes of the trace, exactly as a vector carries it: the board rounded."""
-    loop = cardloop.CardLoop(action, cardloop.Pose(*(r(v) for v in board)), speed)
+    loop = cardloop.CardLoop(action, cardloop.Pose(*(r(v) for v in board)), speed, lead_deg=lead)
     expect = []
     for t, x, y, yaw in trace:
         answer = loop.step(cardloop.Pose(x, y, yaw), t)
@@ -130,18 +136,19 @@ def run(action, speed, board, trace):
             expect.append(answer)
             break
         expect.append([r(answer[0]), r(answer[1])])
-    return expect, loop.board_after
+    return expect, loop.board_after, loop.coast_deg
 
 
 def bodies():
     out = {}
     for name, action, speed, board, trace in cases():
-        expect, after = run(action, speed, board, trace)
+        expect, after, coast = run(action, speed, board, trace, LEADS.get(name))
         if not isinstance(expect[-1], str):
             raise SystemExit(f"{name}: the trace ends before the card does")
         trace = trace[:len(expect)]
         head = {"name": name, "format": cardloop.FORMAT, "action": action, "speed": speed,
-                "board": [r(v) for v in board], "board_after": [r(after.x), r(after.y), r(after.h)]}
+                "board": [r(v) for v in board], "board_after": [r(after.x), r(after.y), r(after.h)],
+                "lead_deg": LEADS.get(name), "coast_deg": None if coast is None else r(coast)}
         # One sample to a line, so a changed rule shows as the lines it changed.
         lines = [f" {json.dumps(k)}: {json.dumps(v)}," for k, v in sorted(head.items())]
         lines.append(' "trace": [\n' + ",\n".join("  " + json.dumps(t) for t in trace) + "\n ],")

@@ -79,7 +79,8 @@ class Vectors(unittest.TestCase):
         for f in files:
             v = json.loads(f.read_text())
             with self.subTest(v["name"]):
-                loop = cardloop.CardLoop(v["action"], cardloop.Pose(*v["board"]), v["speed"])
+                loop = cardloop.CardLoop(v["action"], cardloop.Pose(*v["board"]), v["speed"],
+                                         lead_deg=v["lead_deg"])
                 for (t, x, y, yaw), want in zip(v["trace"], v["expect"]):
                     got = loop.step(cardloop.Pose(x, y, yaw), t)
                     if isinstance(want, str):
@@ -91,6 +92,10 @@ class Vectors(unittest.TestCase):
                 after = loop.board_after
                 for a, b in zip((after.x, after.y, after.h), v["board_after"]):
                     self.assertAlmostEqual(a, b, places=6)
+                if v["coast_deg"] is None:
+                    self.assertIsNone(loop.coast_deg)
+                else:
+                    self.assertAlmostEqual(loop.coast_deg, v["coast_deg"], places=5)
 
     def test_the_vectors_are_what_this_reader_writes(self):
         import make_cardloop_vectors
@@ -215,6 +220,26 @@ class Runs(unittest.TestCase):
         self.assertEqual(out, "stopped at walk forward: " + runner.ENDED["out of time"])
         self.assertFalse(any(m["vyaw"] > 0.7 for m in duck.moves), "the Turn card never ran")
         self.assertEqual(duck.calls[-1][0], "robot.stop")
+
+    def test_each_later_turn_leads_by_the_rows_mean_measured_coast(self):
+        made = []
+        real = cardloop.CardLoop
+
+        class Spy(real):
+            def __init__(self, *a, **k):
+                super().__init__(*a, **k)
+                made.append(self)
+        cardloop.CardLoop = Spy
+        try:
+            duck, said = FakeDuck(), []
+            self.run_row(duck, ["turn_left", "walk_forward", "turn_right", "turn_left"], said)
+        finally:
+            cardloop.CardLoop = real
+        turns = [c for c in made if c.action.startswith("turn")]
+        self.assertEqual(turns[0].lead, cardloop.SPEC["turn"]["approach_deg"], "the first knows nothing yet")
+        self.assertIsNotNone(turns[0].coast_deg)
+        self.assertAlmostEqual(turns[1].lead, turns[0].coast_deg)
+        self.assertAlmostEqual(turns[2].lead, (turns[0].coast_deg + turns[1].coast_deg) / 2)
 
     def test_a_card_that_makes_no_progress_is_stuck_and_ends_the_row(self):
         # v8 velstand in duck-sim stands still below 0.25 forward and -0.35 back
