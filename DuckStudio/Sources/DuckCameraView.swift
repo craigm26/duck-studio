@@ -15,10 +15,12 @@ final class DuckCameraFeed: ObservableObject {
     @Published private(set) var running = false
     /// Read Duck Cards in each picture. Off by default: the finder costs a pass over every frame.
     @Published var readCards = false {
-        didSet { if !readCards { cards = nil; watcher = DuckCards.Watcher() } }
+        didSet { if !readCards { cards = nil; reading = nil; watcher = DuckCards.Watcher() } }
     }
     /// What the camera sees, in `DuckCards.Words`.
     @Published private(set) var cards: String?
+    /// The reading behind `cards`, so a row on the table can be held still and used.
+    @Published private(set) var reading: DuckCards.Reading?
     /// The last card or row held still long enough to act on (`DuckCards.Watcher`).
     @Published private(set) var cardEvent: DuckCards.Watcher.Event?
 
@@ -87,12 +89,16 @@ final class DuckCameraFeed: ObservableObject {
 
     /// The cards in one picture. StudioKit reads; this only hands it the picture and keeps the
     /// answer (`DuckCards`: the same rules as the duck's own reader, held to one set of vectors).
+    ///
+    /// WITH THE CLASS'S DECK, NOT THE STARTER: a Your card means what the class saved for it, in
+    /// the deck file `DuckCardsStore` keeps.
     private func read(_ image: CGImage) {
-        guard let deck = DuckCards.Deck.bundled, let grey = DuckCards.grey(image) else { return }
+        guard let deck = DuckCardsStore.shared.deck, let grey = DuckCards.grey(image) else { return }
         let finder = self.finder ?? DuckCards.Finder()
         self.finder = finder
         let found = finder.find(grey: grey.bytes, width: grey.width, height: grey.height)
         let reading = DuckCards.reading(found, deck: deck)
+        self.reading = reading
         cards = DuckCards.Words.sees(reading)
         if let event = watcher.feed(reading.program, at: Date().timeIntervalSinceReferenceDate) {
             cardEvent = event
@@ -106,10 +112,22 @@ final class DuckCameraFeed: ObservableObject {
 }
 
 /// A camera card: the address, the picture, and the robot's own live-video page one tap away.
+///
+/// AND THE CARDS IN THE PICTURE, WHEN IT IS READING THEM. A row or a card the camera reads can be
+/// held still and opened in the plan editor, a row can be saved as a Your card, and the class deck
+/// the cards are read with is one tap away (`DuckCardsSheet`).
 struct DuckCameraCard: View {
     /// Typed or remembered address; seeded from the bridge's host when there is one.
     @Binding var address: String
+    /// The link to a real duck, handed to the plan editor so a row read here can run on it.
+    var robot: BridgeLink? = nil
+    /// The models chosen in Settings, handed to the plan editor.
+    var models: EndpointStore? = nil
+    /// Hands the duck over from the sticks before a plan drives it.
+    var stopDriving: (() async -> Void)? = nil
     @StateObject private var feed = DuckCameraFeed()
+    /// What the card has opened: cards held still, or the class deck.
+    @State private var opened: DuckCardsOpening?
 
     private var parsed: DuckCamera.Address? { DuckCamera.Address(address) }
 
@@ -139,6 +157,7 @@ struct DuckCameraCard: View {
                         .font(.callout)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                if feed.readCards { cardButtons }
             }
             TextField(DuckCamera.Words.addressPlaceholder, text: $address)
 #if os(iOS)
@@ -171,7 +190,46 @@ struct DuckCameraCard: View {
                     .font(.caption).foregroundStyle(Theme.warning)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            // THE CLASS DECK DOES NOT NEED A CAMERA. Sharing it or forgetting a card is something a
+            // teacher does at a desk, so the door is here whether or not a duck is in view.
+            Button {
+                opened = DuckCardsOpening(kind: .deck, held: nil)
+            } label: {
+                Label(DuckCards.Words.classDeck, systemImage: "rectangle.stack")
+            }
+            .buttonStyle(.borderless)
+            .font(.footnote)
+            .tint(Theme.actionSecondary)
+            .frame(minHeight: DesignMetric.minimumTarget)
         }
         .onDisappear { feed.stop() }
+        .sheet(item: $opened) { opening in
+            DuckCardsSheet(opening: opening, robot: robot, models: models, stopDriving: stopDriving)
+        }
+    }
+
+    /// What can be done with what the camera reads: hold it still for the plan editor, or to save
+    /// a row as a Your card. Offered only for a reading the kit says can be used
+    /// (`DuckCards.usable`, `DuckCards.savable`); a row with no End is not finished yet.
+    @ViewBuilder private var cardButtons: some View {
+        if let reading = feed.reading, DuckCards.usable(reading) {
+            Button {
+                opened = DuckCardsOpening(kind: .plan, held: reading)
+            } label: {
+                Label(DuckCards.Words.openInPlanEditor, systemImage: PlanEditorWords.studioRowSymbol)
+            }
+            .buttonStyle(.primaryAction)
+        }
+        if let reading = feed.reading, DuckCards.savable(reading) {
+            Button {
+                opened = DuckCardsOpening(kind: .save, held: reading)
+            } label: {
+                Label(DuckCards.Words.saveAsCard, systemImage: "square.and.arrow.down")
+            }
+            .buttonStyle(.borderless)
+            .font(.footnote)
+            .tint(Theme.actionSecondary)
+            .frame(minHeight: DesignMetric.minimumTarget)
+        }
     }
 }

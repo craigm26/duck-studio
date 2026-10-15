@@ -290,6 +290,17 @@ targets:
             UTTypeTagSpecification:
               public.filename-extension:
                 - duckintent
+          # A CLASS'S DUCK CARDS DECK: the `duck-cards/0` deck file with the class's Your cards
+          # written into it. This app writes one (Share the class deck) and reads one back through
+          # the import door, and the duck's own card reader takes the same file with `--deck`.
+          # public.json, because that is all the bytes are.
+          - UTTypeIdentifier: com.duckstudio.duckcards
+            UTTypeDescription: Duck Cards deck
+            UTTypeConformsTo:
+              - public.json
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - duckcards
         # ONE ROW PER FORMAT THIS APP CAN ACTUALLY FILE, and the one format
         # missing from this list is missing on purpose.
         #
@@ -317,6 +328,15 @@ targets:
           - CFBundleTypeName: Microduck intent
             LSItemContentTypes:
               - com.duckstudio.intent
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Owner
+          # THE ROW WENT IN WITH THE BRANCH THAT TAKES THE DECK, and the share path that sends one:
+          # `LibraryModel.open` hands a `.duckcards` to `DuckCardsStore.take`, which replaces the
+          # class deck or says why not, and the class deck screen exports it. Viewer, as for an
+          # intent: the app reads the file it is given and keeps its own copy.
+          - CFBundleTypeName: Duck Cards deck
+            LSItemContentTypes:
+              - com.duckstudio.duckcards
             CFBundleTypeRole: Viewer
             LSHandlerRank: Owner
           # THE ROW WENT IN WITH THE BRANCH THAT FILES THE DRAFT, which is the

@@ -480,11 +480,17 @@ struct TabCommands: Commands {
 enum Imports {
 
     /// Hand a file to the library, and tap once if anything actually arrived.
+    ///
+    /// A CLASS'S DECK ARRIVES WITHOUT MAKING A LIST LONGER. A `.duckcards` file replaces the deck
+    /// Studio reads cards with, so it is counted by the decks the store has taken; a refused one
+    /// takes nothing and stays quiet.
     static func open(_ url: URL, model: LibraryModel,
                      drafts: DraftStore, plans: PlanStore) {
         let before = holdings(model: model, drafts: drafts, plans: plans)
+        let decks = DuckCardsStore.shared.taken
         model.open(url, into: drafts, plans: plans)
-        if holdings(model: model, drafts: drafts, plans: plans) != before {
+        if holdings(model: model, drafts: drafts, plans: plans) != before
+            || DuckCardsStore.shared.taken != decks {
             Haptic.finished()
         }
     }

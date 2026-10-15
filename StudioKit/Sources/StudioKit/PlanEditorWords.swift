@@ -40,6 +40,8 @@ public enum PlanEditorWords {
         "The router did not answer: \(why)"
     }
     public static func proposedBy(_ model: String, seconds: Double?) -> String {
+        // A row of Duck Cards is read, not guessed, and the reader is not a model with a name.
+        if model == DuckCards.model { return DuckCards.Words.readFromCards }
         guard let seconds else { return "Proposed by \(model)." }
         return String(format: "Proposed by %@ in %.1f s.", model, seconds)
     }
