@@ -25,8 +25,8 @@ duck's camera, 20 cm on duck-sim's). The thresholds were chosen on digits the ne
 on, for at most one confident mistake in a thousand, and travel with the weights in `digits.npz`.
 0 is never a count.
 
-NUMPY ONLY. This runs on the duck beside the code reader: no OpenCV, no network, about a
-millisecond a card.
+NUMPY ONLY. This runs on the duck beside the code reader: no OpenCV, no network. About 5 ms a
+Repeat card (median 4.7 ms, 95th percentile 7 ms, on a 2-core machine), on top of finding the code.
 """
 
 from __future__ import annotations
