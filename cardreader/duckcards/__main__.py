@@ -42,7 +42,7 @@ def cmd_read(args) -> int:
     status = 0
     for path in args.pictures:
         gray = np.asarray(Image.open(path).convert("L"))
-        look = see(gray, deck)
+        look = see(gray, deck, numbers=not args.no_numbers)
         layout = arrange(look.seen)
         program = read(layout, deck)
         print(f"{path}: {len(look.seen)} cards, rows {layout.describe()}")
@@ -127,7 +127,7 @@ def cmd_watch(args) -> int:
             if args.upscale and frame_n % 2 == 0:       # every other look, twice the pixels
                 import cv2
                 gray = cv2.resize(gray, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
-            program = read(arrange(see(gray, deck).seen), deck)
+            program = read(arrange(see(gray, deck, numbers=not args.no_numbers).seen), deck)
             event = watcher.feed(program, time.time())
             if event:
                 say(f"[{event.kind}] {event.program.words or '(nothing to run)'}")
@@ -182,6 +182,7 @@ def main(argv=None) -> int:
     r.add_argument("pictures", nargs="+")
     r.add_argument("--plan", action="store_true", help="print the duck-intent-plan/0 too")
     r.add_argument("--deck", help="a class's deck file (.duckcards), with its Your cards")
+    r.add_argument("--no-numbers", action="store_true", help="do not read the number written on Repeat; ask for it")
     r.set_defaults(fn=cmd_read)
     w = sub.add_parser("watch", help="the duck reads cards and does them")
     w.add_argument("--frame-socket", default="/run/mediad/media.sock")
@@ -200,6 +201,7 @@ def main(argv=None) -> int:
     w.add_argument("--upscale", action="store_true", help="every other picture at twice the size: farther cards, more CPU")
     w.add_argument("--deck", help="a class's deck file (.duckcards), with its Your cards")
     w.add_argument("--dry-run", action="store_true", help="read and say, send nothing")
+    w.add_argument("--no-numbers", action="store_true", help="do not read the number written on Repeat; ask for it")
     w.set_defaults(fn=cmd_watch)
     args = p.parse_args(argv)
     return args.fn(args)

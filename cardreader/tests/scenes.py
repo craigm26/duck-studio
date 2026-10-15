@@ -12,16 +12,26 @@ of the right proportions, its category's band, some clutter where the picture
 and words go, and the code in exactly the place `cards.py` says it is, drawn
 from the deck's own tag36h11 table. Nothing here is a photograph, so these
 tests say what the geometry allows, not what a classroom's light will do.
+
+REPEAT HAS ITS BOX. The Repeat card is drawn with its name, the box a child
+writes the number in and the word "times" where the cut sheet puts them
+(`cards.WRITE_EDGE`, measured), and `write=` puts a handwritten figure in the
+box. Every other card is drawn exactly as before, pixel for pixel, because the
+shared vectors hold the library's answers to pictures of them.
 """
 
 from __future__ import annotations
 
 import math
 import pathlib
+import sys
 
 import numpy as np
 
 HERE = pathlib.Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE.parent))
+from duckcards.cards import WRITE_BOX, WRITE_EDGE  # noqa: E402
+
 W_MM, H_MM = 63.5, 88.9
 FRAME_W, FRAME_H = 720, 1280
 F = (1280 / 2) / math.tan(math.radians(31))     # ≈ 1065 px
@@ -42,8 +52,54 @@ def tag_rows(tag: int) -> list[str]:
     return _TAGS[tag]
 
 
-def card_image(tag: int, category: str, scale: float = 6.0, seed: int = 0) -> np.ndarray:
-    """One card, `scale` pixels per hundredth of its width, grey."""
+REPEAT = 102
+BOX_BORDER = 0.42       # card units: one CSS pixel, as the cut sheet prints it
+BOX_RADIUS = 1.4
+INK = 29                # #1d1d1f, the cards' ink
+MARKER = 40             # a child's marker on the card
+
+
+def _rounded_rect(scale: float, shape, edge, radius: float) -> np.ndarray:
+    """How much of each pixel a rounded rectangle covers, 0..1, from its signed distance: `edge`
+    and `radius` in card units, pixels `scale` to a unit, a pixel's centre at its index + 0.5."""
+    h, w = shape
+    ys = (np.arange(h) + 0.5) / scale
+    xs = (np.arange(w) + 0.5) / scale
+    left, top, right, bottom = edge
+    cx, cy = (left + right) / 2, (top + bottom) / 2
+    qx = np.abs(xs[None, :] - cx) - ((right - left) / 2 - radius)
+    qy = np.abs(ys[:, None] - cy) - ((bottom - top) / 2 - radius)
+    outside = np.hypot(np.maximum(qx, 0), np.maximum(qy, 0))
+    inside = np.minimum(np.maximum(qx, qy), 0)
+    d = (outside + inside - radius) * scale
+    return np.clip(0.5 - d, 0.0, 1.0)
+
+
+def write_in(img: np.ndarray, scale: float, figure: np.ndarray, fill: float = 0.8, ink: int = MARKER) -> None:
+    """Write `figure` (a picture of ink, 0 none to 255 full, MNIST's way round) into Repeat's box:
+    its ink fitted to `fill` of the box's height inside the border, at most nine tenths of its
+    width, centred."""
+    import cv2
+    a = np.asarray(figure, np.float32) / 255.0
+    rows, cols = np.nonzero(a > 0.1)
+    if not len(rows):
+        return
+    a = a[rows.min():rows.max() + 1, cols.min():cols.max() + 1]
+    left, top, right, bottom = WRITE_BOX
+    k = min(fill * (bottom - top) / a.shape[0], 0.9 * (right - left) / a.shape[1]) * scale
+    cx, cy = (left + right) / 2 * scale, (top + bottom) / 2 * scale
+    # OpenCV puts a pixel's centre at its index: figure pixel j to card pixel k*j + t, so that the
+    # figure's middle lands on the box's
+    m = np.float32([[k, 0, cx - k * (a.shape[1] / 2 - 0.5) - 0.5], [0, k, cy - k * (a.shape[0] / 2 - 0.5) - 0.5]])
+    alpha = cv2.warpAffine(a, m, (img.shape[1], img.shape[0]), flags=cv2.INTER_LINEAR,
+                           borderMode=cv2.BORDER_CONSTANT, borderValue=0)
+    img[:] = np.clip(img * (1 - alpha) + ink * alpha, 0, 255).round().astype(np.uint8)
+
+
+def card_image(tag: int, category: str, scale: float = 6.0, seed: int = 0,
+               write: np.ndarray | None = None) -> np.ndarray:
+    """One card, `scale` pixels per hundredth of its width, grey. `write`: a figure written in the
+    Repeat card's box (see `write_in`); only Repeat has a box."""
     import cv2
     w, h = int(100 * scale), int(140 * scale)
     img = np.full((h, w), 246, np.uint8)
@@ -56,9 +112,22 @@ def card_image(tag: int, category: str, scale: float = 6.0, seed: int = 0) -> np
     for _ in range(4):
         p = rng.integers(int(30 * scale), int(70 * scale), size=4)
         cv2.line(img, (int(p[0]), int(p[1] - 10 * scale)), (int(p[2]), int(p[3] - 10 * scale)), 60, max(2, int(2.2 * scale)))
-    cv2.rectangle(img, (int(6 * scale), int(80 * scale)), (int(70 * scale), int(90 * scale)), 30, -1)
-    cv2.rectangle(img, (int(6 * scale), int(94 * scale)), (int(40 * scale), int(98 * scale)), 120, -1)
-    cv2.rectangle(img, (int(6 * scale), int(120 * scale)), (int(24 * scale), int(126 * scale)), 200, -1)
+    if tag == REPEAT:
+        # Repeat's name sits higher, to leave room for the line with the box (the cut sheet's
+        # own places, measured with the box): "Repeat", the box, "times", then the code word.
+        cv2.rectangle(img, (int(6 * scale), int(75.5 * scale)), (int(40.5 * scale), int(84 * scale)), 30, -1)
+        ring = (_rounded_rect(scale, img.shape, WRITE_EDGE, BOX_RADIUS)
+                - _rounded_rect(scale, img.shape, tuple(e + s * BOX_BORDER for e, s in zip(WRITE_EDGE, (1, 1, -1, -1))),
+                                BOX_RADIUS - BOX_BORDER))
+        img[:] = np.clip(img * (1 - ring) + INK * ring, 0, 255).round().astype(np.uint8)
+        cv2.rectangle(img, (int(20 * scale), int(87.5 * scale)), (int(33.7 * scale), int(93.5 * scale)), 93, -1)
+        cv2.rectangle(img, (int(6 * scale), int(98 * scale)), (int(31 * scale), int(101.5 * scale)), 120, -1)
+        if write is not None:
+            write_in(img, scale, write)
+    else:
+        cv2.rectangle(img, (int(6 * scale), int(80 * scale)), (int(70 * scale), int(90 * scale)), 30, -1)
+        cv2.rectangle(img, (int(6 * scale), int(94 * scale)), (int(40 * scale), int(98 * scale)), 120, -1)
+        cv2.rectangle(img, (int(6 * scale), int(120 * scale)), (int(24 * scale), int(126 * scale)), 200, -1)
     # the code: its svg box is 71.5..95.5 across, 106.9..130.9 down, ten cells each way
     x0, y0, cell = 71.5 * scale, 106.9 * scale, 2.4 * scale
     grid = np.full((10, 10), 255, np.uint8)
@@ -113,11 +182,12 @@ def background(seed: int = 0, level: int = 150) -> np.ndarray:
 
 def render(cards, camera: Camera, seed: int = 0, blur: float = 0.9, noise: float = 4.0,
            contrast: float = 0.85, bg_level: int = 150) -> np.ndarray:
-    """`cards`: (tag, category, centre, right, down) in the world, mm. Returns the grey frame."""
+    """`cards`: (tag, category, centre, right, down) in the world, mm, and for a Repeat a sixth,
+    the figure written in its box (`card_image`'s `write`). Returns the grey frame."""
     import cv2
     frame = background(seed, bg_level)
-    for tag, category, centre, right, down in cards:
-        tex = card_image(tag, category, seed=seed).astype(np.float32)
+    for tag, category, centre, right, down, *write in cards:
+        tex = card_image(tag, category, seed=seed, write=write[0] if write else None).astype(np.float32)
         th, tw = tex.shape
         src = np.float32([[0, 0], [tw, 0], [tw, th], [0, th]])
         dst = camera.project(card_corners(centre, right, down)).astype(np.float32)
@@ -135,12 +205,13 @@ def render(cards, camera: Camera, seed: int = 0, blur: float = 0.9, noise: float
 
 
 # ---------------------------------------------------------------- the three ways
-def held(tag, category, distance_mm, yaw_deg=0.0, roll_deg=0.0, x_mm=0.0, y_mm=0.0, **kw):
-    """One card held up facing the duck, its centre `distance_mm` in front of the lens."""
+def held(tag, category, distance_mm, yaw_deg=0.0, roll_deg=0.0, x_mm=0.0, y_mm=0.0, write=None, **kw):
+    """One card held up facing the duck, its centre `distance_mm` in front of the lens. `write`:
+    the figure written in a Repeat card's box."""
     yaw, roll = math.radians(yaw_deg), math.radians(roll_deg)
     right = np.array([math.cos(yaw) * math.cos(roll), math.sin(roll), math.sin(yaw)])
     down = np.array([-math.cos(yaw) * math.sin(roll), math.cos(roll), 0.0])
-    return render([(tag, category, (x_mm, y_mm, distance_mm), right, down)], Camera(0), **kw)
+    return render([(tag, category, (x_mm, y_mm, distance_mm), right, down, write)], Camera(0), **kw)
 
 
 def rail(cards, distance_mm, gap_mm=8.0, y_mm=0.0, **kw):

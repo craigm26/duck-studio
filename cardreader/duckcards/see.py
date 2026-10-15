@@ -12,6 +12,12 @@ wrong one for a classroom table covered in pencils, paper and other codes: a
 false card is a duck that does something nobody asked for. A code the deck does
 not use is ignored, and counted, so a reader can say "I see a code that is not
 a Duck Card" instead of nothing.
+
+THE NUMBER ON REPEAT IS READ HERE, NOT BY THE LIBRARY. `detections` is the
+library's answer and nothing else, because the shared vectors carry it. `see`
+then reads the box on each trusted Repeat card (`digits.py`) and gives the card
+a count only when the read is confident; otherwise the count stays None and the
+row asks for the number, as it did before anything could read it.
 """
 
 from __future__ import annotations
@@ -20,6 +26,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from . import digits
 from .cards import Deck, Seen, place
 
 MAX_HAMMING = 1
@@ -47,12 +54,16 @@ class Look:
     doubtful: int           # Duck Card codes found but not trusted
 
 
-def detections(gray: np.ndarray) -> list[dict]:
-    """The library's answer, as plain data: what the shared test vectors carry. A Repeat's entry
-    gains `count` when `digits.read_counts` could read the number written on it."""
+def _grey(gray: np.ndarray) -> np.ndarray:
     if gray.dtype != np.uint8:
         gray = np.clip(gray, 0, 255).astype(np.uint8)
-    gray = np.ascontiguousarray(gray)
+    return np.ascontiguousarray(gray)
+
+
+def detections(gray: np.ndarray) -> list[dict]:
+    """The library's answer, as plain data: what the shared test vectors carry. The number written
+    on a Repeat is not in it; `see` reads that."""
+    gray = _grey(gray)
     out = []
     for d in _get_detector().detect(gray):
         out.append({"id": int(d.tag_id), "hamming": int(d.hamming),
@@ -77,5 +88,14 @@ def look(found: list[dict], deck: Deck) -> Look:
     return Look(seen=seen, foreign=foreign, doubtful=doubtful)
 
 
-def see(gray: np.ndarray, deck: Deck) -> Look:
-    return look(detections(gray), deck)
+def see(gray: np.ndarray, deck: Deck, numbers: bool = True) -> Look:
+    """The cards in a picture. With `numbers`, each Repeat card found gets the number written in its
+    box as its `count`, when `digits.read` is confident of it; `numbers=False` leaves every count
+    None, so every Repeat asks."""
+    gray = _grey(gray)
+    seen = look(detections(gray), deck)
+    if numbers:
+        for s in seen.seen:
+            if s.card.code == "repeat" and s.count is None:
+                s.count = digits.count(gray, s.corners)
+    return seen

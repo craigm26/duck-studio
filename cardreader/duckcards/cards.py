@@ -68,6 +68,19 @@ class Card:
 # A number written on Repeat is one figure in a small box.
 REPEAT_MOST = 9
 
+# The box the number is written in, in card units: WRITE_BOX is inside its border, WRITE_EDGE its
+# outside edge. Measured 2026-10-14 on microduckstudio.com's cut sheet (microduck-com
+# `public/cards/print/`, `site.css` `.dc-write` and `.dc-box`), not worked out from the CSS,
+# because the card is a flex column and the box sits wherever the picture above it leaves room:
+# Chromium through Playwright, print media emulated, getBoundingClientRect of
+# `article[data-code="repeat"]` and its `.dc-box`, scaled so the card is 100 wide, the border
+# taken off. The same measurement put the code's black square at 73.90..93.10 x 109.31..128.51,
+# which is SQUARE. The border is .6cqi in the CSS and one CSS pixel as Chromium draws it (0.42 of
+# a card unit), with corners rounded 1.4. Printed to PDF by the same Chromium and rasterised at
+# 1200 dpi, the box sits within 0.3 of these numbers, measured from the code's own square.
+WRITE_BOX = (6.4, 87.0, 17.6, 94.7)          # left, top, right, bottom
+WRITE_EDGE = (6.0, 86.6, 18.0, 95.1)
+
 
 class DeckError(ValueError):
     pass
