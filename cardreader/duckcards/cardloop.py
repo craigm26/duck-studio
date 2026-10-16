@@ -13,7 +13,7 @@ and the stepping rules below are `DuckCardLoop` in StudioKit (`DuckCardLoop.swif
 each other by `cardreader/vectors/cardloop/*.json`: a card, a trace of odometry samples, and the
 command or the stop each sample must produce. `tests/make_cardloop_vectors.py` writes them.
 
-THE NUMBERS ARE MEASURED ON POLLEN'S STACK (duck-card-loop/1). `cardreader/sim/sysid/` identified
+THE NUMBERS ARE MEASURED ON POLLEN'S STACK (duck-card-loop/1, and /2 for the Walk lead). `cardreader/sim/sysid/` identified
 v8 velstand under Pollen's robotd in duck-sim through `robot.move` only: forward it stands still
 up to 0.20 m/s and walks every time from 0.25 (about a third of the command, 0.09 to 0.135 m/s);
 backward it stands still up to -0.30 and walks from -0.35; it turns in place from 0.625 rad/s
@@ -21,6 +21,20 @@ left and 0.5 right, about 64 degrees a second at 1.0, and coasts about 8 degrees
 stops. So the speeds clear those dead bands, the caps fit docs/PACKS.md's time bounds, and a
 card that makes no progress for `stall_s` ends as "stuck" (a duck that cannot do the card at the
 speeds it may be sent). `cardreader/sim/results/` is the Monte Carlo.
+
+THE WALK LEAD (duck-card-loop/2). A Walk card is commanded still `lead_m` short of its square, the
+way a Turn card leads by its coast: the duck goes on after the zero twist, and odometry is a
+frame or two behind when the card decides. From the system identification alone
+(`cardreader/sim/results-walkback/walk_lead_from_sysid.py`: odometry's coast after the zero
+command plus the travel in half a frame gap and half a control tick, at Studio's 10 Hz) that is
+about 2.2 cm forward at 0.35 and 5.2 cm back at 0.40, where duck-card-loop/1 stopped a fixed
+1.2 and 3.5 cm short. The row's first Walk card each way stops `approach_m` (`back_approach_m`)
+short, holds still `settle_s` (`back_settle_s`) and measures how far odometry says it went on
+(`coast_m`, clamped to `lead_m`); each later Walk card the same way leads by the mean of the
+row's measured coasts that way (`row_lead`). A settle of 0 measures nothing and leads by the
+approach every time. A Walk card does not trim: walking back starts half a second late and
+coasts 3 to 4 cm, so no trim could move it less than that, and the next card takes back a short
+stop as it takes back an overshoot.
 
 THE BOARD. A row keeps where the duck should be: the odometry pose it started the first card at,
 then one square or one quarter turn per card. Each card aims at that board pose rather than at
@@ -39,7 +53,7 @@ from dataclasses import dataclass
 
 HERE = pathlib.Path(__file__).resolve().parent
 SPEC_FILE = HERE / "duck-card-loop.json"
-FORMAT = "duck-card-loop/1"
+FORMAT = "duck-card-loop/2"
 CARDS = ("walk_forward", "walk_backward", "turn_left", "turn_right")
 
 
@@ -140,6 +154,13 @@ def odometry(state: dict | None) -> Pose | None:
     return Pose(float(pos[0]), float(pos[1]), float(yaw))
 
 
+def row_lead(coasts: list[float]) -> float | None:
+    """The lead a later card in a row is given: the mean of the coasts the row's earlier cards of
+    the same kind measured (Turn cards for a turn; Walk cards walking the same way for a walk),
+    or None when there are none yet. StudioKit's `DuckCardLoop.rowLead`."""
+    return sum(coasts) / len(coasts) if coasts else None
+
+
 def speed_of(spec: dict, action: str, speed: str | None) -> float:
     """What a Speed card means on a distance card: how fast the duck walks or turns there.
 
@@ -163,7 +184,7 @@ class CardLoop:
     card is done, whatever happened."""
 
     def __init__(self, action: str, board: Pose, speed: str | None = None, spec: dict | None = None,
-                 lead_deg: float | None = None):
+                 lead_deg: float | None = None, lead_m: float | None = None):
         if action not in CARDS:
             raise ValueError(f"{action} is not a Walk or Turn card")
         self.spec = spec or SPEC
@@ -185,8 +206,17 @@ class CardLoop:
         self.lead = self._clamp_lead(t["approach_deg"] if lead_deg is None else lead_deg)
         self.coast_deg: float | None = None
         self.stop_e, self.stop_way = 0.0, 1.0
+        # THE WALK LEAD (above): the first Walk card each way stops the approach short, a later one
+        # the row's mean measured coast that way; `coast_m` is what this card measured.
+        self.coast_m: float | None = None
+        self.stop_along = 0.0
         if action.startswith("walk"):
             self.sign = 1.0 if action == "walk_forward" else -1.0
+            w = self.spec["walk"]
+            approach = w["approach_m"] if self.sign > 0 else w["back_approach_m"]
+            self.lead_m = self._clamp_lead_m(approach if lead_m is None else lead_m)
+            self.settle_s = w["settle_s"] if self.sign > 0 else w["back_settle_s"]
+            self.phase, self.since = "walk", 0.0
             self.board_after = Pose(board.x + self.sign * d * math.cos(board.h),
                                     board.y + self.sign * d * math.sin(board.h), board.h)
         else:
@@ -212,9 +242,20 @@ class CardLoop:
         dx, dy = pose.x - b.x, pose.y - b.y
         along = self.sign * (dx * math.cos(b.h) + dy * math.sin(b.h))
         across = -dx * math.sin(b.h) + dy * math.cos(b.h)
-        early = w["stop_early_m"] if self.sign > 0 else w["back_stop_early_m"]
-        if along >= self.spec["square_m"] - early:
-            return "reached"
+        if self.phase == "settle":
+            # Still, then how far odometry says it went on. A settle cut short by `max_s` measures
+            # nothing: the card is done at its cap either way.
+            if t - self.since >= self.settle_s:
+                self.coast_m = self._clamp_lead_m(along - self.stop_along)
+                return "reached"
+            if t >= w["max_s"]:
+                return "reached"
+            return (0.0, 0.0)
+        if along >= self.spec["square_m"] - self.lead_m:
+            if self.settle_s <= 0:
+                return "reached"
+            self.phase, self.since, self.stop_along = "settle", t, along
+            return (0.0, 0.0)
         if t >= w["max_s"]:
             return "out of time"
         if self._stalled(along, t, w["stall_m"], w["stall_s"]):
@@ -256,6 +297,10 @@ class CardLoop:
         self.phase, self.since = "trim", t
         self.mark = None                            # a trim's progress counts from its own start
         return (c["trim_forward"], way * c["trim_rate"])
+
+    def _clamp_lead_m(self, v: float) -> float:
+        lo, hi = self.spec["walk"]["lead_m"]
+        return max(lo, min(hi, v))
 
     def _clamp_lead(self, v: float) -> float:
         lo, hi = self.spec["turn"]["lead_deg"]

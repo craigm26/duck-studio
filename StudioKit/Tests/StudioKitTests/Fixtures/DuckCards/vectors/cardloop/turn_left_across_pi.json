@@ -3,8 +3,10 @@
  "board": [0.0, 0.0, 2.96706],
  "board_after": [0.0, 0.0, -1.745329],
  "coast_deg": 4,
- "format": "duck-card-loop/1",
+ "coast_m": null,
+ "format": "duck-card-loop/2",
  "lead_deg": null,
+ "lead_m": null,
  "name": "turn_left_across_pi",
  "speed": "normal",
  "trace": [

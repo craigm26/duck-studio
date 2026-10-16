@@ -3,8 +3,10 @@
  "board": [0.0, 0.0, 0.0],
  "board_after": [0.0, 0.0, -1.570796],
  "coast_deg": null,
- "format": "duck-card-loop/1",
+ "coast_m": null,
+ "format": "duck-card-loop/2",
  "lead_deg": null,
+ "lead_m": null,
  "name": "turn_right_is_stuck",
  "speed": "normal",
  "trace": [

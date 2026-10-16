@@ -1,5 +1,5 @@
 {
-  "format": "duck-card-loop/1",
+  "format": "duck-card-loop/2",
   "enabled_on_robot": false,
   "validated": null,
   "square_m": 0.30,
@@ -12,8 +12,11 @@
     "heading_gain": 1.5,
     "cross_gain": 3.0,
     "max_yaw": 0.6,
-    "stop_early_m": 0.012,
-    "back_stop_early_m": 0.035,
+    "approach_m": 0.022,
+    "back_approach_m": 0.052,
+    "lead_m": [0.0, 0.12],
+    "settle_s": 0.4,
+    "back_settle_s": 0.8,
     "max_s": 8,
     "stall_s": 2.0,
     "stall_m": 0.02

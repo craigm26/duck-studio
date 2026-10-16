@@ -16,6 +16,8 @@ final class DuckCardLoopTests: XCTestCase {
         let expect: [Any]
         /// The lead the card is given, and the coast it must have measured, when any.
         let leadDeg: Double?, coastDeg: Double?
+        /// The Walk lead the card is given, and the coast it must have measured (duck-card-loop/2).
+        let leadM: Double?, coastM: Double?
     }
 
     func vectors() throws -> [Vector] {
@@ -28,7 +30,8 @@ final class DuckCardLoopTests: XCTestCase {
                           speed: top["speed"] as? String,
                           board: top["board"] as? [Double] ?? [], boardAfter: top["board_after"] as? [Double] ?? [],
                           trace: top["trace"] as? [[Double]] ?? [], expect: top["expect"] as? [Any] ?? [],
-                          leadDeg: top["lead_deg"] as? Double, coastDeg: top["coast_deg"] as? Double)
+                          leadDeg: top["lead_deg"] as? Double, coastDeg: top["coast_deg"] as? Double,
+                          leadM: top["lead_m"] as? Double, coastM: top["coast_m"] as? Double)
         }
     }
 
@@ -37,7 +40,7 @@ final class DuckCardLoopTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(all.count, 10)
         for v in all {
             var card = try XCTUnwrap(DuckCardLoop.Card(action: v.action, board: .init(x: v.board[0], y: v.board[1], h: v.board[2]),
-                                                       speed: v.speed, leadDeg: v.leadDeg), v.name)
+                                                       speed: v.speed, leadDeg: v.leadDeg, leadM: v.leadM), v.name)
             XCTAssertEqual(v.trace.count, v.expect.count, v.name)
             for (sample, want) in zip(v.trace, v.expect) {
                 let got = card.step(.init(x: sample[1], y: sample[2], h: sample[3]), t: sample[0])
@@ -57,6 +60,11 @@ final class DuckCardLoopTests: XCTestCase {
                 XCTAssertEqual(try XCTUnwrap(card.coastDeg, v.name), want, accuracy: 1e-5, v.name)
             } else {
                 XCTAssertNil(card.coastDeg, v.name)
+            }
+            if let want = v.coastM {
+                XCTAssertEqual(try XCTUnwrap(card.coastM, v.name), want, accuracy: 1e-6, v.name)
+            } else {
+                XCTAssertNil(card.coastM, v.name)
             }
         }
     }
@@ -249,6 +257,24 @@ final class DuckCardLoopTests: XCTestCase {
         XCTAssertLessThan(abs(DuckCardLoop.wrap(h - .pi / 2)), DuckCardLoop.spec.turn.toleranceDeg * .pi / 180 + 0.05)
         XCTAssertFalse(said.lines.contains(DuckCardLoop.timedNote))
         XCTAssertEqual(duck.calls.last, "robot.stop")
+    }
+
+    /// duck-card-loop/2, THE WALK LEAD: the first Walk card back stops the approach short; a later
+    /// one leads by the row's measured coast back. This duck stops dead (no coast), so the second
+    /// card stops on its square, not the approach short of it (`cardloop` tests the same).
+    func testALaterWalkBackLeadsByTheRowsMeasuredCoast() async throws {
+        let duck = FakeDuck(), said = Said()
+        let outcome = try await run(try cardPlan(["walk_backward", "walk_backward"]), on: duck, said: said)
+        XCTAssertEqual(outcome, .finished)
+        XCTAssertEqual(duck.where_.0, -2 * DuckCardLoop.spec.squareM, accuracy: 0.012)
+        let one = FakeDuck()
+        _ = try await run(try cardPlan(["walk_backward"]), on: one, said: Said())
+        XCTAssertEqual(one.where_.0, -DuckCardLoop.spec.squareM + DuckCardLoop.spec.walk.backApproachM, accuracy: 0.012)
+    }
+
+    func testRowLeadIsTheMeanOrNothing() {
+        XCTAssertNil(DuckCardLoop.rowLead([]))
+        XCTAssertEqual(try XCTUnwrap(DuckCardLoop.rowLead([0.02, 0.04])), 0.03, accuracy: 1e-12)
     }
 
     func testASkillPutsTheBoardSquareWhereTheDuckStands() async throws {

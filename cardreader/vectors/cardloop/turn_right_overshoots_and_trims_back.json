@@ -3,8 +3,10 @@
  "board": [0.1, 0.2, 0.523599],
  "board_after": [0.1, 0.2, -1.047197],
  "coast_deg": 35,
- "format": "duck-card-loop/1",
+ "coast_m": null,
+ "format": "duck-card-loop/2",
  "lead_deg": null,
+ "lead_m": null,
  "name": "turn_right_overshoots_and_trims_back",
  "speed": "fast",
  "trace": [

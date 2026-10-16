@@ -80,7 +80,7 @@ class Vectors(unittest.TestCase):
             v = json.loads(f.read_text())
             with self.subTest(v["name"]):
                 loop = cardloop.CardLoop(v["action"], cardloop.Pose(*v["board"]), v["speed"],
-                                         lead_deg=v["lead_deg"])
+                                         lead_deg=v["lead_deg"], lead_m=v["lead_m"])
                 for (t, x, y, yaw), want in zip(v["trace"], v["expect"]):
                     got = loop.step(cardloop.Pose(x, y, yaw), t)
                     if isinstance(want, str):
@@ -96,6 +96,10 @@ class Vectors(unittest.TestCase):
                     self.assertIsNone(loop.coast_deg)
                 else:
                     self.assertAlmostEqual(loop.coast_deg, v["coast_deg"], places=5)
+                if v["coast_m"] is None:
+                    self.assertIsNone(loop.coast_m)
+                else:
+                    self.assertAlmostEqual(loop.coast_m, v["coast_m"], places=6)
 
     def test_the_vectors_are_what_this_reader_writes(self):
         import make_cardloop_vectors
@@ -240,6 +244,40 @@ class Runs(unittest.TestCase):
         self.assertIsNotNone(turns[0].coast_deg)
         self.assertAlmostEqual(turns[1].lead, turns[0].coast_deg)
         self.assertAlmostEqual(turns[2].lead, (turns[0].coast_deg + turns[1].coast_deg) / 2)
+
+    def test_each_later_walk_leads_by_the_rows_mean_measured_coast_that_way(self):
+        # duck-card-loop/2, THE WALK LEAD: forward and back are kept apart, as their coasts are.
+        made = []
+        real = cardloop.CardLoop
+
+        class Spy(real):
+            def __init__(self, *a, **k):
+                super().__init__(*a, **k)
+                made.append(self)
+        cardloop.CardLoop = Spy
+        try:
+            duck, said = FakeDuck(), []
+            self.assertEqual(self.run_row(duck, ["walk_forward", "walk_backward", "walk_forward", "walk_backward",
+                                                 "walk_backward"], said), "finished")
+        finally:
+            cardloop.CardLoop = real
+        fwd = [c for c in made if c.action == "walk_forward"]
+        back = [c for c in made if c.action == "walk_backward"]
+        w = cardloop.SPEC["walk"]
+        self.assertEqual(fwd[0].lead_m, w["approach_m"], "the first forward knows nothing yet")
+        self.assertEqual(back[0].lead_m, w["back_approach_m"], "nor does the first back, after a forward")
+        for c in fwd + back:
+            self.assertIsNotNone(c.coast_m)
+        self.assertAlmostEqual(fwd[1].lead_m, fwd[0].coast_m)
+        self.assertAlmostEqual(back[1].lead_m, back[0].coast_m)
+        self.assertAlmostEqual(back[2].lead_m, (back[0].coast_m + back[1].coast_m) / 2)
+        # This duck stops dead (no coast), so the last card, leading by the coast it measured, stops
+        # on its square (one back from the start), not the approach short of it.
+        self.assertAlmostEqual(duck.x, -cardloop.SPEC["square_m"], delta=0.012)
+
+    def test_row_lead_is_the_mean_or_nothing(self):
+        self.assertIsNone(cardloop.row_lead([]))
+        self.assertAlmostEqual(cardloop.row_lead([0.02, 0.04]), 0.03)
 
     def test_a_card_that_makes_no_progress_is_stuck_and_ends_the_row(self):
         # v8 velstand in duck-sim stands still below 0.25 forward and -0.35 back

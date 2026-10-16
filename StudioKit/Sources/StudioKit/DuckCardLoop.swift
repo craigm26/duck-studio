@@ -16,6 +16,14 @@ import DuckKit
 /// `cardreader/duckcards/cardloop.py`, held to each other by `cardreader/vectors/cardloop/*.json`:
 /// a card, a trace of odometry samples, and the command or the stop each sample must produce.
 ///
+/// THE WALK LEAD (duck-card-loop/2). A Walk card is commanded still `leadM` short of its square,
+/// the way a Turn card leads by its coast: the duck goes on after the zero twist, and odometry is a
+/// frame or two behind when the card decides. The row's first Walk card each way stops the
+/// approach short (`approachM`, `backApproachM`, from `cardreader/sim/results-walkback/
+/// walk_lead_from_sysid.py`), holds still `settleS` (`backSettleS`) and measures how far odometry
+/// says it went on (`coastM`); each later Walk card the same way leads by the mean of the row's
+/// measured coasts that way (`rowLead`). A settle of 0 measures nothing. A Walk card does not trim.
+///
 /// THE BOARD. A row keeps where the duck should be: the odometry pose it started the first card
 /// at, then one square or one quarter turn per card. Each card aims at that board pose rather than
 /// at "one more square from wherever the last card stopped", so an overshoot or the drift of a
@@ -24,7 +32,7 @@ import DuckKit
 /// its heading is kept.
 public enum DuckCardLoop {
 
-    public static let format = "duck-card-loop/1"
+    public static let format = "duck-card-loop/2"
     /// The four cards that close on odometry. Every other card is unchanged.
     public static let cards: Set<String> = ["walk_forward", "walk_backward", "turn_left", "turn_right"]
 
@@ -45,12 +53,19 @@ public enum DuckCardLoop {
             public let speed: Speeds
             public let backSpeed: Speeds
             public let headingGain: Double, crossGain: Double, maxYaw: Double
-            public let stopEarlyM: Double, backStopEarlyM: Double, maxS: Double
+            /// How far short the row's first Walk card forward (back) stops, knowing nothing yet of its coast.
+            public let approachM: Double, backApproachM: Double
+            /// The lead a Walk card may use, and the coast it may record, `[least, most]`.
+            public let leadM: [Double]
+            /// How long a Walk card forward (back) holds still after its stop to measure its coast.
+            public let settleS: Double, backSettleS: Double
+            public let maxS: Double
             /// A Walk card less than `stallM` further along its line in `stallS` is stuck.
             public let stallS: Double, stallM: Double
             enum CodingKeys: String, CodingKey {
                 case speed, backSpeed = "back_speed", headingGain = "heading_gain", crossGain = "cross_gain",
-                     maxYaw = "max_yaw", stopEarlyM = "stop_early_m", backStopEarlyM = "back_stop_early_m", maxS = "max_s",
+                     maxYaw = "max_yaw", approachM = "approach_m", backApproachM = "back_approach_m",
+                     leadM = "lead_m", settleS = "settle_s", backSettleS = "back_settle_s", maxS = "max_s",
                      stallS = "stall_s", stallM = "stall_m"
             }
         }
@@ -226,6 +241,13 @@ public enum DuckCardLoop {
         return a
     }
 
+    /// The lead a later card in a row is given: the mean of the coasts the row's earlier cards of
+    /// the same kind measured (Turn cards for a turn; Walk cards walking the same way for a walk),
+    /// or nil when there are none yet. `cardloop.row_lead`.
+    public static func rowLead(_ coasts: [Double]) -> Double? {
+        coasts.isEmpty ? nil : coasts.reduce(0, +) / Double(coasts.count)
+    }
+
     /// What a Speed card means on a distance card: how fast the duck walks or turns there. Every
     /// speed is one the gait answers to; a Turn card has the one rate that turns the duck in place.
     public static func speed(_ action: String, _ label: String?, spec: Spec = spec) -> Double {
@@ -311,16 +333,28 @@ public enum DuckCardLoop {
         /// hands the mean of a row's coasts to its later Turn cards as their `leadDeg`.
         public private(set) var coastDeg: Double?
         var stopE = 0.0, stopWay = 1.0
+        /// How far short of its square a Walk card is commanded still (THE WALK LEAD).
+        public let leadM: Double
+        /// How long a Walk card holds still after its stop to measure its coast.
+        let settleS: Double
+        /// How far odometry says a Walk card went on after its zero twist, once measured; the
+        /// runner hands the mean of a row's coasts that way to its later Walk cards that way.
+        public private(set) var coastM: Double?
+        var stopAlong = 0.0
 
         public init?(action: String, board: Pose, speed: String? = nil, spec: Spec = DuckCardLoop.spec,
-                     leadDeg: Double? = nil) {
+                     leadDeg: Double? = nil, leadM: Double? = nil) {
             guard DuckCardLoop.cards.contains(action) else { return nil }
             self.action = action; self.board = board; self.spec = spec
             self.rate = DuckCardLoop.speed(action, speed, spec: spec)
             self.trimsLeft = spec.turn.trims
             self.lead = Card.clampLead(leadDeg ?? spec.turn.approachDeg, spec)
+            let forward = action == "walk_forward"
+            self.leadM = Card.clampLeadM(leadM ?? (forward ? spec.walk.approachM : spec.walk.backApproachM), spec)
+            self.settleS = forward ? spec.walk.settleS : spec.walk.backSettleS
             if action.hasPrefix("walk") {
-                sign = action == "walk_forward" ? 1 : -1
+                phase = "walk"
+                sign = forward ? 1 : -1
                 boardAfter = Pose(x: board.x + sign * spec.squareM * cos(board.h),
                                   y: board.y + sign * spec.squareM * sin(board.h), h: board.h)
             } else {
@@ -347,7 +381,21 @@ public enum DuckCardLoop {
             let dx = pose.x - b.x, dy = pose.y - b.y
             let along = sign * (dx * cos(b.h) + dy * sin(b.h))
             let across = -dx * sin(b.h) + dy * cos(b.h)
-            if along >= spec.squareM - (sign > 0 ? w.stopEarlyM : w.backStopEarlyM) { return .done(.reached) }
+            if phase == "settle" {
+                // Still, then how far odometry says it went on. A settle cut short by `maxS`
+                // measures nothing: the card is done at its cap either way.
+                if t - since >= settleS {
+                    coastM = Card.clampLeadM(along - stopAlong, spec)
+                    return .done(.reached)
+                }
+                if t >= w.maxS { return .done(.reached) }
+                return .send(vx: 0, vyaw: 0)
+            }
+            if along >= spec.squareM - leadM {
+                if settleS <= 0 { return .done(.reached) }
+                phase = "settle"; since = t; stopAlong = along
+                return .send(vx: 0, vyaw: 0)
+            }
             if t >= w.maxS { return .done(.outOfTime) }
             if stalled(along, t, enough: w.stallM, window: w.stallS) { return .done(.stuck) }
             var steer = w.headingGain * DuckCardLoop.wrap(b.h - pose.h) - sign * w.crossGain * across
@@ -386,6 +434,10 @@ public enum DuckCardLoop {
             phase = "trim"; since = t
             mark = nil                       // a trim's progress counts from its own start
             return .send(vx: c.trimForward, vyaw: way * c.trimRate)
+        }
+
+        static func clampLeadM(_ v: Double, _ spec: Spec) -> Double {
+            min(max(v, spec.walk.leadM[0]), spec.walk.leadM[1])
         }
 
         static func clampLead(_ v: Double, _ spec: Spec) -> Double {

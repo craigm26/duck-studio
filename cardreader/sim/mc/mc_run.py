@@ -188,6 +188,10 @@ def _logged_drive(loop, robot, state, sleep=time.sleep, clock=time.time):
         if loop.action.startswith("walk"):
             entry["odom_off_m"] = round(math.hypot(pose.x - b.x, pose.y - b.y), 4)
         entry["odom_off_deg"] = round(math.degrees(wrap(b.h - pose.h)), 2)
+    if getattr(loop, "coast_m", None) is not None:
+        entry["coast_m"] = round(loop.coast_m, 4)
+    if loop.action.startswith("walk") and hasattr(loop, "lead_m"):
+        entry["lead_m"] = round(loop.lead_m, 4)
     if hasattr(loop, "trims_left"):
         entry["trims_used"] = int(cardloop.SPEC["turn"]["trims"]) - loop.trims_left
     CARD_LOG.append(entry)
@@ -263,10 +267,18 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--seed", type=int, default=11)
     ap.add_argument("--start-index", type=int, default=0, help="first row of the list to draw")
+    ap.add_argument("--spec", default=None,
+                    help="a card-loop spec other than the shipped duck-card-loop.json, for tuning a candidate "
+                         "on development seeds only; its sha256 is recorded on every row")
     ap.add_argument("--rows-set", choices=["all", "acceptance", "acceptance-back"], default="all",
                     help="every pack solution and hand row, only docs/PACKS.md's pre-registered rows, "
                          "or only those of them with Walk back (judged on their own, so they need rows of their own)")
     a = ap.parse_args()
+    global SPEC_SHA
+    if a.spec:
+        spec_file = pathlib.Path(a.spec)
+        cardloop.SPEC = cardloop.load_spec(spec_file)
+        SPEC_SHA = __import__("hashlib").sha256(spec_file.read_bytes()).hexdigest()
     os.makedirs(a.out, exist_ok=True)
     path = os.path.join(a.out, f"{a.condition}.jsonl")
     done = 0

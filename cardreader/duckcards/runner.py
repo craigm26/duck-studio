@@ -158,6 +158,7 @@ def run(plan_beats: list[Beat], robot, heads: bool = False, sleep=time.sleep, sa
     board: cardloop.Pose | None = None      # where the duck should be, odometry's frame
     timed_said = False
     coasts: list[float] = []               # every Turn card's measured coast this row (cardloop, THE LEAD)
+    walked: dict[str, list[float]] = {"walk_forward": [], "walk_backward": []}   # (cardloop, THE WALK LEAD)
     try:
         for b in plan_beats:
             say(f"  {b.clause}")
@@ -185,11 +186,14 @@ def run(plan_beats: list[Beat], robot, heads: bool = False, sleep=time.sleep, sa
                     hold(robot, b.twist, b.seconds, sleep)
                     board = None
                     continue
-                loop = cardloop.CardLoop(b.action, board or pose, b.speed, lead_deg=sum(coasts) / len(coasts) if coasts else None)
+                loop = cardloop.CardLoop(b.action, board or pose, b.speed, lead_deg=cardloop.row_lead(coasts),
+                                         lead_m=cardloop.row_lead(walked.get(b.action, [])))
                 done = drive(loop, robot, state, sleep, clock)
                 board = loop.board_after
                 if getattr(loop, "coast_deg", None) is not None:
                     coasts.append(loop.coast_deg)
+                if getattr(loop, "coast_m", None) is not None:
+                    walked[b.action].append(loop.coast_m)
                 if ENDED.get(done):
                     say(f"  {ENDED[done]}")
                     robot.call("robot.stop")

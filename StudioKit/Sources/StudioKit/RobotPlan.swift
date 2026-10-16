@@ -341,6 +341,8 @@ public enum RobotPlanRunner {
         var timedSaid = false
         // Every Turn card's measured coast this row; their mean is each later Turn card's lead.
         var coasts: [Double] = []
+        // Every Walk card's measured coast this row, by the way it walked (DuckCardLoop, THE WALK LEAD).
+        var walked: [String: [Double]] = [:]
         if plan.cardsTimed { await event(.said(DuckCardLoop.offNote)) }
         let pose: @Sendable () async -> DuckCardLoop.Pose? = {
             guard let state, let s = await state(),
@@ -368,7 +370,8 @@ public enum RobotPlanRunner {
                     }
                     guard let here = await pose(),
                           var card = DuckCardLoop.Card(action: action, board: board ?? here, speed: speed,
-                                                       leadDeg: coasts.isEmpty ? nil : coasts.reduce(0, +) / Double(coasts.count)) else {
+                                                       leadDeg: DuckCardLoop.rowLead(coasts),
+                                                       leadM: DuckCardLoop.rowLead(walked[action] ?? [])) else {
                         if !timedSaid { await event(.said(DuckCardLoop.timedNote)); timedSaid = true }
                         try await hold(timed, for: seconds, on: peer, tick: tick, sleep: sleep)
                         board = nil
@@ -377,6 +380,7 @@ public enum RobotPlanRunner {
                     let ended = try await drive(&card, on: peer, pose: pose, fallen: fallen, sleep: sleep)
                     board = card.boardAfter
                     if let c = card.coastDeg { coasts.append(c) }
+                    if let c = card.coastM { walked[action, default: []].append(c) }
                     await event(.cardEnded(i, ended))
                     if let words = ended.said {
                         await event(.said(words))
