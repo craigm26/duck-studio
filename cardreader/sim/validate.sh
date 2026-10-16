@@ -66,6 +66,27 @@ if [ -z "${SKIP_SYSID:-}" ]; then
     say "fits in $WORK/sysid/sysid.md (this repository's are in cardreader/sim/sysid/)"
 fi
 
+# Which machine ran these rows, and how loaded it was while it did: a second run only counts as
+# rung 2 of "Acceptance" on different hardware, and a starved machine makes late cards.
+mkdir -p "$OUT"
+{
+    echo "host: $(hostname)"
+    echo "date_utc: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    echo "uname: $(uname -srm)"
+    echo "cpus: $(nproc)"
+    echo "cpu_model: $(grep -m1 'model name' /proc/cpuinfo 2>/dev/null | cut -d: -f2- | sed 's/^ //')"
+    echo "mem_total: $(grep MemTotal /proc/meminfo | awk '{print $2 " kB"}')"
+    echo "duck_studio_commit: $(git -C "$REPO" rev-parse HEAD 2>/dev/null || echo unknown)"
+    echo "microduck: $MICRODUCK_SHA"
+    echo "microduck_rl: $MICRODUCK_RL_SHA"
+    echo "rows: $ROWS"
+} > "$OUT/HOST.txt"
+# One line a minute: the load average and free memory, for as long as this script runs.
+( while :; do echo "$(date -u +%H:%M:%S) $(cut -d' ' -f1-3 /proc/loadavg) $(grep MemAvailable /proc/meminfo | awk '{print $2}')"; sleep 60; done ) \
+    > "$OUT/load.log" 2>/dev/null &
+LOADPID=$!
+trap 'kill $LOADPID 2>/dev/null' EXIT
+
 # The four batches cardreader/sim/results/ holds, at the same seeds and rows. ROWS scales them:
 # 400 (the default) is what was run; anything less is a quick look that cannot pass the fall bound.
 scale() { echo $(( $1 * ROWS / 400 )); }
@@ -80,11 +101,22 @@ batch() {
         port=$((7841 + 10 * i))
         python3 "$HERE/mc/mc_run.py" --condition "$cond" --rows "$n" --port "$port" --rows-set "$set" \
             --out "$OUT/$dir" --seed $((seed + i)) --state "$WORK/mc-$port" > "$WORK/logs/$dir-$cond.log" 2>&1 &
+        pids="$pids $!"
         i=$((i + 1))
         sleep 20
     done
-    wait
+    # Every duck must finish its rows: a duck that died leaves a short file, and a summary of short
+    # files would look like a result.
+    failed=""
+    for p in $pids; do wait "$p" || failed=1; done
+    pids=""
+    for cond in "$@"; do
+        got=$(cat "$OUT/$dir/$cond.jsonl" 2>/dev/null | wc -l)
+        [ "$got" -ge "$n" ] || { echo "$dir/$cond: $got of $n rows (log: $WORK/logs/$dir-$cond.log)" >&2; failed=1; }
+    done
+    [ -z "$failed" ] || { echo "a Monte Carlo batch did not finish; stopping before the summary" >&2; exit 1; }
 }
+pids=""
 
 batch raw all "$(scale 209)" 11 nominal randomized randomized-10hz stressed-10hz
 batch raw-acceptance acceptance "$(scale 400)" 21 nominal randomized randomized-10hz stressed-10hz

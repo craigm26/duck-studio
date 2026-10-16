@@ -283,6 +283,7 @@ def main():
                 and any(s.action == "walk_backward" for s in rowlist.steps(r))]
     square = cardloop.SPEC["square_m"]
     i = done
+    start_failures = 0
     while i < a.rows:
         knobs = draw_session(a.condition, rng)
         stack = Stack(state, a.port, "v8", knobs)
@@ -291,8 +292,15 @@ def main():
         except Exception as e:
             print(f"session failed to start: {e}", flush=True)
             stack.down()
+            start_failures += 1
+            if start_failures >= 5:
+                # Five in a row is the machine, not the draw: stop with an error rather than
+                # use up draws forever.
+                print(f"{a.condition}: {start_failures} sessions in a row failed to start; stopping at row {i}", flush=True)
+                sys.exit(2)
             time.sleep(2)
             continue
+        start_failures = 0
         robot = Robotd(str(stack.sock), hz=hz)
         body = Body(a.port)
         truth = Truth(body)

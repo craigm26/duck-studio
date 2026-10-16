@@ -202,6 +202,28 @@ To run it again (`cardreader/sim/`, Ubuntu 24.04 without a GPU):
    cardreader/sim/down.sh
    ```
 
+### The closed-loop cards, against Acceptance
+
+The walking numbers (system identification and the Monte Carlo held to docs/PACKS.md, "Acceptance")
+come from one script, which builds Pollen's code at pinned commits under `$WORK` and needs no
+camera, mediad or GPU:
+
+```sh
+cardreader/sim/validate.sh                 # about 6 hours on 4 cores; WORK=~/duck-cards-sim by default
+ROWS=40 cardreader/sim/validate.sh         # a quick look (cannot pass the fall bound)
+python3 cardreader/sim/mc/mc_summary.py $WORK/results/raw $WORK/results/raw-acceptance \
+    $WORK/results/raw-back $WORK/results/raw-rate      # validate.sh writes this to $WORK/results/RESULTS.md
+```
+
+It writes `HOST.txt` (which machine, which commits) and `load.log` (load and free memory each
+minute) beside the results, and stops before the summary if any duck did not finish its rows. Run
+it on an otherwise idle machine. Rung 2 of Acceptance needs a machine other than the one that made
+`cardreader/sim/results/`.
+
+The randomized conditions draw a session's settings from the seed and the rows already in the file,
+so the first session of each condition repeats exactly and later ones depend on how earlier rows
+ran: a second run is a fresh sample of the same conditions, compared within intervals, not a replay.
+
 Why it is put together this way: duck-sim's own camera (`DUCK_SIM_CAMERAS=a`) renders on the
 body's physics thread, and without a GPU that slowed the world to half speed and the duck fell over,
 so `eye.py` renders the same camera beside it from the duck's pose and Pollen's mediad serves it;
