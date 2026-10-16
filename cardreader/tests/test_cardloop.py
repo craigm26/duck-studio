@@ -264,16 +264,18 @@ class Runs(unittest.TestCase):
         fwd = [c for c in made if c.action == "walk_forward"]
         back = [c for c in made if c.action == "walk_backward"]
         w = cardloop.SPEC["walk"]
-        self.assertEqual(fwd[0].lead_m, w["approach_m"], "the first forward knows nothing yet")
-        self.assertEqual(back[0].lead_m, w["back_approach_m"], "nor does the first back, after a forward")
+        self.assertAlmostEqual(fwd[0].lead_m, w["approach_m"] + w["slip_m"], msg="the first forward knows nothing yet")
+        self.assertAlmostEqual(back[0].lead_m, w["back_approach_m"] + w["back_slip_m"],
+                               msg="nor does the first back, after a forward")
         for c in fwd + back:
             self.assertIsNotNone(c.coast_m)
-        self.assertAlmostEqual(fwd[1].lead_m, fwd[0].coast_m)
-        self.assertAlmostEqual(back[1].lead_m, back[0].coast_m)
-        self.assertAlmostEqual(back[2].lead_m, (back[0].coast_m + back[1].coast_m) / 2)
-        # This duck stops dead (no coast), so the last card, leading by the coast it measured, stops
-        # on its square (one back from the start), not the approach short of it.
-        self.assertAlmostEqual(duck.x, -cardloop.SPEC["square_m"], delta=0.012)
+        self.assertAlmostEqual(fwd[1].lead_m, fwd[0].coast_m + w["slip_m"])
+        self.assertAlmostEqual(back[1].lead_m, back[0].coast_m + w["back_slip_m"])
+        self.assertAlmostEqual(back[2].lead_m, (back[0].coast_m + back[1].coast_m) / 2 + w["back_slip_m"])
+        # This duck stops dead (no coast) and its odometry does not slip, so the last card, leading
+        # by the coast it measured and the slip, stops the slip short of its square (one back from
+        # the start), not the approach short of it.
+        self.assertAlmostEqual(duck.x, -cardloop.SPEC["square_m"] + w["back_slip_m"], delta=0.012)
 
     def test_row_lead_is_the_mean_or_nothing(self):
         self.assertIsNone(cardloop.row_lead([]))

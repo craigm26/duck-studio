@@ -260,16 +260,18 @@ final class DuckCardLoopTests: XCTestCase {
     }
 
     /// duck-card-loop/2, THE WALK LEAD: the first Walk card back stops the approach short; a later
-    /// one leads by the row's measured coast back. This duck stops dead (no coast), so the second
-    /// card stops on its square, not the approach short of it (`cardloop` tests the same).
+    /// one leads by the row's measured coast back, and both carry the slip. This duck stops dead (no
+    /// coast) and its odometry does not slip, so the second card stops the slip short of its
+    /// square, not the approach and the slip short of it (`cardloop` tests the same).
     func testALaterWalkBackLeadsByTheRowsMeasuredCoast() async throws {
         let duck = FakeDuck(), said = Said()
         let outcome = try await run(try cardPlan(["walk_backward", "walk_backward"]), on: duck, said: said)
         XCTAssertEqual(outcome, .finished)
-        XCTAssertEqual(duck.where_.0, -2 * DuckCardLoop.spec.squareM, accuracy: 0.012)
+        let w = DuckCardLoop.spec.walk
+        XCTAssertEqual(duck.where_.0, -2 * DuckCardLoop.spec.squareM + w.backSlipM, accuracy: 0.012)
         let one = FakeDuck()
         _ = try await run(try cardPlan(["walk_backward"]), on: one, said: Said())
-        XCTAssertEqual(one.where_.0, -DuckCardLoop.spec.squareM + DuckCardLoop.spec.walk.backApproachM, accuracy: 0.012)
+        XCTAssertEqual(one.where_.0, -DuckCardLoop.spec.squareM + w.backApproachM + w.backSlipM, accuracy: 0.012)
     }
 
     func testRowLeadIsTheMeanOrNothing() {

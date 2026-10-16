@@ -22,7 +22,8 @@ import DuckKit
 /// approach short (`approachM`, `backApproachM`, from `cardreader/sim/results-walkback/
 /// walk_lead_from_sysid.py`), holds still `settleS` (`backSettleS`) and measures how far odometry
 /// says it went on (`coastM`); each later Walk card the same way leads by the mean of the row's
-/// measured coasts that way (`rowLead`). A settle of 0 measures nothing. A Walk card does not trim.
+/// measured coasts that way (`rowLead`). Every lead that way also carries `slipM` (`backSlipM`):
+/// the trunk goes further than odometry counts walking back. A settle of 0 measures nothing. A Walk card does not trim.
 ///
 /// THE BOARD. A row keeps where the duck should be: the odometry pose it started the first card
 /// at, then one square or one quarter turn per card. Each card aims at that board pose rather than
@@ -57,6 +58,9 @@ public enum DuckCardLoop {
             public let approachM: Double, backApproachM: Double
             /// The lead a Walk card may use, and the coast it may record, `[least, most]`.
             public let leadM: [Double]
+            /// How much further the trunk goes than odometry counts over one square, forward (back):
+            /// added to every Walk lead that way, as no coast measured on odometry can show it.
+            public let slipM: Double, backSlipM: Double
             /// How long a Walk card forward (back) holds still after its stop to measure its coast.
             public let settleS: Double, backSettleS: Double
             public let maxS: Double
@@ -65,7 +69,7 @@ public enum DuckCardLoop {
             enum CodingKeys: String, CodingKey {
                 case speed, backSpeed = "back_speed", headingGain = "heading_gain", crossGain = "cross_gain",
                      maxYaw = "max_yaw", approachM = "approach_m", backApproachM = "back_approach_m",
-                     leadM = "lead_m", settleS = "settle_s", backSettleS = "back_settle_s", maxS = "max_s",
+                     leadM = "lead_m", slipM = "slip_m", backSlipM = "back_slip_m", settleS = "settle_s", backSettleS = "back_settle_s", maxS = "max_s",
                      stallS = "stall_s", stallM = "stall_m"
             }
         }
@@ -350,7 +354,8 @@ public enum DuckCardLoop {
             self.trimsLeft = spec.turn.trims
             self.lead = Card.clampLead(leadDeg ?? spec.turn.approachDeg, spec)
             let forward = action == "walk_forward"
-            self.leadM = Card.clampLeadM(leadM ?? (forward ? spec.walk.approachM : spec.walk.backApproachM), spec)
+            self.leadM = Card.clampLeadM((leadM ?? (forward ? spec.walk.approachM : spec.walk.backApproachM))
+                                         + (forward ? spec.walk.slipM : spec.walk.backSlipM), spec)
             self.settleS = forward ? spec.walk.settleS : spec.walk.backSettleS
             if action.hasPrefix("walk") {
                 phase = "walk"

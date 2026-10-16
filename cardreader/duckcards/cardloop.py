@@ -31,7 +31,10 @@ about 2.2 cm forward at 0.35 and 5.2 cm back at 0.40, where duck-card-loop/1 sto
 1.2 and 3.5 cm short. The row's first Walk card each way stops `approach_m` (`back_approach_m`)
 short, holds still `settle_s` (`back_settle_s`) and measures how far odometry says it went on
 (`coast_m`, clamped to `lead_m`); each later Walk card the same way leads by the mean of the
-row's measured coasts that way (`row_lead`). A settle of 0 measures nothing and leads by the
+row's measured coasts that way (`row_lead`). Every lead that way also carries `slip_m`
+(`back_slip_m`): the trunk goes further than odometry counts walking back (odometry says 0.956
+of the trunk's distance in the sysid, 1.3 cm over a square), which no coast measured on
+odometry can show. A settle of 0 measures nothing and leads by the
 approach every time. A Walk card does not trim: walking back starts half a second late and
 coasts 3 to 4 cm, so no trim could move it less than that, and the next card takes back a short
 stop as it takes back an overshoot.
@@ -214,7 +217,11 @@ class CardLoop:
             self.sign = 1.0 if action == "walk_forward" else -1.0
             w = self.spec["walk"]
             approach = w["approach_m"] if self.sign > 0 else w["back_approach_m"]
-            self.lead_m = self._clamp_lead_m(approach if lead_m is None else lead_m)
+            # The slip: how much further the trunk goes than odometry counts over one square
+            # (sysid: odometry says 0.956 of the trunk's distance walking back), which no coast
+            # measured on odometry can show. It is added to every lead that way.
+            slip = w["slip_m"] if self.sign > 0 else w["back_slip_m"]
+            self.lead_m = self._clamp_lead_m((approach if lead_m is None else lead_m) + slip)
             self.settle_s = w["settle_s"] if self.sign > 0 else w["back_settle_s"]
             self.phase, self.since = "walk", 0.0
             self.board_after = Pose(board.x + self.sign * d * math.cos(board.h),
