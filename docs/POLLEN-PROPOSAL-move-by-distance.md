@@ -125,12 +125,49 @@ API's results pass the same Acceptance bar a client loop is held to.
 
 ## Data
 
-To be filled from the duck-sim run before this is sent: rows per condition, end position and
-heading errors (median, 95th percentile, the share inside a third of a square and 15 degrees),
-falls with their Wilson bound, per-card times, and the same client loop at 10 Hz and 20 Hz
-against robotd's 50 Hz estimate, so the case for moving the loop into robotd is measured rather
-than argued.
+Filled 2026-10-15 from duck-studio's `cardreader/sim/results/` (RESULTS.md has every interval):
+Pollen's robotd (`d7560ef`) and the v8 velstand in duck-sim's MuJoCo body, the client loop
+(`duck-card-loop/1`) closing Walk and Turn cards on robotd's `odom`, MuJoCo's trunk as truth.
+The pre-registered rows only (seven duckbench rows and Measure my duck's five), each row from a
+standing duck at a random moment of its sway; 30 cm squares. Errors are median / 95th
+percentile over the rows that finished; a row that ended early counts against both shares.
 
-| condition | rows | position within 10 cm | heading within 15 degrees | falls (Wilson upper) | Walk card time p95 | Turn card time p95 |
-|---|---|---|---|---|---|---|
-| (pending) | | | | | | |
+| condition | client state rate | rows | position within 10 cm | position error | heading within 15 degrees | heading error | falls (Wilson upper) | Walk card p95 | Turn card p95 | rows ended early |
+|---|---|---|---|---|---|---|---|---|---|---|
+| nominal | 50 Hz (every tick robotd sends) | 200 | 99.5% | 2.3 / 4.4 cm | 99.5% | 2.4 / 9.6 deg | 0 (1.88%) | 3.22 s | 2.71 s | 1 |
+| nominal | 20 Hz (the card reader) | 455 | 98.7% | 2.3 / 4.7 cm | 98.7% | 2.5 / 9.8 deg | 0 (0.84%) | 3.22 s | 2.76 s | 6 |
+| nominal | 10 Hz (Studio) | 200 | 99.0% | 2.5 / 5.2 cm | 99.0% | 2.3 / 10.1 deg | 0 (1.88%) | 3.27 s | 2.78 s | 2 |
+| randomized | 20 Hz | 455 | 96.9% | 3.5 / 8.0 cm | 96.7% | 3.9 / 12.3 deg | 0 (0.84%) | 3.31 s | 2.61 s | 7 |
+| randomized | 10 Hz | 455 | 97.1% | 3.4 / 7.5 cm | 96.9% | 3.8 / 12.1 deg | 0 (0.84%) | 3.37 s | 2.63 s | 8 |
+| stressed | 10 Hz | 455 | 86.8% | 5.3 / 11.2 cm | 87.3% | 6.3 / 16.5 deg | 0 (0.84%) | 3.32 s | 3.52 s | 26 |
+
+Randomized: floor friction x 0.5 to 1.2, mass x 0.95 to 1.05, IMU heading bias up to 5 degrees
+and drift up to 0.5 degrees a second, state latency up to 0.15 s, odometry noise and a 5% scale
+error. Stressed: all at their far ends together. The state rates are what robotd delivered for
+`hz` 50, 20 and 10 (40, 16.7 and 9.2 frames a second; see below).
+
+What it says about where the loop should run:
+
+- **The client's state rate costs little at nominal** (p95 position 4.4 cm at 50 Hz, 4.7 at 20,
+  5.2 at 10). What costs is everything a client cannot see: latency it cannot measure, a floor
+  that changes the coast, odometry drift. A loop in robotd sees the first two at 50 Hz with no
+  socket in between.
+- **Every row but one that ended early ended at a Turn card that could not be trimmed into tolerance**
+  (trimmed out), most in the stressed condition. In place, v8 velstand coasts 6 to 17 degrees
+  after a zero twist at 1.0 rad/s (20 to 31 on a slippery floor with a late state), and a short
+  corrective twist turns the trunk, which springs back, instead of the feet. The client now
+  measures the coast and leads by it (`approach_deg`, `lead_deg` in the spec); robotd could
+  instead slew the command down near the target, which a client cannot do through a deadman
+  and a 20 Hz socket.
+- **The dead band is the other thing a client has to know** (stands still up to 0.20 m/s
+  forward, -0.30 back, 0.5 to 0.6 rad/s turning in place; `cardreader/sim/sysid/`). A
+  `walkBy`/`turnBy` that owns its speed can never be asked for a speed the gait will not take.
+- **robotd's `robot.subscribe` decimation drops ticks** (40 frames a second for `hz` 50, 16.7
+  for 20, 9.2 for 10), which is one more reason the loop belongs on the robot.
+- **Walk back, judged on its own** (403 rows each): within 10 cm in 99.3% nominal, 96.8%
+  randomized at 20 Hz, but 92.8% at 10 Hz and 79.9% stressed: it coasts 3 to 4 cm, more with a
+  late state, and the client stops it on a pose that is already old. A `walkBy` stopping on
+  robotd's own estimate would not be late.
+- No falls in 4,128 rows across all conditions (13,826 Walk and 6,558 Turn cards). Of the 148
+  rows that ended early, 147 were Turn cards that trimmed out and one a Walk back that did not
+  start backing in 2 s on the slippery floor.

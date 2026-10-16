@@ -286,8 +286,10 @@ sentence), `bundled`, `Pack.lent(to:replacing:)`, `Pack.notInPlay(_:deck:)`, `st
 ## Not promised
 
 - That a real duck lands on a square. Closed-loop cards are off for real ducks (the off switch,
-  under Closed-loop cards); a duck's Walk and Turn are timed. The shipped spec is not measured
-  in any simulator yet, and Pollen's duck-sim and testers' ducks are not measured at all.
+  under Closed-loop cards); a duck's Walk and Turn are timed. The shipped spec was measured in
+  Pollen's duck-sim on 2026-10-15 and did not pass rung 1 of Acceptance (it passes nominal and
+  randomized at 20 Hz, fails Walk back at 10 Hz and the stressed condition; Sizing, "Closed-loop
+  cards: Pollen's duck-sim"). Testers' ducks are not measured at all.
 - Physics-sim goal checks. Placing the board in Studio's simulated world needs the same
   measurement; until then Studio's board is the board rule, and the sim duck runs the row
   beside it.
@@ -439,12 +441,15 @@ over many rows, never one run:
 1. **One Walk card.** Timed, a Walk card is two seconds of a twist and its distance is whatever
    the gait makes of it (First measurement, below, and its correction). Closed on odometry, it is
    one duck square by construction, and what is measured is how far off the duck ends.
-   **Measured in duckbench (Closed-loop cards, below). Not yet in Pollen's duck-sim or on a duck.**
+   **Measured in duckbench, then in Pollen's duck-sim on Pollen's robotd and v8 velstand
+   ("Closed-loop cards: Pollen's duck-sim", below). Not on a duck.**
 2. **One Turn card.** A timed turn is not a quarter turn. Closed on the IMU's yaw it is, within a
    tolerance. On duckbench's canon plant a yaw command of 1.0 with no forward speed turns the
    duck about 12 degrees and stops (this is the 14.4 degree saturation `walk_to.py` saw), and 1.5
-   turns it on the spot, about 47 degrees a second, moving it 2 cm: no arc is needed.
-   **Measured in duckbench. Not yet elsewhere.**
+   turns it on the spot, about 47 degrees a second, moving it 2 cm: no arc is needed. On Pollen's
+   v8 velstand in duck-sim, 1.0 turns it on the spot at about 64 degrees a second and it coasts
+   6 to 17 degrees after the zero twist. **Measured in duckbench and Pollen's duck-sim. Not on a
+   duck.**
 3. **The footprint.** The duck is about 25 cm tall and 737 to 800 g; a square must hold it with
    room to drift. A 30 cm square (every starter pack's printed square) holds it.
 4. **Real ducks.** A "Measure my duck" check in Studio: 1 to 4 Walk cards and four Turns, with
@@ -477,13 +482,21 @@ stop each sample must produce (`cardreader/tests/make_cardloop_vectors.py` write
   `vyaw = heading_gain x heading error - cross_gain x (distance left of the line)` (the sign of the
   second term flips walking back), clamped to `max_yaw`. Stop when the distance along the board
   heading from the card's board pose reaches `square_m - stop_early_m` (`back_stop_early_m` walking
-  back, which coasts further), or after `max_s`.
-- **Turn.** Turn at the card's yaw rate, with `forward` speed, toward the board heading plus or
-  minus a quarter turn. Within `stop_early_deg` of it: hold still for `settle_s`; then done if
-  within `tolerance_deg`, else up to `trims` trims at `trim_rate` (stopping `trim_stop_early_deg`
-  short), each followed by a settle; out of trims is "trimmed out", and `max_s` is "out of time".
-  Either is said, and the row stops there (below: a row ends at the first card that does not
-  arrive; until 2026-10-15 the row went on).
+  back, which coasts further), or after `max_s` ("out of time"). Less than `stall_m` further along
+  in `stall_s` is "stuck": the duck cannot do the card at the speeds it may be sent.
+- **Turn** (`duck-card-loop/1`, 2026-10-15, from `cardreader/sim/sysid/`). Turn at the card's yaw
+  rate toward the board heading plus or minus a quarter turn, and command still `lead` degrees
+  short of it, because the duck coasts on: 6 to 17 degrees at 1.0 rad/s in duck-sim, 20 to 31 on
+  a slippery floor with a late state. The row's first Turn card knows nothing yet and stops
+  `approach_deg` (20) short; every Turn card holds still `settle_s` (0.8 s) after its first stop
+  and measures how far it went on (`coast_deg`, clamped to `lead_deg`), and each later Turn card
+  in the row leads by the mean of the row's measured coasts. Then done if within `tolerance_deg`
+  (14), else up to `trims` trims at `trim_rate`, each stopping the measured coast short but held
+  at least `trim_min_s` (0.3 s; a shorter command turns the trunk, which springs back, and never
+  gets past the gait's dead band), each followed by a settle. Out of trims is "trimmed out",
+  not `stall_deg` closer in `stall_s` is "stuck", and `max_s` is "out of time". Each is said, and
+  the row stops there (below: a row ends at the first card that does not arrive; until
+  2026-10-15 the row went on).
 - **Between cards** the duck holds still for `between_s`. Commands go at `control_hz` (20 Hz); a
   pose older than `stale_s` mid-card stops the card and the row ("The duck stopped reporting
   where it is, so the row stopped there.").
@@ -498,13 +511,14 @@ stop each sample must produce (`cardreader/tests/make_cardloop_vectors.py` write
   past it, both readers' tests fail on one, and so does `scripts/check_duckcards_vectors.sh`.
   Studio's sticks are held inside it too (`DuckDrive.maxTurn` is 1.0, was 1.5).
 - **Speed cards on a distance card** set the speed, not the distance: Walk forward walks at
-  0.30, 0.35 or 0.40 (Slow, Normal, Fast), all above the gait's dead band (below about 0.25 the
-  canon plant marches on the spot). Walk back walks at 0.40 at every speed and a Turn card turns
-  at 1.0 at every speed, the envelope's limits (2026-10-15, clamped from 0.45 and 1.5 with no
-  other tuning). **Both are below what duckbench's canon plant needed** (about 0.45 to walk back;
-  at 1.2, 34 Turn cards in 40 rows never arrived). Whether Pollen's v8 velstand, which tracks yaw
-  commands, walks back and turns in place at them is for the duck-sim run to measure against
-  "Acceptance", above. The duckbench numbers below were measured with the unclamped spec.
+  0.30, 0.35 or 0.40 (Slow, Normal, Fast). Walk back walks at 0.40 at every speed and a Turn card
+  turns at 1.0 at every speed, the envelope's limits. **On Pollen's v8 velstand in duck-sim all of
+  them clear the dead band** (`cardreader/sim/sysid/`, steps through `robot.move`): it stands
+  still up to 0.20 forward and walks every time from 0.25; stands still up to -0.30 and walks
+  back every time from -0.35; turns in place every time from 0.625 rad/s left and 0.5 right, at
+  about 64 degrees a second at 1.0. duckbench's canon plant needed more (about 0.45 back, 1.2 to
+  turn in place); the duckbench numbers below were measured with the unclamped spec on that
+  plant.
 - **The off switch.** `duck-card-loop.json` carries `"enabled_on_robot": false` and
   `"validated": null`, read by both StudioKit (`DuckCardLoop.spec.enabledOnRobot`) and the reader
   (`cardloop.ENABLED_ON_ROBOT`). Off, `RobotPlan` turns a Duck Cards plan's Walk and Turn into
@@ -527,6 +541,74 @@ stop each sample must produce (`cardreader/tests/make_cardloop_vectors.py` write
   odometry, so Walk and Turn cards run as timed cards, two seconds each, and do not land on board
   squares." Studio subscribes to the state stream before a card plan runs; the card reader keeps
   its fall watch's latest frame at 20 Hz for the same purpose.
+
+### Closed-loop cards: Pollen's duck-sim, 2026-10-15 (Acceptance, rung 1)
+
+**Method.** Pollen's own robotd (pollen-robotics/microduck `d7560ef`) driving Pollen's v8
+velstand (the Hub's `microduck-policies` v8) in duck-sim's MuJoCo body (microduck_rl develop
+`b02fdea4`), the card reader's runner closing Walk and Turn on the `odom` robotd reports, under
+`duck-card-loop/1` (sha256 `96df70b5`); MuJoCo's trunk scores, the controller never sees it.
+First, why duck-sim did not walk (docs/POLLEN-ISSUE-duck-sim-walk.md: duck-sim pins the retired
+`alpha_walking` + `alpha_stand` pair, and every command tried was under the gait's dead band);
+then system identification through `robot.move` only (`cardreader/sim/sysid/`: dead bands,
+delays, time constants, gains, coast, the deadman, the state rate a client sees, odometry against
+truth); then the controller re-tuned from it (stuck exit, caps inside 8 s and 6 s, a Turn card
+that measures its coast and leads by it); then the Monte Carlo, 4,128 rows
+(`cardreader/sim/results/`, RESULTS.md has every number and interval; the conditions and how
+each knob was applied are in its README). Every command stayed inside Pollen's pad envelope and
+v8's training ranges (both vx +-0.4 m/s, vyaw +-1.0 rad/s).
+
+**The pre-registered rows** (duckbench's seven and Measure my duck's five; position and heading
+over rows that finished, median / p95 / max; a row that ended early fails both):
+
+| condition | rows | position within 10 cm | position error | heading within 15 degrees | heading error | falls (Wilson upper) | time | ending badly |
+|---|---|---|---|---|---|---|---|---|
+| nominal, 20 Hz | 455 | **PASS** 98.7% | 2.3 / 4.7 / 6.0 cm | **PASS** 98.7% | 2.5 / 9.8 / 14.0 deg | **PASS** 0 (0.84%) | **PASS** | **PASS** 6 of 6 |
+| randomized, 20 Hz | 455 | **PASS** 96.9% | 3.5 / 8.0 / 13.4 cm | **PASS** 96.7% | 3.9 / 12.3 / 35.3 deg | **PASS** 0 (0.84%) | **PASS** | **PASS** 7 of 7 |
+| randomized, 10 Hz | 455 | **PASS** 97.1% | 3.4 / 7.5 / 10.7 cm | **PASS** 96.9% | 3.8 / 12.1 / 16.6 deg | **PASS** 0 (0.84%) | **PASS** | **PASS** 8 of 8 |
+| stressed, 10 Hz | 455 | **FAIL** 86.8% | 5.3 / 11.2 / 15.7 cm | **FAIL** 87.3% | 6.3 / 16.5 / 23.4 deg | **PASS** 0 (0.84%) | **PASS** | **PASS** 26 of 26 |
+
+**The rows with Walk back, on their own** (403 per condition; F F B and F(slow) F(fast) L(slow)
+F R(fast) B(slow)): nominal **PASS** (99.3%, 99.3%, 0 falls, upper 0.94%); randomized **PASS**
+(96.8%, 98.3%); randomized at 10 Hz **FAIL** on position (92.8%; heading 96.0%); stressed
+**FAIL** (79.9%, 84.1%). Walk back overshoots: it coasts 3 to 4 cm nominal and more with a late
+state, so the last Walk back ends 10 to 14 cm off in the failing rows.
+
+**Times.** No card past its bound in any condition: a Walk card p95 3.2 to 3.5 s (max 4.0 s
+against 8), a Turn card p95 2.4 to 4.6 s (max 5.4 s against 6), over 13,826 Walk and 6,558 Turn cards.
+
+**Ending badly.** 148 of 4,128 rows ended early, every one with the duck commanded still, one
+sentence and a stop: 147 Turn cards trimmed out (most under stress) and one Walk back stuck (it
+did not start backing in 2 s on the slippery floor). No row fell, lost its state or ran out of
+time, so those three exits are held by unit tests and vectors only, not by the simulator.
+
+**Rung 1 verdict: not passed.** Nominal and randomized (20 Hz) pass every criterion, Walk back
+included. Randomized at Studio's 10 Hz fails on Walk back's position (92.8% against 95%), and the
+stressed condition (every range at its far end at once) fails position and heading: a 5%
+odometry scale error and a 0.5 degree-a-second IMU drift are invisible to a controller that
+closes on that odometry, and in-place turns coast 20 to 31 degrees on that floor with that
+latency. `enabled_on_robot` stays false and the packs' `duck_square_*` fields are unchanged.
+
+**The packs' own rows** (not pre-registered, reported): every challenge `solution` of the four
+starter packs (2 to 28 cards) with the hand rows, about 200 rows per condition. Nominal passes
+(99.5%, 99.5%). Under randomization the long rows fail: odometry error grows with the distance
+and time of a row (loop-9's 28 cards take about 90 s; 0.5 degrees a second of IMU drift is 45
+degrees by its end), so position within a third of a square holds for 79% (20 Hz) and 77%
+(10 Hz) of rows, and 44% stressed. Short rows behave like the pre-registered ones (RESULTS.md, by
+row).
+
+**The square.** 30 cm stays: a Walk card takes about 2.8 s (median) at 0.35 m/s commanded, well
+inside 8 s; the errors that fail rows are proportional to how far and how long a duck goes, so a
+smaller square would not shrink them relative to the square, and a larger one would make a card
+slower and a board larger than a classroom floor. Nothing in the data argues for changing it.
+
+**Not verified.** A real duck: none has run a closed-loop card (rung 3, Measure my duck). A second
+machine: `cardreader/sim/validate.sh` reproduced the pipeline from a fresh directory on the same
+machine (4 rows a batch), not on another (rung 2). duck-sim's body drives the scene's position
+servos, which `infer_policy.py` says are not the actuator v8 was trained with; real servos, real
+floors, a real IMU's drift and real foot slip are modelled only by the randomized ranges. The
+fall, stale-state and out-of-time exits never fired in the simulator. Studio's Swift runner ran
+its unit tests and vectors on Linux, not against duck-sim.
 
 ### Closed-loop cards: duckbench, 2026-10-15
 

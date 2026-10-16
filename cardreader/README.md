@@ -176,7 +176,7 @@ pollen-robotics/microduck 648bf22 and microduck_rl's develop b02fdea4:
 | A Your card (card 201 = Kick, left; Kick, right) | `--deck`: both kicks, in order, 1.5 s apart, once. |
 | Repeat with a 3 written on it | Read at 10 cm (6 frames of 7); at 15 cm 2 of 7, never a wrong number. The simulator's camera has 0.41 of the robot's pixels, so 10 cm there is about 25 cm on the robot. |
 | A row on the floor, 32 cm | No code found: too few pixels in the simulator's camera. At 22 cm the row read except its End. |
-| Walking | Rows send `robot.move` and robotd applies it, but the simulated duck takes no steps; Pollen's own `duck-sim drive` does the same with the v8 policies. A simulator and policy matter, worth raising with Pollen. |
+| Walking | On 2026-10-14 rows sent `robot.move`, robotd applied it, and the duck took no steps. Why (2026-10-15, docs/POLLEN-ISSUE-duck-sim-walk.md): duck-sim pins the retired `alpha_walking` + `alpha_stand` pair, not the v8 velstand a robot runs, and every command sent (duck-sim `drive` 0.15, Studio's timed 0.2) was under the gait's dead band. `up.sh` now loads v8 velstand through robotctl, and closed-loop cards walk and turn: `cardreader/sim/sysid/` (what the duck does with each command) and `cardreader/sim/results/` (the Monte Carlo against docs/PACKS.md, "Acceptance"). |
 
 To run it again (`cardreader/sim/`, Ubuntu 24.04 without a GPU):
 
@@ -225,7 +225,7 @@ long side, the robot's 62°, which `--camera-degrees` tells the joins.
 ## Tests
 
 ```sh
-python3 -m unittest discover -s cardreader/tests -v     # 136 tests, about 35 s
+python3 -m unittest discover -s cardreader/tests -v     # 169 tests, about 35 s
 scripts/check_duckcards_vectors.sh                       # the two readers' contract
 python3 scripts/check_duck_packs.py                      # every pack's pars and rows
 ```
