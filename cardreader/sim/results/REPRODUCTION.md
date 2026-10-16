@@ -43,7 +43,7 @@ cannot take the machine down; it changes nothing in the run.
 |---|---|---|---|
 | 1 | 2026-10-16T00:54:29Z | setup (clone, cargo build, venvs, v8 policies) in about 3 min; sysid (00:58 to 01:16); batch `raw` (209 rows x 4 conditions, 01:16 to 02:57) | Another session's node/npm work on the same Pi took memory from about 04:05Z (MemAvailable fell to 500 to 900 MB, load 15 to 56). All four `raw-acceptance` processes died together at 04:29Z (`TimeoutError: timed out` on robotd's socket) at 366 to 374 of 400 rows; validate.sh's `wait` returned and went on, so `raw-back` ran 111 rows under the same starvation and died at 05:02Z (`robot.stop: no answer in 10.0 s`), `raw-rate` could not bring a body up, and the Pi rebooted at 05:06Z (a memory reboot: throttled 0x0, 5 V steady). |
 | 2 | 2026-10-16T06:08:37Z | `raw` was complete, so it resumed in seconds (SKIP_SYSID=1) | A local llama-server another session started at 07:25Z took memory (MemAvailable about 550 MB); the Pi rebooted at 07:40Z with `raw-acceptance` at 331 to 336 of 400. |
-| 3 | 2026-10-16T15:20:54Z | `raw-acceptance` (400 rows x 4 conditions, 15:21 to 17:08, uninterrupted); `raw-back` running | |
+| 3 | 2026-10-16T15:20:54Z | `raw-acceptance` (400 rows x 4 conditions, 15:21 to 17:08) and `raw-back` (320 x 4, 17:08 to 18:46), both uninterrupted; `raw-rate` running | |
 
 The rows of the unfinished batches from runs 1 and 2 are kept on the machine
 (`~/duck-packs-repro/interrupted/`), not used: part of each ran while the bodies were behind
@@ -87,3 +87,4 @@ onnxruntime 1.24.4 and numpy 2.4.1 all have aarch64 wheels) and the v8 seed work
 - `repro/sysid/sysid.md`, `repro/sysid/sysid.json`: this machine's system identification (run 1).
 - `repro/raw/*.jsonl`: batch `raw`, 209 rows per condition (run 1).
 - `repro/raw-acceptance/*.jsonl`: batch `raw-acceptance`, 400 rows per condition (run 3).
+- `repro/raw-back/*.jsonl`: batch `raw-back`, 320 rows per condition (run 3).
