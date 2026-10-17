@@ -57,7 +57,9 @@ public enum DuckDrive {
     // comment says so rather than quietly picking a winner.
 
     /// The fastest forward this offers, metres per second — `padd`'s
-    /// `--max-linear` default.
+    /// `--max-linear` default. Inside Pollen's pad envelope (0.4 since the v8
+    /// velstand, `DuckCardLoop.envelope`); left at 0.3, the speed duckbench
+    /// measured and the one the sticks have always had.
     ///
     /// THE BENCH HAS RUN BOTH THIS AND FASTER. `alpha_walking` covers 0.681 m
     /// in six seconds at vx = 0.3 and 1.207 m at 0.5, so 0.3 is comfortably a
@@ -74,13 +76,17 @@ public enum DuckDrive {
     /// Strafing, m/s. `padd` scales `vy` by the same `--max-linear`.
     public static let maxSideways = 0.3
 
-    /// Turning, rad/s — `padd`'s `--max-angular` default.
+    /// Turning, rad/s: Pollen's pad envelope, `PadDriveParams::default()`
+    /// `vyaw_max` (`DuckCardLoop.envelope`, `Resources/DuckCards/pollen-pad-drive.json`).
     ///
-    /// FIVE TIMES THE FIRST GUESS MADE HERE, which was 0.5 for no reason except
-    /// symmetry with the forward figure. Turning and walking are not the same
-    /// units and do not share a range; a duck limited to 0.5 rad/s would have
-    /// felt sluggish and wrong to anybody who had used the real pad.
-    public static let maxTurn = 1.5
+    /// IT WAS 1.5, `padd`'s old `--max-angular` default. Pollen moved the pad
+    /// to 1.0 with the v8 velstand, which tracks yaw commands: "what that
+    /// policy follows well on the robot" (robotd-params, 34b6e7d). robotd does
+    /// not clamp a `robot.move` to it, so this side does: the sticks, typed
+    /// moves and every plan's turn now top out at 1.0 rad/s. It is still
+    /// twice the first guess made here (0.5, for symmetry with the forward
+    /// figure): turning and walking are not the same units.
+    public static let maxTurn = 1.0
 
     /// Stick deflection below which the axis reads as centred — `padd`'s
     /// `--deadzone` default, applied per axis exactly as it does.
@@ -492,8 +498,11 @@ public enum DuckDrive {
       + "commands — but nothing here has spoken to a duck, and until something has, every number "
       + "on this screen came out of a simulator.\n\n"
       + "The commands are the real ones. Pollen\'s robot.move takes vx, vy and vyaw in the trunk "
-      + "frame, and the speeds these sticks reach are padd\'s own defaults — 0.3 m/s and "
-      + "1.5 rad/s — so a stick pushed half way here asks for what it would ask for there.\n\n"
+      + "frame, and the speeds these sticks reach are inside Pollen's own pad limits: "
+      + String(format: "%.1f m/s and %.1f rad/s here, ", maxForward, maxTurn)
+      + String(format: "where the pad goes to %.1f m/s and %.1f rad/s. ",
+               DuckCardLoop.envelope.forward, DuckCardLoop.envelope.turn)
+      + "So a stick pushed half way here asks for no more than it would there.\n\n"
       + "One thing here is softer than a robot. This world only advances while a command is in "
       + "flight, so letting go stops it mid-stride. A real move expires instead, on a deadman "
       + "this does not need and hardware would."

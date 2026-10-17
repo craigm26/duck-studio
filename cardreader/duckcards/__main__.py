@@ -9,6 +9,15 @@ watch, from a laptop:     python3 -m duckcards watch --frame-url http://duck.loc
 Add --dry-run to read and say what would be sent without sending it, and --deck class.duckcards
 to read a class's own deck, with the Your cards it saved. A row longer than the picture is read
 by turning the head along it (`[scan]` lines say how); --no-scan keeps the head still.
+
+Walk and Turn cards are one board square and a quarter turn, closed on robotd's odometry
+(cardloop.py) when the duck's state stream carries `odom`; a duck that does not report it runs
+them as timed cards, two seconds each, and the reader says so.
+
+With --pack get-to-the-pond (a starter pack's id) or --pack class.duckpack, the reader lends the
+pack's Your cards and notes any card the pack does not play; it still runs it. Add --challenge
+pond-3 to hear each row played on that challenge's board: the board's answer, not where the duck
+stopped.
 """
 
 from __future__ import annotations
@@ -19,7 +28,7 @@ import os
 import sys
 import time
 
-from . import pan
+from . import packs, pan
 from .cards import Deck
 from .layout import arrange
 from .program import check_plan, plan, read
@@ -44,10 +53,58 @@ def _deck(path: str | None) -> Deck:
     return deck
 
 
+def _pack(args, deck: Deck, say=print):
+    """The deck with a pack's Your cards lent to it, the pack, and the challenge asked for, or the
+    deck alone when no pack is named. Refused with a sentence: a pack that cannot be read, a
+    challenge the pack does not have."""
+    if not args.pack:
+        if args.challenge:
+            raise SystemExit("--challenge names a challenge in a pack; give the pack with --pack.")
+        return deck, None, None
+    try:
+        pack = packs.find(args.pack, deck)
+    except packs.PackError as e:
+        raise SystemExit(f"cannot use the pack {args.pack}: {e}")
+    lent, clashes = pack.lend(deck)
+    say(f"pack: {pack.name}, for {pack.grades}, {len(pack.challenges)} challenges, scored by {pack.score}.")
+    for line in packs.lent_words(pack, deck, clashes):
+        say(line)
+    challenge = None
+    if args.challenge:
+        try:
+            challenge = pack.challenge(args.challenge)
+        except KeyError:
+            raise SystemExit(f"{pack.name} has no challenge {args.challenge}; its challenges are "
+                             f"{packs.listed([c.id for c in pack.challenges])}.") from None
+        say(f"challenge: {challenge.name} ({challenge.id}), par {challenge.par}. Hint: {challenge.hint}")
+    return lent, pack, challenge
+
+
+def _outside(pack, program, deck: Deck, say, indent: str = "  ") -> None:
+    """A note per card laid that the pack does not play. Nothing is refused: the row still runs."""
+    if pack is not None:
+        for note in packs.outside(pack, program, deck):
+            say(f"{indent}note: {note}")
+
+
+# DEVELOPER ONLY: `watch --measured-cards`. Closed-loop Walk and Turn cards ship off for real ducks
+# (duck-card-loop.json `enabled_on_robot: false`, docs/PACKS.md "Acceptance"); this turns them on
+# for duck-sim work, and says so when the reader starts.
+MEASURED_CARDS_LABEL = ("DEVELOPER: --measured-cards is on. Walk and Turn cards close on robotd's odometry, "
+                        "which is off for real ducks until docs/PACKS.md Acceptance passes. For duck-sim work.")
+
+
+def _board(pack, challenge, program, deck: Deck, say, indent: str = "  ", measured_cards: bool | None = None) -> None:
+    """With a challenge, the row played on its board, as a report after the row has run."""
+    if pack is not None and challenge is not None and program.steps:
+        for line in packs.report(pack, challenge, program, deck, measured_cards)[1]:
+            say(f"{indent}{line}")
+
+
 def cmd_read(args) -> int:
     from PIL import Image
     import numpy as np
-    deck = _deck(args.deck)
+    deck, pack, challenge = _pack(args, _deck(args.deck))
     status = 0
     for path in args.pictures:
         gray = np.asarray(Image.open(path).convert("L"))
@@ -61,6 +118,8 @@ def cmd_read(args) -> int:
             print(f"  note: {note}")
         if program.steps:
             print(f"  reads: {program.words}")
+            _outside(pack, program, deck, print)
+            _board(pack, challenge, program, deck, print)
             if args.plan:
                 print(json.dumps(check_plan(plan(program)), indent=2))
         else:
@@ -84,7 +143,7 @@ class DryRobot:
 
 def cmd_watch(args) -> int:
     from . import duck, runner
-    deck = _deck(args.deck)
+    deck, pack, challenge = _pack(args, _deck(args.deck))
     # How a card's place in the picture becomes an angle, for joining looks: the real camera's,
     # unless this is a camera with another lens (duck-sim's renders 72.7° along its long side).
     pan.LONG_SIDE_DEG = args.camera_degrees
@@ -101,6 +160,9 @@ def cmd_watch(args) -> int:
         robot = connect()
     falls = duck.FallWatch(connect).start() if connect else None
     say = lambda s: print(s, flush=True)   # noqa: E731
+    measured = True if args.measured_cards else None
+    if measured:
+        say(MEASURED_CARDS_LABEL)
 
     def voice(tag):
         try:
@@ -167,6 +229,7 @@ def cmd_watch(args) -> int:
                 say(f"[{event.kind}] {event.program.words or '(nothing to run)'}")
                 for note in event.program.notes:
                     say(f"  note: {note}")
+                _outside(pack, event.program, deck, say)
                 if event.kind == "unfinished":
                     voice("inquire")
                 else:
@@ -178,18 +241,22 @@ def cmd_watch(args) -> int:
                         # A row cannot walk a duck whose policy is off. The pad's Start turns it on;
                         # so does this, and only when there is something to run, never at startup.
                         robot.call("robot.enable", {"on": True})
-                        outcome = runner.run(runner.beats(event.program.steps), robot, heads=args.heads, say=say)
+                        outcome = runner.run(runner.beats(event.program.steps), robot, heads=args.heads, say=say,
+                                             state=falls.state if falls else None, measured=measured)
                     except runner.Refusal as r:
                         outcome = str(r)
                         voice("alarm")
                     say(f"  {outcome}")
+                    # The board play is a report on a row that has run; it never stops one.
+                    _board(pack, challenge, event.program, deck, say, measured_cards=measured)
                     watcher.ran(time.time())
                     look_again()
             if falls and falls.recovered.is_set():
                 falls.recovered.clear()
                 if on_fall:
                     say("[fell] running the When it falls row")
-                    runner.run(runner.beats(on_fall), robot, heads=args.heads, say=say)
+                    runner.run(runner.beats(on_fall), robot, heads=args.heads, say=say,
+                               state=falls.state if falls else None, measured=measured)
                     watcher.ran(time.time())
                     look_again()
             if gaze:
@@ -218,6 +285,9 @@ def main(argv=None) -> int:
     r.add_argument("pictures", nargs="+")
     r.add_argument("--plan", action="store_true", help="print the duck-intent-plan/0 too")
     r.add_argument("--deck", help="a class's deck file (.duckcards), with its Your cards")
+    r.add_argument("--pack", help="a pack: a .duckpack file, or a starter pack's id such as get-to-the-pond")
+    r.add_argument("--challenge", help="a challenge in the pack, such as pond-3: each row is played on its "
+                        "board and reported (the board's answer, not where the duck stopped)")
     r.add_argument("--no-numbers", action="store_true", help="do not read the number written on Repeat; ask for it")
     r.set_defaults(fn=cmd_read)
     w = sub.add_parser("watch", help="the duck reads cards and does them")
@@ -241,7 +311,13 @@ def main(argv=None) -> int:
     w.add_argument("--hands-off", type=float, default=1.5, help="seconds between reading a row and running it")
     w.add_argument("--upscale", action="store_true", help="every other picture at twice the size: farther cards, more CPU")
     w.add_argument("--deck", help="a class's deck file (.duckcards), with its Your cards")
+    w.add_argument("--pack", help="a pack: a .duckpack file, or a starter pack's id such as get-to-the-pond")
+    w.add_argument("--challenge", help="a challenge in the pack, such as pond-3: each row is played on its "
+                        "board and reported (the board's answer, not where the duck stopped)")
     w.add_argument("--dry-run", action="store_true", help="read and say, send nothing")
+    w.add_argument("--measured-cards", action="store_true",
+                   help="DEVELOPER, for duck-sim work: run Walk and Turn closed on robotd's odometry. They ship "
+                        "off for real ducks until docs/PACKS.md Acceptance passes; without this they are timed")
     w.add_argument("--no-numbers", action="store_true", help="do not read the number written on Repeat; ask for it")
     w.set_defaults(fn=cmd_watch)
     args = p.parse_args(argv)

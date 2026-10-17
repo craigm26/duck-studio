@@ -40,7 +40,9 @@ final class DuckCardsTests: XCTestCase {
     func vectors() throws -> [Vector] {
         let dir = try XCTUnwrap(Bundle.module.url(forResource: "Fixtures/DuckCards/vectors", withExtension: nil))
         let files = try FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)
-            .filter { $0.pathExtension == "json" }.sorted { $0.lastPathComponent < $1.lastPathComponent }
+            // The pack vectors (`pack_*.json`) share the folder and are `DuckPacksTests`' to read.
+            .filter { $0.pathExtension == "json" && !$0.lastPathComponent.hasPrefix("pack_") }
+            .sorted { $0.lastPathComponent < $1.lastPathComponent }
         return try files.map { url in
             let top = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
             let dets = (top["detections"] as? [[String: Any]] ?? []).map { d -> DuckCards.Detection in

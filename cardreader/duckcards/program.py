@@ -27,7 +27,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 
-from .cards import REPEAT_MOST, Card, Deck, Seen
+from .cards import REPEAT_MOST, Card, Deck, Entry, Seen
 from .layout import Layout, Row, Slot
 
 FORMAT = "duck-intent-plan/0"
@@ -75,6 +75,24 @@ class Program:
     # The Repeat cards whose number nobody could read, counted along the row from 0 (then along
     # the When it falls row). The row waits for these: Studio asks, the duck asks with a sound.
     asks: list[int] = field(default_factory=list)
+    # The cards as they were laid, before Repeat is unrolled or a Your card opened: the row between
+    # Start and End (or the one card held up), and the When it falls row after its first card. A
+    # pack counts and names these (`packs.py`), because a class lays cards, not steps.
+    row: list[Entry] = field(default_factory=list)
+    fall_row: list[Entry] = field(default_factory=list)
+
+    @property
+    def laid(self) -> list[str]:
+        """Every card code laid in the rows that run, under-cards included, Start and End and
+        When it falls among them when they were laid."""
+        codes = ["start", "end"] if self.kind == "row" else []
+        for e in self.row:
+            codes += [e.card, *e.under]
+        if self.fall_row or self.on_fall:
+            codes.append("when_falls")
+        for e in self.fall_row:
+            codes += [e.card, *e.under]
+        return codes
 
     @property
     def words(self) -> str:
@@ -124,6 +142,11 @@ class _Reading:
         self.counts = dict(counts or {})
         self.repeats = 0
         self.asks: list[int] = []
+
+
+def _laid(slots: list[Slot]) -> list[Entry]:
+    return [Entry(card=s.card.card.code, under=tuple(u.card.code for u in s.under), times=s.card.count)
+            for s in slots]
 
 
 def _saved(card: Card, times: int | None = None) -> Seen:
@@ -224,6 +247,22 @@ def _open(card: Card, notes: list[str], state: _Reading, inside: tuple[int, ...]
     return _compile(slots, notes, state, inside + (tag,))
 
 
+def table(row, deck: Deck) -> Layout:
+    """A saved row laid out the way a reader lays out a table: Start, the row, End.
+
+    ONE WAY TO TURN A SAVED ROW INTO STEPS. Studio reads a Your card back this way
+    (`DuckCards.table`), and a pack's rows go the same way (`packs.py`), so a row written in a
+    file unrolls its Repeats and opens its Your cards exactly as the same cards laid on the floor
+    would. Where each card lies does not matter to `read`, only what it is and what is under it.
+    `row` is a list of `Entry`; every code in it must be in the deck."""
+    slots = [Slot(card=_saved(deck.by_code("start")))]
+    for e in row:
+        slots.append(Slot(card=_saved(deck.by_code(e.card), e.times),
+                          under=[_saved(deck.by_code(u)) for u in e.under]))
+    slots.append(Slot(card=_saved(deck.by_code("end"))))
+    return Layout(rows=[Row(slots=slots)], turned=[], direction=(1.0, 0.0))
+
+
 def read(layout: Layout, deck: Deck, counts: dict[int, int] | None = None) -> Program:
     """The program in a picture's rows.
 
@@ -249,6 +288,8 @@ def read(layout: Layout, deck: Deck, counts: dict[int, int] | None = None) -> Pr
         names = ", ".join(s.card.name for s in layout.turned)
         notes.append(f"Turned the other way from the rest, so not read: {names}.")
     end = None
+    laid: list[Slot] = []
+    fall_laid: list[Slot] = []
     if main is None:
         actions = [s for r in layout.rows if r is not fall_row for s in r.slots
                    if s.card.card.kind in ("action", "yours")]
@@ -256,6 +297,7 @@ def read(layout: Layout, deck: Deck, counts: dict[int, int] | None = None) -> Pr
                   if s.card.card.kind not in ("action", "yours")]
         if len(actions) == 1 and not [o for o in others if o.card.card.kind == "control"]:
             kind, steps = "card", _compile(actions, notes, state)
+            laid = actions
         else:
             if actions:
                 notes.append("These cards have no Start, so there is no row to run yet.")
@@ -275,6 +317,7 @@ def read(layout: Layout, deck: Deck, counts: dict[int, int] | None = None) -> Pr
                 notes.append("Cards after End are not part of the row.")
             body = main.slots[start + 1:end]
         steps = _compile(body, notes, state)
+        laid = body
         if len(steps) > MAX_STEPS:
             notes.append(f"The row unrolls to {len(steps)} steps; a duck runs at most {MAX_STEPS}.")
             steps = steps[:MAX_STEPS]
@@ -282,7 +325,8 @@ def read(layout: Layout, deck: Deck, counts: dict[int, int] | None = None) -> Pr
     if fall_row is not None:
         body = fall_row.slots[1:]
         ends = [k for k, s in enumerate(body) if s.card.card.code == "end"]
-        on_fall = _compile(body[:ends[0]] if ends else body, notes, state)
+        fall_laid = body[:ends[0]] if ends else body
+        on_fall = _compile(fall_laid, notes, state)
     if kind == "card":
         complete = bool(steps) and not state.asks
     elif kind == "row":
@@ -293,7 +337,7 @@ def read(layout: Layout, deck: Deck, counts: dict[int, int] | None = None) -> Pr
     # `asks` keeps the count.
     said = list(dict.fromkeys(notes))
     return Program(steps=steps, on_fall=on_fall, notes=said, complete=complete, kind=kind,
-                   asks=list(state.asks))
+                   asks=list(state.asks), row=_laid(laid), fall_row=_laid(fall_laid))
 
 
 def plan(program: Program, steps: list[Step] | None = None) -> dict:

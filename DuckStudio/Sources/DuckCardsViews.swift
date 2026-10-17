@@ -1,13 +1,13 @@
 import SwiftUI
 import StudioKit
 
-/// What the camera card opens: cards held still, for the plan editor or to save as a Your card, or
-/// the class deck the cards are read with.
+/// What the camera card opens: cards held still, for the plan editor or to save as a Your card, the
+/// class deck the cards are read with, or the Duck Card packs.
 struct DuckCardsOpening: Identifiable {
-    enum Kind { case plan, save, deck }
+    enum Kind { case plan, save, deck, packs }
     let id = UUID()
     let kind: Kind
-    /// The reading held still when the button was pressed; nil for the class deck.
+    /// The reading held still when the button was pressed; nil for the class deck and the packs.
     let held: DuckCards.Reading?
 }
 
@@ -28,6 +28,8 @@ struct DuckCardsSheet: View {
     var robot: BridgeLink? = nil
     var models: EndpointStore? = nil
     var stopDriving: (() async -> Void)? = nil
+    /// The camera card's feed, so a pack's challenge can take the row the camera reads now.
+    var camera: DuckCameraFeed? = nil
 
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var store = DuckCardsStore.shared
@@ -53,6 +55,8 @@ struct DuckCardsSheet: View {
     @ViewBuilder private var content: some View {
         if opening.kind == .deck {
             DuckCardsDeckView()
+        } else if opening.kind == .packs {
+            DuckPacksView(camera: camera, robot: robot, models: models, stopDriving: stopDriving)
         } else if let held = opening.held, let deck = store.deck {
             if let reading = answered(held, deck) {
                 if opening.kind == .plan {

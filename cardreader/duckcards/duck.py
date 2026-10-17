@@ -197,13 +197,17 @@ class Robot:
 
 
 class FallWatch:
-    """`robot.subscribe` on a connection of its own, watching `safety.fallen`.
+    """`robot.subscribe` on a connection of its own, watching `safety.fallen`, and keeping the
+    latest frame for whoever steers on it.
 
     A fall is over when the duck reports it is no longer fallen: Pollen's robot stands itself up,
-    and only then is a When it falls row worth running."""
+    and only then is a When it falls row worth running. The latest frame and when it arrived are
+    what Walk and Turn cards close on (`state()`, `runner.run(state=...)`), so it is subscribed at
+    the card loop's own rate."""
 
-    def __init__(self, connect, hz: int = 5):
-        self.connect, self.hz = connect, hz
+    def __init__(self, connect, hz: int = 20, clock=time.time):
+        self.connect, self.hz, self.clock = connect, hz, clock
+        self.latest: tuple[dict, float] | None = None
         self.fallen = False
         self.recovered = threading.Event()
         self._stop = threading.Event()
@@ -215,6 +219,10 @@ class FallWatch:
 
     def stop(self) -> None:
         self._stop.set()
+
+    def state(self) -> tuple[dict, float] | None:
+        """The latest `robot.state` params and when they arrived, or None before the first."""
+        return self.latest
 
     def _run(self) -> None:
         while not self._stop.is_set():
@@ -229,7 +237,9 @@ class FallWatch:
                         continue
                     if msg.get("method") != "robot.state":
                         continue
-                    fallen = bool(((msg.get("params") or {}).get("safety") or {}).get("fallen"))
+                    params = msg.get("params") or {}
+                    self.latest = (params, self.clock())
+                    fallen = bool((params.get("safety") or {}).get("fallen"))
                     if self.fallen and not fallen:
                         self.recovered.set()
                     self.fallen = fallen

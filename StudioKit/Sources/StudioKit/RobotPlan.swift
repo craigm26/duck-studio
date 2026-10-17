@@ -16,6 +16,14 @@ import DuckEvidence
 /// the same door the bench path resolves through, so slow, normal and fast mean the same thing
 /// on both and nothing a model said about a velocity reaches a motor.
 ///
+/// A DUCK CARD'S WALK AND TURN ARE TIMED ON A DUCK FOR NOW. Closed-loop cards ship off for real
+/// ducks (`DuckCardLoop.spec.enabledOnRobot`, docs/PACKS.md "Acceptance"): a plan read off Duck
+/// Cards runs Walk and Turn as `.move` beats, two seconds each, and says `DuckCardLoop.offNote`
+/// once (`cardsTimed`). With measured cards on (the spec's switch, or `measuredCards: true`, which
+/// only "Measure my duck" passes), they become `.card` beats, which `RobotPlanRunner` closes on
+/// robotd's odometry (`DuckCardLoop`) when the duck reports it, and runs as the timed twist they
+/// carry when it does not. Every other plan, and every other card, is unchanged.
+///
 /// WHAT `robot.stop` DOES AND DOES NOT DO, read from robotd (`intents.rs` `stop`, 1fa8438): it
 /// zeroes the twist. It does not cancel a skill already running — a kick is half a second and
 /// runs to its end. Every screen that runs one of these says so beside the button.
@@ -24,6 +32,9 @@ public struct RobotPlan: Equatable, Sendable {
     public enum Beat: Equatable, Sendable {
         /// Drive this twist for this long.
         case move(DuckDrive.Twist, seconds: Double, clause: String)
+        /// A Duck Card's Walk or Turn: one board square or a quarter turn on odometry
+        /// (`DuckCardLoop`), or, on a duck that does not report odometry, `timed` for `seconds`.
+        case card(String, speed: String?, timed: DuckDrive.Twist, seconds: Double, clause: String)
         /// Play one voice-bank sound.
         case sound(DuckSound, clause: String)
         /// Run one of the robot's skills by robotd's name, then wait for it.
@@ -31,7 +42,7 @@ public struct RobotPlan: Equatable, Sendable {
 
         public var clause: String {
             switch self {
-            case .move(_, _, let c), .sound(_, let c), .skill(_, _, let c): return c
+            case .move(_, _, let c), .sound(_, let c), .skill(_, _, let c), .card(_, _, _, _, let c): return c
             }
         }
     }
@@ -40,6 +51,9 @@ public struct RobotPlan: Equatable, Sendable {
     public let beats: [Beat]
     /// Parts of the plan that stay in it but are not sent, each said once.
     public let notSent: [String]
+    /// A Duck Cards plan whose Walk and Turn run timed because measured cards are off: the screen
+    /// and the runner say `DuckCardLoop.offNote`.
+    public let cardsTimed: Bool
 
     /// The plan's skill labels as the names a stock robotd answers to (`do_names`, robotd
     /// 1fa8438: `ground_pick` and `sit_toggle` are built in; the kicks and the roll are the
@@ -80,10 +94,13 @@ public struct RobotPlan: Equatable, Sendable {
         }
     }
 
-    /// The kept nodes, in their current order.
-    public init(_ plan: DuckIntentPlan) throws {
+    /// The kept nodes, in their current order. `measuredCards` is the spec's off switch unless a
+    /// caller that runs a test on purpose says otherwise.
+    public init(_ plan: DuckIntentPlan, measuredCards: Bool = DuckCardLoop.spec.enabledOnRobot) throws {
         var beats: [Beat] = []
         var heads = false
+        var timed = false
+        let cards = plan.model == DuckCards.model
         var total = 0.0
         for node in plan.nodes where !node.discarded && !node.isRefusal {
             if let slot = DuckIntentPlan.skills[node.action], let name = RobotPlan.robotdName[slot] {
@@ -102,18 +119,31 @@ public struct RobotPlan: Equatable, Sendable {
             let share = node.action == "stop" ? 1
                 : DuckIntentPlan.shares[node.labels["speed"] ?? "normal"] ?? 2.0 / 3.0
             let seconds = min(max(node.seconds, DuckDrive.holdSeconds), DuckSequence.maximumMoveSeconds)
-            beats.append(.move(try SequenceProposal.twist(for: go, share: share),
-                               seconds: seconds, clause: node.clause))
+            let twist = try SequenceProposal.twist(for: go, share: share)
+            if cards && DuckCardLoop.cards.contains(node.action) && measuredCards {
+                beats.append(.card(node.action, speed: node.labels["speed"], timed: twist, seconds: seconds,
+                                   clause: node.clause))
+            } else {
+                if cards && DuckCardLoop.cards.contains(node.action) { timed = true }
+                beats.append(.move(twist, seconds: seconds, clause: node.clause))
+            }
             total += seconds
         }
         guard !beats.isEmpty else { throw Refusal.nothingToRun }
         guard total <= DuckSequence.maximumSeconds else { throw Refusal.tooLong(total) }
         self.request = plan.request
         self.beats = beats
+        self.cardsTimed = timed
         self.notSent = heads
             ? ["Where the head looks is kept in the plan but not sent yet: a plan drives the body, "
              + "and the head stays where it is."]
             : []
+    }
+
+    /// Whether any beat is a Duck Card's Walk or Turn, which closes on robotd's odometry and so
+    /// wants the state stream while the plan runs.
+    public var closesOnOdometry: Bool {
+        beats.contains { if case .card = $0 { return true } else { return false } }
     }
 
     public var skillNames: [String] {
@@ -124,7 +154,7 @@ public struct RobotPlan: Equatable, Sendable {
         var m: Set<DuckMethod> = [.stop]
         for beat in beats {
             switch beat {
-            case .move: m.insert(.move)
+            case .move, .card: m.insert(.move)
             case .sound: m.insert(.sound)
             case .skill: m.formUnion([.skills, .doSkill, .move])
             }
@@ -137,6 +167,9 @@ public struct RobotPlan: Equatable, Sendable {
         switch beat {
         case .move(let t, let s, _):
             return String(format: "%.1f s at vx %.2f, vy %.2f, vyaw %.2f", s, t.vx, t.vy, t.vyaw)
+        case .card(let action, let speed, let t, let s, _):
+            return DuckCardLoop.spelled(action, speed: speed) + String(
+                format: "; without odometry, %.1f s at vx %.2f, vyaw %.2f", s, t.vx, t.vyaw)
         case .sound(let tag, _):
             return "Sound: \(tag.rawValue)"
         case .skill(let name, let s, _):
@@ -214,12 +247,49 @@ public enum RobotPlanRunner {
     public enum Event: Equatable, Sendable {
         case began(Int, RobotPlan.Beat)
         case said(String)
+        /// A closed-loop card ended: how (`CardEnd`), before the still moment after it.
+        case cardEnded(Int, CardEnd)
     }
+
+    /// How a closed-loop Walk or Turn card ended. Anything but `reached` ends the row there, with
+    /// the duck commanded still and one sentence (docs/PACKS.md, "Acceptance": a stuck, stale,
+    /// fallen or cannot-reach row ends safely and says which).
+    public enum CardEnd: String, Equatable, Sendable, Codable {
+        case reached
+        /// The pose stopped arriving, or was older than the spec's `stale_s`.
+        case lost
+        /// robotd's `safety.fallen` said the duck is down.
+        case fell
+        case outOfTime = "out of time"
+        case trimmedOut = "trimmed out"
+        /// No progress for the spec's `stall_s` (DuckCardLoop.Done.stuck).
+        case stuck
+
+        /// What a person hears when a card ends some other way than arriving. The card reader
+        /// says the same sentences (`runner.ENDED`).
+        public var said: String? {
+            switch self {
+            case .reached: return nil
+            case .lost: return DuckCardLoop.lostNote
+            case .fell: return DuckCardLoop.fellNote
+            case .outOfTime: return "The card ran out of time before it got there, so the row stopped there."
+            case .trimmedOut: return "The card stopped short of a quarter turn after its trims, so the row stopped there."
+            case .stuck: return "The duck could not do this card at the speeds it may be sent, so the row stopped there."
+            }
+        }
+    }
+
+    /// The latest `robot.state` the link has seen, or nil. Walk and Turn cards close on its
+    /// `odom` (`DuckCardLoop`); a duck that sends none runs them timed.
+    public typealias State = @Sendable () async -> DuckState?
 
     public enum Outcome: Equatable, Sendable {
         case finished
         /// The robot refused a beat; the plan stopped there.
         case refused(beat: Int, reason: String)
+        /// A closed-loop card did not arrive (lost, fell, out of time, trimmed out); the plan
+        /// stopped there, the duck commanded still.
+        case stopped(beat: Int, reason: String)
     }
 
     public enum Refusal: Error, Equatable {
@@ -246,7 +316,9 @@ public enum RobotPlanRunner {
     /// sending a best-effort stop).
     public static func run(_ plan: RobotPlan, on peer: any DuckPeer, interval: Double,
                            sleep: @escaping Sleep,
-                           event: @escaping @Sendable (Event) async -> Void = { _ in })
+                           event: @escaping @Sendable (Event) async -> Void = { _ in },
+                           state: State? = nil,
+                           now: @escaping @Sendable () -> Date = { Date() })
         async throws -> Outcome {
         for m in plan.methods.sorted(by: { $0.rawValue < $1.rawValue }) where !peer.reach.contains(m) {
             throw Refusal.outOfReach(m, peer.transportKind)
@@ -265,12 +337,53 @@ public enum RobotPlanRunner {
             skills = read
         }
         let tick = max(interval, 0.02)
+        var board: DuckCardLoop.Pose?
+        var timedSaid = false
+        // Every Turn card's measured coast this row; their mean is each later Turn card's lead.
+        var coasts: [Double] = []
+        if plan.cardsTimed { await event(.said(DuckCardLoop.offNote)) }
+        let pose: @Sendable () async -> DuckCardLoop.Pose? = {
+            guard let state, let s = await state(),
+                  now().timeIntervalSince(s.receivedAt) <= DuckCardLoop.spec.staleS else { return nil }
+            return DuckCardLoop.pose(of: s)
+        }
+        let fallen: @Sendable () async -> Bool = {
+            guard let state, let s = await state() else { return false }
+            return s.safety?.fallen == true
+        }
         do {
             for (i, beat) in plan.beats.enumerated() {
                 await event(.began(i, beat))
                 switch beat {
                 case .move(let twist, let seconds, _):
                     try await hold(twist, for: seconds, on: peer, tick: tick, sleep: sleep)
+                case .card(let action, let speed, let timed, let seconds, _):
+                    // A ROW THAT HAS BEEN CLOSING ON ODOMETRY DOES NOT FALL BACK TO TIMED MID-ROW.
+                    // The pose going missing between cards is the duck losing its state: the row ends.
+                    if board != nil, await pose() == nil {
+                        await event(.cardEnded(i, .lost))
+                        await event(.said(DuckCardLoop.lostNote))
+                        _ = try await peer.call(.stop)
+                        return .stopped(beat: i, reason: DuckCardLoop.lostNote)
+                    }
+                    guard let here = await pose(),
+                          var card = DuckCardLoop.Card(action: action, board: board ?? here, speed: speed,
+                                                       leadDeg: coasts.isEmpty ? nil : coasts.reduce(0, +) / Double(coasts.count)) else {
+                        if !timedSaid { await event(.said(DuckCardLoop.timedNote)); timedSaid = true }
+                        try await hold(timed, for: seconds, on: peer, tick: tick, sleep: sleep)
+                        board = nil
+                        continue
+                    }
+                    let ended = try await drive(&card, on: peer, pose: pose, fallen: fallen, sleep: sleep)
+                    board = card.boardAfter
+                    if let c = card.coastDeg { coasts.append(c) }
+                    await event(.cardEnded(i, ended))
+                    if let words = ended.said {
+                        await event(.said(words))
+                        _ = try await peer.call(.stop)
+                        return .stopped(beat: i, reason: words)
+                    }
+                    try await hold(.still, for: DuckCardLoop.spec.betweenS, on: peer, tick: tick, sleep: sleep)
                 case .sound(let tag, _):
                     let answer = RobotIntentAnswer.read(try await peer.call(.sound(tag)))
                     if !answer.accepted {
@@ -287,6 +400,11 @@ public enum RobotPlanRunner {
                     }
                     let wait = (skills.seconds[name] ?? seconds) + RobotPlan.settleSeconds
                     try await hold(.still, for: wait, on: peer, tick: tick, sleep: sleep)
+                    // A SKILL MOVES THE DUCK IN WAYS THE BOARD DOES NOT COUNT: the board's square
+                    // is put back where the duck stands, and its heading is kept.
+                    if let b = board {
+                        board = await pose().map { DuckCardLoop.Pose(x: $0.x, y: $0.y, h: b.h) }
+                    }
                 }
             }
         } catch {
@@ -295,6 +413,40 @@ public enum RobotPlanRunner {
         }
         _ = try await peer.call(.stop)
         return .finished
+    }
+
+    /// One Walk or Turn card on odometry, `robot.move` at the spec's rate, ending in a zero twist.
+    /// Answers how it ended: the controller's own exits, a pose gone stale, or a fall.
+    private static func drive(_ card: inout DuckCardLoop.Card, on peer: any DuckPeer,
+                              pose: @Sendable () async -> DuckCardLoop.Pose?,
+                              fallen: @Sendable () async -> Bool, sleep: Sleep) async throws -> CardEnd {
+        let tick = 1 / DuckCardLoop.spec.controlHz
+        var n = 0
+        while true {
+            try Task.checkCancellation()
+            if await fallen() {
+                try await peer.notify(.move(.still))
+                return .fell
+            }
+            guard let here = await pose() else {
+                try await peer.notify(.move(.still))
+                return .lost
+            }
+            switch card.step(here, t: Double(n) * tick) {
+            case .done(let done):
+                try await peer.notify(.move(.still))
+                switch done {
+                case .reached: return .reached
+                case .outOfTime: return .outOfTime
+                case .trimmedOut: return .trimmedOut
+                case .stuck: return .stuck
+                }
+            case .send(let vx, let vyaw):
+                try await peer.notify(.move(DuckDrive.Twist(vx: vx, vy: 0, vyaw: vyaw)))
+            }
+            try await sleep(tick)
+            n += 1
+        }
     }
 
     private static func hold(_ twist: DuckDrive.Twist, for seconds: Double, on peer: any DuckPeer,

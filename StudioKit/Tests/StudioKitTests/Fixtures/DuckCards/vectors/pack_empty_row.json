@@ -1,0 +1,76 @@
+{
+ "board": {
+  "columns": 3,
+  "duck_square_cm": 30,
+  "duck_square_source": "duckbench simulator (Pollen's MJCF, alpha_walking), 2026-10-15, with a first spec past Pollen's pad envelope; the shipped spec is not measured yet, so on a real duck Walk and Turn cards are timed until Pollen's duck-sim and a tester's duck pass (docs/PACKS.md, Acceptance)",
+  "rows": 3,
+  "square_cm": 30
+ },
+ "cards": [
+  "start",
+  "end",
+  "walk_forward",
+  "turn_left",
+  "turn_right"
+ ],
+ "challenge": {
+  "buggy": null,
+  "finish_with": null,
+  "gates": [],
+  "goal": [
+   1,
+   0
+  ],
+  "hint": "The pond is straight ahead. How many squares away is it?",
+  "id": "pond-1",
+  "name": "First waddle",
+  "par": 2,
+  "solution": [
+   {
+    "card": "walk_forward"
+   },
+   {
+    "card": "walk_forward"
+   }
+  ],
+  "start": {
+   "at": [
+    1,
+    2
+   ],
+   "facing": "north"
+  },
+  "walls": []
+ },
+ "expect": {
+  "bumped_at": null,
+  "cards": 0,
+  "ended": {
+   "at": [
+    1,
+    2
+   ],
+   "facing": "north"
+  },
+  "gates_passed": [],
+  "par": 2,
+  "path": [
+   {
+    "at": [
+     1,
+     2
+    ],
+    "facing": "north"
+   }
+  ],
+  "said": "The row has no steps to play.",
+  "score": 0,
+  "solved": false,
+  "steps": 0
+ },
+ "name": "pack_empty_row",
+ "pack": "get-to-the-pond",
+ "row": [],
+ "score": "steps",
+ "yours": []
+}

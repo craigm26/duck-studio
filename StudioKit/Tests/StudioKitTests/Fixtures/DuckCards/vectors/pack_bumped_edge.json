@@ -1,0 +1,182 @@
+{
+ "board": {
+  "columns": 5,
+  "duck_square_cm": 30,
+  "duck_square_source": "duckbench simulator (Pollen's MJCF, alpha_walking), 2026-10-15, with a first spec past Pollen's pad envelope; the shipped spec is not measured yet, so on a real duck Walk and Turn cards are timed until Pollen's duck-sim and a tester's duck pass (docs/PACKS.md, Acceptance)",
+  "rows": 5,
+  "square_cm": 30
+ },
+ "cards": [
+  "start",
+  "end",
+  "walk_forward",
+  "walk_backward",
+  "turn_left",
+  "turn_right",
+  "stop",
+  "greet",
+  "kick_right",
+  "repeat",
+  "end_repeat",
+  "slow",
+  "fast",
+  "look_left",
+  "look_right"
+ ],
+ "challenge": {
+  "buggy": [
+   {
+    "card": "walk_forward"
+   },
+   {
+    "card": "walk_forward"
+   },
+   {
+    "card": "turn_left"
+   },
+   {
+    "card": "walk_forward"
+   },
+   {
+    "card": "walk_forward"
+   },
+   {
+    "card": "walk_forward"
+   }
+  ],
+  "finish_with": null,
+  "gates": [],
+  "goal": [
+   3,
+   2
+  ],
+  "hint": "This row bumps into something. Act it out, card by card, and stop where the duck goes wrong.",
+  "id": "loop-3",
+  "name": "Who moved the bread?",
+  "par": 6,
+  "solution": [
+   {
+    "card": "walk_forward"
+   },
+   {
+    "card": "walk_forward"
+   },
+   {
+    "card": "turn_right"
+   },
+   {
+    "card": "walk_forward"
+   },
+   {
+    "card": "walk_forward"
+   },
+   {
+    "card": "walk_forward"
+   }
+  ],
+  "start": {
+   "at": [
+    0,
+    4
+   ],
+   "facing": "north"
+  },
+  "walls": [
+   {
+    "between": [
+     [
+      0,
+      2
+     ],
+     [
+      0,
+      1
+     ]
+    ]
+   },
+   {
+    "between": [
+     [
+      3,
+      3
+     ],
+     [
+      4,
+      3
+     ]
+    ]
+   }
+  ]
+ },
+ "expect": {
+  "bumped_at": 4,
+  "cards": 6,
+  "ended": {
+   "at": [
+    0,
+    2
+   ],
+   "facing": "west"
+  },
+  "gates_passed": [],
+  "par": 6,
+  "path": [
+   {
+    "at": [
+     0,
+     4
+    ],
+    "facing": "north"
+   },
+   {
+    "at": [
+     0,
+     3
+    ],
+    "facing": "north"
+   },
+   {
+    "at": [
+     0,
+     2
+    ],
+    "facing": "north"
+   },
+   {
+    "at": [
+     0,
+     2
+    ],
+    "facing": "west"
+   }
+  ],
+  "said": "Bumped into the edge of the board on step 4.",
+  "score": 6,
+  "solved": false,
+  "steps": 6
+ },
+ "name": "pack_bumped_edge",
+ "pack": "loop-the-course",
+ "row": [
+  {
+   "card": "walk_forward"
+  },
+  {
+   "card": "walk_forward"
+  },
+  {
+   "card": "turn_left"
+  },
+  {
+   "card": "walk_forward"
+  },
+  {
+   "card": "walk_forward"
+  },
+  {
+   "card": "walk_forward"
+  }
+ ],
+ "score": "cards",
+ "yours": []
+}

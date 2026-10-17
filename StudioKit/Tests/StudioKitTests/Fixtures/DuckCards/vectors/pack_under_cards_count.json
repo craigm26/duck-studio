@@ -1,0 +1,124 @@
+{
+ "board": {
+  "columns": 5,
+  "duck_square_cm": 30,
+  "duck_square_source": "duckbench simulator (Pollen's MJCF, alpha_walking), 2026-10-15, with a first spec past Pollen's pad envelope; the shipped spec is not measured yet, so on a real duck Walk and Turn cards are timed until Pollen's duck-sim and a tester's duck pass (docs/PACKS.md, Acceptance)",
+  "rows": 5,
+  "square_cm": 30
+ },
+ "cards": [
+  "start",
+  "end",
+  "walk_forward",
+  "walk_backward",
+  "turn_left",
+  "turn_right",
+  "stop",
+  "greet",
+  "kick_right",
+  "repeat",
+  "end_repeat",
+  "slow",
+  "fast",
+  "look_left",
+  "look_right"
+ ],
+ "challenge": {
+  "buggy": null,
+  "finish_with": null,
+  "gates": [],
+  "goal": [
+   2,
+   2
+  ],
+  "hint": "Here the score is cards, not steps. Count every card between Start and End.",
+  "id": "loop-1",
+  "name": "Fetch the bread",
+  "par": 3,
+  "solution": [
+   {
+    "card": "walk_forward"
+   },
+   {
+    "card": "turn_right"
+   },
+   {
+    "card": "walk_forward"
+   }
+  ],
+  "start": {
+   "at": [
+    1,
+    3
+   ],
+   "facing": "north"
+  },
+  "walls": []
+ },
+ "expect": {
+  "bumped_at": null,
+  "cards": 5,
+  "ended": {
+   "at": [
+    2,
+    2
+   ],
+   "facing": "east"
+  },
+  "gates_passed": [],
+  "par": 3,
+  "path": [
+   {
+    "at": [
+     1,
+     3
+    ],
+    "facing": "north"
+   },
+   {
+    "at": [
+     1,
+     2
+    ],
+    "facing": "north"
+   },
+   {
+    "at": [
+     1,
+     2
+    ],
+    "facing": "east"
+   },
+   {
+    "at": [
+     2,
+     2
+    ],
+    "facing": "east"
+   }
+  ],
+  "said": "Solved with 5 cards. Par is 3, so a shorter row is out there.",
+  "score": 5,
+  "solved": true,
+  "steps": 3
+ },
+ "name": "pack_under_cards_count",
+ "pack": "loop-the-course",
+ "row": [
+  {
+   "card": "walk_forward",
+   "under": [
+    "slow",
+    "look_left"
+   ]
+  },
+  {
+   "card": "turn_right"
+  },
+  {
+   "card": "walk_forward"
+  }
+ ],
+ "score": "cards",
+ "yours": []
+}

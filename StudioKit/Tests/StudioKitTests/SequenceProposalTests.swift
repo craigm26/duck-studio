@@ -124,7 +124,7 @@ final class SequenceProposalTests: XCTestCase {
         XCTAssertTrue(grounding.contains(String(format: "%.2f", DuckDrive.maxTurn)), grounding)
         XCTAssertTrue(grounding.contains(String(format: "%.2f", DuckDrive.deadZone)), grounding)
         XCTAssertTrue(grounding.contains("0.30"), grounding)
-        XCTAssertTrue(grounding.contains("1.50"), grounding)
+        XCTAssertTrue(grounding.contains("turning at most 1.00 rad/s"), grounding)
         XCTAssertTrue(grounding.contains("0.05"), grounding)
     }
 

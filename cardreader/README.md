@@ -13,6 +13,8 @@ python3 -m duckcards watch                         # on the robot: frames from m
 python3 -m duckcards watch --floor                 # look down at a row on the floor first
 python3 -m duckcards watch --deck class.duckcards  # with a class's own Your cards
 python3 -m duckcards watch --dry-run               # read and say what would be sent, send nothing
+python3 -m duckcards watch --pack get-to-the-pond  # play a pack: a starter pack's id, or a .duckpack file
+python3 -m duckcards watch --pack get-to-the-pond --challenge pond-3   # and hear each row on its board
 ```
 
 From a laptop to a real duck, through this repository's `bridge/`:
@@ -54,9 +56,12 @@ Beside Pollen's simulator, see [Proving it in duck-sim](#proving-it-in-duck-sim)
 6. **Makes Studio's plan.** `duck-intent-plan/0`, `model: "duck-cards/0"`, every label at
    confidence 1.0, checked against every rule `DuckIntentPlan.read` enforces.
 7. **Runs it the way Studio does.** `RobotPlan` and `RobotPlanRunner` in Python, number for number:
-   Pollen's pad limits (0.3 m/s, 1.5 rad/s), slow/normal/fast at a third, two thirds and all of
+   0.3 m/s and 1.0 rad/s, inside Pollen's pad envelope (`pollen-pad-drive.json`), slow/normal/fast at a third, two thirds and all of
    them, two seconds a step, `robot.move` at 20 Hz, the skill list checked before anything moves,
-   a stop at the end. The policy is switched on (`robot.enable`) only when there is something to
+   a stop at the end. Walk and Turn cards are one board square and a quarter turn, closed on
+   robotd's odometry (`cardloop.py`, the same spec and vectors as StudioKit's `DuckCardLoop`;
+   docs/PACKS.md, "Closed-loop cards") when the duck's state stream carries `odom`; without it
+   they run timed, as above, and the reader says so once per row. The policy is switched on (`robot.enable`) only when there is something to
    run. Look cards are sent as `robot.look` only with `--heads`, because Studio does not send heads
    yet and the two should not differ.
 8. **Answers, and looks at the cards.** A chirp for a card, a hello before a row, the rising
@@ -82,6 +87,38 @@ number never changes meaning, so whatever a file says about a printed card is le
 deck has it, and said; a file saved under an older starter deck still reads every card this one
 has. A deck that says something the reader cannot follow (a card that is not a card, a Repeat
 with no number) is refused by name.
+
+## Packs
+
+A pack is a game for the cards, set for a grade band ([docs/PACKS.md](../docs/PACKS.md)). `--pack`
+takes a `.duckpack` file, or the id of a starter pack in `duckcards/packs/` (`get-to-the-pond`,
+`duck-maze`, `loop-the-course`, `design-a-level`), and works on `watch` and `read`.
+
+- **It lends the pack's Your cards**, the way `--deck` lends a class's. With `--deck` too, a
+  number the class already saved a different row for keeps the class's meaning, as in Studio,
+  and the reader says which numbers clashed.
+- **It narrows, it does not refuse.** A card the pack does not play still runs, and the reader
+  says so beside the row's other notes: `note: Roll is not in Get to the pond.`
+- **`--challenge pond-3`** plays each row the duck runs on that challenge's board, after it has
+  run, and prints what the board says, solved or not, and the score against par:
+
+  ```
+    [board] Corner pond (pond-3): Solved in 5 steps, which is par.
+    [board] solved, score 5 steps, par 5.
+    [board] This is the board's answer for the row (one Walk card, one square), not where the duck stopped. Walk and Turn cards on a duck are timed for now: two seconds each, and the duck does not land on board squares. Measured cards are being tested.
+  ```
+
+  That is a report on the row, not on the duck. The board rule moves one square per Walk card and
+  turns a quarter per Turn card; nothing here watches where the duck stopped. Closed-loop cards
+  (a Walk card walks one 30 cm duck square on odometry, a Turn card a quarter turn) ship off for
+  real ducks until they pass docs/PACKS.md "Acceptance", so on a duck they are timed and the
+  reader says so once per row. So the reader never says the duck reached the goal, only that the
+  row does on the board.
+- **`--measured-cards`** (developer, for duck-sim work) turns closed-loop cards on. The reader says
+  so when it starts: "DEVELOPER: --measured-cards is on."
+
+A pack that cannot be found or read, and a challenge the pack does not have, are refused with a
+sentence before the duck reads anything.
 
 ## What the duck's camera can read
 
@@ -139,7 +176,7 @@ pollen-robotics/microduck 648bf22 and microduck_rl's develop b02fdea4:
 | A Your card (card 201 = Kick, left; Kick, right) | `--deck`: both kicks, in order, 1.5 s apart, once. |
 | Repeat with a 3 written on it | Read at 10 cm (6 frames of 7); at 15 cm 2 of 7, never a wrong number. The simulator's camera has 0.41 of the robot's pixels, so 10 cm there is about 25 cm on the robot. |
 | A row on the floor, 32 cm | No code found: too few pixels in the simulator's camera. At 22 cm the row read except its End. |
-| Walking | Rows send `robot.move` and robotd applies it, but the simulated duck takes no steps; Pollen's own `duck-sim drive` does the same with the v8 policies. A simulator and policy matter, worth raising with Pollen. |
+| Walking | On 2026-10-14 rows sent `robot.move`, robotd applied it, and the duck took no steps. Why (2026-10-15, docs/POLLEN-ISSUE-duck-sim-walk.md): duck-sim pins the retired `alpha_walking` + `alpha_stand` pair, not the v8 velstand a robot runs, and every command sent (duck-sim `drive` 0.15, Studio's timed 0.2) was under the gait's dead band. `up.sh` now loads v8 velstand through robotctl, and closed-loop cards walk and turn: `cardreader/sim/sysid/` (what the duck does with each command) and `cardreader/sim/results/` (the Monte Carlo against docs/PACKS.md, "Acceptance"). |
 
 To run it again (`cardreader/sim/`, Ubuntu 24.04 without a GPU):
 
@@ -165,6 +202,28 @@ To run it again (`cardreader/sim/`, Ubuntu 24.04 without a GPU):
    cardreader/sim/down.sh
    ```
 
+### The closed-loop cards, against Acceptance
+
+The walking numbers (system identification and the Monte Carlo held to docs/PACKS.md, "Acceptance")
+come from one script, which builds Pollen's code at pinned commits under `$WORK` and needs no
+camera, mediad or GPU:
+
+```sh
+cardreader/sim/validate.sh                 # about 6 hours on 4 cores; WORK=~/duck-cards-sim by default
+ROWS=40 cardreader/sim/validate.sh         # a quick look (cannot pass the fall bound)
+python3 cardreader/sim/mc/mc_summary.py $WORK/results/raw $WORK/results/raw-acceptance \
+    $WORK/results/raw-back $WORK/results/raw-rate      # validate.sh writes this to $WORK/results/RESULTS.md
+```
+
+It writes `HOST.txt` (which machine, which commits) and `load.log` (load and free memory each
+minute) beside the results, and stops before the summary if any duck did not finish its rows. Run
+it on an otherwise idle machine. Rung 2 of Acceptance needs a machine other than the one that made
+`cardreader/sim/results/`.
+
+The randomized conditions draw a session's settings from the seed and the rows already in the file,
+so the first session of each condition repeats exactly and later ones depend on how earlier rows
+ran: a second run is a fresh sample of the same conditions, compared within intervals, not a replay.
+
 Why it is put together this way: duck-sim's own camera (`DUCK_SIM_CAMERAS=a`) renders on the
 body's physics thread, and without a GPU that slowed the world to half speed and the duck fell over,
 so `eye.py` renders the same camera beside it from the duck's pose and Pollen's mediad serves it;
@@ -188,8 +247,9 @@ long side, the robot's 62°, which `--camera-degrees` tells the joins.
 ## Tests
 
 ```sh
-python3 -m unittest discover -s cardreader/tests -v     # 98 tests, about 35 s
+python3 -m unittest discover -s cardreader/tests -v     # 169 tests, about 35 s
 scripts/check_duckcards_vectors.sh                       # the two readers' contract
+python3 scripts/check_duck_packs.py                      # every pack's pars and rows
 ```
 
 `tests/make_vectors.py` writes `vectors/`: twenty-eight cases, three of them the library's own
@@ -198,6 +258,10 @@ plan the reader must produce, and some with a class's own cards or answers to Re
 StudioKit's `DuckCardsTests` reads every one; the gate keeps the copies identical. The bridge test
 runs a row's calls through this repository's own `microduck-bridge` and `mock-robotd`; the scan
 tests turn a simulated camera with the head and hold a row read once to running once.
+
+The same script writes the pack vectors, `vectors/pack_*.json`: a challenge from one of the
+starter packs in `duckcards/packs/`, a row, and the board play `duckcards/packs.py` makes of it
+(docs/PACKS.md). StudioKit's `DuckPacksTests` plays every one to the same JSON.
 
 ## Not done
 

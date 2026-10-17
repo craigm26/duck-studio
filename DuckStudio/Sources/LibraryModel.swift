@@ -197,6 +197,11 @@ final class LibraryModel: ObservableObject {
             // read the way the duck reads one, refused in the reader's words. Said here, where
             // every other arrival is said.
             lastImport = DuckCardsStore.shared.take(data)
+        case DuckPacks.fileExtension:
+            // A DUCK CARD PACK: a game for the cards, kept beside the starter packs on the camera
+            // card's Packs screen, its Your cards lent to the class deck and asked about where they
+            // clash. Read the way the duck reads one, refused in the reader's words.
+            lastImport = DuckPacksStore.shared.take(data)
         default:
             lastImport = "\(name) was not added. Microduck Studio opens .onnx policies, .duckintent "
                        + "recordings and .duckmove motions — if this is a policy under another "

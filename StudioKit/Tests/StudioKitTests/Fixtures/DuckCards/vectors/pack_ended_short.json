@@ -1,0 +1,126 @@
+{
+ "board": {
+  "columns": 3,
+  "duck_square_cm": 30,
+  "duck_square_source": "duckbench simulator (Pollen's MJCF, alpha_walking), 2026-10-15, with a first spec past Pollen's pad envelope; the shipped spec is not measured yet, so on a real duck Walk and Turn cards are timed until Pollen's duck-sim and a tester's duck pass (docs/PACKS.md, Acceptance)",
+  "rows": 3,
+  "square_cm": 30
+ },
+ "cards": [
+  "start",
+  "end",
+  "walk_forward",
+  "turn_left",
+  "turn_right"
+ ],
+ "challenge": {
+  "buggy": null,
+  "finish_with": null,
+  "gates": [],
+  "goal": [
+   2,
+   0
+  ],
+  "hint": "Walk up the side first, then turn. Stand up and be the duck if you are not sure which way is right.",
+  "id": "pond-3",
+  "name": "Corner pond",
+  "par": 5,
+  "solution": [
+   {
+    "card": "walk_forward"
+   },
+   {
+    "card": "walk_forward"
+   },
+   {
+    "card": "turn_right"
+   },
+   {
+    "card": "walk_forward"
+   },
+   {
+    "card": "walk_forward"
+   }
+  ],
+  "start": {
+   "at": [
+    0,
+    2
+   ],
+   "facing": "north"
+  },
+  "walls": []
+ },
+ "expect": {
+  "bumped_at": null,
+  "cards": 4,
+  "ended": {
+   "at": [
+    1,
+    0
+   ],
+   "facing": "east"
+  },
+  "gates_passed": [],
+  "par": 5,
+  "path": [
+   {
+    "at": [
+     0,
+     2
+    ],
+    "facing": "north"
+   },
+   {
+    "at": [
+     0,
+     1
+    ],
+    "facing": "north"
+   },
+   {
+    "at": [
+     0,
+     0
+    ],
+    "facing": "north"
+   },
+   {
+    "at": [
+     0,
+     0
+    ],
+    "facing": "east"
+   },
+   {
+    "at": [
+     1,
+     0
+    ],
+    "facing": "east"
+   }
+  ],
+  "said": "The duck ended 1 square away from the goal.",
+  "score": 4,
+  "solved": false,
+  "steps": 4
+ },
+ "name": "pack_ended_short",
+ "pack": "get-to-the-pond",
+ "row": [
+  {
+   "card": "walk_forward"
+  },
+  {
+   "card": "walk_forward"
+  },
+  {
+   "card": "turn_right"
+  },
+  {
+   "card": "walk_forward"
+  }
+ ],
+ "score": "steps",
+ "yours": []
+}

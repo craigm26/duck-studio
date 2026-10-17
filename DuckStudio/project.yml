@@ -301,6 +301,16 @@ targets:
             UTTypeTagSpecification:
               public.filename-extension:
                 - duckcards
+          # A DUCK CARD PACK: `duck-pack/0`, a game for the cards set for a grade band (docs/PACKS.md).
+          # This app writes one (Share this pack, and the class pack) and reads one back through the
+          # import door, and the duck's own card reader takes the same file with `--pack`.
+          - UTTypeIdentifier: com.duckstudio.duckpack
+            UTTypeDescription: Duck Card pack
+            UTTypeConformsTo:
+              - public.json
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - duckpack
         # ONE ROW PER FORMAT THIS APP CAN ACTUALLY FILE, and the one format
         # missing from this list is missing on purpose.
         #
@@ -337,6 +347,14 @@ targets:
           - CFBundleTypeName: Duck Cards deck
             LSItemContentTypes:
               - com.duckstudio.duckcards
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Owner
+          # THE ROW WENT IN WITH THE BRANCH THAT KEEPS THE PACK: `LibraryModel.open` hands a
+          # `.duckpack` to `DuckPacksStore.take`, which keeps it beside the starter packs or says
+          # why not, and every pack screen shares one. Viewer, as for a deck.
+          - CFBundleTypeName: Duck Card pack
+            LSItemContentTypes:
+              - com.duckstudio.duckpack
             CFBundleTypeRole: Viewer
             LSHandlerRank: Owner
           # THE ROW WENT IN WITH THE BRANCH THAT FILES THE DRAFT, which is the

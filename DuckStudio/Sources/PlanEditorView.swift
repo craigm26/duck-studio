@@ -382,6 +382,12 @@ struct PlanEditorView: View {
                         .font(.caption).foregroundStyle(Theme.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                if robotPlan.cardsTimed {
+                    // Closed-loop cards are off for real ducks: said before Run, and again by the runner.
+                    Label(DuckCardLoop.offNote, systemImage: "info.circle")
+                        .font(.caption).foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 if plan.flaggedCount > 0 {
                     Label(PlanEditorWords.flaggedLeft(plan.flaggedCount),
                           systemImage: "exclamationmark.circle")
@@ -427,10 +433,16 @@ struct PlanEditorView: View {
                                                client: FeedbackStore.client)) ?? [])
         let interval = robot.interval
         let total = robotPlan.beats.count
+        // DUCK CARDS' WALK AND TURN CLOSE ON ODOMETRY, so a card plan needs robotd's state stream.
+        // Asking again is harmless (`robot.subscribe` is idempotent per connection); a duck that
+        // refuses, or sends no `odom`, runs the cards timed and the runner says so.
+        let cards = robotPlan.closesOnOdometry
+        let state: RobotPlanRunner.State? = cards ? Self.latestState(of: robot) : nil
         robotLine = nil
         robotRun = Task { @MainActor in
             defer { robotRun = nil }
             await stopDriving?()
+            if cards { _ = try? await robot.subscribeToState() }
             do {
                 let outcome = try await RobotPlanRunner.run(
                     robotPlan, on: peer, interval: interval,
@@ -442,13 +454,18 @@ struct PlanEditorView: View {
                                 robotLine = PlanEditorWords.onBeat(i + 1, of: total, beat.clause)
                             case .said(let line):
                                 robotLine = line
+                            case .cardEnded:
+                                break
                             }
                         }
-                    })
+                    },
+                    state: state)
                 switch outcome {
                 case .finished: robotLine = PlanEditorWords.robotFinished
                 case .refused(let beat, let reason):
                     robotLine = PlanEditorWords.robotRefused(step: beat + 1, reason)
+                case .stopped(_, let reason):
+                    robotLine = reason
                 }
             } catch let refusal as RobotPlanRunner.Refusal {
                 robotLine = refusal.message
@@ -460,6 +477,11 @@ struct PlanEditorView: View {
                 robotLine = Task.isCancelled ? PlanEditorWords.robotStopped : error.localizedDescription
             }
         }
+    }
+
+    /// The link's newest `robot.state`, for a card plan's Walk and Turn.
+    private static func latestState(of robot: BridgeLink) -> RobotPlanRunner.State {
+        { await MainActor.run { robot.lastState } }
     }
 
     /// Resolve, keep, record, and — from Control — play.

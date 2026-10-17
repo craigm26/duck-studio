@@ -1,0 +1,39 @@
+# Rung 2 on a different machine: HF Jobs, x86
+
+The committed Monte Carlo (`../`, duck-card-loop/1 at fcefea3) was made on a Raspberry Pi 5. The
+first attempt at rung 2 (branch duck-packs-sim-repro) ran on that same Pi, so it could not count.
+This one ran on Hugging Face Jobs, `cpu-upgrade` (8 vCPU of an AMD EPYC 7R13 host, x86_64), job
+6ad2840c5ccb47ba0f7b59e1, 2026-10-16 20:07 to 2026-10-17 02:23 UTC (6 h 16 min including the build).
+
+- **What ran:** `cardreader/sim/validate.sh` at 40edf69, with defaults (ROWS=400, sysid included). The
+  controller, conditions, seeds and criteria are fcefea3's; 40edf69 changes only the script (it records
+  `HOST.txt` and `load.log`, and stops on a duck that died). Nothing extra had to be installed beyond
+  validate.sh's NEEDS line. No duck logged "behind real time". `load.log` is the host's, not the job's
+  (the host has 64 cores), so it cannot show whether this job was starved.
+- **Every row:** `COMPARE.md`, each criterion beside the committed one with Wilson 95% intervals.
+- **System identification:** `sysid/sysid.md`. Speeds and delays match the committed fits closely
+  (vx +0.30: 0.095 vs 0.094 m/s; vx -0.35: -0.147 vs -0.148 m/s). One step differs, as it did in the
+  same-Pi repeat: vx +0.20 walked 3 of 3 times here and 0 of 3 in the committed run, so the forward
+  dead band edge is at about 0.2 (ramp onset 0.23 here). Walk cards command 0.30 or more.
+
+## Verdict
+
+**Rung 2: NOT REPRODUCED, by two verdicts of 40, both the same effect.** Of every rung-1 verdict
+(pre-registered rows and Walk back rows, five criteria, four conditions), two differ, both heading at
+randomized 10 Hz:
+- pre-registered rows: committed PASS 96.9% [94.9, 98.2], here FAIL 94.9% [92.5, 96.6]; the same-Pi
+  repeat got 93.8%.
+- Walk back rows: committed PASS 96.0% [93.6, 97.5], here FAIL 93.8% [91.0, 95.8].
+
+The intervals overlap in both. Later runs below 95% say the committed PASSes were the lucky draws:
+heading at Studio's 10 Hz rate sits at about 95%, on the line. (This README first said one verdict;
+the Walk back line was missed and was found by recounting with `compare.py`'s judge, 2026-10-17.)
+
+Everything else agrees:
+- Every other verdict (38 of 40) matches, including both runs failing rung 1 (stressed 10 Hz, and Walk back at
+  randomized 10 Hz on position).
+- **No falls** in any of this run's 4,128 rows, as in the committed run. The 1 to 2 falls a condition
+  in the same-Pi repeat, and the 11 in the Walk lead's evaluation, came while that Pi was overloaded.
+- The packs' long rows (10 cards or more) agree within intervals: randomized 33 to 42%, stressed 0%.
+
+Rung 1 is not passed on either machine.

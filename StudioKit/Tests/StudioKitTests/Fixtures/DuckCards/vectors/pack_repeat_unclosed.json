@@ -1,0 +1,126 @@
+{
+ "board": {
+  "columns": 5,
+  "duck_square_cm": 30,
+  "duck_square_source": "duckbench simulator (Pollen's MJCF, alpha_walking), 2026-10-15, with a first spec past Pollen's pad envelope; the shipped spec is not measured yet, so on a real duck Walk and Turn cards are timed until Pollen's duck-sim and a tester's duck pass (docs/PACKS.md, Acceptance)",
+  "rows": 5,
+  "square_cm": 30
+ },
+ "cards": [
+  "start",
+  "end",
+  "walk_forward",
+  "walk_backward",
+  "turn_left",
+  "turn_right",
+  "stop",
+  "greet",
+  "kick_right",
+  "repeat",
+  "end_repeat",
+  "slow",
+  "fast",
+  "look_left",
+  "look_right"
+ ],
+ "challenge": {
+  "buggy": null,
+  "finish_with": null,
+  "gates": [],
+  "goal": [
+   2,
+   0
+  ],
+  "hint": "Four Walk forward cards say the same thing four times. Is there a card that says it once?",
+  "id": "loop-2",
+  "name": "Down the long dock",
+  "par": 3,
+  "solution": [
+   {
+    "card": "repeat",
+    "times": 4
+   },
+   {
+    "card": "walk_forward"
+   },
+   {
+    "card": "end_repeat"
+   }
+  ],
+  "start": {
+   "at": [
+    2,
+    4
+   ],
+   "facing": "north"
+  },
+  "walls": []
+ },
+ "expect": {
+  "bumped_at": null,
+  "cards": 2,
+  "ended": {
+   "at": [
+    2,
+    0
+   ],
+   "facing": "north"
+  },
+  "gates_passed": [],
+  "par": 3,
+  "path": [
+   {
+    "at": [
+     2,
+     4
+    ],
+    "facing": "north"
+   },
+   {
+    "at": [
+     2,
+     3
+    ],
+    "facing": "north"
+   },
+   {
+    "at": [
+     2,
+     2
+    ],
+    "facing": "north"
+   },
+   {
+    "at": [
+     2,
+     1
+    ],
+    "facing": "north"
+   },
+   {
+    "at": [
+     2,
+     0
+    ],
+    "facing": "north"
+   }
+  ],
+  "said": "The duck reached the goal, but a Repeat has no End repeat. Close every loop.",
+  "score": 2,
+  "solved": false,
+  "steps": 4
+ },
+ "name": "pack_repeat_unclosed",
+ "pack": "loop-the-course",
+ "row": [
+  {
+   "card": "repeat",
+   "times": 4
+  },
+  {
+   "card": "walk_forward"
+  }
+ ],
+ "score": "cards",
+ "yours": []
+}

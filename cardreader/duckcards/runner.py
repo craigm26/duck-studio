@@ -2,7 +2,7 @@
 
 ONE ROW, ONE BEHAVIOUR. `beats` and `run` are `RobotPlan` and
 `RobotPlanRunner` (StudioKit/Sources/StudioKit/RobotPlan.swift) in Python, with
-their numbers: Pollen's pad limits from `DuckDrive` (0.3 m/s, 1.5 rad/s), the
+their numbers: Pollen's pad limits from `DuckDrive` (0.3 m/s, 1.0 rad/s), the
 router's shares for slow, normal and fast, two seconds a step, a kick held 0.5
 s and a roll 1.0 s plus a second to settle, nothing over two minutes. So the
 same row of cards moves the duck the same way whether the duck read it itself
@@ -13,6 +13,16 @@ ONE THING THE DUCK DOES THAT STUDIO DOES NOT YET. Studio keeps a Look card in
 the plan and does not send it ("the head stays where it is"). On the robot,
 `robot.look` is one call away, so `--heads` sends it; it is off by default so
 that the two stay the same until Studio sends heads too.
+
+WALK AND TURN CARDS ARE TIMED ON A DUCK FOR NOW. Closed-loop cards ship off for real ducks
+(`duck-card-loop.json` `enabled_on_robot: false`, docs/PACKS.md "Acceptance"): a Walk or Turn card
+runs as the timed card it was and the reader says `cardloop.OFF_NOTE` once per row.
+`--measured-cards` turns them on, for duck-sim work. On, they close on odometry when the duck
+reports it: a Walk card is one board square
+and a Turn card a quarter turn (`cardloop.py`, the same spec and rules as StudioKit's
+`DuckCardLoop`), driven on `odom` from robotd's state stream when `run` is given one that carries
+it. A duck that does not report odometry (a robotd from before the estimator, or no state stream)
+runs them as timed cards, the RobotPlan numbers above, and the reader says so once per row.
 
 THE DUCK ANSWERS. When it sees a card it chirps; when it has read a whole row
 it says hello, waits for hands to leave the table, and runs it; a Start with no
@@ -27,12 +37,13 @@ import math
 import time
 from dataclasses import dataclass
 
-from . import pan
+from . import cardloop, pan
 from .layout import Layout
 from .program import Program, Step, read
 
-# DuckDrive and RobotPlan, number for number.
-MAX_FORWARD, MAX_BACKWARD, MAX_TURN = 0.3, 0.3, 1.5
+# DuckDrive and RobotPlan, number for number. Inside Pollen's pad envelope (`cardloop.ENVELOPE`,
+# PadDriveParams::default(): 0.4 m/s, 1.0 rad/s); tests/test_cardloop.py holds them to it.
+MAX_FORWARD, MAX_BACKWARD, MAX_TURN = 0.3, 0.3, 1.0
 SHARES = {"slow": 1.0 / 3.0, "normal": 2.0 / 3.0, "fast": 1.0}
 DEFAULT_SECONDS = 2.0
 HOLD_SECONDS = 0.1
@@ -53,12 +64,32 @@ FLOOR_AT = (0.32, 0.0, -0.12)
 
 @dataclass
 class Beat:
-    kind: str                       # move, sound, skill
+    kind: str                       # move, card, sound, skill
     clause: str
     twist: tuple[float, float, float] = (0.0, 0.0, 0.0)
     seconds: float = 0.0
     name: str = ""                  # the sound tag or the robotd skill
     head: str = "straight"
+    action: str = ""                # a card beat's Walk or Turn card
+    speed: str = "normal"
+
+
+# Said once per row when Walk and Turn cards cannot close on odometry.
+# The same sentences as StudioKit's `DuckCardLoop.timedNote` and `.lostNote`.
+TIMED_NOTE = ("This duck does not report odometry, so Walk and Turn cards run as timed cards, "
+              "two seconds each, and do not land on board squares.")
+LOST_NOTE = "The duck stopped reporting where it is, so the row stopped there."
+FELL_NOTE = "The duck fell, so the row stopped there."
+# How a closed-loop card ended, and what is said when it did not arrive: the row ends there, the
+# duck commanded still (docs/PACKS.md, "Acceptance"). StudioKit's `RobotPlanRunner.CardEnd.said`.
+ENDED = {
+    "reached": None,
+    "lost": LOST_NOTE,
+    "fell": FELL_NOTE,
+    "out of time": "The card ran out of time before it got there, so the row stopped there.",
+    "trimmed out": "The card stopped short of a quarter turn after its trims, so the row stopped there.",
+    "stuck": "The duck could not do this card at the speeds it may be sent, so the row stopped there.",
+}
 
 
 class Refusal(Exception):
@@ -86,9 +117,12 @@ def beats(steps: list[Step]) -> list[Beat]:
         elif a == "make_sound":
             out.append(Beat("sound", s.clause, name=s.labels.get("sound", "chirp")))
         elif a in ("walk_forward", "walk_backward", "turn_left", "turn_right", "stop"):
+            # A Walk or Turn card keeps its timed twist: it is what runs on a duck that does not
+            # report odometry, and its seconds are what the row's length is held to.
             secs = min(max(DEFAULT_SECONDS, HOLD_SECONDS), MAX_MOVE_SECONDS)
-            out.append(Beat("move", s.clause, twist=twist(a, s.labels.get("speed", "normal")),
-                            seconds=secs, head=s.labels.get("head", "straight")))
+            speed = s.labels.get("speed", "normal")
+            out.append(Beat("card" if a in cardloop.CARDS else "move", s.clause, twist=twist(a, speed),
+                            seconds=secs, head=s.labels.get("head", "straight"), action=a, speed=speed))
             total += secs
     if not out:
         raise Refusal("Every card was skipped, so there is nothing to send.")
@@ -98,8 +132,16 @@ def beats(steps: list[Step]) -> list[Beat]:
     return out
 
 
-def run(plan_beats: list[Beat], robot, heads: bool = False, sleep=time.sleep, say=print) -> str:
-    """RobotPlanRunner.run: skills checked first, every move held at 20 Hz, a stop at the end."""
+def run(plan_beats: list[Beat], robot, heads: bool = False, sleep=time.sleep, say=print,
+        state=None, clock=time.time, measured: bool | None = None) -> str:
+    """RobotPlanRunner.run: skills checked first, every move held at 20 Hz, a stop at the end.
+
+    `state()`, when given, answers the latest `robot.state` params and when they arrived (on
+    `clock`), or None: Walk and Turn cards close on its `odom` when it has one AND measured cards
+    are on. `measured` is the spec's `enabled_on_robot` unless given (`--measured-cards`); off,
+    every Walk and Turn card runs timed and `cardloop.OFF_NOTE` is said once."""
+    if measured is None:
+        measured = cardloop.ENABLED_ON_ROBOT
     wanted = sorted({b.name for b in plan_beats if b.kind == "skill"})
     durations: dict[str, float] = {}
     if wanted:
@@ -113,14 +155,47 @@ def run(plan_beats: list[Beat], robot, heads: bool = False, sleep=time.sleep, sa
         if missing:
             raise Refusal(f"This duck has no {', '.join(missing)}. Nothing was sent.")
     looking = "straight"
+    board: cardloop.Pose | None = None      # where the duck should be, odometry's frame
+    timed_said = False
+    coasts: list[float] = []               # every Turn card's measured coast this row (cardloop, THE LEAD)
     try:
         for b in plan_beats:
             say(f"  {b.clause}")
-            if heads and b.kind == "move" and b.head != looking:
+            if heads and b.kind in ("move", "card") and b.head != looking:
                 x, y, z = LOOK_AT[b.head]
                 robot.call("robot.look", {"x": x, "y": y, "z": z})
                 looking = b.head
-            if b.kind == "move":
+            if b.kind == "card" and not measured:
+                if not timed_said:
+                    say(f"  {cardloop.OFF_NOTE}")
+                    timed_said = True
+                hold(robot, b.twist, b.seconds, sleep)
+            elif b.kind == "card":
+                pose = _pose_now(state, clock)
+                if pose is None and board is not None:
+                    # A row that has been closing on odometry does not fall back to timed mid-row:
+                    # the pose going missing between cards is the duck losing its state.
+                    say(f"  {LOST_NOTE}")
+                    robot.call("robot.stop")
+                    return f"stopped at {b.clause}: {LOST_NOTE}"
+                if pose is None:
+                    if not timed_said:
+                        say(f"  {TIMED_NOTE}")
+                        timed_said = True
+                    hold(robot, b.twist, b.seconds, sleep)
+                    board = None
+                    continue
+                loop = cardloop.CardLoop(b.action, board or pose, b.speed, lead_deg=sum(coasts) / len(coasts) if coasts else None)
+                done = drive(loop, robot, state, sleep, clock)
+                board = loop.board_after
+                if getattr(loop, "coast_deg", None) is not None:
+                    coasts.append(loop.coast_deg)
+                if ENDED.get(done):
+                    say(f"  {ENDED[done]}")
+                    robot.call("robot.stop")
+                    return f"stopped at {b.clause}: {ENDED[done]}"
+                hold(robot, (0.0, 0.0, 0.0), cardloop.SPEC["between_s"], sleep)
+            elif b.kind == "move":
                 hold(robot, b.twist, b.seconds, sleep)
             elif b.kind == "sound":
                 try:
@@ -136,6 +211,11 @@ def run(plan_beats: list[Beat], robot, heads: bool = False, sleep=time.sleep, sa
                                                    if "accepted" not in answer else f"The duck refused {b.name}.")
                     return f"refused at {b.clause}: {why}"
                 hold(robot, (0.0, 0.0, 0.0), durations.get(b.name, b.seconds) + SETTLE_SECONDS, sleep)
+                # A skill moves the duck in ways the board does not count: the board's square is
+                # put back where the duck stands, and its heading is kept.
+                if board is not None:
+                    pose = _pose_now(state, clock)
+                    board = cardloop.Pose(pose.x, pose.y, board.h) if pose else None
     finally:
         try:
             robot.call("robot.stop")
@@ -145,6 +225,48 @@ def run(plan_beats: list[Beat], robot, heads: bool = False, sleep=time.sleep, sa
         except Exception:
             pass
     return "finished"
+
+
+def _pose_now(state, clock) -> cardloop.Pose | None:
+    """The duck's odometry now, or None: no state stream, no `odom` in it, or a frame older
+    than the spec's `stale_s`."""
+    if state is None:
+        return None
+    got = state()
+    if not got:
+        return None
+    params, at = got
+    if clock() - at > cardloop.SPEC["stale_s"]:
+        return None
+    return cardloop.odometry(params)
+
+
+def _fallen(state) -> bool:
+    """Whether the latest `robot.state` says the duck is down (`safety.fallen`)."""
+    got = state() if state is not None else None
+    return bool(got and ((got[0] or {}).get("safety") or {}).get("fallen") is True)
+
+
+def drive(loop: "cardloop.CardLoop", robot, state, sleep=time.sleep, clock=time.time) -> str:
+    """One Walk or Turn card on odometry, `robot.move` at the spec's rate. Answers how it ended:
+    the loop's own word, "lost" when the pose stops arriving, or "fell"."""
+    tick = 1.0 / cardloop.SPEC["control_hz"]
+    n = 0
+    while True:
+        if _fallen(state):
+            robot.notify("robot.move", {"vx": 0.0, "vy": 0.0, "vyaw": 0.0})
+            return "fell"
+        pose = _pose_now(state, clock)
+        if pose is None:
+            robot.notify("robot.move", {"vx": 0.0, "vy": 0.0, "vyaw": 0.0})
+            return "lost"
+        answer = loop.step(pose, n * tick)
+        if isinstance(answer, str):
+            robot.notify("robot.move", {"vx": 0.0, "vy": 0.0, "vyaw": 0.0})
+            return answer
+        robot.notify("robot.move", {"vx": answer[0], "vy": 0.0, "vyaw": answer[1]})
+        sleep(tick)
+        n += 1
 
 
 def hold(robot, tw: tuple[float, float, float], seconds: float, sleep=time.sleep) -> None:

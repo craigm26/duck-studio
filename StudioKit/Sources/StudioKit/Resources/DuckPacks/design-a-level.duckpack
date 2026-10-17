@@ -1,0 +1,200 @@
+{
+  "format": "duck-pack/0",
+  "id": "design-a-level",
+  "name": "Design a level",
+  "grades": "6 to 8",
+  "grade_from": 6,
+  "grade_to": 8,
+  "vocabulary": "r001",
+  "license": "CC-BY-4.0",
+  "credit": "Duck Cards, from microduckstudio.com",
+  "about": "Every card, a six by six board and your own Your cards: study three worked levels, then write one for another group and prove its par.",
+  "cards": [
+    "start",
+    "end",
+    "walk_forward",
+    "walk_backward",
+    "turn_left",
+    "turn_right",
+    "stop",
+    "slow",
+    "fast",
+    "look_left",
+    "look_right",
+    "look_up",
+    "look_down",
+    "straight",
+    "kick_left",
+    "kick_right",
+    "sit_or_stand",
+    "roll",
+    "peck_ground",
+    "greet",
+    "chirp",
+    "coo",
+    "alarm",
+    "wheee",
+    "repeat",
+    "end_repeat",
+    "when_falls",
+    "card_1",
+    "card_2",
+    "card_3",
+    "card_4",
+    "card_5",
+    "card_6",
+    "card_7",
+    "card_8",
+    "card_9"
+  ],
+  "score": "cards",
+  "board": {"columns": 6, "rows": 6, "square_cm": 30, "duck_square_cm": 30, "duck_square_source": "duckbench simulator (Pollen's MJCF, alpha_walking), 2026-10-15, with a first spec past Pollen's pad envelope; the shipped spec is not measured yet, so on a real duck Walk and Turn cards are timed until Pollen's duck-sim and a tester's duck pass (docs/PACKS.md, Acceptance)"},
+  "challenges": [
+    {
+      "id": "design-1",
+      "name": "Stairs to the nest",
+      "start": {"at": [0, 5], "facing": "north"},
+      "goal": [4, 1],
+      "walls": [
+        {"between": [[0, 4], [0, 3]]},
+        {"between": [[1, 3], [1, 2]]},
+        {"between": [[2, 2], [2, 1]]},
+        {"between": [[3, 1], [3, 0]]}
+      ],
+      "gates": [
+        {"at": [1, 4], "axis": "ew"},
+        {"at": [2, 3], "axis": "ew"},
+        {"at": [3, 2], "axis": "ew"},
+        {"at": [4, 1], "axis": "ew"}
+      ],
+      "finish_with": null,
+      "par": 3,
+      "solution": [{"card": "repeat", "times": 4}, {"card": "card_1"}, {"card": "end_repeat"}],
+      "buggy": null,
+      "hint": "Card 1, Stair step, is four cards in one. How many stairs are there?"
+    },
+    {
+      "id": "design-2",
+      "name": "Round the big pond",
+      "start": {"at": [0, 5], "facing": "north"},
+      "goal": [0, 5],
+      "walls": [
+        {"between": [[1, 0], [1, 1]]},
+        {"between": [[1, 4], [1, 5]]},
+        {"between": [[2, 0], [2, 1]]},
+        {"between": [[2, 4], [2, 5]]},
+        {"between": [[3, 0], [3, 1]]},
+        {"between": [[3, 4], [3, 5]]},
+        {"between": [[4, 0], [4, 1]]},
+        {"between": [[4, 4], [4, 5]]},
+        {"between": [[0, 1], [1, 1]]},
+        {"between": [[4, 1], [5, 1]]},
+        {"between": [[0, 2], [1, 2]]},
+        {"between": [[4, 2], [5, 2]]},
+        {"between": [[0, 3], [1, 3]]},
+        {"between": [[4, 3], [5, 3]]},
+        {"between": [[0, 4], [1, 4]]},
+        {"between": [[4, 4], [5, 4]]}
+      ],
+      "gates": [
+        {"at": [0, 1], "axis": "ns"},
+        {"at": [4, 0], "axis": "ew"},
+        {"at": [5, 4], "axis": "ns"},
+        {"at": [1, 5], "axis": "ew"}
+      ],
+      "finish_with": null,
+      "par": 3,
+      "solution": [{"card": "repeat", "times": 4}, {"card": "card_2"}, {"card": "end_repeat"}],
+      "buggy": null,
+      "hint": "Card 2, Side of the pond, walks one whole side and turns the corner."
+    },
+    {
+      "id": "design-3",
+      "name": "Kick from the island",
+      "start": {"at": [0, 5], "facing": "north"},
+      "goal": [5, 0],
+      "walls": [
+        {"between": [[0, 4], [0, 3]]},
+        {"between": [[1, 3], [1, 2]]},
+        {"between": [[2, 2], [2, 1]]},
+        {"between": [[3, 3], [4, 3]]},
+        {"between": [[4, 2], [4, 1]]}
+      ],
+      "gates": [{"at": [3, 2], "axis": "ew"}],
+      "finish_with": "kick_right",
+      "par": 4,
+      "solution": [
+        {"card": "repeat", "times": 5},
+        {"card": "card_1"},
+        {"card": "end_repeat"},
+        {"card": "kick_right"}
+      ],
+      "buggy": null,
+      "hint": "The class that wrote this level first said par was 9: three stairs to the bridge, then along the top. Look at where the stairs would go if they kept going."
+    }
+  ],
+  "lessons": [
+    {
+      "title": "Name a routine",
+      "skill": "Your cards",
+      "body": "Study Stairs to the nest. Stair step is a Your card: four printed cards saved under one number. Write out every card that Repeat 4, Stair step, End repeat stands for, and count how many cards it saves.",
+      "ask": "What makes a run of cards worth saving as a Your card?"
+    },
+    {
+      "title": "Write a level for another group",
+      "skill": "Authoring",
+      "body": "Each group draws a six by six board on squared paper: a start square and facing, a goal, up to six walls, one or two gates, and a finish card if you like. Write a row that solves it and count its cards. That count is your par. Trade boards with another group and play theirs.",
+      "ask": "What did the other group find hard about your level that you did not expect?"
+    },
+    {
+      "title": "Prove your par",
+      "skill": "Checking par",
+      "body": "Kick from the island was first written with par 9; another group solved it with 4 by letting the stairs keep going. Before trading a level, try hard to beat your own par. If someone else beats it, the par was wrong, not the players, so change the number.",
+      "ask": "How could you be sure no shorter row exists?"
+    },
+    {
+      "title": "Steps par by hand",
+      "skill": "Search",
+      "body": "A steps par can be found for certain: from the start, mark every square the duck can reach in one step, then two, then three, like ripples on a pond, until the goal is marked. Do it for one level on paper, then compare with the par the pack's checker computed.",
+      "ask": "Why is a steps par easier to be sure of than a cards par?"
+    },
+    {
+      "title": "When it falls",
+      "skill": "Events",
+      "body": "Add a When it falls row to your solution: what the duck does once it is back on its feet. The board does not play it, but a duck running your row would. Test it by having the student playing the duck sit down when you say fall.",
+      "ask": "Should the duck carry on after a fall, or go back to the start?"
+    }
+  ],
+  "yours": [
+    {
+      "tag": 200,
+      "code": "card_1",
+      "name": "Stair step",
+      "category": "yours",
+      "kind": "yours",
+      "plan": null,
+      "does": "Walk forward, turn right, walk forward, turn left: one step up a stair.",
+      "row": [
+        {"card": "walk_forward"},
+        {"card": "turn_right"},
+        {"card": "walk_forward"},
+        {"card": "turn_left"}
+      ]
+    },
+    {
+      "tag": 201,
+      "code": "card_2",
+      "name": "Side of the pond",
+      "category": "yours",
+      "kind": "yours",
+      "plan": null,
+      "does": "Walk forward five times, then turn right.",
+      "row": [
+        {"card": "repeat", "times": 5},
+        {"card": "walk_forward"},
+        {"card": "end_repeat"},
+        {"card": "turn_right"}
+      ]
+    }
+  ]
+}

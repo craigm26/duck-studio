@@ -132,6 +132,14 @@ FILES=(
   DuckCameraView.swift
   DuckCardsViews.swift
   DuckCardsStore.swift
+  # Duck Card packs: the Packs screen and a pack, a challenge and its row, the board, the
+  # challenge editor and the store behind them. Added with the files, contributing nothing to the
+  # allow-list: every sentence is in DuckPacks.Words, where swift test reads it.
+  DuckPacksViews.swift
+  DuckPackChallengeView.swift
+  DuckPackBoardView.swift
+  DuckPackEditorView.swift
+  DuckPacksStore.swift
   )
 
 if [ ! -d "$SRC" ]; then

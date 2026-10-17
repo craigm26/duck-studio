@@ -1,0 +1,160 @@
+{
+ "board": {
+  "columns": 3,
+  "duck_square_cm": 30,
+  "duck_square_source": "duckbench simulator (Pollen's MJCF, alpha_walking), 2026-10-15, with a first spec past Pollen's pad envelope; the shipped spec is not measured yet, so on a real duck Walk and Turn cards are timed until Pollen's duck-sim and a tester's duck pass (docs/PACKS.md, Acceptance)",
+  "rows": 3,
+  "square_cm": 30
+ },
+ "cards": [
+  "start",
+  "end",
+  "walk_forward",
+  "turn_left",
+  "turn_right"
+ ],
+ "challenge": {
+  "buggy": null,
+  "finish_with": null,
+  "gates": [
+   {
+    "at": [
+     1,
+     2
+    ],
+    "axis": "ew"
+   }
+  ],
+  "goal": [
+   2,
+   2
+  ],
+  "hint": "The duck has to walk through the bridge, going across the board, before it gets home.",
+  "id": "pond-6",
+  "name": "Under the little bridge",
+  "par": 6,
+  "solution": [
+   {
+    "card": "turn_right"
+   },
+   {
+    "card": "walk_forward"
+   },
+   {
+    "card": "walk_forward"
+   },
+   {
+    "card": "turn_left"
+   },
+   {
+    "card": "walk_forward"
+   },
+   {
+    "card": "walk_forward"
+   }
+  ],
+  "start": {
+   "at": [
+    0,
+    0
+   ],
+   "facing": "east"
+  },
+  "walls": [
+   {
+    "between": [
+     [
+      1,
+      0
+     ],
+     [
+      1,
+      1
+     ]
+    ]
+   }
+  ]
+ },
+ "expect": {
+  "bumped_at": null,
+  "cards": 5,
+  "ended": {
+   "at": [
+    2,
+    2
+   ],
+   "facing": "south"
+  },
+  "gates_passed": [],
+  "par": 6,
+  "path": [
+   {
+    "at": [
+     0,
+     0
+    ],
+    "facing": "east"
+   },
+   {
+    "at": [
+     1,
+     0
+    ],
+    "facing": "east"
+   },
+   {
+    "at": [
+     2,
+     0
+    ],
+    "facing": "east"
+   },
+   {
+    "at": [
+     2,
+     0
+    ],
+    "facing": "south"
+   },
+   {
+    "at": [
+     2,
+     1
+    ],
+    "facing": "south"
+   },
+   {
+    "at": [
+     2,
+     2
+    ],
+    "facing": "south"
+   }
+  ],
+  "said": "The duck reached the goal but missed 1 gate.",
+  "score": 5,
+  "solved": false,
+  "steps": 5
+ },
+ "name": "pack_gate_missed",
+ "pack": "get-to-the-pond",
+ "row": [
+  {
+   "card": "walk_forward"
+  },
+  {
+   "card": "walk_forward"
+  },
+  {
+   "card": "turn_right"
+  },
+  {
+   "card": "walk_forward"
+  },
+  {
+   "card": "walk_forward"
+  }
+ ],
+ "score": "steps",
+ "yours": []
+}
