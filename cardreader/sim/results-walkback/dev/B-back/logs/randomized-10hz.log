@@ -1,0 +1,65 @@
+standing: trunk 0.116 m, gravity z -1.000
+randomized-10hz 0 FFB: finished pos 5.8 cm head 10.9 deg fell False 11 s
+randomized-10hz 1 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 7.3 cm head 4.0 deg fell False 22 s
+randomized-10hz 2 FFB: finished pos 3.0 cm head 7.0 deg fell False 11 s
+randomized-10hz 3 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 7.4 cm head 4.5 deg fell False 22 s
+randomized-10hz 4 FFB: finished pos 4.3 cm head 1.6 deg fell False 11 s
+randomized-10hz 5 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.2 cm head 1.2 deg fell False 22 s
+randomized-10hz 6 FFB: finished pos 4.2 cm head 5.7 deg fell False 11 s
+randomized-10hz 7 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 6.5 cm head 0.6 deg fell False 21 s
+randomized-10hz 8 FFB: finished pos 4.7 cm head 1.6 deg fell False 11 s
+randomized-10hz 9 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.8 cm head 0.0 deg fell False 21 s
+randomized-10hz 10 FFB: finished pos 2.5 cm head 0.8 deg fell False 12 s
+randomized-10hz 11 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 5.8 cm head 0.6 deg fell False 22 s
+standing: trunk 0.116 m, gravity z -1.000
+randomized-10hz 12 FFB: finished pos 6.8 cm head 7.2 deg fell False 12 s
+randomized-10hz 13 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 6.8 cm head 6.7 deg fell False 23 s
+randomized-10hz 14 FFB: finished pos 2.9 cm head 6.5 deg fell False 11 s
+randomized-10hz 15 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.1 cm head 1.8 deg fell False 21 s
+randomized-10hz 16 FFB: finished pos 6.0 cm head 12.3 deg fell False 12 s
+randomized-10hz 17 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.2 cm head 1.6 deg fell False 22 s
+randomized-10hz 18 FFB: finished pos 3.0 cm head 5.1 deg fell False 12 s
+randomized-10hz 19 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Turn right, fast: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 30.0 cm head 17.0 deg fell False 19 s
+randomized-10hz 20 FFB: finished pos 4.9 cm head 2.3 deg fell False 11 s
+randomized-10hz 21 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 6.1 cm head 2.0 deg fell False 21 s
+randomized-10hz 22 FFB: finished pos 2.4 cm head 0.1 deg fell False 12 s
+randomized-10hz 23 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.6 cm head 3.7 deg fell False 21 s
+standing: trunk 0.116 m, gravity z -1.000
+randomized-10hz 24 FFB: finished pos 1.5 cm head 6.3 deg fell False 12 s
+randomized-10hz 25 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Turn right, fast: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 29.4 cm head 12.5 deg fell False 19 s
+randomized-10hz 26 FFB: finished pos 1.4 cm head 5.7 deg fell False 12 s
+randomized-10hz 27 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 8.4 cm head 3.8 deg fell False 21 s
+randomized-10hz 28 FFB: finished pos 6.0 cm head 3.5 deg fell False 12 s
+randomized-10hz 29 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 10.8 cm head 2.0 deg fell False 21 s
+randomized-10hz 30 FFB: finished pos 3.4 cm head 4.6 deg fell False 11 s
+randomized-10hz 31 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 9.9 cm head 8.0 deg fell False 21 s
+randomized-10hz 32 FFB: finished pos 2.0 cm head 2.2 deg fell False 12 s
+randomized-10hz 33 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 6.7 cm head 5.3 deg fell False 21 s
+randomized-10hz 34 FFB: finished pos 2.2 cm head 4.1 deg fell False 12 s
+randomized-10hz 35 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 8.7 cm head 1.2 deg fell False 21 s
+standing: trunk 0.115 m, gravity z -1.000
+randomized-10hz 36 FFB: finished pos 5.8 cm head 2.8 deg fell False 11 s
+randomized-10hz 37 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 5.1 cm head 0.5 deg fell False 22 s
+randomized-10hz 38 FFB: finished pos 5.9 cm head 1.0 deg fell False 12 s
+randomized-10hz 39 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.1 cm head 3.8 deg fell False 22 s
+randomized-10hz 40 FFB: finished pos 3.3 cm head 2.0 deg fell False 11 s
+randomized-10hz 41 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 6.4 cm head 5.5 deg fell False 22 s
+randomized-10hz 42 FFB: finished pos 1.3 cm head 3.3 deg fell False 12 s
+randomized-10hz 43 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 5.0 cm head 1.6 deg fell False 21 s
+randomized-10hz 44 FFB: finished pos 3.1 cm head 6.4 deg fell False 11 s
+randomized-10hz 45 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 5.1 cm head 2.5 deg fell False 22 s
+randomized-10hz 46 FFB: finished pos 4.8 cm head 4.4 deg fell False 12 s
+randomized-10hz 47 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 6.4 cm head 1.5 deg fell False 22 s
+standing: trunk 0.116 m, gravity z -1.000
+randomized-10hz 48 FFB: finished pos 4.3 cm head 2.9 deg fell False 12 s
+randomized-10hz 49 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.5 cm head 2.3 deg fell False 23 s
+randomized-10hz 50 FFB: finished pos 2.8 cm head 8.4 deg fell False 11 s
+randomized-10hz 51 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 7.0 cm head 11.5 deg fell False 21 s
+randomized-10hz 52 FFB: finished pos 2.1 cm head 14.3 deg fell False 12 s
+randomized-10hz 53 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.6 cm head 6.7 deg fell False 21 s
+randomized-10hz 54 FFB: finished pos 2.4 cm head 7.7 deg fell False 12 s
+randomized-10hz 55 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.8 cm head 3.6 deg fell False 21 s
+randomized-10hz 56 FFB: finished pos 3.5 cm head 8.4 deg fell False 11 s
+randomized-10hz 57 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.9 cm head 1.6 deg fell False 22 s
+randomized-10hz 58 FFB: finished pos 1.9 cm head 4.4 deg fell False 11 s
+randomized-10hz 59 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 1.2 cm head 6.9 deg fell False 21 s

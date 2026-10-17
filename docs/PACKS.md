@@ -603,12 +603,55 @@ smaller square would not shrink them relative to the square, and a larger one wo
 slower and a board larger than a classroom floor. Nothing in the data argues for changing it.
 
 **Not verified.** A real duck: none has run a closed-loop card (rung 3, Measure my duck). A second
-machine: `cardreader/sim/validate.sh` reproduced the pipeline from a fresh directory on the same
-machine (4 rows a batch), not on another (rung 2). duck-sim's body drives the scene's position
+machine (rung 2) ran on 2026-10-16, a fresh checkout on Hugging Face Jobs x86
+(`cardreader/sim/results/rung2-hf/`): every verdict matched but one, pre-registered randomized
+10 Hz heading (PASS 96.9% here, FAIL 94.9% there; a same-Pi repeat, `results/repro/`, got 93.8%),
+so that criterion sits on the line and counts as failing; no falls in 4,128 rows there. duck-sim's body drives the scene's position
 servos, which `infer_policy.py` says are not the actuator v8 was trained with; real servos, real
 floors, a real IMU's drift and real foot slip are modelled only by the randomized ranges. The
 fall, stale-state and out-of-time exits never fired in the simulator. Studio's Swift runner ran
 its unit tests and vectors on Linux, not against duck-sim.
+
+### Candidate change: the Walk lead (`duck-card-loop/2`), Pollen's duck-sim, 2026-10-16
+
+**A candidate on branch `duck-packs-walkback`, not adopted (this branch keeps `/1`; the record is in `cardreader/sim/results-walkback/`); `enabled_on_robot` stays false and
+"Acceptance" is unchanged.** Walk cards get the lead Turn cards have: the row's first Walk card
+each way stops `approach_m` (0.022 forward) or `back_approach_m` (0.052 back) short, plus
+`back_slip_m` (0.013) walking back, holds still `settle_s` (0.4) or `back_settle_s` (0.8),
+measures its coast on odometry, and later Walk cards the same way lead by the row's mean coast.
+Every number is from the system identification (`cardreader/sim/results-walkback/WALK_LEAD.md`:
+odometry's coast plus half a frame gap and half a control tick at 10 Hz; the slip is odometry
+counting 0.956 of the trunk's distance walking back). Which of them to keep was decided on
+development seeds 101 to 104 only; the evaluation ran once, on fresh seeds (211 to 214, 221 to
+224, 241 to 244), 400 rows per condition per batch, 4,800 rows
+(`cardreader/sim/results-walkback/`, `COMPARE.md` has every criterion with its interval).
+
+| rows, condition | criterion | fcefea3 (`/1`) | candidate (`/2`) |
+|---|---|---|---|
+| Walk back, randomized 10 Hz | position | **FAIL** 92.8% [89.9, 94.9] | **PASS** 97.0% [95.0, 98.1] |
+| Walk back, randomized 10 Hz | heading | **PASS** 96.0% [93.6, 97.5] | **FAIL** 93.5% [91.0, 95.4] |
+| Walk back, stressed 10 Hz | position | **FAIL** 79.9% [75.7, 83.5] | **FAIL** 88.4% [85.3, 91.0] |
+| Walk back, stressed 10 Hz | heading | **FAIL** 84.1% [80.2, 87.4] | **FAIL** 73.4% [69.4, 77.1] |
+| pre-registered, randomized 10 Hz | position | **PASS** 97.1% [95.2, 98.3] | **FAIL** 94.7% [92.4, 96.3] |
+| pre-registered, randomized 10 Hz | heading | **PASS** 96.9% [94.9, 98.2] | **FAIL** 93.9% [91.5, 95.7] |
+| pre-registered, stressed 10 Hz | position | **FAIL** 86.8% [83.4, 89.6] | **FAIL** 85.7% [82.4, 88.5] |
+| pre-registered, every condition | falls | **PASS** 0 in each | **FAIL** 4, 2, 3, 2 (upper 2.00, 1.42, 1.72, 1.42%) |
+| packs' rows of 10 cards or more, randomized 10 Hz | position | 41.7% [30.1, 54.3] | 21.7% [15.2, 29.9] |
+
+Walk back now lands (median 3.4 cm off at 10 Hz, was 5.8) but ends further off its heading:
+the duck yaws in its coast and settle, and nothing steers then. The falls cluster in rows run
+while a reproduction of fcefea3 shared the machine and its bodies fell behind real time (that
+reproduction, on `/1`, fell three times in the same hours); they count as measured. The long
+rows got worse: each settle makes a row longer and the IMU drift that fails them has longer to
+act. **Rung 1 is not passed with this candidate either**, and it is not an improvement overall:
+it trades Walk back position for Walk back heading and long rows. Not verified: a quiet machine,
+a second machine, a duck.
+
+**Rerun on HF Jobs x86, 2026-10-17** (`cardreader/sim/results-walkback/hf-rerun/`, same commit,
+same seeds, idle machine, no frame behind real time): **0 falls in 4,800 rows**, so the falls above
+were the loaded Pi. Everything else reproduced. Against `/1` on the same kind of machine (rung 2):
+Walk back position at randomized 10 Hz FAIL 93.1% → PASS 96.3%; Walk back heading, randomized,
+PASS 98.3% → FAIL 92.5%; long rows' position at randomized 10 Hz 36.7% → 20.0%. Not adopted.
 
 ### Closed-loop cards: duckbench, 2026-10-15
 
