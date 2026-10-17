@@ -246,11 +246,14 @@ def run_row(robot, truth, row, cond_row, rng, square, log):
         if i + 1 < len(begins):
             card_times.append(begins[i + 1] - begins[i] - cardloop.SPEC["between_s"])
     ending = "finished" if result == "finished" else result
+    cal = getattr(runner, "LAST_CAL", None)
+    calib = {"drift_est_dps": round(math.degrees(cal.rate), 4), "windows": cal.windows} if cal else {}
+    runner.LAST_CAL = None
     return {"row": row["name"], "cards": len(moving), "result": ending,
             "said": [line.strip() for _, line in said if not any(line == f"  {b.clause}" for b in beats)],
             "pos_err_m": pos_err, "head_err_deg": head_err, "fell": fell,
             "row_s": t_end - t_start, "card_s": card_times, "board_end": [bx, by, math.degrees(bh)],
-            "truth_end": [ex, ey, math.degrees(wrap(h1 - h0))], "card_log": list(CARD_LOG), **cond_row}
+            "truth_end": [ex, ey, math.degrees(wrap(h1 - h0))], "card_log": list(CARD_LOG), **calib, **cond_row}
 
 
 def main():

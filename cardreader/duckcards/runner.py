@@ -162,6 +162,8 @@ def run(plan_beats: list[Beat], robot, heads: bool = False, sleep=time.sleep, sa
     raw_state = state
     if measured and state is not None and cardloop.SPEC.get("calibrate"):
         cal = cardloop.DriftCal(cardloop.SPEC["calibrate"])
+        global LAST_CAL
+        LAST_CAL = cal                      # for the Monte Carlo's row log only
         state = calibrated(raw_state, cal)
     try:
         if cal is not None and any(b.kind == "card" for b in plan_beats) and _pose_now(raw_state, clock):
@@ -277,6 +279,9 @@ def drive(loop: "cardloop.CardLoop", robot, state, sleep=time.sleep, clock=time.
         robot.notify("robot.move", {"vx": answer[0], "vy": 0.0, "vyaw": answer[1]})
         sleep(tick)
         n += 1
+
+
+LAST_CAL: "cardloop.DriftCal | None" = None
 
 
 def calibrated(state, cal: "cardloop.DriftCal"):
