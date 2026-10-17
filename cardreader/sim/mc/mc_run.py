@@ -263,10 +263,18 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--seed", type=int, default=11)
     ap.add_argument("--start-index", type=int, default=0, help="first row of the list to draw")
+    ap.add_argument("--spec", default=None,
+                    help="a card-loop spec other than the shipped duck-card-loop.json, for a candidate's "
+                         "development and evaluation; its sha256 is recorded on every row")
     ap.add_argument("--rows-set", choices=["all", "acceptance", "acceptance-back"], default="all",
                     help="every pack solution and hand row, only docs/PACKS.md's pre-registered rows, "
                          "or only those of them with Walk back (judged on their own, so they need rows of their own)")
     a = ap.parse_args()
+    global SPEC_SHA
+    if a.spec:
+        spec_file = pathlib.Path(a.spec)
+        cardloop.SPEC = cardloop.load_spec(spec_file)
+        SPEC_SHA = __import__("hashlib").sha256(spec_file.read_bytes()).hexdigest()
     os.makedirs(a.out, exist_ok=True)
     path = os.path.join(a.out, f"{a.condition}.jsonl")
     done = 0

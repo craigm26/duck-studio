@@ -158,7 +158,14 @@ def run(plan_beats: list[Beat], robot, heads: bool = False, sleep=time.sleep, sa
     board: cardloop.Pose | None = None      # where the duck should be, odometry's frame
     timed_said = False
     coasts: list[float] = []               # every Turn card's measured coast this row (cardloop, THE LEAD)
+    cal = None                              # duck-card-loop/3: the drift taken out of odometry
+    raw_state = state
+    if measured and state is not None and cardloop.SPEC.get("calibrate"):
+        cal = cardloop.DriftCal(cardloop.SPEC["calibrate"])
+        state = calibrated(raw_state, cal)
     try:
+        if cal is not None and any(b.kind == "card" for b in plan_beats) and _pose_now(raw_state, clock):
+            still(robot, cardloop.SPEC["calibrate"]["before_s"], raw_state, cal, sleep)
         for b in plan_beats:
             say(f"  {b.clause}")
             if heads and b.kind in ("move", "card") and b.head != looking:
@@ -194,7 +201,10 @@ def run(plan_beats: list[Beat], robot, heads: bool = False, sleep=time.sleep, sa
                     say(f"  {ENDED[done]}")
                     robot.call("robot.stop")
                     return f"stopped at {b.clause}: {ENDED[done]}"
-                hold(robot, (0.0, 0.0, 0.0), cardloop.SPEC["between_s"], sleep)
+                if cal is not None:
+                    still(robot, cardloop.SPEC["between_s"], raw_state, cal, sleep)
+                else:
+                    hold(robot, (0.0, 0.0, 0.0), cardloop.SPEC["between_s"], sleep)
             elif b.kind == "move":
                 hold(robot, b.twist, b.seconds, sleep)
             elif b.kind == "sound":
@@ -267,6 +277,37 @@ def drive(loop: "cardloop.CardLoop", robot, state, sleep=time.sleep, clock=time.
         robot.notify("robot.move", {"vx": answer[0], "vy": 0.0, "vyaw": answer[1]})
         sleep(tick)
         n += 1
+
+
+def calibrated(state, cal: "cardloop.DriftCal"):
+    """`state` with every `odom` corrected by `cal` (cardloop.DriftCal), for the controller."""
+    def corrected():
+        got = state()
+        if not got:
+            return got
+        params, at = got
+        pose = cardloop.odometry(params)
+        if pose is None:
+            return got
+        c = cal.correct(at, pose)
+        odom = dict(params["odom"])
+        odom["position"] = [c.x, c.y] + list(odom["position"][2:])
+        odom["yaw"] = c.h
+        return dict(params, odom=odom), at
+    return corrected
+
+
+def still(robot, seconds: float, state, cal: "cardloop.DriftCal", sleep=time.sleep) -> None:
+    """`hold` still for `seconds`, feeding each new raw odometry yaw to `cal` as one still window."""
+    cal.begin_still()
+    for _ in range(max(1, round(seconds / TICK))):
+        robot.notify("robot.move", {"vx": 0.0, "vy": 0.0, "vyaw": 0.0})
+        got = state() if state is not None else None
+        pose = cardloop.odometry(got[0]) if got else None
+        if pose is not None:
+            cal.sample_still(got[1], pose.h)
+        sleep(TICK)
+    cal.end_still()
 
 
 def hold(robot, tw: tuple[float, float, float], seconds: float, sleep=time.sleep) -> None:

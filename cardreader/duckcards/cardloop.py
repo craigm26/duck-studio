@@ -40,13 +40,14 @@ from dataclasses import dataclass
 HERE = pathlib.Path(__file__).resolve().parent
 SPEC_FILE = HERE / "duck-card-loop.json"
 FORMAT = "duck-card-loop/1"
+FORMATS = ("duck-card-loop/1", "duck-card-loop/3")    # /3 adds `calibrate` (DriftCal)
 CARDS = ("walk_forward", "walk_backward", "turn_left", "turn_right")
 
 
 def load_spec(path: pathlib.Path = SPEC_FILE) -> dict:
     spec = json.loads(path.read_text())
-    if spec.get("format") != FORMAT:
-        raise ValueError(f"{path.name} is not {FORMAT}")
+    if spec.get("format") not in FORMATS:
+        raise ValueError(f"{path.name} is not {' or '.join(FORMATS)}")
     if not isinstance(spec.get("enabled_on_robot"), bool):
         raise ValueError(f"{path.name} does not say enabled_on_robot, true or false")
     if not (spec.get("validated") is None or isinstance(spec["validated"], str)):
@@ -268,6 +269,65 @@ class CardLoop:
         # scales with how fast it was going.
         known = self.coast_deg if self.coast_deg is not None else self.lead
         return known * self.spec["turn"]["trim_rate"] / self.rate
+
+
+class DriftCal:
+    """CALIBRATE AT EVERY STOP (duck-card-loop/3, docs/PACKS.md, pre-registered 2026-10-17).
+
+    Odometry's yaw is the trunk IMU's, and an IMU's heading drifts: up to 0.5 deg/s in the
+    randomized conditions, 30 degrees over a minute-long row, and the controller cannot see it.
+    Standing still the true turn rate is about zero, so the yaw rate odometry reports then is the
+    drift. `still()` windows feed it; the rate is the pooled least-squares slope of yaw on time over
+    every window so far, each window with its own intercept; `correct()` takes it out of every pose:
+    heading less rate times the time since the first pose, and each position step rotated by the
+    same correction, so position integrates the corrected heading."""
+
+    def __init__(self, cal: dict):
+        self.still_after = float(cal["still_after_s"])
+        self.max_rate = math.radians(float(cal["max_dps"]))
+        self.rate = 0.0                       # rad/s, the drift taken out
+        self.sxy = self.sxx = 0.0             # pooled sums over every finished window
+        self.windows = 0
+        self.cur: list[tuple[float, float]] | None = None
+        self.cur_start: float | None = None
+        self.t0: float | None = None
+        self.raw: Pose | None = None
+        self.x = self.y = 0.0
+
+    def begin_still(self) -> None:
+        self.cur, self.cur_start = [], None
+
+    def sample_still(self, t: float, yaw: float) -> None:
+        if self.cur is None:
+            return
+        if self.cur_start is None:
+            self.cur_start = t
+        if t - self.cur_start < self.still_after or (self.cur and t <= self.cur[-1][0]):
+            return
+        y = yaw if not self.cur else self.cur[0][1] + wrap(yaw - self.cur[0][1])
+        self.cur.append((t, y))
+
+    def end_still(self) -> None:
+        w, self.cur = self.cur or [], None
+        if len(w) < 3:
+            return
+        tm = sum(t for t, _ in w) / len(w)
+        ym = sum(y for _, y in w) / len(w)
+        self.sxy += sum((t - tm) * (y - ym) for t, y in w)
+        self.sxx += sum((t - tm) ** 2 for t, _ in w)
+        self.windows += 1
+        if self.sxx > 0:
+            self.rate = max(-self.max_rate, min(self.max_rate, self.sxy / self.sxx))
+
+    def correct(self, t: float, pose: Pose) -> Pose:
+        if self.t0 is None:
+            self.t0, self.raw, self.x, self.y = t, pose, pose.x, pose.y
+        d = -self.rate * (t - self.t0)
+        dx, dy = pose.x - self.raw.x, pose.y - self.raw.y
+        self.x += dx * math.cos(d) - dy * math.sin(d)
+        self.y += dx * math.sin(d) + dy * math.cos(d)
+        self.raw = pose
+        return Pose(self.x, self.y, wrap(pose.h + d))
 
 
 DONE_WORDS = {
