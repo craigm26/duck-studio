@@ -604,9 +604,10 @@ slower and a board larger than a classroom floor. Nothing in the data argues for
 
 **Not verified.** A real duck: none has run a closed-loop card (rung 3, Measure my duck). A second
 machine (rung 2) ran on 2026-10-16, a fresh checkout on Hugging Face Jobs x86
-(`cardreader/sim/results/rung2-hf/`): every verdict matched but one, pre-registered randomized
-10 Hz heading (PASS 96.9% here, FAIL 94.9% there; a same-Pi repeat, `results/repro/`, got 93.8%),
-so that criterion sits on the line and counts as failing; no falls in 4,128 rows there. duck-sim's body drives the scene's position
+(`cardreader/sim/results/rung2-hf/`): 38 of 40 verdicts matched; the two that differ are both heading at
+randomized 10 Hz (pre-registered rows PASS 96.9% here, FAIL 94.9% there, a same-Pi repeat in
+`results/repro/` 93.8%; Walk back rows PASS 96.0% here, FAIL 93.8% there), so that criterion sits
+on the line and counts as failing; no falls in 4,128 rows there. duck-sim's body drives the scene's position
 servos, which `infer_policy.py` says are not the actuator v8 was trained with; real servos, real
 floors, a real IMU's drift and real foot slip are modelled only by the randomized ranges. The
 fall, stale-state and out-of-time exits never fired in the simulator. Studio's Swift runner ran

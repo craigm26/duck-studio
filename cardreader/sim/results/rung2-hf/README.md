@@ -18,14 +18,19 @@ This one ran on Hugging Face Jobs, `cpu-upgrade` (8 vCPU of an AMD EPYC 7R13 hos
 
 ## Verdict
 
-**Rung 2: NOT REPRODUCED, by one verdict.** Of every rung-1 verdict (pre-registered rows and Walk back
-rows, five criteria, four conditions), one differs: pre-registered rows, randomized 10 Hz, heading,
-committed PASS 96.9% [94.9, 98.2], here FAIL 94.9% [92.5, 96.6]. The intervals overlap. The
-same-Pi repeat got 93.8% for the same criterion. Two later runs both below 95% say the committed
-PASS was the lucky draw: heading at Studio's 10 Hz rate sits at about 95%, on the line.
+**Rung 2: NOT REPRODUCED, by two verdicts of 40, both the same effect.** Of every rung-1 verdict
+(pre-registered rows and Walk back rows, five criteria, four conditions), two differ, both heading at
+randomized 10 Hz:
+- pre-registered rows: committed PASS 96.9% [94.9, 98.2], here FAIL 94.9% [92.5, 96.6]; the same-Pi
+  repeat got 93.8%.
+- Walk back rows: committed PASS 96.0% [93.6, 97.5], here FAIL 93.8% [91.0, 95.8].
+
+The intervals overlap in both. Later runs below 95% say the committed PASSes were the lucky draws:
+heading at Studio's 10 Hz rate sits at about 95%, on the line. (This README first said one verdict;
+the Walk back line was missed and was found by recounting with `compare.py`'s judge, 2026-10-17.)
 
 Everything else agrees:
-- Every other verdict matches, including both runs failing rung 1 (stressed 10 Hz, and Walk back at
+- Every other verdict (38 of 40) matches, including both runs failing rung 1 (stressed 10 Hz, and Walk back at
   randomized 10 Hz on position).
 - **No falls** in any of this run's 4,128 rows, as in the committed run. The 1 to 2 falls a condition
   in the same-Pi repeat, and the 11 in the Walk lead's evaluation, came while that Pi was overloaded.
