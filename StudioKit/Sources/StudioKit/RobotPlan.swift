@@ -342,16 +342,29 @@ public enum RobotPlanRunner {
         // Every Turn card's measured coast this row; their mean is each later Turn card's lead.
         var coasts: [Double] = []
         if plan.cardsTimed { await event(.said(DuckCardLoop.offNote)) }
-        let pose: @Sendable () async -> DuckCardLoop.Pose? = {
+        let rawPose: @Sendable () async -> (t: Double, pose: DuckCardLoop.Pose)? = {
             guard let state, let s = await state(),
-                  now().timeIntervalSince(s.receivedAt) <= DuckCardLoop.spec.staleS else { return nil }
-            return DuckCardLoop.pose(of: s)
+                  now().timeIntervalSince(s.receivedAt) <= DuckCardLoop.spec.staleS,
+                  let p = DuckCardLoop.pose(of: s) else { return nil }
+            return (s.receivedAt.timeIntervalSince1970, p)
+        }
+        // duck-card-loop/3: the drift measured standing still is taken out of every pose.
+        let cal: Calibration? = DuckCardLoop.spec.calibrate.map { Calibration(DuckCardLoop.DriftCal($0)) }
+        let pose: @Sendable () async -> DuckCardLoop.Pose? = {
+            guard let got = await rawPose() else { return nil }
+            guard let cal else { return got.pose }
+            return await cal.correct(t: got.t, got.pose)
         }
         let fallen: @Sendable () async -> Bool = {
             guard let state, let s = await state() else { return false }
             return s.safety?.fallen == true
         }
         do {
+            if let cal, let c = DuckCardLoop.spec.calibrate,
+               plan.beats.contains(where: { if case .card = $0 { return true } else { return false } }),
+               await rawPose() != nil {
+                try await still(for: c.beforeS, cal: cal, rawPose: rawPose, on: peer, tick: tick, sleep: sleep)
+            }
             for (i, beat) in plan.beats.enumerated() {
                 await event(.began(i, beat))
                 switch beat {
@@ -383,7 +396,12 @@ public enum RobotPlanRunner {
                         _ = try await peer.call(.stop)
                         return .stopped(beat: i, reason: words)
                     }
-                    try await hold(.still, for: DuckCardLoop.spec.betweenS, on: peer, tick: tick, sleep: sleep)
+                    if let cal {
+                        try await still(for: DuckCardLoop.spec.betweenS, cal: cal, rawPose: rawPose,
+                                        on: peer, tick: tick, sleep: sleep)
+                    } else {
+                        try await hold(.still, for: DuckCardLoop.spec.betweenS, on: peer, tick: tick, sleep: sleep)
+                    }
                 case .sound(let tag, _):
                     let answer = RobotIntentAnswer.read(try await peer.call(.sound(tag)))
                     if !answer.accepted {
@@ -447,6 +465,30 @@ public enum RobotPlanRunner {
             try await sleep(tick)
             n += 1
         }
+    }
+
+    /// `DuckCardLoop.DriftCal`, shared between the pose the controller reads and the still windows.
+    actor Calibration {
+        var cal: DuckCardLoop.DriftCal
+        init(_ cal: DuckCardLoop.DriftCal) { self.cal = cal }
+        func correct(t: Double, _ pose: DuckCardLoop.Pose) -> DuckCardLoop.Pose { cal.correct(t: t, pose) }
+        func begin() { cal.beginStill() }
+        func sample(t: Double, yaw: Double) { cal.sampleStill(t: t, yaw: yaw) }
+        func end() { cal.endStill() }
+    }
+
+    /// `hold(.still)`, feeding each raw odometry yaw to the calibration as one still window.
+    private static func still(for seconds: Double, cal: Calibration,
+                              rawPose: @Sendable () async -> (t: Double, pose: DuckCardLoop.Pose)?,
+                              on peer: any DuckPeer, tick: Double, sleep: Sleep) async throws {
+        await cal.begin()
+        for _ in 0..<max(1, Int((seconds / tick).rounded())) {
+            try Task.checkCancellation()
+            try await peer.notify(.move(.still))
+            if let got = await rawPose() { await cal.sample(t: got.t, yaw: got.pose.h) }
+            try await sleep(tick)
+        }
+        await cal.end()
     }
 
     private static func hold(_ twist: DuckDrive.Twist, for seconds: Double, on peer: any DuckPeer,

@@ -25,6 +25,8 @@ import DuckKit
 public enum DuckCardLoop {
 
     public static let format = "duck-card-loop/1"
+    /// Every format `Spec.read` takes: `/3` adds `calibrate` (`DriftCal`).
+    public static let formats: Set<String> = ["duck-card-loop/1", "duck-card-loop/3"]
     /// The four cards that close on odometry. Every other card is unchanged.
     public static let cards: Set<String> = ["walk_forward", "walk_backward", "turn_left", "turn_right"]
 
@@ -75,6 +77,13 @@ public enum DuckCardLoop {
                      stallS = "stall_s", stallDeg = "stall_deg"
             }
         }
+        /// duck-card-loop/3: the stand before a row and the still windows that measure drift.
+        public struct Calibrate: Equatable, Sendable, Decodable {
+            public let beforeS: Double, stillAfterS: Double, maxDps: Double
+            enum CodingKeys: String, CodingKey {
+                case beforeS = "before_s", stillAfterS = "still_after_s", maxDps = "max_dps"
+            }
+        }
         public let format: String
         /// THE OFF SWITCH. Closed-loop cards ship OFF for real ducks until they pass
         /// docs/PACKS.md, "Acceptance". Off, `RobotPlan` runs a Duck Card's Walk and Turn as the
@@ -93,15 +102,17 @@ public enum DuckCardLoop {
         public let betweenS: Double
         public let walk: Walk
         public let turn: Turn
+        /// Absent in `/1`: no stand, no correction.
+        public let calibrate: Calibrate?
         enum CodingKeys: String, CodingKey {
             case format, enabledOnRobot = "enabled_on_robot", validated,
                  squareM = "square_m", controlHz = "control_hz", staleS = "stale_s",
-                 betweenS = "between_s", walk, turn
+                 betweenS = "between_s", walk, turn, calibrate
         }
 
         public static func read(_ data: Data) throws -> Spec {
             let spec = try JSONDecoder().decode(Spec.self, from: data)
-            guard spec.format == DuckCardLoop.format else {
+            guard DuckCardLoop.formats.contains(spec.format) else {
                 throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "not \(DuckCardLoop.format)"))
             }
             return spec
@@ -216,6 +227,68 @@ public enum DuckCardLoop {
         guard let odom = state?.odom, let p = odom.position, p.count >= 2, let yaw = odom.yaw,
               p[0].isFinite, p[1].isFinite, yaw.isFinite else { return nil }
         return Pose(x: p[0], y: p[1], h: yaw)
+    }
+
+    // MARK: - calibrate at every stop (duck-card-loop/3)
+
+    /// CALIBRATE AT EVERY STOP: cardloop.py's `DriftCal`, held to it by `vectors/driftcal`.
+    ///
+    /// Odometry's yaw is the trunk IMU's, and an IMU's heading drifts: up to 0.5 deg/s in the
+    /// randomized conditions, 30 degrees over a minute-long row, unseen by the controller. Standing
+    /// still the true turn rate is about zero, so the yaw rate odometry reports then is the drift.
+    /// The rate is the pooled least-squares slope of yaw on time over every still window so far,
+    /// each window its own intercept; `correct` takes it out of heading and rotates each position
+    /// step by the same correction.
+    public struct DriftCal: Sendable {
+        public let stillAfter: Double, maxRate: Double
+        public private(set) var rate = 0.0
+        public private(set) var windows = 0
+        var sxy = 0.0, sxx = 0.0
+        var cur: [(t: Double, y: Double)]?
+        var curStart: Double?
+        var t0: Double?
+        var raw: Pose?
+        var x = 0.0, y = 0.0
+
+        public init(_ cal: Spec.Calibrate) {
+            stillAfter = cal.stillAfterS
+            maxRate = cal.maxDps * .pi / 180
+        }
+
+        public mutating func beginStill() { cur = []; curStart = nil }
+
+        public mutating func sampleStill(t: Double, yaw: Double) {
+            guard var w = cur else { return }
+            if curStart == nil { curStart = t }
+            if t - curStart! < stillAfter { return }
+            if let last = w.last, t <= last.t { return }
+            let v = w.first.map { $0.y + DuckCardLoop.wrap(yaw - $0.y) } ?? yaw
+            w.append((t, v))
+            cur = w
+        }
+
+        public mutating func endStill() {
+            let w = cur ?? []
+            cur = nil
+            guard w.count >= 3 else { return }
+            let n = Double(w.count)
+            let tm = w.reduce(0) { $0 + $1.t } / n
+            let ym = w.reduce(0) { $0 + $1.y } / n
+            sxy += w.reduce(0) { $0 + ($1.t - tm) * ($1.y - ym) }
+            sxx += w.reduce(0) { $0 + ($1.t - tm) * ($1.t - tm) }
+            windows += 1
+            if sxx > 0 { rate = max(-maxRate, min(maxRate, sxy / sxx)) }
+        }
+
+        public mutating func correct(t: Double, _ pose: Pose) -> Pose {
+            if t0 == nil { t0 = t; raw = pose; x = pose.x; y = pose.y }
+            let d = -rate * (t - t0!)
+            let dx = pose.x - raw!.x, dy = pose.y - raw!.y
+            x += dx * cos(d) - dy * sin(d)
+            y += dx * sin(d) + dy * cos(d)
+            raw = pose
+            return Pose(x: x, y: y, h: DuckCardLoop.wrap(pose.h + d))
+        }
     }
 
     /// An angle in (-pi, pi].
