@@ -11,8 +11,10 @@ This one ran on Hugging Face Jobs, `cpu-upgrade` (8 vCPU of an AMD EPYC 7R13 hos
   validate.sh's NEEDS line. No duck logged "behind real time". `load.log` is the host's, not the job's
   (the host has 64 cores), so it cannot show whether this job was starved.
 - **Every row:** `COMPARE.md`, each criterion beside the committed one with Wilson 95% intervals.
-- **System identification:** `sysid/sysid.md`. It matches the committed fits within the trial spread;
-  forward walks from 0.25 (0.20 three times out of three here), the ramp onset is 0.23 on both.
+- **System identification:** `sysid/sysid.md`. Speeds and delays match the committed fits closely
+  (vx +0.30: 0.095 vs 0.094 m/s; vx -0.35: -0.147 vs -0.148 m/s). One step differs, as it did in the
+  same-Pi repeat: vx +0.20 walked 3 of 3 times here and 0 of 3 in the committed run, so the forward
+  dead band edge is at about 0.2 (ramp onset 0.23 here). Walk cards command 0.30 or more.
 
 ## Verdict
 
