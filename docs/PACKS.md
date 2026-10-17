@@ -613,6 +613,38 @@ floors, a real IMU's drift and real foot slip are modelled only by the randomize
 fall, stale-state and out-of-time exits never fired in the simulator. Studio's Swift runner ran
 its unit tests and vectors on Linux, not against duck-sim.
 
+### Candidate change: calibrate at every stop (`duck-card-loop/3`), pre-registered 2026-10-17
+
+**Written before any row of it ran.** The diagnosis it tests: `/1` already aims every card at an
+absolute board pose, so what builds up over a row is what odometry believes, above all the IMU's
+heading drift (up to 0.5 deg/s in randomized, 0.5 in stressed: up to 30 degrees in a minute-long
+row, invisible to the controller). Standing still, the true turn rate is about zero, so the yaw
+rate odometry reports then is drift.
+
+- **The change.** Before a row's first closed-loop card the duck stands still for
+  `calibrate.before_s`; it also stands still for `between_s` after every card, as now. In each
+  still window the samples after `calibrate.still_after_s` are kept, and the drift rate is the
+  pooled least-squares slope of yaw on time over every window so far (each window its own
+  intercept), clamped to `calibrate.max_dps`. Every pose the controller is handed is corrected
+  by it: heading less rate times the time since the row began, and each position step rotated by
+  the same correction, so position integrates the corrected heading. Nothing else changes.
+- **Development** (choices only: `before_s` 3 or 5 s, `still_after_s`, `max_dps`): seeds 101 to
+  104, any number of rows, never reported as a result.
+- **Evaluation, run once**, on HF Jobs `cpu-upgrade` from a fresh checkout of the candidate's
+  commit, as `cardreader/sim/results-walkback/run_eval.sh` ran: fresh seeds 321 to 324
+  (pre-registered rows), 341 to 344 (Walk back rows), 311 to 314 (every row), 400 rows per
+  condition per batch. Judged by "Acceptance" unchanged, against `/1`'s HF run
+  (`results/rung2-hf/`). A row's time criterion is per card, so the stand before a row does not
+  count against it.
+- **Decision rule.** `/3` passes rung 1 if every criterion passes in every condition. Whether or
+  not it does, it replaces `/1` as the base for the next idea only if no verdict `/1` passed on HF
+  becomes a fail, and long rows' (10 cards or more) position at randomized 10 Hz rises. If it
+  replaces `/1` it ships to Studio's Measure my duck and the card reader (a test screen and a
+  sim tool); `enabled_on_robot` stays false until all three rungs pass.
+- **Expected, said now so it can be wrong:** the drift estimate from a 5 s stand at 10 Hz with
+  0.5 degrees of noise a frame is good to about 0.06 deg/s, a few degrees a minute; the sim's
+  drift is a constant rate per row, which flatters this; a real IMU's wanders.
+
 ### Candidate change: the Walk lead (`duck-card-loop/2`), Pollen's duck-sim, 2026-10-16
 
 **A candidate on branch `duck-packs-walkback`, not adopted (this branch keeps `/1`; the record is in `cardreader/sim/results-walkback/`); `enabled_on_robot` stays false and
