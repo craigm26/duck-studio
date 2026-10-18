@@ -10,3 +10,9 @@ Pre-registered in docs/PACKS.md (commit 7cc2b07) before any development row ran.
   changed after it.
 - `run_eval.sh`: the one evaluation, on HF Jobs from a fresh checkout; rows in `raw-acceptance/`
   (seeds 421-424), `raw-back/` (441-444), `raw/` (411-414).
+
+**A first launch scored nothing** (HF job 6ad43ba85ccb47ba0f7c0b28 at 4e7e3d8, 2026-10-18 03:23 to
+03:34 UTC): that machine's `python3` had no numpy, so every row stopped at its first look with
+`ModuleNotFoundError` before any row was scored or written (0 rows in every file). No setting
+changed; `run_eval.sh` now checks for numpy first and the job installs `python3-numpy`, and the
+evaluation was launched again, unchanged, on the same seeds.
