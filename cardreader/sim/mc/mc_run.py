@@ -155,6 +155,73 @@ def draw_session(cond, rng):
             "yaw_bias_deg": round(rng.uniform(-5, 5), 2), "yaw_drift_dps": round(rng.uniform(-0.5, 0.5), 3)}
 
 
+def draw_camera(cond, rng):
+    """THE CAMERA, for duck-card-loop/4 (docs/PACKS.md, pre-registered 2026-10-18), per session:
+    how far the duck's belief about its head camera is off (mounting pitch, roll and yaw, height)
+    and how the picture differs (brightness gain, white noise in levels of 255), and a fresh tilt
+    error on every frame (the IMU's pitch and roll). Drawn only when the spec has `compass`."""
+    if cond.startswith("nominal"):
+        return {"pitch_deg": 0.0, "roll_deg": 0.0, "yaw_deg": 0.0, "height_m": 0.0, "gain": 1.0,
+                "noise": 0.0, "imu_sd_deg": 0.0}
+    if cond.startswith("stressed"):
+        return {"pitch_deg": rng.choice((-2.0, 2.0)), "roll_deg": rng.choice((-1.0, 1.0)),
+                "yaw_deg": rng.choice((-1.0, 1.0)), "height_m": rng.choice((-0.005, 0.005)),
+                "gain": rng.choice((0.7, 1.3)), "noise": 8.0, "imu_sd_deg": 0.3}
+    return {"pitch_deg": round(rng.uniform(-2, 2), 3), "roll_deg": round(rng.uniform(-1, 1), 3),
+            "yaw_deg": round(rng.uniform(-1, 1), 3), "height_m": round(rng.uniform(-0.005, 0.005), 4),
+            "gain": round(rng.uniform(0.7, 1.3), 3), "noise": 4.0, "imu_sd_deg": 0.3}
+
+
+class MatEye:
+    """`mateye.py` for one session: started on microduck_rl's venv beside the stack, asked to lay
+    the mat at each row's start and for a frame at each stop."""
+
+    def __init__(self, body_port: int, port: int, camera: dict, seed: int, square: float):
+        import subprocess
+        rl = os.environ.get("MICRODUCK_RL", os.path.expanduser("~/microduck_rl"))
+        args = [os.path.join(rl, ".venv/bin/python"), str(SIM / "mateye.py"), "--rl", rl,
+                "--body-port", str(body_port), "--port", str(port), "--seed", str(seed),
+                "--square", str(square)]
+        for k, v in camera.items():
+            args += [f"--{k.replace('_', '-')}", str(v)]
+        env = dict(os.environ, MUJOCO_GL=os.environ.get("MUJOCO_GL", "egl"))
+        self.proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
+        line = self.proc.stdout.readline()
+        if "mateye ready" not in line:
+            self.proc.kill()
+            raise RuntimeError(f"mateye did not start: {line.strip()}")
+        import socket
+        self.sock = socket.create_connection(("127.0.0.1", port), timeout=10)
+        self.f = self.sock.makefile("rwb")
+        self.frames = self.fails = 0
+
+    def place(self) -> list:
+        self.f.write(b'{"op":"place"}\n')
+        self.f.flush()
+        return json.loads(self.f.readline())["truth"]
+
+    def frame(self):
+        import numpy as np
+        try:
+            self.f.write(b'{"op":"frame"}\n')
+            self.f.flush()
+            head = json.loads(self.f.readline())
+            data = self.f.read(head["n"])
+            self.frames += 1
+            gray = np.frombuffer(data, dtype=np.uint8).reshape(head["h"], head["w"])
+            return gray, head["fovy"], head["rot"], head["pos"]
+        except Exception:
+            self.fails += 1
+            return None
+
+    def close(self):
+        try:
+            self.sock.close()
+        finally:
+            self.proc.kill()
+            self.proc.wait()
+
+
 def draw_row(cond, rng):
     if cond.startswith("nominal"):
         return {"latency_s": 0.0, "noise_m": 0.0, "noise_deg": 0.0, "odom_scale": 1.0}
@@ -197,7 +264,7 @@ def _logged_drive(loop, robot, state, sleep=time.sleep, clock=time.time):
 runner.drive = _logged_drive
 
 
-def run_row(robot, truth, row, cond_row, rng, square, log):
+def run_row(robot, truth, row, cond_row, rng, square, log, eye=None):
     CARD_LOG.clear()
     steps = rowlist.steps(row)
     beats = runner.beats(steps)
@@ -210,13 +277,16 @@ def run_row(robot, truth, row, cond_row, rng, square, log):
     while time.monotonic() < end:
         robot.move(0.0, 0.0)
         time.sleep(0.05)
+    if eye is not None:
+        eye.place()                            # the child seats the duck on the mat
     t_start = time.monotonic()
     fell_any = [False]
 
     def say(line):
         said.append((time.monotonic(), line))
 
-    result = runner.run(beats, robot, say=say, state=seen, clock=time.monotonic, measured=True)
+    result = runner.run(beats, robot, say=say, state=seen, clock=time.monotonic, measured=True,
+                        frame=eye.frame if eye is not None else None)
     t_end = time.monotonic()
     # When each beat began: the runner says each beat's clause first, in order.
     begins, k = [], 0
@@ -249,6 +319,13 @@ def run_row(robot, truth, row, cond_row, rng, square, log):
     cal = getattr(runner, "LAST_CAL", None)
     calib = {"drift_est_dps": round(math.degrees(cal.rate), 4), "windows": cal.windows} if cal else {}
     runner.LAST_CAL = None
+    fix = getattr(runner, "LAST_FIX", None)
+    if fix is not None:
+        ok = [f for f in fix.fixes if f is not None]
+        calib.update({"looks": len(fix.fixes), "fixes": len(ok),
+                      "fix_deg": [round(math.degrees(f[0]), 2) for f in ok],
+                      "fix_cm": [round(100 * math.hypot(f[1], f[2]), 1) for f in ok]})
+    runner.LAST_FIX = None
     return {"row": row["name"], "cards": len(moving), "result": ending,
             "said": [line.strip() for _, line in said if not any(line == f"  {b.clause}" for b in beats)],
             "pos_err_m": pos_err, "head_err_deg": head_err, "fell": fell,
@@ -312,6 +389,19 @@ def main():
             time.sleep(2)
             continue
         start_failures = 0
+        eye = None
+        camera = {}
+        if cardloop.SPEC.get("compass"):
+            camera = draw_camera(a.condition, rng)
+            try:
+                eye = MatEye(a.port, a.port + 1000, camera, a.seed * 1000 + i, square)
+            except Exception as e:
+                print(f"session failed to start its mat eye: {e}", flush=True)
+                stack.down()
+                start_failures += 1
+                if start_failures >= 5:
+                    sys.exit(2)
+                continue
         robot = Robotd(str(stack.sock), hz=hz)
         body = Body(a.port)
         truth = Truth(body)
@@ -322,8 +412,10 @@ def main():
             while n < a.rows_per_session and i < a.rows:
                 row = rows[(a.start_index + i) % len(rows)]
                 cr = draw_row(a.condition, rng)
-                r = run_row(robot, truth, row, cr, rng, square, print)
+                r = run_row(robot, truth, row, cr, rng, square, print, eye)
                 r.update({"i": i, "condition": a.condition, "knobs": knobs, "hz": hz, "spec_sha256": SPEC_SHA})
+                if camera:
+                    r["camera"] = camera
                 with open(path, "a") as f:
                     f.write(json.dumps(r) + "\n")
                 print(f"{a.condition} {i} {r['row']}: {r['result']} pos {r['pos_err_m']*100:.1f} cm "
@@ -341,6 +433,8 @@ def main():
                         break
         finally:
             truth.stop_.set()
+            if eye is not None:
+                eye.close()
             robot.close()
             body.close()
             stack.down()

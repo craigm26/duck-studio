@@ -52,7 +52,9 @@ class Mirror:
         with self.lock:
             q = self.data.qpos
             q[self.trunk:self.trunk + 3] = reading["trunk"]
-            q[self.trunk + 3:self.trunk + 7] = reading["imu"]["quat"]
+            # MuJoCo's own orientation when body_knobs.py turns what robotd is told: a camera sees
+            # the world, not what a drifting IMU believes.
+            q[self.trunk + 3:self.trunk + 7] = reading.get("truth_quat") or reading["imu"]["quat"]
             for wire, adr in self.slots:
                 q[adr] = reading["positions"][wire]
             mujoco.mj_kinematics(self.model, self.data)
