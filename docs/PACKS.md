@@ -772,6 +772,25 @@ spec asks for `compass`. Whether the falls belong to the mat or to the machine i
 these rows: 3 of 8 came before the mat had changed anything, and `/1`'s HF run had none in 4,116.
 A later candidate that keeps the mat must be pre-registered as new, with its own seeds.
 
+### A control for falls: `/1` again on HF, pre-registered 2026-10-18
+
+**Written before any row of it ran.** `/4`'s repeat failed only on falls (8 in 4,800 rows, 3
+before any look), judged against one `/1` run that had none in 4,116. This control measures how
+often `/1` itself falls on the same harness and machine type today. It is not a candidate and
+changes nothing that ships.
+
+- **What runs.** The shipped spec, `duck-card-loop/1`, from main after #38, on HF Jobs
+  `cpu-upgrade`, fresh seeds 521 to 524 (pre-registered rows), 541 to 544 (Walk back rows), 511
+  to 514 (every row), 400 rows per condition per batch (`cardreader/sim/results-control/`). Valid
+  only if 10 or fewer rows stop on a stale pose, as for `/4`'s repeat.
+- **What it decides, said now.** If `/1` falls 3 or more times in its 4,800 rows (`/4`'s repeat
+  had 8; 3 is where the two rates stop being clearly apart at this size), the falls criterion as
+  written cannot tell a candidate from the simulator's own falls. Then an amendment to how falls
+  are judged (a candidate against a same-run control, not against zero) is written and published
+  here before it is used, and `/4` is judged again under it on the rows it already has, with no
+  new rows. If `/1` falls 2 or fewer times, the falls belong to the mat: `/4` stays not adopted,
+  and a later mat candidate must remove them.
+
 ### Candidate change: calibrate at every stop (`duck-card-loop/3`), pre-registered 2026-10-17
 
 **Written before any row of it ran.** The diagnosis it tests: `/1` already aims every card at an
