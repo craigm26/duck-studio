@@ -624,6 +624,40 @@ floors, a real IMU's drift and real foot slip are modelled only by the randomize
 fall, stale-state and out-of-time exits never fired in the simulator. Studio's Swift runner ran
 its unit tests and vectors on Linux, not against duck-sim.
 
+### Candidate change: merge cards, to spend less time (`duck-card-loop/5`), pre-registered 2026-10-18
+
+**Written before any development or evaluation row of it ran.** Long rows fail because the sensed
+pose drifts with time (`/3` and `/4` above). A row that takes less time drifts less. Today every
+card stops, stands `between_s` and starts again, and every Walk card accelerates from still.
+
+- **The change.** From `/1`, nothing else. Consecutive closed-loop cards of the same action and
+  speed, with nothing between them, run as one: up to `merge.walks` Walk cards as one walk of that
+  many squares, and two Turn cards of the same way as one half turn. The walk aims at the same
+  absolute board pose the last of its cards would have, with the same steering; its time limit and
+  the stall rule scale with its squares. The half turn steers on the yaw turned since it began
+  (unwrapped), so it never takes the short way round the wrong side, and it ends with the settle,
+  trims and pause a quarter turn has. Three or more Turn cards merge two at a time. The board, the
+  play, the cards a child sees and every exit sentence are unchanged. Candidate spec:
+  `cardreader/sim/candidate-merge.json` (`merge.walks` chosen on development seeds).
+- **Time, judged per card as before:** a merged run of n cards counts as n cards, each taking its
+  time over n, so its whole time must be within n times the card's bound (Walk 8 s, Turn 6 s).
+- **Development** (`merge.walks` only, from 2, 3, 4 or every walk in a run): seeds 101 to 104,
+  the Pi, never reported as a result.
+- **Evaluation, run once**, on HF Jobs `cpu-upgrade` from a fresh checkout: fresh seeds 621 to 624
+  (pre-registered rows), 641 to 644 (Walk back rows), 611 to 614 (every row), 400 rows per
+  condition per batch, judged by "Acceptance" unchanged, against `/1`'s HF run. Valid only if 10 or
+  fewer rows stop on a stale pose; otherwise inconclusive.
+- **Decision rule**, `/3`'s and `/4`'s: it replaces `/1` as the base for the next idea only if no
+  verdict `/1` passed on HF becomes a fail, and long rows' position at randomized 10 Hz rises. If
+  the falls control (above) leads to an amendment of how falls are judged, that amendment is
+  written down and applied here only if it is published before this evaluation's rows are read.
+- **Expected, said now so it can be wrong.** Rows with runs of Walk cards finish a fifth to a
+  third sooner; rows of single cards between turns gain almost nothing, and the packs' long rows
+  are mostly the first kind. Drift grows with time, so long rows' position at randomized 10 Hz
+  rises a little, to perhaps 45 to 55% from 36.7%: this treats the symptom's size, not its cause.
+  What could break it: a long walk's position error at its end is a whole run's odometry scale
+  error with no stop to settle; a half turn coasts further than a quarter turn's lead allows for.
+
 ### Candidate change: the mat as a compass (`duck-card-loop/4`), pre-registered 2026-10-18
 
 **Written before any development or evaluation row of it ran** (a 4-row plumbing check ran, seed
