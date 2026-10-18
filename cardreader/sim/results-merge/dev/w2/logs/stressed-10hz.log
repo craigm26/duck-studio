@@ -1,0 +1,65 @@
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 0 get-to-the-pond/pond-1: finished pos 0.7 cm head 6.0 deg fell False 6 s
+stressed-10hz 1 get-to-the-pond/pond-2: finished pos 1.4 cm head 5.5 deg fell False 6 s
+stressed-10hz 2 get-to-the-pond/pond-3: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 59.2 cm head 12.6 deg fell False 11 s
+stressed-10hz 3 get-to-the-pond/pond-4: finished pos 13.1 cm head 14.6 deg fell False 22 s
+stressed-10hz 4 get-to-the-pond/pond-5: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 32.1 cm head 7.2 deg fell False 20 s
+stressed-10hz 5 get-to-the-pond/pond-6: finished pos 11.0 cm head 11.1 deg fell False 17 s
+stressed-10hz 6 duck-maze/maze-1: finished pos 2.7 cm head 5.9 deg fell False 9 s
+stressed-10hz 7 duck-maze/maze-2: finished pos 3.9 cm head 1.6 deg fell False 5 s
+stressed-10hz 8 duck-maze/maze-3: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 44.1 cm head 79.1 deg fell False 8 s
+stressed-10hz 9 duck-maze/maze-4: finished pos 11.4 cm head 1.3 deg fell False 8 s
+stressed-10hz 10 duck-maze/maze-5: finished pos 17.5 cm head 20.0 deg fell False 30 s
+stressed-10hz 11 duck-maze/maze-6: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 91.2 cm head 101.9 deg fell False 11 s
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 12 duck-maze/maze-7: finished pos 11.1 cm head 8.6 deg fell False 22 s
+stressed-10hz 13 duck-maze/maze-8: finished pos 16.4 cm head 9.6 deg fell False 31 s
+stressed-10hz 14 duck-maze/maze-9: finished pos 19.6 cm head 12.3 deg fell False 29 s
+stressed-10hz 15 duck-maze/maze-10: finished pos 22.1 cm head 20.4 deg fell False 48 s
+stressed-10hz 16 loop-the-course/loop-1: finished pos 0.8 cm head 6.0 deg fell False 9 s
+stressed-10hz 17 loop-the-course/loop-2: finished pos 7.4 cm head 3.6 deg fell False 12 s
+stressed-10hz 18 loop-the-course/loop-3: finished pos 11.3 cm head 10.8 deg fell False 19 s
+stressed-10hz 19 loop-the-course/loop-4: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 45.8 cm head 60.1 deg fell False 28 s
+stressed-10hz 20 loop-the-course/loop-5: finished pos 14.9 cm head 13.4 deg fell False 38 s
+stressed-10hz 21 loop-the-course/loop-6: finished pos 19.3 cm head 20.7 deg fell False 38 s
+stressed-10hz 22 loop-the-course/loop-7: finished pos 28.2 cm head 24.9 deg fell False 28 s
+stressed-10hz 23 loop-the-course/loop-8: finished pos 50.8 cm head 32.6 deg fell False 60 s
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 24 loop-the-course/loop-9: finished pos 53.3 cm head 46.4 deg fell False 76 s
+stressed-10hz 25 loop-the-course/loop-10: finished pos 45.7 cm head 36.8 deg fell False 56 s
+stressed-10hz 26 design-a-level/design-1: finished pos 30.7 cm head 27.4 deg fell False 46 s
+stressed-10hz 27 design-a-level/design-2: finished pos 52.8 cm head 35.8 deg fell False 63 s
+stressed-10hz 28 design-a-level/design-3: finished pos 43.7 cm head 27.9 deg fell False 59 s
+stressed-10hz 29 FFLFRF: finished pos 12.5 cm head 20.3 deg fell False 21 s
+stressed-10hz 30 FRFRFRFR: finished pos 11.5 cm head 19.2 deg fell False 24 s
+stressed-10hz 31 FLLF: finished pos 5.6 cm head 3.5 deg fell False 11 s
+stressed-10hz 32 FFB: finished pos 5.0 cm head 18.3 deg fell False 9 s
+stressed-10hz 33 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 9.1 cm head 19.3 deg fell False 19 s
+stressed-10hz 34 LLRR: finished pos 2.1 cm head 8.8 deg fell False 7 s
+stressed-10hz 35 FFFF: finished pos 10.8 cm head 5.3 deg fell False 11 s
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 36 F: finished pos 3.6 cm head 0.9 deg fell False 4 s
+stressed-10hz 37 FF: finished pos 1.1 cm head 0.2 deg fell False 6 s
+stressed-10hz 38 FFF: finished pos 8.7 cm head 2.0 deg fell False 10 s
+stressed-10hz 39 LLLL: finished pos 0.8 cm head 1.7 deg fell False 8 s
+stressed-10hz 40 get-to-the-pond/pond-1: finished pos 7.3 cm head 4.2 deg fell False 7 s
+stressed-10hz 41 get-to-the-pond/pond-2: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 27.6 cm head 23.5 deg fell False 5 s
+stressed-10hz 42 get-to-the-pond/pond-3: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 55.4 cm head 23.2 deg fell False 10 s
+stressed-10hz 43 get-to-the-pond/pond-4: finished pos 8.4 cm head 5.8 deg fell False 22 s
+stressed-10hz 44 get-to-the-pond/pond-5: finished pos 7.7 cm head 14.6 deg fell False 23 s
+stressed-10hz 45 get-to-the-pond/pond-6: finished pos 11.9 cm head 4.4 deg fell False 18 s
+stressed-10hz 46 duck-maze/maze-1: finished pos 5.8 cm head 1.1 deg fell False 9 s
+stressed-10hz 47 duck-maze/maze-2: finished pos 2.0 cm head 10.9 deg fell False 5 s
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 48 duck-maze/maze-3: finished pos 4.9 cm head 5.1 deg fell False 16 s
+stressed-10hz 49 duck-maze/maze-4: finished pos 16.3 cm head 9.7 deg fell False 8 s
+stressed-10hz 50 duck-maze/maze-5: finished pos 17.7 cm head 9.3 deg fell False 27 s
+stressed-10hz 51 duck-maze/maze-6: finished pos 11.2 cm head 13.0 deg fell False 24 s
+stressed-10hz 52 duck-maze/maze-7: finished pos 12.4 cm head 17.7 deg fell False 19 s
+stressed-10hz 53 duck-maze/maze-8: finished pos 15.2 cm head 16.1 deg fell False 30 s
+stressed-10hz 54 duck-maze/maze-9: finished pos 14.5 cm head 7.1 deg fell False 29 s
+stressed-10hz 55 duck-maze/maze-10: finished pos 23.1 cm head 19.6 deg fell False 45 s
+stressed-10hz 56 loop-the-course/loop-1: finished pos 7.4 cm head 11.0 deg fell False 11 s
+stressed-10hz 57 loop-the-course/loop-2: finished pos 11.5 cm head 5.4 deg fell False 11 s
+stressed-10hz 58 loop-the-course/loop-3: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 87.3 cm head 23.2 deg fell False 10 s
+stressed-10hz 59 loop-the-course/loop-4: finished pos 17.1 cm head 24.7 deg fell False 32 s
