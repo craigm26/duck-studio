@@ -1,0 +1,7 @@
+host: j-craigm26-6ad4acdcc6628814522735d7-k4cv4ws2-c23f2-pwn9m
+date_utc: 2026-10-18T11:27:05Z
+uname: Linux 6.12.111-136.204.amzn2023.x86_64 x86_64
+cpus: 64
+cpu_model:  AMD EPYC 7R13 Processor
+mem: MemTotal:       517267276 kB
+duck_studio_commit: dbff60deb61b05ffaf99999541b4400d2eacdae7

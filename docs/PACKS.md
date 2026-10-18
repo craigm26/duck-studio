@@ -704,6 +704,29 @@ had 2, `/3`'s 9). If more do, it is reported as inconclusive: `/4` is neither ad
 on it, and the next idea starts from `/1`. If it is valid, its verdict under the rule is the result
 for `/4`, and run 1 stays published beside it.
 
+**Result of the repeat, 2026-10-18: inconclusive by its own gate, and rejected by the rule had
+it counted.** HF job 6ad4acdc, commit dbff60d, 7.4 h, 4,800 rows (`cardreader/sim/results-compass/`,
+`COMPARE.md`). One frame took 0.05 s on one thread; the host's load median was 16. **11 rows
+stopped on a stale pose, one more than the 10 the repeat allowed**, so by its pre-registration it
+is inconclusive and the next idea starts from `/1`. Had it counted, the rule would still reject it:
+falls, from none, in three verdicts `/1` passed (pre-registered rows at randomized 10 Hz 1 in 510;
+Walk back rows randomized 1 in 493 and stressed 10 Hz 2 in 493; 8 falls in all, 3 of them on a
+row's first card before any look). Everything else `/1` passed still passes, and the mat did what
+it was meant to:
+
+- Long rows' position: randomized 33.3% to **95.8%** (PASS), randomized 10 Hz 36.7% to 92.5%,
+  stressed 10 Hz 0% to 66.7%; nominal unchanged at 98.3%.
+- Every row at randomized: position 75.1% to **97.5%**, heading 91.4% to 96.5% (both PASS); at
+  randomized 10 Hz 73.7% to 97.0% and 87.1% to 97.2% (both PASS).
+- Pre-registered rows: randomized 10 Hz heading FAIL 94.9% to PASS 96.5%; stressed 10 Hz still
+  fails (position 84.4% to 88.4%). Walk back randomized 10 Hz heading FAIL 93.8% to PASS 97.0%;
+  Walk back stressed 10 Hz position worse, 79.9% to 68.0%.
+
+So `/4` is not adopted, does not ship and is not ported. Its code stays on main, inert unless a
+spec asks for `compass`. Whether the falls belong to the mat or to the machine is not settled by
+these rows: 3 of 8 came before the mat had changed anything, and `/1`'s HF run had none in 4,116.
+A later candidate that keeps the mat must be pre-registered as new, with its own seeds.
+
 ### Candidate change: calibrate at every stop (`duck-card-loop/3`), pre-registered 2026-10-17
 
 **Written before any row of it ran.** The diagnosis it tests: `/1` already aims every card at an
