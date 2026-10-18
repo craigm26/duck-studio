@@ -184,8 +184,13 @@ class MatEye:
                 "--square", str(square)]
         for k, v in camera.items():
             args += [f"--{k.replace('_', '-')}", str(v)]
+        # One render thread at a lower priority than the stack: a software renderer (osmesa's
+        # llvmpipe) otherwise takes every core for each frame and starves the physics and robotd
+        # of every session on the machine (results-compass/run1, docs/PACKS.md).
         env = dict(os.environ, MUJOCO_GL=os.environ.get("MUJOCO_GL", "egl"))
-        self.proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
+        env.setdefault("LP_NUM_THREADS", "1")
+        self.proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env,
+                                     preexec_fn=lambda: os.nice(10))
         line = self.proc.stdout.readline()
         if "mateye ready" not in line:
             self.proc.kill()

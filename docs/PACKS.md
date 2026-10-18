@@ -669,6 +669,41 @@ quarter turn and position to the nearest square, and neither drifts.
   that wanders off the 4.5 m mat sees no lines and runs on odometry; a look adds a few tenths of a
   second to each card; rendered tape is cleaner than real tape on a real floor.
 
+**Result of run 1, 2026-10-18: rejected by its own rule, on a machine that was starved.** The
+evaluation ran on HF Jobs (job 6ad43e48, commit 6c7f14d, 7.8 h, 4,800 rows;
+`cardreader/sim/results-compass/run1/`, compared in its `COMPARE.md`). What the mat was meant to do,
+it did: long rows' position at randomized 10 Hz rose from 36.7% to 80.8% (randomized 33.3% to
+82.5%, stressed 10 Hz 0% to 46.7%), and their heading error stopped growing (median 3.6 degrees
+against 8.6). But verdicts `/1` passed on HF became fails, so by the rule `/4` does not replace
+`/1`:
+
+- **Falls** in every condition, from none: pre-registered rows 10, 8, 8 and 4 in 510 (nominal,
+  randomized, randomized 10 Hz, stressed 10 Hz); Walk back rows 28, 20, 28 and 27 in 493.
+- **Position and heading at nominal**: pre-registered rows 99.1% to 93.7%, Walk back rows 99.0%
+  to 85.4%, every row 99.0% to 90.2%.
+
+**Why we think the machine, not the mat, did this; not shown.** 170 of the 4,800 rows stopped
+because the duck's pose stopped arriving for more than `stale_s` (0.5 s), against 2 in `/1`'s HF
+run and 9 in `/3`'s. 17 of the 146 falls came before the row's first look, when the mat had changed
+nothing yet, and the falls followed small fixes (the last fix before a fall: median 1.2 degrees,
+90th percentile 5.2). The host's load average (the whole host's, as the job sees it) had a median
+of 260, against 21 for `/3`'s run. The mat eye rendered in software (osmesa's llvmpipe), which by
+default takes every core for each frame, beside four sessions' physics and robotd on 8 vCPUs. On
+the Pi, with a GPU, the development rows had no fall and no lost pose. None of this makes run 1
+pass: it is recorded as it came out.
+
+### Repeat of `/4`'s evaluation with the renderer bounded, pre-registered 2026-10-18
+
+**Written after run 1 and before any row of this repeat.** It changes the instrument only:
+`mc/mc_run.py` starts the mat eye with one render thread (`LP_NUM_THREADS=1`) at nice 10, below
+the duck's stack. The candidate spec, the code, the conditions, the seeds (421 to 424, 441 to 444,
+411 to 414, the same as run 1, so any difference is the instrument's), the flavour (`cpu-upgrade`),
+the criteria and the decision rule are run 1's. The job times one rendered frame before it starts.
+**The repeat is valid only if 10 or fewer of its 4,800 rows stop on a stale pose** (`/1`'s HF run
+had 2, `/3`'s 9). If more do, it is reported as inconclusive: `/4` is neither adopted nor rejected
+on it, and the next idea starts from `/1`. If it is valid, its verdict under the rule is the result
+for `/4`, and run 1 stays published beside it.
+
 ### Candidate change: calibrate at every stop (`duck-card-loop/3`), pre-registered 2026-10-17
 
 **Written before any row of it ran.** The diagnosis it tests: `/1` already aims every card at an
