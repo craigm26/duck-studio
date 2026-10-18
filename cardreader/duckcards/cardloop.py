@@ -40,7 +40,8 @@ from dataclasses import dataclass
 HERE = pathlib.Path(__file__).resolve().parent
 SPEC_FILE = HERE / "duck-card-loop.json"
 FORMAT = "duck-card-loop/1"
-FORMATS = ("duck-card-loop/1", "duck-card-loop/3", "duck-card-loop/4")    # /3 adds `calibrate` (DriftCal), /4 `compass` (MatFix)
+FORMATS = ("duck-card-loop/1", "duck-card-loop/3", "duck-card-loop/4", "duck-card-loop/5")
+# /3 adds `calibrate` (DriftCal), /4 `compass` (MatFix), /5 `merge` (runner.merged: one CardLoop for n cards)
 CARDS = ("walk_forward", "walk_backward", "turn_left", "turn_right")
 
 
@@ -164,11 +165,18 @@ class CardLoop:
     card is done, whatever happened."""
 
     def __init__(self, action: str, board: Pose, speed: str | None = None, spec: dict | None = None,
-                 lead_deg: float | None = None):
+                 lead_deg: float | None = None, cards: int = 1):
         if action not in CARDS:
             raise ValueError(f"{action} is not a Walk or Turn card")
+        if cards < 1 or (action.startswith("turn") and cards > 2):
+            raise ValueError(f"{cards} {action} cards cannot run as one")
         self.spec = spec or SPEC
         self.action, self.board = action, board
+        # duck-card-loop/5: `cards` of the same card as one, a walk of that many squares or a half
+        # turn; its time limit scales with them. A half turn steers on the yaw turned since it began.
+        self.cards = cards
+        self.need: float | None = None
+        self.turned, self.last_h = 0.0, 0.0
         self.rate = speed_of(self.spec, action, speed)
         d = self.spec["square_m"]
         self.mark, self.mark_t = None, 0.0          # the last progress made, and when
@@ -188,11 +196,11 @@ class CardLoop:
         self.stop_e, self.stop_way = 0.0, 1.0
         if action.startswith("walk"):
             self.sign = 1.0 if action == "walk_forward" else -1.0
-            self.board_after = Pose(board.x + self.sign * d * math.cos(board.h),
-                                    board.y + self.sign * d * math.sin(board.h), board.h)
+            self.board_after = Pose(board.x + self.sign * cards * d * math.cos(board.h),
+                                    board.y + self.sign * cards * d * math.sin(board.h), board.h)
         else:
             self.sign = 1.0 if action == "turn_left" else -1.0
-            self.board_after = Pose(board.x, board.y, wrap(board.h + self.sign * math.pi / 2))
+            self.board_after = Pose(board.x, board.y, wrap(board.h + self.sign * cards * math.pi / 2))
             self.phase, self.since = "turn", 0.0
             self.trims_left = int(self.spec["turn"]["trims"])
 
@@ -214,9 +222,9 @@ class CardLoop:
         along = self.sign * (dx * math.cos(b.h) + dy * math.sin(b.h))
         across = -dx * math.sin(b.h) + dy * math.cos(b.h)
         early = w["stop_early_m"] if self.sign > 0 else w["back_stop_early_m"]
-        if along >= self.spec["square_m"] - early:
+        if along >= self.cards * self.spec["square_m"] - early:
             return "reached"
-        if t >= w["max_s"]:
+        if t >= w["max_s"] * self.cards:
             return "out of time"
         if self._stalled(along, t, w["stall_m"], w["stall_s"]):
             return "stuck"
@@ -226,10 +234,20 @@ class CardLoop:
 
     def _turn(self, pose: Pose, t: float):
         c = self.spec["turn"]
-        e = wrap(self.board_after.h - pose.h)
+        if self.cards == 1:
+            e = wrap(self.board_after.h - pose.h)
+        else:
+            # A half turn: what is left of the turn it began with, on the yaw turned since, so a
+            # duck near 180 degrees off never takes the other way round.
+            if self.need is None:
+                self.need = self.sign * self.cards * math.pi / 2 + wrap(self.board.h - pose.h)
+                self.last_h = pose.h
+            self.turned += wrap(pose.h - self.last_h)
+            self.last_h = pose.h
+            e = self.need - self.turned
         off = abs(e) * 180.0 / math.pi
         way = 1.0 if e >= 0 else -1.0
-        if t >= c["max_s"]:
+        if t >= c["max_s"] * self.cards:
             return "out of time"
         if self.phase in ("turn", "trim"):
             trim = self.phase == "trim"
