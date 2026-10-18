@@ -191,12 +191,89 @@ final class DuckMeasureTests: XCTestCase {
         XCTAssertEqual(e.said, ["No run has finished yet."])
     }
 
+    // MARK: - standing still
+
+    /// The fake duck's state with a heading sensor drifting at `degPerS`, and from `fallsAfter` s
+    /// down, and from `staleAfter` s a frame that never updates.
+    private func drifting(_ duck: FakeDuck, degPerS: Double, fallsAfter: Double? = nil,
+                          staleAfter: Double? = nil) -> RobotPlanRunner.State {
+        let t0 = duck.clock
+        return {
+            let t = duck.clock.timeIntervalSince(t0)
+            let (x, y, h) = duck.where_
+            let at = staleAfter.map { t > $0 ? t0.addingTimeInterval($0) : duck.clock } ?? duck.clock
+            let fallen = fallsAfter.map { t >= $0 } ?? false
+            return DuckState(safety: .init(fallen: fallen),
+                             odom: .init(position: [x, y, 0.12], yaw: h + degPerS * t * .pi / 180), receivedAt: at)
+        }
+    }
+
+    func testStandingStillMeasuresTheHeadingSensorsDrift() async throws {
+        let duck = FakeDuck()
+        var r = try await DuckMeasure.standStill(on: duck, sleep: { duck.advance($0) },
+                                                 state: drifting(duck, degPerS: 0.2), now: { duck.clock })
+        XCTAssertEqual(r.ended, .finished)
+        XCTAssertEqual(r.samples.count, 61, "every half second for 30 s, both ends")
+        XCTAssertEqual(try XCTUnwrap(r.yawRateDegPerS), 0.2, accuracy: 1e-3)
+        XCTAssertEqual(try XCTUnwrap(r.yawChangeDeg), 6, accuracy: 0.05)
+        XCTAssertEqual(try XCTUnwrap(r.creepCm), 0, accuracy: 1e-9)
+        XCTAssertNil(r.driftDegPerS, "not without the tape")
+        r.testerHeadingDeg = 1.5
+        XCTAssertEqual(try XCTUnwrap(r.driftDegPerS), 0.15, accuracy: 2e-3)
+        XCTAssertTrue(duck.moves.allSatisfy { $0 == .still }, "nothing but a zero twist is sent")
+        XCTAssertGreaterThan(duck.moves.count, 100, "at the spec's rate, so the deadmen never fire")
+        XCTAssertEqual(duck.calls.last, "robot.stop")
+        XCTAssertTrue(DuckMeasure.Words.stillResult(r).contains("drifted 0.150 degrees a second, 9 degrees a minute"),
+                      DuckMeasure.Words.stillResult(r))
+    }
+
+    func testStandingStillEndsOnAFallOrAStalePoseAndIsRefusedWhenDown() async throws {
+        let duck = FakeDuck()
+        let fell = try await DuckMeasure.standStill(on: duck, sleep: { duck.advance($0) },
+                                                    state: drifting(duck, degPerS: 0, fallsAfter: 10), now: { duck.clock })
+        XCTAssertEqual(fell.ended, .stopped); XCTAssertEqual(fell.said, DuckCardLoop.fellNote)
+        XCTAssertEqual(try XCTUnwrap(fell.samples.last).tS, 9.5, accuracy: 0.06)
+        XCTAssertEqual(duck.calls.last, "robot.stop")
+        let other = FakeDuck()
+        let lost = try await DuckMeasure.standStill(on: other, sleep: { other.advance($0) },
+                                                    state: drifting(other, degPerS: 0, staleAfter: 5), now: { other.clock })
+        XCTAssertEqual(lost.ended, .stopped); XCTAssertEqual(lost.said, DuckCardLoop.lostNote)
+        let down = FakeDuck(fallsAt: 0)
+        do {
+            _ = try await DuckMeasure.standStill(on: down, sleep: { down.advance($0) }, state: { down.state() },
+                                                 now: { down.clock })
+            XCTFail("stood a fallen duck")
+        } catch let r as DuckMeasure.Refusal { XCTAssertEqual(r, .fallen) }
+        XCTAssertTrue(down.moves.isEmpty, "nothing was sent")
+    }
+
+    func testTheReportCarriesTheStandStillStepAndOldReportsStillRead() throws {
+        var still = DuckMeasure.StillRecord(ranAt: Date(timeIntervalSince1970: 1_800_000_000),
+                                            samples: (0...60).map { i in
+                                                .init(tS: Double(i) / 2, xM: 0, yM: 0, yawRad: Double(i) * 0.001) })
+        still.testerHeadingDeg = 0
+        let report = DuckMeasure.report([marked(0, nil)], madeAt: Date(timeIntervalSince1970: 1_800_000_000),
+                                        app: "1.1 (86)", bridge: nil, robotd: nil, policy: "velstand", still: still)
+        let data = try report.json()
+        XCTAssertEqual(try DuckMeasure.Report.read(data), report)
+        let top = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let s = try XCTUnwrap(top["still"] as? [String: Any])
+        for key in ["ran_at", "seconds", "samples", "ended", "tester_heading_deg", "yaw_change_deg",
+                    "yaw_rate_deg_per_s", "creep_cm", "drift_deg_per_s"] {
+            XCTAssertNotNil(s[key], key)
+        }
+        var old = top
+        old.removeValue(forKey: "still")
+        let read = try DuckMeasure.Report.read(try JSONSerialization.data(withJSONObject: old))
+        XCTAssertNil(read.still, "a report from before the step reads, without it")
+    }
+
     // MARK: - words
 
     func testEverySentenceIsInTheAppsVoiceWithoutADash() {
         typealias W = DuckMeasure.Words
         var sentences: [String] = [W.title, W.entryFooter, W.thisIsATest, W.grid(), W.marks, W.safety,
-                                   W.cancelled, W.needsDuck, W.reportFooter]
+                                   W.cancelled, W.needsDuck, W.reportFooter, W.stillHeading, W.still(), W.stillMark]
         sentences += DuckMeasure.runs.map(DuckMeasure.Words.expect) + DuckMeasure.runs.map(DuckMeasure.Words.runTitle)
         sentences += [DuckMeasure.Refusal.notConnected, .noOdometry, .fallen, .pastTheEnvelope(["x"])].map(\.message)
         sentences += DuckMeasure.evaluate([marked(0, .init(forwardCm: 30, leftCm: 0, headingDeg: 0))]).said

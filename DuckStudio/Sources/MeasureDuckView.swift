@@ -21,6 +21,9 @@ struct MeasureDuckView: View {
     @State private var task: Task<Void, Never>?
     @State private var line: String?
     @State private var outgoing: URL?
+    @State private var still: DuckMeasure.StillRecord?
+    @State private var stillMark = ""
+    private static let stillID = "still"
 
     var body: some View {
         List {
@@ -44,6 +47,32 @@ struct MeasureDuckView: View {
                 Text(DuckMeasure.Words.marks).font(.footnote).foregroundStyle(Theme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             } header: { SectionHeading(text: DuckMeasure.Words.marksHeading) }
+            .listRowBackground(Theme.surfacePrimary)
+
+            Section {
+                Text(DuckMeasure.Words.still()).font(.footnote).foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Spacer()
+                    if running == Self.stillID {
+                        Button(DuckMeasure.Words.stop) { task?.cancel() }
+                            .buttonStyle(.primaryAction)
+                    } else if running == nil, let robot, robot.isConnected {
+                        Button(DuckMeasure.Words.run) { startStill(robot) }
+                            .buttonStyle(.primaryActionMoves)
+                    }
+                }
+                if let still {
+                    Text(DuckMeasure.Words.stillResult(markedStill ?? still)).font(.footnote)
+                        .foregroundStyle(Theme.measured).fixedSize(horizontal: false, vertical: true)
+                    if still.ended == .finished || still.ended == .stopped {
+                        TextField(DuckMeasure.Words.stillMark, text: $stillMark)
+                            .keyboardType(.numbersAndPunctuation)
+                            .font(.body.monospacedDigit())
+                            .accessibilityLabel(Text(DuckMeasure.Words.stillMark))
+                    }
+                }
+            } header: { SectionHeading(text: DuckMeasure.Words.stillHeading) }
             .listRowBackground(Theme.surfacePrimary)
 
             Section {
@@ -87,6 +116,8 @@ struct MeasureDuckView: View {
         .onDisappear { task?.cancel() }
         .onChange(of: records) { _, _ in writeReport() }
         .onChange(of: marks) { _, _ in writeReport() }
+        .onChange(of: still) { _, _ in writeReport() }
+        .onChange(of: stillMark) { _, _ in writeReport() }
     }
 
     private func runRow(_ run: DuckMeasure.Run) -> some View {
@@ -143,15 +174,49 @@ struct MeasureDuckView: View {
         }
     }
 
+    /// The stand-still record with the tester's tape heading folded in.
+    private var markedStill: DuckMeasure.StillRecord? {
+        guard var s = still else { return nil }
+        s.testerHeadingDeg = Double(stillMark.replacingOccurrences(of: ",", with: ".")
+                                             .trimmingCharacters(in: .whitespaces))
+        return s
+    }
+
     private var report: DuckMeasure.Report {
         DuckMeasure.report(marked, madeAt: Date(), app: AppVersion.said, bridge: robot?.greeting?.bridge,
-                           robotd: nil, policy: robot?.lastState?.policy)
+                           robotd: nil, policy: robot?.lastState?.policy, still: markedStill)
     }
 
     private func writeReport() {
-        guard !records.isEmpty else { outgoing = nil; return }
+        guard !records.isEmpty || still != nil else { outgoing = nil; return }
         let r = report
         outgoing = try? ExportFile.write(try r.json(), named: r.fileName)
+    }
+
+    @MainActor private func startStill(_ robot: BridgeLink) {
+        guard running == nil, let peer = robot.peer else { return }
+        running = Self.stillID
+        line = nil
+        task = Task { @MainActor in
+            defer { running = nil; task = nil }
+            await stopDriving?()
+            _ = try? await robot.subscribeToState()
+            do {
+                let record = try await DuckMeasure.standStill(
+                    on: peer,
+                    sleep: { try await Task.sleep(nanoseconds: UInt64($0 * 1_000_000_000)) },
+                    state: { await MainActor.run { robot.lastState } })
+                still = record
+                stillMark = ""
+                line = DuckMeasure.Words.stillResult(record)
+            } catch let refusal as DuckMeasure.Refusal {
+                line = refusal.message
+            } catch let misuse as DuckCall.Misuse {
+                line = misuse.message
+            } catch {
+                line = error.localizedDescription
+            }
+        }
     }
 
     @MainActor private func start(_ run: DuckMeasure.Run, _ robot: BridgeLink) {

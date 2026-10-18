@@ -377,6 +377,15 @@ reports no odometry, says it is down, or the card spec is past Pollen's envelope
   or trims out (the controller's exits), when the pose goes stale, or when robotd's
   `safety.fallen` says the duck is down. That is the runner's rule for every closed-loop row, in
   Studio and the card reader alike: a row ends at the first card that does not arrive.
+- **Stand still** (added 2026-10-18, build 86). Before or between rows: the duck in the start
+  square facing the arrow, told to stand still (a zero twist at the spec's rate) for 30 s, robotd's
+  odometry kept every 0.5 s. It ends early, the duck still, on a fall or a stale pose, and always in
+  `robot.stop`. The tester then types how far the duck really turned by the tape. The report's
+  `still` block carries the samples and, written beside them, `yaw_change_deg`,
+  `yaw_rate_deg_per_s` (least squares), `creep_cm` and, once marked, `drift_deg_per_s` (robotd's
+  heading change less the tape's, over the time). It is not judged by Acceptance. It measures the
+  number the simulator's drift conditions guessed; a gentler condition built from it is added as
+  new and pre-registered, never swapped in.
 - **The marks.** After each row the tester types three numbers from the tape: forward (cm from
   the middle of the start square to the middle of the duck, along the arrow; behind is
   negative), left (cm left of the arrow's line; right is negative) and heading (degrees turned
@@ -429,6 +438,8 @@ The report, shared as `duck-measure-<yyyyMMdd-HHmm>.json` (UTC):
 - `ended` is `finished`, `stopped` (a card did not arrive; `said` says why), `refused` or
   `cancelled` (Stop). `tester` is absent until all three marks are typed.
 - `odometry` is `odom_end` in `odom_start`'s frame, for comparing with `tester`.
+- `still` is absent when the stand-still step did not run: `ran_at`, `seconds`, `samples`
+  (`t_s`, `x_m`, `y_m`, `yaw_rad`), `ended`, `said`, `tester_heading_deg` and the summaries above.
 
 Code: `StudioKit/Sources/StudioKit/DuckMeasure.swift` (protocol, run, report, evaluation;
 `DuckMeasureTests`), `DuckStudio/Sources/MeasureDuckView.swift` (the screen, thin).
