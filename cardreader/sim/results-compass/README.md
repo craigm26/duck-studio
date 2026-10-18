@@ -31,3 +31,10 @@ Pre-registered in docs/PACKS.md (commit 7cc2b07) before any development row ran.
 `ModuleNotFoundError` before any row was scored or written (0 rows in every file). No setting
 changed; `run_eval.sh` now checks for numpy first and the job installs `python3-numpy`, and the
 evaluation was launched again, unchanged, on the same seeds.
+
+**The repeat** (HF job 6ad4acdcc6628814522735d7, commit dbff60d, 2026-10-18 11:27 to 18:47 UTC,
+the mat eye on one render thread at nice 10, same seeds): rows in `raw-acceptance/`, `raw-back/`,
+`raw/`; the job's files in `hf/`; `COMPARE.md` against `/1` on HF (the command above, with these
+directories and the label "duck-card-loop/4, HF repeat"). 11 rows stopped on a stale pose, one
+past the pre-registered 10: **inconclusive**. Had it counted, the rule rejects it on falls (8 in
+all, 3 before any look). Long rows at randomized 10 Hz 36.7% to 92.5% position. `/4` is not adopted.
