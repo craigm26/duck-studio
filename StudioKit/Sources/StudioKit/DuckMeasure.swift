@@ -303,6 +303,151 @@ public enum DuckMeasure {
         return await recorder.record
     }
 
+    // MARK: - standing still
+
+    /// How long the stand-still step holds the duck still.
+    public static let stillSeconds = 30.0
+    /// How often it keeps a sample of robotd's odometry while it does.
+    public static let stillSampleS = 0.5
+
+    /// One moment of the stand-still step: seconds since it began, and robotd's odometry.
+    public struct StillSample: Equatable, Sendable, Codable {
+        public let tS: Double, xM: Double, yM: Double, yawRad: Double
+        public init(tS: Double, xM: Double, yM: Double, yawRad: Double) {
+            self.tS = tS; self.xM = xM; self.yM = yM; self.yawRad = yawRad
+        }
+        enum CodingKeys: String, CodingKey { case tS = "t_s", xM = "x_m", yM = "y_m", yawRad = "yaw_rad" }
+    }
+
+    /// THE STAND-STILL STEP: how far a real duck's sensed heading moves while it is told to stand
+    /// still (docs/PACKS.md, "Measure my duck"). The simulator's drift conditions were guessed;
+    /// this is the number that would replace a guess, through a new, pre-registered condition.
+    /// robotd's yaw rate standing still is drift plus whatever the duck truly turned; the tester's
+    /// tape heading afterwards separates the two.
+    public struct StillRecord: Equatable, Sendable, Codable {
+        public let ranAt: Date
+        public let seconds: Double
+        public var samples: [StillSample]
+        public var ended: Ended
+        public var said: String?
+        /// Degrees the duck truly turned left while standing, by the tape. Absent until typed.
+        public var testerHeadingDeg: Double?
+
+        public init(ranAt: Date, seconds: Double = DuckMeasure.stillSeconds, samples: [StillSample] = [],
+                    ended: Ended = .finished, said: String? = nil, testerHeadingDeg: Double? = nil) {
+            self.ranAt = ranAt; self.seconds = seconds; self.samples = samples
+            self.ended = ended; self.said = said; self.testerHeadingDeg = testerHeadingDeg
+        }
+
+        /// robotd's yaw over the samples, unwrapped, in degrees from the first.
+        public var yawDeg: [Double] {
+            guard let first = samples.first else { return [] }
+            var out: [Double] = [0], last = first.yawRad, total = 0.0
+            for s in samples.dropFirst() {
+                total += DuckCardLoop.wrap(s.yawRad - last); last = s.yawRad
+                out.append(total * 180 / .pi)
+            }
+            return out
+        }
+        /// How far robotd's yaw moved from the first sample to the last, degrees.
+        public var yawChangeDeg: Double? { samples.count >= 2 ? yawDeg.last : nil }
+        /// The least-squares slope of robotd's yaw on time, degrees a second.
+        public var yawRateDegPerS: Double? {
+            guard samples.count >= 3 else { return nil }
+            let t = samples.map(\.tS), y = yawDeg
+            let n = Double(t.count), mt = t.reduce(0, +) / n, my = y.reduce(0, +) / n
+            let sxx = zip(t, t).map { ($0 - mt) * ($1 - mt) }.reduce(0, +)
+            guard sxx > 0 else { return nil }
+            return zip(t, y).map { ($0 - mt) * ($1 - my) }.reduce(0, +) / sxx
+        }
+        /// How far robotd's odometry says the duck crept, cm.
+        public var creepCm: Double? {
+            guard let a = samples.first, let b = samples.last, samples.count >= 2 else { return nil }
+            return ((b.xM - a.xM) * (b.xM - a.xM) + (b.yM - a.yM) * (b.yM - a.yM)).squareRoot() * 100
+        }
+        /// robotd's heading change less the tape's, over the time: the sensor's drift, degrees a second.
+        public var driftDegPerS: Double? {
+            guard let change = yawChangeDeg, let tape = testerHeadingDeg, let a = samples.first,
+                  let b = samples.last, b.tS > a.tS else { return nil }
+            return (change - tape) / (b.tS - a.tS)
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case ranAt = "ran_at", seconds, samples, ended, said, testerHeadingDeg = "tester_heading_deg",
+                 yawChangeDeg = "yaw_change_deg", yawRateDegPerS = "yaw_rate_deg_per_s", creepCm = "creep_cm",
+                 driftDegPerS = "drift_deg_per_s"
+        }
+
+        public init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            ranAt = try c.decode(Date.self, forKey: .ranAt)
+            seconds = try c.decode(Double.self, forKey: .seconds)
+            samples = try c.decode([StillSample].self, forKey: .samples)
+            ended = try c.decode(Ended.self, forKey: .ended)
+            said = try c.decodeIfPresent(String.self, forKey: .said)
+            testerHeadingDeg = try c.decodeIfPresent(Double.self, forKey: .testerHeadingDeg)
+        }
+
+        /// The summaries are written into the file beside the samples, not only computed.
+        public func encode(to encoder: Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(ranAt, forKey: .ranAt)
+            try c.encode(seconds, forKey: .seconds)
+            try c.encode(samples, forKey: .samples)
+            try c.encode(ended, forKey: .ended)
+            try c.encodeIfPresent(said, forKey: .said)
+            try c.encodeIfPresent(testerHeadingDeg, forKey: .testerHeadingDeg)
+            try c.encodeIfPresent(yawChangeDeg, forKey: .yawChangeDeg)
+            try c.encodeIfPresent(yawRateDegPerS, forKey: .yawRateDegPerS)
+            try c.encodeIfPresent(creepCm, forKey: .creepCm)
+            try c.encodeIfPresent(driftDegPerS, forKey: .driftDegPerS)
+        }
+    }
+
+    /// Hold the duck still for `seconds`, `robot.move` with a zero twist at the spec's rate (the
+    /// deadmen need it), keeping robotd's odometry every `stillSampleS`. Refused before anything is
+    /// sent as a row is; ends early, the duck still, on a fall or a pose gone stale; always ends in
+    /// `robot.stop`. Stop (cancelling) is recorded as `cancelled`.
+    public static func standStill(seconds: Double = stillSeconds, on peer: any DuckPeer,
+                                  sleep: @escaping RobotPlanRunner.Sleep,
+                                  state: @escaping RobotPlanRunner.State,
+                                  now: @escaping @Sendable () -> Date = { Date() }) async throws -> StillRecord {
+        if let refusal = check(await state()) { throw refusal }
+        let t0 = now()
+        var record = StillRecord(ranAt: t0, seconds: seconds)
+        let tick = 1 / DuckCardLoop.spec.controlHz
+        var nextSample = 0.0
+        do {
+            while true {
+                try Task.checkCancellation()
+                let t = now().timeIntervalSince(t0)
+                let s = await state()
+                if s?.safety?.fallen == true {
+                    record.ended = .stopped; record.said = DuckCardLoop.fellNote; break
+                }
+                guard let s, now().timeIntervalSince(s.receivedAt) <= DuckCardLoop.spec.staleS,
+                      let p = DuckCardLoop.pose(of: s) else {
+                    record.ended = .stopped; record.said = DuckCardLoop.lostNote; break
+                }
+                if t + 1e-9 >= nextSample {
+                    record.samples.append(.init(tS: t, xM: p.x, yM: p.y, yawRad: p.h))
+                    nextSample += stillSampleS
+                }
+                if t >= seconds { break }
+                try await peer.notify(.move(.still))
+                try await sleep(tick)
+            }
+            try await peer.notify(.move(.still))
+        } catch is CancellationError {
+            record.ended = .cancelled; record.said = Words.cancelled
+        } catch {
+            _ = try? await peer.call(.stop)
+            throw error
+        }
+        _ = try? await peer.call(.stop)
+        return record
+    }
+
     // MARK: - the report
 
     public struct Report: Equatable, Sendable, Codable {
@@ -330,10 +475,13 @@ public enum DuckMeasure {
         public let spec: SpecUsed
         public let gridCm: Double
         public let runs: [RunRecord]
+        /// The stand-still step, when it ran. Not judged by Acceptance.
+        public let still: StillRecord?
         public let evaluation: Evaluation
 
         enum CodingKeys: String, CodingKey {
-            case format, madeAt = "made_at", app, bridge, robotd, policy, envelope, spec, gridCm = "grid_cm", runs, evaluation
+            case format, madeAt = "made_at", app, bridge, robotd, policy, envelope, spec, gridCm = "grid_cm", runs,
+                 still, evaluation
         }
 
         /// The report as the tester shares it: sorted keys, ISO 8601 dates, pretty.
@@ -375,11 +523,11 @@ public enum DuckMeasure {
     public static func report(_ runs: [RunRecord], madeAt: Date, app: String, bridge: String?, robotd: String?,
                               policy: String?, spec: DuckCardLoop.Spec = DuckCardLoop.spec,
                               envelope env: DuckCardLoop.Envelope = DuckCardLoop.envelope,
-                              specDigest: String = DuckMeasure.specDigest) -> Report {
+                              specDigest: String = DuckMeasure.specDigest, still: StillRecord? = nil) -> Report {
         Report(format: format, madeAt: madeAt, app: app, bridge: bridge, robotd: robotd, policy: policy,
                envelope: .init(source: env.source, commit: env.commit, vx: env.vx, vy: env.vy, vyaw: env.vyaw),
                spec: .init(digest: specDigest, enabledOnRobot: spec.enabledOnRobot, squareM: spec.squareM),
-               gridCm: spec.squareM * 100, runs: runs, evaluation: evaluate(runs))
+               gridCm: spec.squareM * 100, runs: runs, still: still, evaluation: evaluate(runs))
     }
 
     // MARK: - against Acceptance
@@ -470,6 +618,34 @@ public enum DuckMeasure {
             "A duck-measure/0 file: this app's build, the policy robotd reported, Pollen's envelope and the card "
           + "spec used, robotd's odometry before and after every card, and your marks. Nothing is sent anywhere "
           + "until you share it."
+
+        public static let stillHeading = "Stand still"
+        public static func still(seconds: Double = DuckMeasure.stillSeconds) -> String {
+            String(format: "Stand the duck in the start square facing the arrow, press Run and leave it alone "
+                 + "for %.0f s. It is told to stand still the whole time. This measures how far its own sense of "
+                 + "heading wanders when nothing turns it, which is what makes long rows miss. Afterwards, type "
+                 + "how far it really turned left from the arrow by the tape, in degrees (0 if it did not).", seconds)
+        }
+        public static let stillMark = "Turned by the tape, degrees"
+
+        /// The stand-still step's line once it has run, and once it has been marked.
+        public static func stillResult(_ r: StillRecord) -> String {
+            var parts: [String] = []
+            switch r.ended {
+            case .finished: parts.append("Finished.")
+            case .stopped, .refused, .cancelled: parts.append(r.said ?? "It stopped.")
+            }
+            if let change = r.yawChangeDeg, let rate = r.yawRateDegPerS, let creep = r.creepCm,
+               let a = r.samples.first, let b = r.samples.last {
+                parts.append(String(format: "Over %.0f s robotd's heading moved %.1f degrees (%.3f degrees a second) "
+                                    + "and its position %.1f cm.", b.tS - a.tS, change, rate, creep))
+            }
+            if let drift = r.driftDegPerS {
+                parts.append(String(format: "With your tape, its heading sensor drifted %.3f degrees a second, "
+                                    + "%.0f degrees a minute.", drift, drift * 60))
+            }
+            return parts.joined(separator: " ")
+        }
 
         public static func cardName(_ action: String) -> String {
             switch action {
