@@ -101,6 +101,7 @@ PY
     fail=1
   fi
   python3 "$ROOT/cardreader/tests/make_cardloop_vectors.py" --check || fail=1
+  python3 "$ROOT/cardreader/tests/make_driftcal_vectors.py" --check || fail=1
 fi
 
 if command -v python3 >/dev/null && python3 -c "import numpy, pupil_apriltags, cv2" 2>/dev/null; then

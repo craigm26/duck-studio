@@ -1,0 +1,56 @@
+{
+  "format": "duck-card-loop/3",
+  "enabled_on_robot": false,
+  "validated": null,
+  "square_m": 0.3,
+  "control_hz": 20,
+  "stale_s": 0.5,
+  "between_s": 0.5,
+  "walk": {
+    "speed": {
+      "slow": 0.3,
+      "normal": 0.35,
+      "fast": 0.4
+    },
+    "back_speed": {
+      "slow": 0.4,
+      "normal": 0.4,
+      "fast": 0.4
+    },
+    "heading_gain": 1.5,
+    "cross_gain": 3.0,
+    "max_yaw": 0.6,
+    "stop_early_m": 0.012,
+    "back_stop_early_m": 0.035,
+    "max_s": 8,
+    "stall_s": 2.0,
+    "stall_m": 0.02
+  },
+  "turn": {
+    "yaw_rate": {
+      "slow": 1.0,
+      "normal": 1.0,
+      "fast": 1.0
+    },
+    "forward": 0.0,
+    "approach_deg": 20,
+    "lead_deg": [
+      4,
+      35
+    ],
+    "tolerance_deg": 14,
+    "trim_rate": 1.0,
+    "trim_forward": 0.0,
+    "trims": 2,
+    "trim_min_s": 0.3,
+    "settle_s": 0.8,
+    "max_s": 6,
+    "stall_s": 1.5,
+    "stall_deg": 5
+  },
+  "calibrate": {
+    "before_s": 3.0,
+    "still_after_s": 0.3,
+    "max_dps": 1.0
+  }
+}

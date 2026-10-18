@@ -246,11 +246,14 @@ def run_row(robot, truth, row, cond_row, rng, square, log):
         if i + 1 < len(begins):
             card_times.append(begins[i + 1] - begins[i] - cardloop.SPEC["between_s"])
     ending = "finished" if result == "finished" else result
+    cal = getattr(runner, "LAST_CAL", None)
+    calib = {"drift_est_dps": round(math.degrees(cal.rate), 4), "windows": cal.windows} if cal else {}
+    runner.LAST_CAL = None
     return {"row": row["name"], "cards": len(moving), "result": ending,
             "said": [line.strip() for _, line in said if not any(line == f"  {b.clause}" for b in beats)],
             "pos_err_m": pos_err, "head_err_deg": head_err, "fell": fell,
             "row_s": t_end - t_start, "card_s": card_times, "board_end": [bx, by, math.degrees(bh)],
-            "truth_end": [ex, ey, math.degrees(wrap(h1 - h0))], "card_log": list(CARD_LOG), **cond_row}
+            "truth_end": [ex, ey, math.degrees(wrap(h1 - h0))], "card_log": list(CARD_LOG), **calib, **cond_row}
 
 
 def main():
@@ -263,10 +266,18 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--seed", type=int, default=11)
     ap.add_argument("--start-index", type=int, default=0, help="first row of the list to draw")
+    ap.add_argument("--spec", default=None,
+                    help="a card-loop spec other than the shipped duck-card-loop.json, for a candidate's "
+                         "development and evaluation; its sha256 is recorded on every row")
     ap.add_argument("--rows-set", choices=["all", "acceptance", "acceptance-back"], default="all",
                     help="every pack solution and hand row, only docs/PACKS.md's pre-registered rows, "
                          "or only those of them with Walk back (judged on their own, so they need rows of their own)")
     a = ap.parse_args()
+    global SPEC_SHA
+    if a.spec:
+        spec_file = pathlib.Path(a.spec)
+        cardloop.SPEC = cardloop.load_spec(spec_file)
+        SPEC_SHA = __import__("hashlib").sha256(spec_file.read_bytes()).hexdigest()
     os.makedirs(a.out, exist_ok=True)
     path = os.path.join(a.out, f"{a.condition}.jsonl")
     done = 0

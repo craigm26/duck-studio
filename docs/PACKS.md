@@ -613,6 +613,62 @@ floors, a real IMU's drift and real foot slip are modelled only by the randomize
 fall, stale-state and out-of-time exits never fired in the simulator. Studio's Swift runner ran
 its unit tests and vectors on Linux, not against duck-sim.
 
+### Candidate change: calibrate at every stop (`duck-card-loop/3`), pre-registered 2026-10-17
+
+**Written before any row of it ran.** The diagnosis it tests: `/1` already aims every card at an
+absolute board pose, so what builds up over a row is what odometry believes, above all the IMU's
+heading drift (up to 0.5 deg/s in randomized, 0.5 in stressed: up to 30 degrees in a minute-long
+row, invisible to the controller). Standing still, the true turn rate is about zero, so the yaw
+rate odometry reports then is drift.
+
+- **The change.** Before a row's first closed-loop card the duck stands still for
+  `calibrate.before_s`; it also stands still for `between_s` after every card, as now. In each
+  still window the samples after `calibrate.still_after_s` are kept, and the drift rate is the
+  pooled least-squares slope of yaw on time over every window so far (each window its own
+  intercept), clamped to `calibrate.max_dps`. Every pose the controller is handed is corrected
+  by it: heading less rate times the time since the row began, and each position step rotated by
+  the same correction, so position integrates the corrected heading. Nothing else changes.
+- **Development** (choices only: `before_s` 3 or 5 s, `still_after_s`, `max_dps`): seeds 101 to
+  104, any number of rows, never reported as a result.
+- **Evaluation, run once**, on HF Jobs `cpu-upgrade` from a fresh checkout of the candidate's
+  commit, as `cardreader/sim/results-walkback/run_eval.sh` ran: fresh seeds 321 to 324
+  (pre-registered rows), 341 to 344 (Walk back rows), 311 to 314 (every row), 400 rows per
+  condition per batch. Judged by "Acceptance" unchanged, against `/1`'s HF run
+  (`results/rung2-hf/`). A row's time criterion is per card, so the stand before a row does not
+  count against it.
+- **Decision rule.** `/3` passes rung 1 if every criterion passes in every condition. Whether or
+  not it does, it replaces `/1` as the base for the next idea only if no verdict `/1` passed on HF
+  becomes a fail, and long rows' (10 cards or more) position at randomized 10 Hz rises. If it
+  replaces `/1` it ships to Studio's Measure my duck and the card reader (a test screen and a
+  sim tool); `enabled_on_robot` stays false until all three rungs pass.
+- **Expected, said now so it can be wrong:** the drift estimate from a 5 s stand at 10 Hz with
+  0.5 degrees of noise a frame is good to about 0.06 deg/s, a few degrees a minute; the sim's
+  drift is a constant rate per row, which flatters this; a real IMU's wanders.
+
+**Result, 2026-10-18: rejected by its own rule.** The one evaluation ran on HF Jobs (job
+6ad3b399, commit 0b57687, 8.8 h, 4,800 rows; `cardreader/sim/results-calibrate/`, compared in its
+`COMPARE.md` by `results-walkback/compare.py`). Long rows' position at randomized 10 Hz rose, 36.7%
+to 45.8%, but verdicts `/1` passed on HF became fails, so `/3` does not replace `/1`, does not ship,
+and rung 1 still fails:
+
+- **Falls**, from none to 1 in 510 (randomized, pre-registered rows), and in the Walk back rows 2,
+  4 and 1 in 493 (nominal, randomized, stressed 10 Hz). Six of the ten falls came on a row's first
+  card, right after the 5 s stand.
+- **Position with no drift at all**: every row at nominal, 99.0% to 81.5%; long rows at nominal,
+  98.3% to 45.0%.
+- What it helped: stressed 10 Hz, pre-registered position 84.4% to 92.9%, long rows 0% to 30.8%;
+  randomized 10 Hz heading and the Walk back rows there now pass. Not enough to pass, and bought
+  at the cost above.
+
+**Why, from the rows.** The estimate follows the injected drift (its sign and size), but it sits
+about 0.15 deg/s low in every condition, nominal included, where no drift is injected (median
+estimate less truth: nominal -0.15, randomized -0.14, randomized 10 Hz -0.15, stressed -0.10;
+spread 0.08 to 0.13 deg/s, twice the 0.06 expected). So a standing duck's yaw really moves: the
+policy creeps or settles for longer than `still_after_s`, and an IMU-only estimate cannot tell
+that motion from drift. Taking it out of every second of the row turns a true small creep into a
+false heading error that grows with time, which is what the long nominal rows show. The lesson for
+idea 2: heading needs a reference outside the duck (the mat), not a better guess from inside it.
+
 ### Candidate change: the Walk lead (`duck-card-loop/2`), Pollen's duck-sim, 2026-10-16
 
 **A candidate on branch `duck-packs-walkback`, not adopted (this branch keeps `/1`; the record is in `cardreader/sim/results-walkback/`); `enabled_on_robot` stays false and
