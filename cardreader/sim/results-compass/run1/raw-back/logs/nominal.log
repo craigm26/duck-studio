@@ -1,0 +1,434 @@
+standing: trunk 0.115 m, gravity z -1.000
+nominal 0 FFB: stopped at Walk forward: The duck fell, so the row stopped there. pos 20.0 cm head 9.5 deg fell True 5 s
+nominal 1 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.9 cm head 8.7 deg fell False 22 s
+nominal 2 FFB: finished pos 5.3 cm head 5.8 deg fell False 11 s
+nominal 3 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Walk forward, slow: The duck stopped reporting where it is, so the row stopped there. pos 36.6 cm head 11.6 deg fell False 1 s
+nominal 4 FFB: stopped at Walk forward: The duck fell, so the row stopped there. pos 30.0 cm head 0.0 deg fell False 0 s
+nominal 5 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.5 cm head 3.5 deg fell False 24 s
+nominal 6 FFB: finished pos 4.5 cm head 3.2 deg fell False 11 s
+nominal 7 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.2 cm head 1.5 deg fell False 22 s
+nominal 8 FFB: finished pos 4.4 cm head 7.9 deg fell False 11 s
+nominal 9 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.2 cm head 0.8 deg fell False 22 s
+nominal 10 FFB: finished pos 4.0 cm head 5.5 deg fell False 11 s
+nominal 11 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.1 cm head 3.0 deg fell False 23 s
+standing: trunk 0.115 m, gravity z -1.000
+nominal 12 FFB: finished pos 4.1 cm head 3.2 deg fell False 12 s
+nominal 13 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 8.7 cm head 18.1 deg fell False 21 s
+nominal 14 FFB: finished pos 6.0 cm head 10.2 deg fell False 11 s
+nominal 15 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Walk back, slow: The duck fell, so the row stopped there. pos 19.8 cm head 9.2 deg fell True 21 s
+nominal 16 FFB: finished pos 4.9 cm head 0.1 deg fell False 11 s
+nominal 17 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.0 cm head 1.9 deg fell False 22 s
+nominal 18 FFB: finished pos 2.6 cm head 5.9 deg fell False 11 s
+nominal 19 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.9 cm head 2.9 deg fell False 22 s
+nominal 20 FFB: finished pos 3.3 cm head 9.4 deg fell False 11 s
+nominal 21 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.8 cm head 5.1 deg fell False 23 s
+nominal 22 FFB: finished pos 3.2 cm head 2.0 deg fell False 11 s
+nominal 23 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.0 cm head 0.7 deg fell False 21 s
+standing: trunk 0.115 m, gravity z -1.000
+nominal 24 FFB: finished pos 4.5 cm head 6.7 deg fell False 11 s
+nominal 25 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 6.4 cm head 0.6 deg fell False 23 s
+nominal 26 FFB: finished pos 5.7 cm head 3.6 deg fell False 12 s
+nominal 27 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Turn left, slow: The duck fell, so the row stopped there. pos 36.1 cm head 30.5 deg fell True 11 s
+nominal 28 FFB: finished pos 5.8 cm head 2.1 deg fell False 12 s
+nominal 29 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.5 cm head 2.3 deg fell False 22 s
+nominal 30 FFB: finished pos 4.0 cm head 3.9 deg fell False 11 s
+nominal 31 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.6 cm head 4.2 deg fell False 21 s
+nominal 32 FFB: finished pos 2.0 cm head 4.8 deg fell False 11 s
+nominal 33 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.3 cm head 3.0 deg fell False 22 s
+nominal 34 FFB: finished pos 4.0 cm head 1.7 deg fell False 11 s
+nominal 35 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.6 cm head 1.3 deg fell False 22 s
+standing: trunk 0.115 m, gravity z -1.000
+nominal 36 FFB: finished pos 4.5 cm head 8.8 deg fell False 11 s
+nominal 37 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Walk back, slow: The duck fell, so the row stopped there. pos 12.6 cm head 95.2 deg fell True 20 s
+nominal 38 FFB: finished pos 6.9 cm head 1.6 deg fell False 12 s
+nominal 39 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.1 cm head 11.6 deg fell False 21 s
+nominal 40 FFB: finished pos 5.4 cm head 2.0 deg fell False 11 s
+nominal 41 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Walk forward, fast: The duck fell, so the row stopped there. pos 42.9 cm head 78.5 deg fell True 6 s
+nominal 42 FFB: finished pos 6.0 cm head 32.1 deg fell False 12 s
+nominal 43 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.9 cm head 0.3 deg fell False 23 s
+nominal 44 FFB: finished pos 4.7 cm head 8.4 deg fell False 11 s
+nominal 45 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.2 cm head 1.1 deg fell False 23 s
+nominal 46 FFB: finished pos 3.4 cm head 1.3 deg fell False 11 s
+nominal 47 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Turn right, fast: The duck stopped reporting where it is, so the row stopped there. pos 33.0 cm head 28.8 deg fell False 16 s
+standing: trunk 0.115 m, gravity z -1.000
+nominal 48 FFB: finished pos 4.8 cm head 3.0 deg fell False 12 s
+nominal 49 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.7 cm head 2.7 deg fell False 22 s
+nominal 50 FFB: finished pos 2.9 cm head 3.5 deg fell False 11 s
+nominal 51 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.9 cm head 1.2 deg fell False 23 s
+nominal 52 FFB: finished pos 7.9 cm head 13.0 deg fell False 12 s
+nominal 53 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Walk forward, fast: The duck could not do this card at the speeds it may be sent, so the row stopped there. pos 58.6 cm head 54.7 deg fell False 7 s
+nominal 54 FFB: finished pos 3.8 cm head 6.5 deg fell False 12 s
+nominal 55 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.9 cm head 3.2 deg fell False 27 s
+nominal 56 FFB: finished pos 7.6 cm head 0.3 deg fell False 11 s
+nominal 57 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.4 cm head 2.4 deg fell False 23 s
+nominal 58 FFB: finished pos 2.6 cm head 9.9 deg fell False 12 s
+nominal 59 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 5.1 cm head 0.6 deg fell False 22 s
+standing: trunk 0.115 m, gravity z -1.000
+nominal 60 FFB: finished pos 3.6 cm head 1.4 deg fell False 11 s
+nominal 61 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.8 cm head 7.3 deg fell False 23 s
+nominal 62 FFB: finished pos 4.0 cm head 2.3 deg fell False 12 s
+nominal 63 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.1 cm head 6.6 deg fell False 22 s
+nominal 64 FFB: stopped at Walk back: The duck stopped reporting where it is, so the row stopped there. pos 49.0 cm head 26.4 deg fell False 9 s
+nominal 65 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Walk forward, slow: The duck fell, so the row stopped there. pos 42.4 cm head 0.0 deg fell False 0 s
+nominal 66 FFB: finished pos 8.9 cm head 139.9 deg fell True 13 s
+nominal 67 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.6 cm head 0.8 deg fell False 22 s
+nominal 68 FFB: finished pos 14.2 cm head 33.1 deg fell True 12 s
+nominal 69 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.8 cm head 1.2 deg fell False 22 s
+nominal 70 FFB: finished pos 12.7 cm head 15.9 deg fell False 11 s
+nominal 71 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 2.7 cm head 2.3 deg fell False 22 s
+standing: trunk 0.115 m, gravity z -1.000
+nominal 72 FFB: finished pos 4.2 cm head 4.6 deg fell False 11 s
+nominal 73 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Turn right, fast: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 36.7 cm head 16.4 deg fell False 19 s
+nominal 74 FFB: finished pos 3.5 cm head 3.3 deg fell False 11 s
+nominal 75 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.5 cm head 5.9 deg fell False 22 s
+nominal 76 FFB: finished pos 4.6 cm head 2.8 deg fell False 11 s
+nominal 77 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.1 cm head 1.9 deg fell False 22 s
+nominal 78 FFB: stopped at Walk forward: The duck fell, so the row stopped there. pos 26.4 cm head 49.9 deg fell True 2 s
+nominal 79 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.6 cm head 1.0 deg fell False 24 s
+nominal 80 FFB: finished pos 3.7 cm head 3.7 deg fell False 11 s
+nominal 81 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Turn right, fast: The duck fell, so the row stopped there. pos 16.8 cm head 63.1 deg fell True 18 s
+nominal 82 FFB: finished pos 4.3 cm head 7.1 deg fell False 11 s
+nominal 83 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.7 cm head 4.1 deg fell False 22 s
+standing: trunk 0.115 m, gravity z -1.000
+nominal 84 FFB: finished pos 3.9 cm head 5.4 deg fell False 11 s
+nominal 85 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.0 cm head 2.7 deg fell False 21 s
+nominal 86 FFB: finished pos 3.9 cm head 3.8 deg fell False 11 s
+nominal 87 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.3 cm head 5.2 deg fell False 21 s
+nominal 88 FFB: finished pos 3.3 cm head 8.6 deg fell False 11 s
+nominal 89 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.0 cm head 1.6 deg fell False 21 s
+nominal 90 FFB: finished pos 2.9 cm head 3.1 deg fell False 11 s
+nominal 91 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Turn right, fast: The duck fell, so the row stopped there. pos 29.8 cm head 23.0 deg fell True 14 s
+standing: trunk 0.115 m, gravity z -1.000
+nominal 92 FFB: finished pos 3.9 cm head 0.6 deg fell False 11 s
+nominal 93 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 2.8 cm head 7.6 deg fell False 23 s
+nominal 94 FFB: finished pos 4.2 cm head 8.3 deg fell False 12 s
+nominal 95 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.5 cm head 5.3 deg fell False 22 s
+nominal 96 FFB: finished pos 3.3 cm head 6.8 deg fell False 11 s
+nominal 97 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.5 cm head 5.2 deg fell False 24 s
+nominal 98 FFB: finished pos 5.9 cm head 8.1 deg fell False 11 s
+nominal 99 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.5 cm head 2.2 deg fell False 26 s
+nominal 100 FFB: finished pos 2.3 cm head 4.0 deg fell False 11 s
+nominal 101 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.1 cm head 5.2 deg fell False 23 s
+nominal 102 FFB: finished pos 4.7 cm head 5.1 deg fell False 12 s
+nominal 103 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.2 cm head 6.0 deg fell False 22 s
+standing: trunk 0.115 m, gravity z -1.000
+nominal 104 FFB: finished pos 3.5 cm head 4.0 deg fell False 10 s
+nominal 105 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.4 cm head 8.7 deg fell False 21 s
+nominal 106 FFB: finished pos 4.5 cm head 1.7 deg fell False 11 s
+nominal 107 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.0 cm head 5.7 deg fell False 22 s
+nominal 108 FFB: finished pos 3.7 cm head 5.3 deg fell False 12 s
+nominal 109 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.0 cm head 5.2 deg fell False 23 s
+nominal 110 FFB: finished pos 5.6 cm head 3.8 deg fell False 11 s
+nominal 111 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Turn right, fast: The duck stopped reporting where it is, so the row stopped there. pos 27.0 cm head 26.6 deg fell False 17 s
+nominal 112 FFB: stopped at Walk forward: The duck fell, so the row stopped there. pos 26.0 cm head 81.9 deg fell True 7 s
+nominal 113 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.9 cm head 0.3 deg fell False 22 s
+nominal 114 FFB: stopped at Walk forward: The duck stopped reporting where it is, so the row stopped there. pos 2.8 cm head 7.1 deg fell False 5 s
+nominal 115 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 5.8 cm head 1.6 deg fell False 22 s
+standing: trunk 0.115 m, gravity z -1.000
+nominal 116 FFB: finished pos 6.4 cm head 7.9 deg fell False 13 s
+nominal 117 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.3 cm head 4.2 deg fell False 22 s
+nominal 118 FFB: finished pos 4.6 cm head 3.8 deg fell False 11 s
+nominal 119 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.6 cm head 0.2 deg fell False 22 s
+nominal 120 FFB: finished pos 2.6 cm head 9.4 deg fell False 11 s
+nominal 121 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.8 cm head 5.5 deg fell False 22 s
+nominal 122 FFB: finished pos 3.5 cm head 6.8 deg fell False 11 s
+nominal 123 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.1 cm head 8.5 deg fell False 21 s
+nominal 124 FFB: finished pos 4.2 cm head 3.4 deg fell False 11 s
+nominal 125 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Walk forward, slow: The duck stopped reporting where it is, so the row stopped there. pos 31.6 cm head 2.6 deg fell False 4 s
+nominal 126 FFB: finished pos 3.5 cm head 1.5 deg fell False 10 s
+nominal 127 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Turn right, fast: The duck fell, so the row stopped there. pos 14.1 cm head 65.1 deg fell True 16 s
+standing: trunk 0.115 m, gravity z -1.000
+nominal 128 FFB: finished pos 6.2 cm head 9.7 deg fell False 11 s
+nominal 129 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Turn right, fast: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 28.3 cm head 14.5 deg fell False 21 s
+nominal 130 FFB: finished pos 4.3 cm head 0.6 deg fell False 11 s
+nominal 131 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.3 cm head 3.5 deg fell False 22 s
+nominal 132 FFB: finished pos 4.0 cm head 16.0 deg fell False 11 s
+nominal 133 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 2.8 cm head 7.3 deg fell False 23 s
+nominal 134 FFB: finished pos 5.4 cm head 12.3 deg fell False 11 s
+nominal 135 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.1 cm head 4.7 deg fell False 22 s
+nominal 136 FFB: finished pos 3.8 cm head 8.5 deg fell False 11 s
+nominal 137 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Walk forward: The duck stopped reporting where it is, so the row stopped there. pos 37.8 cm head 99.3 deg fell False 20 s
+nominal 138 FFB: finished pos 10.5 cm head 9.9 deg fell False 12 s
+nominal 139 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Turn left, slow: The duck stopped reporting where it is, so the row stopped there. pos 45.8 cm head 20.7 deg fell False 10 s
+standing: trunk 0.115 m, gravity z -1.000
+nominal 140 FFB: finished pos 3.8 cm head 0.5 deg fell False 11 s
+nominal 141 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 5.2 cm head 1.8 deg fell False 23 s
+nominal 142 FFB: finished pos 4.5 cm head 1.8 deg fell False 12 s
+nominal 143 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 6.2 cm head 6.3 deg fell False 23 s
+nominal 144 FFB: finished pos 7.1 cm head 4.9 deg fell False 11 s
+nominal 145 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.9 cm head 2.8 deg fell False 23 s
+nominal 146 FFB: finished pos 7.1 cm head 5.2 deg fell False 11 s
+nominal 147 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.9 cm head 2.6 deg fell False 23 s
+nominal 148 FFB: finished pos 4.0 cm head 1.8 deg fell False 11 s
+nominal 149 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 18.3 cm head 58.6 deg fell False 23 s
+nominal 150 FFB: finished pos 5.0 cm head 1.6 deg fell False 10 s
+nominal 151 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.1 cm head 0.1 deg fell False 24 s
+standing: trunk 0.115 m, gravity z -1.000
+nominal 152 FFB: finished pos 3.7 cm head 5.4 deg fell False 12 s
+nominal 153 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.9 cm head 2.4 deg fell False 22 s
+nominal 154 FFB: finished pos 4.3 cm head 11.4 deg fell False 11 s
+nominal 155 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.4 cm head 5.8 deg fell False 22 s
+nominal 156 FFB: finished pos 4.2 cm head 2.9 deg fell False 12 s
+nominal 157 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.9 cm head 1.6 deg fell False 22 s
+nominal 158 FFB: finished pos 4.6 cm head 0.1 deg fell False 11 s
+nominal 159 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 5.3 cm head 5.0 deg fell False 23 s
+nominal 160 FFB: stopped at Walk back: The duck fell, so the row stopped there. pos 6.1 cm head 63.3 deg fell True 9 s
+nominal 161 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Turn right, fast: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 35.8 cm head 17.9 deg fell False 21 s
+nominal 162 FFB: finished pos 3.1 cm head 10.4 deg fell False 11 s
+nominal 163 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 9.0 cm head 1.5 deg fell False 22 s
+standing: trunk 0.115 m, gravity z -1.000
+nominal 164 FFB: finished pos 4.0 cm head 8.2 deg fell False 12 s
+nominal 165 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.8 cm head 0.1 deg fell False 22 s
+nominal 166 FFB: finished pos 3.9 cm head 6.1 deg fell False 11 s
+nominal 167 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.3 cm head 2.9 deg fell False 22 s
+nominal 168 FFB: finished pos 5.7 cm head 13.8 deg fell False 11 s
+nominal 169 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.1 cm head 3.5 deg fell False 21 s
+nominal 170 FFB: finished pos 4.4 cm head 1.0 deg fell False 11 s
+nominal 171 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 2.8 cm head 6.6 deg fell False 23 s
+nominal 172 FFB: finished pos 3.2 cm head 7.2 deg fell False 12 s
+nominal 173 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.7 cm head 4.8 deg fell False 24 s
+nominal 174 FFB: finished pos 3.6 cm head 2.0 deg fell False 11 s
+nominal 175 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 17.7 cm head 19.6 deg fell False 24 s
+standing: trunk 0.115 m, gravity z -1.000
+nominal 176 FFB: finished pos 5.1 cm head 4.4 deg fell False 12 s
+nominal 177 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.2 cm head 0.4 deg fell False 21 s
+nominal 178 FFB: finished pos 4.5 cm head 0.9 deg fell False 12 s
+nominal 179 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Turn right, fast: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 34.4 cm head 16.0 deg fell False 21 s
+nominal 180 FFB: finished pos 4.3 cm head 3.1 deg fell False 11 s
+nominal 181 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.5 cm head 3.6 deg fell False 22 s
+nominal 182 FFB: stopped at Walk back: The duck fell, so the row stopped there. pos 21.0 cm head 15.1 deg fell True 9 s
+nominal 183 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.6 cm head 3.5 deg fell False 21 s
+nominal 184 FFB: finished pos 3.8 cm head 3.1 deg fell False 11 s
+nominal 185 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 2.7 cm head 8.0 deg fell False 22 s
+nominal 186 FFB: finished pos 3.4 cm head 3.4 deg fell False 11 s
+nominal 187 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 23.7 cm head 79.7 deg fell False 22 s
+standing: trunk 0.115 m, gravity z -1.000
+nominal 188 FFB: finished pos 3.6 cm head 3.0 deg fell False 12 s
+nominal 189 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.3 cm head 0.6 deg fell False 23 s
+nominal 190 FFB: stopped at Walk forward: The duck fell, so the row stopped there. pos 8.8 cm head 21.0 deg fell True 5 s
+nominal 191 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.5 cm head 6.5 deg fell False 26 s
+nominal 192 FFB: finished pos 5.1 cm head 6.6 deg fell False 11 s
+nominal 193 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 5.5 cm head 1.2 deg fell False 23 s
+nominal 194 FFB: finished pos 3.0 cm head 8.1 deg fell False 11 s
+nominal 195 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Turn right, fast: The duck fell, so the row stopped there. pos 39.5 cm head 26.1 deg fell True 18 s
+nominal 196 FFB: finished pos 2.8 cm head 9.5 deg fell False 11 s
+nominal 197 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 2.9 cm head 0.8 deg fell False 22 s
+nominal 198 FFB: finished pos 3.9 cm head 1.0 deg fell False 12 s
+nominal 199 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.2 cm head 1.8 deg fell False 23 s
+standing: trunk 0.115 m, gravity z -1.000
+nominal 200 FFB: finished pos 5.3 cm head 2.2 deg fell False 12 s
+nominal 201 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.2 cm head 4.1 deg fell False 22 s
+nominal 202 FFB: stopped at Walk forward: The duck stopped reporting where it is, so the row stopped there. pos 23.5 cm head 35.0 deg fell False 6 s
+nominal 203 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Turn left, slow: The duck fell, so the row stopped there. pos 60.8 cm head 60.2 deg fell True 10 s
+nominal 204 FFB: finished pos 3.9 cm head 7.3 deg fell False 11 s
+nominal 205 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 2.8 cm head 2.0 deg fell False 21 s
+nominal 206 FFB: finished pos 4.5 cm head 2.7 deg fell False 11 s
+nominal 207 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.6 cm head 1.5 deg fell False 22 s
+nominal 208 FFB: finished pos 9.1 cm head 11.9 deg fell False 11 s
+nominal 209 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.2 cm head 4.1 deg fell False 22 s
+nominal 210 FFB: finished pos 4.9 cm head 6.9 deg fell False 11 s
+nominal 211 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 6.8 cm head 6.6 deg fell False 23 s
+standing: trunk 0.115 m, gravity z -1.000
+nominal 212 FFB: finished pos 3.5 cm head 7.5 deg fell False 12 s
+nominal 213 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.6 cm head 2.4 deg fell False 21 s
+nominal 214 FFB: finished pos 5.9 cm head 9.9 deg fell False 11 s
+nominal 215 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 2.8 cm head 5.9 deg fell False 23 s
+nominal 216 FFB: finished pos 4.1 cm head 9.6 deg fell False 11 s
+nominal 217 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.0 cm head 0.4 deg fell False 21 s
+nominal 218 FFB: finished pos 4.3 cm head 4.5 deg fell False 11 s
+nominal 219 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.9 cm head 5.4 deg fell False 22 s
+nominal 220 FFB: stopped at Walk forward: The duck stopped reporting where it is, so the row stopped there. pos 2.4 cm head 4.7 deg fell False 3 s
+nominal 221 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.8 cm head 3.3 deg fell False 22 s
+nominal 222 FFB: stopped at Walk forward: The duck stopped reporting where it is, so the row stopped there. pos 1.8 cm head 6.6 deg fell False 5 s
+nominal 223 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 5.9 cm head 6.6 deg fell False 22 s
+standing: trunk 0.115 m, gravity z -1.000
+nominal 224 FFB: finished pos 3.8 cm head 7.3 deg fell False 11 s
+nominal 225 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.6 cm head 1.5 deg fell False 22 s
+nominal 226 FFB: finished pos 4.8 cm head 3.3 deg fell False 11 s
+nominal 227 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 8.2 cm head 15.6 deg fell False 21 s
+nominal 228 FFB: finished pos 4.6 cm head 10.2 deg fell False 12 s
+nominal 229 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.9 cm head 4.9 deg fell False 21 s
+nominal 230 FFB: finished pos 2.8 cm head 7.8 deg fell False 11 s
+nominal 231 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.7 cm head 7.2 deg fell False 22 s
+nominal 232 FFB: finished pos 4.7 cm head 8.9 deg fell False 11 s
+nominal 233 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Turn right, fast: The duck stopped reporting where it is, so the row stopped there. pos 52.4 cm head 161.2 deg fell True 18 s
+nominal 234 FFB: finished pos 5.1 cm head 9.4 deg fell False 11 s
+nominal 235 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.3 cm head 1.3 deg fell False 20 s
+standing: trunk 0.115 m, gravity z -1.000
+nominal 236 FFB: finished pos 3.6 cm head 1.6 deg fell False 11 s
+nominal 237 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.3 cm head 6.9 deg fell False 21 s
+nominal 238 FFB: finished pos 4.3 cm head 6.3 deg fell False 11 s
+nominal 239 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.5 cm head 4.7 deg fell False 23 s
+nominal 240 FFB: finished pos 2.1 cm head 8.4 deg fell False 12 s
+nominal 241 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.3 cm head 5.4 deg fell False 23 s
+nominal 242 FFB: finished pos 2.8 cm head 8.8 deg fell False 11 s
+nominal 243 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.3 cm head 2.2 deg fell False 22 s
+nominal 244 FFB: finished pos 5.0 cm head 5.2 deg fell False 11 s
+nominal 245 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 5.9 cm head 1.8 deg fell False 23 s
+nominal 246 FFB: finished pos 4.2 cm head 9.1 deg fell False 13 s
+nominal 247 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 5.4 cm head 3.0 deg fell False 23 s
+standing: trunk 0.115 m, gravity z -1.000
+nominal 248 FFB: finished pos 3.1 cm head 1.1 deg fell False 11 s
+nominal 249 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.9 cm head 0.2 deg fell False 22 s
+nominal 250 FFB: finished pos 3.7 cm head 0.0 deg fell False 11 s
+nominal 251 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.4 cm head 4.2 deg fell False 22 s
+nominal 252 FFB: finished pos 6.8 cm head 5.9 deg fell False 13 s
+nominal 253 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Walk forward, fast: The duck fell, so the row stopped there. pos 52.9 cm head 60.4 deg fell True 5 s
+nominal 254 FFB: finished pos 6.6 cm head 8.7 deg fell False 11 s
+nominal 255 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.2 cm head 2.4 deg fell False 22 s
+nominal 256 FFB: finished pos 3.5 cm head 3.4 deg fell False 10 s
+nominal 257 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 11.3 cm head 19.3 deg fell False 21 s
+nominal 258 FFB: finished pos 4.9 cm head 5.2 deg fell False 12 s
+nominal 259 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.2 cm head 5.2 deg fell False 22 s
+standing: trunk 0.115 m, gravity z -1.000
+nominal 260 FFB: finished pos 3.7 cm head 4.2 deg fell False 12 s
+nominal 261 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 5.2 cm head 6.7 deg fell False 22 s
+nominal 262 FFB: finished pos 5.4 cm head 5.9 deg fell False 11 s
+nominal 263 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.0 cm head 1.1 deg fell False 23 s
+nominal 264 FFB: finished pos 4.2 cm head 4.2 deg fell False 12 s
+nominal 265 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 16.6 cm head 27.6 deg fell True 22 s
+nominal 266 FFB: finished pos 4.0 cm head 7.1 deg fell False 11 s
+nominal 267 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.4 cm head 1.8 deg fell False 23 s
+nominal 268 FFB: finished pos 6.5 cm head 8.3 deg fell False 13 s
+nominal 269 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Turn right, fast: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 35.2 cm head 15.7 deg fell False 19 s
+nominal 270 FFB: finished pos 4.5 cm head 2.5 deg fell False 12 s
+nominal 271 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.5 cm head 0.8 deg fell False 21 s
+standing: trunk 0.115 m, gravity z -1.000
+nominal 272 FFB: finished pos 3.4 cm head 0.9 deg fell False 12 s
+nominal 273 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.1 cm head 0.1 deg fell False 22 s
+nominal 274 FFB: finished pos 3.8 cm head 0.2 deg fell False 12 s
+nominal 275 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.9 cm head 1.4 deg fell False 23 s
+nominal 276 FFB: finished pos 4.7 cm head 0.2 deg fell False 12 s
+nominal 277 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 11.2 cm head 5.6 deg fell False 26 s
+nominal 278 FFB: finished pos 3.6 cm head 7.4 deg fell False 11 s
+nominal 279 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Turn right, fast: The duck stopped reporting where it is, so the row stopped there. pos 33.7 cm head 9.9 deg fell False 19 s
+nominal 280 FFB: stopped at Walk back: The duck fell, so the row stopped there. pos 15.1 cm head 0.1 deg fell True 10 s
+standing: trunk 0.115 m, gravity z -1.000
+nominal 281 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.0 cm head 7.8 deg fell False 22 s
+nominal 282 FFB: finished pos 2.8 cm head 5.3 deg fell False 12 s
+nominal 283 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 2.7 cm head 8.4 deg fell False 22 s
+nominal 284 FFB: finished pos 5.5 cm head 11.0 deg fell False 11 s
+nominal 285 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 2.8 cm head 1.2 deg fell False 24 s
+nominal 286 FFB: finished pos 4.2 cm head 10.4 deg fell False 11 s
+nominal 287 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Turn left, slow: The duck fell, so the row stopped there. pos 51.5 cm head 161.6 deg fell True 9 s
+nominal 288 FFB: finished pos 7.6 cm head 20.2 deg fell False 11 s
+nominal 289 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.8 cm head 0.5 deg fell False 22 s
+nominal 290 FFB: finished pos 3.5 cm head 4.4 deg fell False 11 s
+nominal 291 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Walk back, slow: The duck stopped reporting where it is, so the row stopped there. pos 63.8 cm head 15.6 deg fell False 20 s
+nominal 292 FFB: finished pos 5.9 cm head 9.8 deg fell False 13 s
+standing: trunk 0.115 m, gravity z -1.000
+nominal 293 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.3 cm head 5.4 deg fell False 23 s
+nominal 294 FFB: finished pos 4.6 cm head 5.6 deg fell False 12 s
+nominal 295 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.1 cm head 4.9 deg fell False 22 s
+nominal 296 FFB: finished pos 5.2 cm head 5.2 deg fell False 11 s
+nominal 297 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 2.8 cm head 1.0 deg fell False 22 s
+nominal 298 FFB: finished pos 5.7 cm head 9.1 deg fell False 11 s
+nominal 299 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.9 cm head 1.9 deg fell False 22 s
+nominal 300 FFB: finished pos 3.8 cm head 1.2 deg fell False 11 s
+nominal 301 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.4 cm head 0.8 deg fell False 23 s
+nominal 302 FFB: finished pos 13.4 cm head 7.8 deg fell False 12 s
+nominal 303 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.9 cm head 1.2 deg fell False 24 s
+nominal 304 FFB: stopped at Walk forward: The duck stopped reporting where it is, so the row stopped there. pos 6.6 cm head 3.8 deg fell False 4 s
+standing: trunk 0.115 m, gravity z -1.000
+nominal 305 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.9 cm head 4.1 deg fell False 23 s
+nominal 306 FFB: finished pos 3.1 cm head 7.6 deg fell False 11 s
+nominal 307 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.3 cm head 3.8 deg fell False 22 s
+nominal 308 FFB: finished pos 3.0 cm head 7.8 deg fell False 11 s
+nominal 309 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.6 cm head 9.7 deg fell False 22 s
+nominal 310 FFB: stopped at Walk back: The duck stopped reporting where it is, so the row stopped there. pos 7.4 cm head 3.8 deg fell False 10 s
+nominal 311 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.2 cm head 4.1 deg fell False 22 s
+nominal 312 FFB: finished pos 5.1 cm head 1.8 deg fell False 12 s
+nominal 313 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.4 cm head 1.0 deg fell False 22 s
+nominal 314 FFB: finished pos 4.4 cm head 5.4 deg fell False 11 s
+nominal 315 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Walk forward: The duck stopped reporting where it is, so the row stopped there. pos 32.3 cm head 88.8 deg fell False 14 s
+nominal 316 FFB: finished pos 5.9 cm head 4.0 deg fell False 12 s
+standing: trunk 0.115 m, gravity z -1.000
+nominal 317 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.6 cm head 6.1 deg fell False 22 s
+nominal 318 FFB: finished pos 2.8 cm head 11.0 deg fell False 11 s
+nominal 319 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.3 cm head 0.2 deg fell False 22 s
+nominal 320 FFB: finished pos 4.3 cm head 2.6 deg fell False 10 s
+nominal 321 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Turn right, fast: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 32.7 cm head 16.4 deg fell False 20 s
+nominal 322 FFB: finished pos 5.2 cm head 5.4 deg fell False 11 s
+nominal 323 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Walk forward, slow: The duck stopped reporting where it is, so the row stopped there. pos 42.4 cm head 0.0 deg fell False 0 s
+nominal 324 FFB: finished pos 10.0 cm head 11.8 deg fell False 10 s
+nominal 325 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Walk forward, slow: The duck stopped reporting where it is, so the row stopped there. pos 33.0 cm head 25.2 deg fell False 3 s
+nominal 326 FFB: finished pos 3.3 cm head 6.8 deg fell False 11 s
+nominal 327 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.9 cm head 3.7 deg fell False 22 s
+nominal 328 FFB: stopped at Walk forward: The duck stopped reporting where it is, so the row stopped there. pos 2.7 cm head 6.2 deg fell False 4 s
+standing: trunk 0.115 m, gravity z -1.000
+nominal 329 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.6 cm head 3.9 deg fell False 23 s
+nominal 330 FFB: finished pos 4.4 cm head 2.6 deg fell False 11 s
+nominal 331 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.1 cm head 0.9 deg fell False 22 s
+nominal 332 FFB: finished pos 2.2 cm head 11.6 deg fell False 11 s
+nominal 333 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.3 cm head 2.9 deg fell False 22 s
+nominal 334 FFB: finished pos 2.9 cm head 4.7 deg fell False 10 s
+nominal 335 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.6 cm head 0.5 deg fell False 21 s
+nominal 336 FFB: finished pos 8.6 cm head 9.2 deg fell False 9 s
+nominal 337 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 2.9 cm head 0.5 deg fell False 20 s
+nominal 338 FFB: stopped at Walk back: The duck fell, so the row stopped there. pos 23.8 cm head 44.2 deg fell True 9 s
+nominal 339 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.2 cm head 0.1 deg fell False 23 s
+nominal 340 FFB: finished pos 5.6 cm head 6.7 deg fell False 11 s
+standing: trunk 0.115 m, gravity z -1.000
+nominal 341 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Walk forward, fast: The duck fell, so the row stopped there. pos 52.2 cm head 8.2 deg fell True 6 s
+nominal 342 FFB: finished pos 5.8 cm head 1.5 deg fell False 12 s
+nominal 343 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.0 cm head 1.3 deg fell False 21 s
+nominal 344 FFB: finished pos 4.0 cm head 6.0 deg fell False 11 s
+nominal 345 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.6 cm head 1.4 deg fell False 21 s
+nominal 346 FFB: finished pos 4.9 cm head 1.5 deg fell False 10 s
+nominal 347 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.4 cm head 0.3 deg fell False 20 s
+nominal 348 FFB: finished pos 3.3 cm head 11.0 deg fell False 11 s
+nominal 349 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 8.4 cm head 8.3 deg fell False 23 s
+nominal 350 FFB: finished pos 5.0 cm head 8.3 deg fell False 11 s
+nominal 351 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.9 cm head 6.5 deg fell False 22 s
+nominal 352 FFB: finished pos 3.5 cm head 6.7 deg fell False 12 s
+standing: trunk 0.115 m, gravity z -1.000
+nominal 353 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.0 cm head 0.3 deg fell False 23 s
+nominal 354 FFB: finished pos 3.8 cm head 10.9 deg fell False 12 s
+nominal 355 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.9 cm head 3.8 deg fell False 25 s
+nominal 356 FFB: finished pos 4.2 cm head 2.4 deg fell False 11 s
+nominal 357 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 5.8 cm head 7.7 deg fell False 23 s
+nominal 358 FFB: finished pos 4.5 cm head 6.9 deg fell False 11 s
+nominal 359 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.8 cm head 2.5 deg fell False 22 s
+nominal 360 FFB: finished pos 18.5 cm head 7.3 deg fell False 12 s
+nominal 361 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.6 cm head 4.8 deg fell False 26 s
+nominal 362 FFB: finished pos 3.1 cm head 5.1 deg fell False 11 s
+nominal 363 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Turn left, slow: The duck stopped reporting where it is, so the row stopped there. pos 44.7 cm head 79.3 deg fell False 10 s
+nominal 364 FFB: finished pos 4.4 cm head 7.2 deg fell False 12 s
+standing: trunk 0.115 m, gravity z -1.000
+nominal 365 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 2.6 cm head 14.0 deg fell False 22 s
+nominal 366 FFB: finished pos 3.3 cm head 0.1 deg fell False 11 s
+nominal 367 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.3 cm head 1.0 deg fell False 23 s
+nominal 368 FFB: finished pos 5.3 cm head 4.6 deg fell False 12 s
+nominal 369 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.2 cm head 5.9 deg fell False 24 s
+nominal 370 FFB: finished pos 4.9 cm head 2.6 deg fell False 12 s
+nominal 371 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.3 cm head 5.3 deg fell False 23 s
+nominal 372 FFB: stopped at Walk back: The duck fell, so the row stopped there. pos 40.7 cm head 35.2 deg fell True 8 s
+nominal 373 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Turn right, fast: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 35.6 cm head 16.3 deg fell False 21 s
+nominal 374 FFB: finished pos 3.4 cm head 1.5 deg fell False 11 s
+nominal 375 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Walk forward: The duck stopped reporting where it is, so the row stopped there. pos 36.3 cm head 90.0 deg fell False 15 s
+nominal 376 FFB: finished pos 6.8 cm head 1.3 deg fell False 13 s
+standing: trunk 0.115 m, gravity z -1.000
+nominal 377 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.4 cm head 6.8 deg fell False 24 s
+nominal 378 FFB: finished pos 5.3 cm head 6.0 deg fell False 11 s
+nominal 379 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.3 cm head 3.0 deg fell False 22 s
+nominal 380 FFB: finished pos 4.9 cm head 1.3 deg fell False 11 s
+nominal 381 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.5 cm head 5.1 deg fell False 22 s
+nominal 382 FFB: finished pos 3.5 cm head 10.2 deg fell False 11 s
+nominal 383 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.4 cm head 1.3 deg fell False 22 s
+nominal 384 FFB: finished pos 5.9 cm head 9.5 deg fell False 11 s
+nominal 385 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Walk forward, slow: The duck stopped reporting where it is, so the row stopped there. pos 39.9 cm head 1.4 deg fell False 1 s
+nominal 386 FFB: stopped at Walk forward: The duck fell, so the row stopped there. pos 33.2 cm head 14.5 deg fell True 0 s
+nominal 387 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.3 cm head 0.8 deg fell False 22 s
+nominal 388 FFB: finished pos 4.8 cm head 3.7 deg fell False 11 s
+standing: trunk 0.115 m, gravity z -1.000
+nominal 389 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.6 cm head 1.2 deg fell False 21 s
+nominal 390 FFB: finished pos 7.1 cm head 4.3 deg fell False 11 s
+nominal 391 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.4 cm head 0.5 deg fell False 23 s
+nominal 392 FFB: finished pos 4.9 cm head 5.0 deg fell False 11 s
+nominal 393 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.9 cm head 5.2 deg fell False 21 s
+nominal 394 FFB: finished pos 6.3 cm head 4.5 deg fell False 11 s
+nominal 395 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.5 cm head 8.7 deg fell False 21 s
+nominal 396 FFB: finished pos 5.1 cm head 5.6 deg fell False 11 s
+nominal 397 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.5 cm head 7.1 deg fell False 20 s
+nominal 398 FFB: finished pos 5.0 cm head 3.6 deg fell False 12 s
+nominal 399 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.2 cm head 7.6 deg fell False 23 s

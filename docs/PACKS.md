@@ -613,6 +613,97 @@ floors, a real IMU's drift and real foot slip are modelled only by the randomize
 fall, stale-state and out-of-time exits never fired in the simulator. Studio's Swift runner ran
 its unit tests and vectors on Linux, not against duck-sim.
 
+### Candidate change: the mat as a compass (`duck-card-loop/4`), pre-registered 2026-10-18
+
+**Written before any development or evaluation row of it ran** (a 4-row plumbing check ran, seed
+101, not kept). `/3` showed that a sensor inside the duck cannot tell drift from the duck's own
+creep. The taped grid on the floor is outside the duck: its lines give heading to the nearest
+quarter turn and position to the nearest square, and neither drifts.
+
+- **The change.** After each closed-loop card's `between_s` stand, the duck takes one head-camera
+  frame. `duckcards/matcam.py` keeps the dark pixels below the horizon whose rays meet the floor
+  0.2 to 1.0 m away, as floor points in the duck's own frame, using what a duck knows without a
+  compass: its camera's place on its head, its legs' height and its IMU's pitch and roll.
+  `cardloop.MatFix` lays them where odometry believes the duck is and finds the small turn about
+  the duck and shift that puts them on the grid (lines `square_m` apart, half a square either
+  side of the square the row began on, along and across its starting heading): a coarse search
+  over turns within `max_fix_deg` on a half-degree grid, scored by how tightly the points bunch
+  modulo the square, then Gauss-Newton. A family of lines with fewer than `min_points` points
+  fixes nothing across it; a fit with too few points, or past `max_fix_deg` or `max_fix_m` (a
+  neighbouring line), is refused. Every accepted fix corrects odometry from then on. No stand
+  before the row (`/3`'s falls came after it). Candidate spec:
+  `cardreader/sim/candidate-compass.json` (`min_points` 30, `inlier_m` 0.05, `max_fix_deg` 20,
+  `max_fix_m` 0.12).
+- **The mat in the simulator** (`cardreader/sim/mateye.py`): Pollen's scene, the floor one plain
+  light colour, dark tape 19 mm wide on a 30 cm grid, 15 squares a side, rendered through the
+  model's head camera at 640 by 360 from MuJoCo's own trunk pose (not the drifted one robotd is
+  told) in a process of its own, so the physics never sees it. At each row's start the mat is
+  laid with the duck's trunk in the middle of a square and its heading along the grid, as a child
+  seats it; the row frame scored is unchanged, so rows compare with `/1`'s.
+- **What the camera gets wrong, a new part of each condition** (drawn per session; the picture
+  is rendered true, the duck's belief about its camera is not): nominal, nothing. Randomized:
+  camera pitch U(-2, 2) degrees, roll U(-1, 1), yaw on its mount U(-1, 1), height U(-5, 5) mm,
+  picture brightness x U(0.7, 1.3), white noise of 4 levels in 255, and a fresh IMU tilt error
+  of 0.3 degrees (sd) on pitch and roll each frame. Stressed: pitch 2, roll 1, yaw 1 degree,
+  height 5 mm (each sign at random), brightness 0.7 or 1.3, noise 8 levels, tilt 0.3. The
+  existing conditions' knobs are unchanged.
+- **Development** (choices only: `min_points`, `inlier_m`, `max_fix_m`, `max_fix_deg`): seeds 101
+  to 104, the Pi, any number of rows, never reported as a result.
+- **Evaluation, run once**, on HF Jobs `cpu-upgrade` from a fresh checkout of the candidate's
+  commit, as `/3`'s ran: fresh seeds 421 to 424 (pre-registered rows), 441 to 444 (Walk back
+  rows), 411 to 414 (every row), 400 rows per condition per batch, judged by "Acceptance"
+  unchanged, against `/1`'s HF run (`results/rung2-hf/`). The time a look takes is inside the
+  card's time, as a real duck's would be.
+- **Decision rule**, `/3`'s: `/4` passes rung 1 if every criterion passes in every condition.
+  Either way it replaces `/1` as the base for the next idea only if no verdict `/1` passed on HF
+  becomes a fail, and long rows' position at randomized 10 Hz rises. If it replaces `/1`, it is
+  ported to StudioKit (both readers held to shared vectors) and ships in the card reader and
+  Studio as a sim and test tool; `enabled_on_robot` stays false until all three rungs pass, and
+  rung 3 then needs a taped mat and a camera calibration step in Measure my duck.
+- **Expected, said now so it can be wrong.** On 80 rendered frames with errors of up to 8 cm and
+  12 degrees put into the believed pose, a fit left 1.7 to 2.8 cm (median; p95 3.5 to 5.8) and 0.3
+  to 0.6 degrees (p95 0.9 to 2.0) with the randomized and stressed camera errors, and refused
+  none to 5 frames in 80; most of the position error is the camera's pitch error on far points.
+  So: heading errors stop growing with time; long rows at randomized 10 Hz pass position far more
+  often (above 80%); a constant error of a few centimetres stays. What could break it: a duck
+  that wanders off the 4.5 m mat sees no lines and runs on odometry; a look adds a few tenths of a
+  second to each card; rendered tape is cleaner than real tape on a real floor.
+
+**Result of run 1, 2026-10-18: rejected by its own rule, on a machine that was starved.** The
+evaluation ran on HF Jobs (job 6ad43e48, commit 6c7f14d, 7.8 h, 4,800 rows;
+`cardreader/sim/results-compass/run1/`, compared in its `COMPARE.md`). What the mat was meant to do,
+it did: long rows' position at randomized 10 Hz rose from 36.7% to 80.8% (randomized 33.3% to
+82.5%, stressed 10 Hz 0% to 46.7%), and their heading error stopped growing (median 3.6 degrees
+against 8.6). But verdicts `/1` passed on HF became fails, so by the rule `/4` does not replace
+`/1`:
+
+- **Falls** in every condition, from none: pre-registered rows 10, 8, 8 and 4 in 510 (nominal,
+  randomized, randomized 10 Hz, stressed 10 Hz); Walk back rows 28, 20, 28 and 27 in 493.
+- **Position and heading at nominal**: pre-registered rows 99.1% to 93.7%, Walk back rows 99.0%
+  to 85.4%, every row 99.0% to 90.2%.
+
+**Why we think the machine, not the mat, did this; not shown.** 170 of the 4,800 rows stopped
+because the duck's pose stopped arriving for more than `stale_s` (0.5 s), against 2 in `/1`'s HF
+run and 9 in `/3`'s. 17 of the 146 falls came before the row's first look, when the mat had changed
+nothing yet, and the falls followed small fixes (the last fix before a fall: median 1.2 degrees,
+90th percentile 5.2). The host's load average (the whole host's, as the job sees it) had a median
+of 260, against 21 for `/3`'s run. The mat eye rendered in software (osmesa's llvmpipe), which by
+default takes every core for each frame, beside four sessions' physics and robotd on 8 vCPUs. On
+the Pi, with a GPU, the development rows had no fall and no lost pose. None of this makes run 1
+pass: it is recorded as it came out.
+
+### Repeat of `/4`'s evaluation with the renderer bounded, pre-registered 2026-10-18
+
+**Written after run 1 and before any row of this repeat.** It changes the instrument only:
+`mc/mc_run.py` starts the mat eye with one render thread (`LP_NUM_THREADS=1`) at nice 10, below
+the duck's stack. The candidate spec, the code, the conditions, the seeds (421 to 424, 441 to 444,
+411 to 414, the same as run 1, so any difference is the instrument's), the flavour (`cpu-upgrade`),
+the criteria and the decision rule are run 1's. The job times one rendered frame before it starts.
+**The repeat is valid only if 10 or fewer of its 4,800 rows stop on a stale pose** (`/1`'s HF run
+had 2, `/3`'s 9). If more do, it is reported as inconclusive: `/4` is neither adopted nor rejected
+on it, and the next idea starts from `/1`. If it is valid, its verdict under the rule is the result
+for `/4`, and run 1 stays published beside it.
+
 ### Candidate change: calibrate at every stop (`duck-card-loop/3`), pre-registered 2026-10-17
 
 **Written before any row of it ran.** The diagnosis it tests: `/1` already aims every card at an

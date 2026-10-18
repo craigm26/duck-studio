@@ -40,7 +40,7 @@ from dataclasses import dataclass
 HERE = pathlib.Path(__file__).resolve().parent
 SPEC_FILE = HERE / "duck-card-loop.json"
 FORMAT = "duck-card-loop/1"
-FORMATS = ("duck-card-loop/1", "duck-card-loop/3")    # /3 adds `calibrate` (DriftCal)
+FORMATS = ("duck-card-loop/1", "duck-card-loop/3", "duck-card-loop/4")    # /3 adds `calibrate` (DriftCal), /4 `compass` (MatFix)
 CARDS = ("walk_forward", "walk_backward", "turn_left", "turn_right")
 
 
@@ -328,6 +328,157 @@ class DriftCal:
         self.y += dx * math.sin(d) + dy * math.cos(d)
         self.raw = pose
         return Pose(self.x, self.y, wrap(pose.h + d))
+
+
+class MatFix:
+    """THE MAT AS A COMPASS (duck-card-loop/4, docs/PACKS.md, pre-registered 2026-10-18).
+
+    `/3` showed a sensor inside the duck cannot tell drift from the duck's own creep; the taped
+    grid is outside it. At every stop `matcam.floor_points` turns one head-camera frame into floor
+    points of tape, in the duck's own frame; `fit` places them where the controller believes the
+    duck is, and finds the small turn about the duck and shift (`dh`, `dx`, `dy`, in the row's
+    frame) that lays them on the grid: lines `square_m` apart, half a square either side of the
+    square the row began on, along and across the heading it began with. Each point counts for
+    the nearer line family; a family with fewer than `min_points` points fixes nothing across it.
+    A fit with too few points, or one larger than `max_fix_deg` or `max_fix_m` (it would be a
+    neighbouring line, not this one), is refused. `correct` applies every accepted fix so far to
+    odometry: a turn and a shift, kept as one rigid correction."""
+
+    def __init__(self, compass: dict, square_m: float):
+        self.s = float(square_m)
+        self.min_points = int(compass["min_points"])
+        self.inlier = float(compass["inlier_m"])
+        self.max_h = math.radians(float(compass["max_fix_deg"]))
+        self.max_m = float(compass["max_fix_m"])
+        self.ct, self.cx, self.cy = 0.0, 0.0, 0.0       # odometry to the mat's frame
+        self.origin: Pose | None = None                 # the row's first corrected pose
+        self.fixes: list[tuple[float, float, float] | None] = []     # each look: (dh, dx, dy) or None
+
+    def correct(self, pose: Pose) -> Pose:
+        c, s = math.cos(self.ct), math.sin(self.ct)
+        out = Pose(c * pose.x - s * pose.y + self.cx, s * pose.x + c * pose.y + self.cy, wrap(pose.h + self.ct))
+        if self.origin is None:
+            self.origin = out
+        return out
+
+    def fit(self, points, pose: Pose):
+        """`points`: (forward, left) metres from the duck, `pose`: corrected, odometry's frame.
+        Answers (dh, dx, dy) in the row's frame, applied, or None when refused."""
+        o = self.origin or pose
+        co, so = math.cos(o.h), math.sin(o.h)
+        px, py = pose.x - o.x, pose.y - o.y
+        pu, pv = co * px + so * py, -so * px + co * py              # the duck, row frame
+        ph = wrap(pose.h - o.h)
+        ch, sh = math.cos(ph), math.sin(ph)
+        q = [(pu + ch * f - sh * l, pv + sh * f + ch * l) for f, l in points]
+        if len(q) < self.min_points:
+            self.fixes.append(None)
+            return None
+        dh, du, dv = self._coarse(q, pu, pv)
+        nu = nv = 0
+        for _ in range(8):
+            c, s = math.cos(dh), math.sin(dh)
+            a = [[0.0] * 3 for _ in range(3)]
+            b = [0.0] * 3
+            nu = nv = 0
+            for qu, qv in q:
+                ru, rv = qu - pu, qv - pv
+                u = pu + c * ru - s * rv + du
+                v = pv + s * ru + c * rv + dv
+                eu = u - self.s * (math.floor(u / self.s - 0.5) + 0.5)     # past the line below
+                ev = v - self.s * (math.floor(v / self.s - 0.5) + 0.5)
+                eu = eu - self.s if eu > self.s / 2 else eu
+                ev = ev - self.s if ev > self.s / 2 else ev
+                if abs(eu) <= abs(ev):
+                    if abs(eu) > self.inlier:
+                        continue
+                    j, r = (-(v - pv), 1.0, 0.0), eu
+                    nu += 1
+                else:
+                    if abs(ev) > self.inlier:
+                        continue
+                    j, r = (u - pu, 0.0, 1.0), ev
+                    nv += 1
+                for i in range(3):
+                    b[i] -= j[i] * r
+                    for k in range(3):
+                        a[i][k] += j[i] * j[k]
+            if nu + nv < self.min_points:
+                self.fixes.append(None)
+                return None
+            free = [0] + ([1] if nu >= self.min_points else []) + ([2] if nv >= self.min_points else [])
+            du = du if 1 in free else 0.0           # no lines of a family seen: no shift across them
+            dv = dv if 2 in free else 0.0
+            step = _solve([[a[i][k] for k in free] for i in free], [b[i] for i in free])
+            if step is None:
+                self.fixes.append(None)
+                return None
+            got = dict(zip(free, step))
+            dh += got.get(0, 0.0)
+            du += got.get(1, 0.0)
+            dv += got.get(2, 0.0)
+            if max(abs(x) for x in step) < 1e-5:
+                break
+        if abs(dh) > self.max_h or math.hypot(du, dv) > self.max_m:
+            self.fixes.append(None)
+            return None
+        # Turn dh about the duck, then shift (du, dv) of the row's frame, made a correction of
+        # odometry: new = T(old), T a turn dh about the duck's corrected position and a shift.
+        c, s = math.cos(dh), math.sin(dh)
+        ex, ey = self.cx - pose.x, self.cy - pose.y
+        sx, sy = co * du - so * dv, so * du + co * dv
+        self.cx = c * ex - s * ey + pose.x + sx
+        self.cy = s * ex + c * ey + pose.y + sy
+        self.ct = wrap(self.ct + dh)
+        self.fixes.append((dh, du, dv))
+        return dh, du, dv
+
+
+    def _coarse(self, q, pu, pv):
+        """The start for the fit: every turn about the duck on a half-degree grid within
+        `max_fix_deg`, each scored by how tightly the points bunch across each line family modulo
+        the square (the length of their mean phase); the best turn, and the shifts its phases give,
+        the nearer way round."""
+        step = max(1, len(q) // 600)
+        sub = q[::step]
+        k = 2 * math.pi / self.s
+        best = None
+        n = int(math.degrees(self.max_h) / 0.5)
+        for i in range(-n, n + 1):
+            dh = math.radians(0.5 * i)
+            c, s = math.cos(dh), math.sin(dh)
+            cu = su = cv = sv = 0.0
+            for qu, qv in sub:
+                ru, rv = qu - pu, qv - pv
+                u = pu + c * ru - s * rv - self.s / 2
+                v = pv + s * ru + c * rv - self.s / 2
+                cu += math.cos(k * u)
+                su += math.sin(k * u)
+                cv += math.cos(k * v)
+                sv += math.sin(k * v)
+            ru, rv = math.hypot(cu, su), math.hypot(cv, sv)
+            if best is None or ru + rv > best[0]:
+                # A family whose points do not bunch (too few on its lines) gives no shift.
+                best = (ru + rv, dh, -math.atan2(su, cu) / k if ru > 0.2 * len(sub) else 0.0,
+                        -math.atan2(sv, cv) / k if rv > 0.2 * len(sub) else 0.0)
+        return best[1], best[2], best[3]
+
+
+def _solve(a, b):
+    """a x = b for a small symmetric system, by Gaussian elimination; None if singular."""
+    n = len(b)
+    m = [row[:] + [b[i]] for i, row in enumerate(a)]
+    for i in range(n):
+        piv = max(range(i, n), key=lambda r: abs(m[r][i]))
+        if abs(m[piv][i]) < 1e-9:
+            return None
+        m[i], m[piv] = m[piv], m[i]
+        for r in range(n):
+            if r != i:
+                f = m[r][i] / m[i][i]
+                for k in range(i, n + 1):
+                    m[r][k] -= f * m[i][k]
+    return [m[i][n] / m[i][i] for i in range(n)]
 
 
 DONE_WORDS = {

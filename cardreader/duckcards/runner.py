@@ -133,13 +133,14 @@ def beats(steps: list[Step]) -> list[Beat]:
 
 
 def run(plan_beats: list[Beat], robot, heads: bool = False, sleep=time.sleep, say=print,
-        state=None, clock=time.time, measured: bool | None = None) -> str:
+        state=None, clock=time.time, measured: bool | None = None, frame=None) -> str:
     """RobotPlanRunner.run: skills checked first, every move held at 20 Hz, a stop at the end.
 
     `state()`, when given, answers the latest `robot.state` params and when they arrived (on
     `clock`), or None: Walk and Turn cards close on its `odom` when it has one AND measured cards
     are on. `measured` is the spec's `enabled_on_robot` unless given (`--measured-cards`); off,
-    every Walk and Turn card runs timed and `cardloop.OFF_NOTE` is said once."""
+    every Walk and Turn card runs timed and `cardloop.OFF_NOTE` is said once. `frame()`, when given
+    and the spec has `compass` (duck-card-loop/4), answers one head-camera frame (`look`)."""
     if measured is None:
         measured = cardloop.ENABLED_ON_ROBOT
     wanted = sorted({b.name for b in plan_beats if b.kind == "skill"})
@@ -165,6 +166,12 @@ def run(plan_beats: list[Beat], robot, heads: bool = False, sleep=time.sleep, sa
         global LAST_CAL
         LAST_CAL = cal                      # for the Monte Carlo's row log only
         state = calibrated(raw_state, cal)
+    fix = None                              # duck-card-loop/4: the mat as a compass
+    if measured and state is not None and frame is not None and cardloop.SPEC.get("compass"):
+        fix = cardloop.MatFix(cardloop.SPEC["compass"], cardloop.SPEC["square_m"])
+        global LAST_FIX
+        LAST_FIX = fix                      # for the Monte Carlo's row log only
+        state = fixed(state, fix)
     try:
         if cal is not None and any(b.kind == "card" for b in plan_beats) and _pose_now(raw_state, clock):
             still(robot, cardloop.SPEC["calibrate"]["before_s"], raw_state, cal, sleep)
@@ -207,6 +214,8 @@ def run(plan_beats: list[Beat], robot, heads: bool = False, sleep=time.sleep, sa
                     still(robot, cardloop.SPEC["between_s"], raw_state, cal, sleep)
                 else:
                     hold(robot, (0.0, 0.0, 0.0), cardloop.SPEC["between_s"], sleep)
+                if fix is not None:
+                    look(robot, fix, frame, state, clock)
             elif b.kind == "move":
                 hold(robot, b.twist, b.seconds, sleep)
             elif b.kind == "sound":
@@ -282,6 +291,43 @@ def drive(loop: "cardloop.CardLoop", robot, state, sleep=time.sleep, clock=time.
 
 
 LAST_CAL: "cardloop.DriftCal | None" = None
+LAST_FIX: "cardloop.MatFix | None" = None
+MAT_POINTS = 1500       # at most this many tape points go to one fit
+
+
+def fixed(state, fix: "cardloop.MatFix"):
+    """`state` with every `odom` corrected by `fix` (cardloop.MatFix), for the controller."""
+    def corrected():
+        got = state()
+        if not got:
+            return got
+        params, at = got
+        pose = cardloop.odometry(params)
+        if pose is None:
+            return got
+        c = fix.correct(pose)
+        odom = dict(params["odom"])
+        odom["position"] = [c.x, c.y] + list(odom["position"][2:])
+        odom["yaw"] = c.h
+        return dict(params, odom=odom), at
+    return corrected
+
+
+def look(robot, fix: "cardloop.MatFix", frame, state, clock) -> None:
+    """One head-camera frame at a stop, fitted to the mat (duck-card-loop/4). The duck is told to
+    stand while it is worked out; a frame or pose that does not come is a look that fixes nothing."""
+    from . import matcam                    # numpy: only a reader that looks needs it
+    robot.notify("robot.move", {"vx": 0.0, "vy": 0.0, "vyaw": 0.0})
+    got = frame()
+    pose = _pose_now(state, clock)
+    if not got or pose is None:
+        fix.fixes.append(None)
+        return
+    gray, fovy, rot, pos = got
+    pts = matcam.floor_points(gray, fovy, rot, pos)
+    step = max(1, -(-len(pts) // MAT_POINTS))
+    fix.fit([(float(f), float(l)) for f, l in pts[::step]], pose)
+    robot.notify("robot.move", {"vx": 0.0, "vy": 0.0, "vyaw": 0.0})
 
 
 def calibrated(state, cal: "cardloop.DriftCal"):

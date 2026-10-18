@@ -1,0 +1,65 @@
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 0 get-to-the-pond/pond-1: finished pos 2.5 cm head 2.6 deg fell False 7 s
+stressed-10hz 1 get-to-the-pond/pond-2: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 30.1 cm head 17.8 deg fell False 4 s
+stressed-10hz 2 get-to-the-pond/pond-3: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 56.1 cm head 15.0 deg fell False 11 s
+stressed-10hz 3 get-to-the-pond/pond-4: finished pos 2.6 cm head 2.4 deg fell False 21 s
+stressed-10hz 4 get-to-the-pond/pond-5: finished pos 1.3 cm head 1.8 deg fell False 22 s
+stressed-10hz 5 get-to-the-pond/pond-6: finished pos 1.4 cm head 5.3 deg fell False 19 s
+stressed-10hz 6 duck-maze/maze-1: finished pos 4.2 cm head 4.6 deg fell False 10 s
+stressed-10hz 7 duck-maze/maze-2: finished pos 13.6 cm head 6.3 deg fell False 7 s
+stressed-10hz 8 duck-maze/maze-3: finished pos 1.0 cm head 2.6 deg fell False 16 s
+stressed-10hz 9 duck-maze/maze-4: finished pos 9.9 cm head 4.6 deg fell False 10 s
+stressed-10hz 10 duck-maze/maze-5: finished pos 2.4 cm head 2.1 deg fell False 30 s
+stressed-10hz 11 duck-maze/maze-6: finished pos 2.3 cm head 0.3 deg fell False 26 s
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 12 duck-maze/maze-7: finished pos 2.7 cm head 4.5 deg fell False 23 s
+stressed-10hz 13 duck-maze/maze-8: finished pos 5.6 cm head 7.6 deg fell False 34 s
+stressed-10hz 14 duck-maze/maze-9: finished pos 3.9 cm head 5.3 deg fell False 31 s
+stressed-10hz 15 duck-maze/maze-10: finished pos 4.1 cm head 2.7 deg fell False 51 s
+stressed-10hz 16 loop-the-course/loop-1: finished pos 2.2 cm head 1.4 deg fell False 10 s
+stressed-10hz 17 loop-the-course/loop-2: finished pos 5.5 cm head 0.9 deg fell False 14 s
+stressed-10hz 18 loop-the-course/loop-3: finished pos 8.3 cm head 2.7 deg fell False 21 s
+stressed-10hz 19 loop-the-course/loop-4: finished pos 7.2 cm head 7.6 deg fell False 40 s
+stressed-10hz 20 loop-the-course/loop-5: finished pos 5.0 cm head 3.2 deg fell False 40 s
+stressed-10hz 21 loop-the-course/loop-6: finished pos 3.9 cm head 1.6 deg fell False 39 s
+stressed-10hz 22 loop-the-course/loop-7: finished pos 9.6 cm head 2.8 deg fell False 34 s
+stressed-10hz 23 loop-the-course/loop-8: finished pos 8.1 cm head 7.8 deg fell False 66 s
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 24 loop-the-course/loop-9: finished pos 8.8 cm head 12.8 deg fell False 98 s
+stressed-10hz 25 loop-the-course/loop-10: finished pos 9.1 cm head 2.3 deg fell False 68 s
+stressed-10hz 26 design-a-level/design-1: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 145.5 cm head 106.7 deg fell False 9 s
+stressed-10hz 27 design-a-level/design-2: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 157.4 cm head 111.6 deg fell False 22 s
+stressed-10hz 28 design-a-level/design-3: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 143.5 cm head 107.9 deg fell False 22 s
+stressed-10hz 29 FFLFRF: finished pos 7.6 cm head 5.4 deg fell False 24 s
+stressed-10hz 30 FRFRFRFR: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 32.0 cm head 111.2 deg fell False 8 s
+stressed-10hz 31 FLLF: finished pos 6.4 cm head 3.9 deg fell False 14 s
+stressed-10hz 32 FFB: finished pos 1.8 cm head 0.4 deg fell False 11 s
+stressed-10hz 33 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 4.1 cm head 3.4 deg fell False 21 s
+stressed-10hz 34 LLRR: finished pos 2.5 cm head 13.9 deg fell False 13 s
+stressed-10hz 35 FFFF: finished pos 5.6 cm head 2.9 deg fell False 14 s
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 36 F: finished pos 1.3 cm head 4.9 deg fell False 3 s
+stressed-10hz 37 FF: finished pos 2.1 cm head 5.3 deg fell False 7 s
+stressed-10hz 38 FFF: finished pos 4.3 cm head 3.7 deg fell False 10 s
+stressed-10hz 39 LLLL: finished pos 1.3 cm head 2.4 deg fell False 12 s
+stressed-10hz 40 get-to-the-pond/pond-1: finished pos 1.7 cm head 4.1 deg fell False 7 s
+stressed-10hz 41 get-to-the-pond/pond-2: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 28.2 cm head 19.4 deg fell False 5 s
+stressed-10hz 42 get-to-the-pond/pond-3: finished pos 4.0 cm head 3.8 deg fell False 17 s
+stressed-10hz 43 get-to-the-pond/pond-4: finished pos 2.5 cm head 2.6 deg fell False 22 s
+stressed-10hz 44 get-to-the-pond/pond-5: finished pos 1.2 cm head 5.5 deg fell False 23 s
+stressed-10hz 45 get-to-the-pond/pond-6: finished pos 2.7 cm head 1.5 deg fell False 19 s
+stressed-10hz 46 duck-maze/maze-1: finished pos 4.4 cm head 4.1 deg fell False 10 s
+stressed-10hz 47 duck-maze/maze-2: finished pos 12.4 cm head 8.0 deg fell False 7 s
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 48 duck-maze/maze-3: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 42.4 cm head 68.7 deg fell False 8 s
+stressed-10hz 49 duck-maze/maze-4: finished pos 9.8 cm head 6.9 deg fell False 10 s
+stressed-10hz 50 duck-maze/maze-5: finished pos 3.1 cm head 2.5 deg fell False 29 s
+stressed-10hz 51 duck-maze/maze-6: finished pos 3.8 cm head 3.9 deg fell False 26 s
+stressed-10hz 52 duck-maze/maze-7: finished pos 2.0 cm head 0.6 deg fell False 23 s
+stressed-10hz 53 duck-maze/maze-8: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 107.1 cm head 18.1 deg fell False 12 s
+stressed-10hz 54 duck-maze/maze-9: finished pos 4.9 cm head 3.8 deg fell False 30 s
+stressed-10hz 55 duck-maze/maze-10: finished pos 2.3 cm head 11.1 deg fell False 50 s
+stressed-10hz 56 loop-the-course/loop-1: finished pos 3.0 cm head 3.3 deg fell False 10 s
+stressed-10hz 57 loop-the-course/loop-2: finished pos 2.9 cm head 6.8 deg fell False 14 s
+stressed-10hz 58 loop-the-course/loop-3: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 89.8 cm head 11.6 deg fell False 12 s
+stressed-10hz 59 loop-the-course/loop-4: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 61.3 cm head 104.9 deg fell False 12 s
