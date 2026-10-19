@@ -658,6 +658,16 @@ card stops, stands `between_s` and starts again, and every Walk card accelerates
   What could break it: a long walk's position error at its end is a whole run's odometry scale
   error with no stop to settle; a half turn coasts further than a quarter turn's lead allows for.
 
+**Result (2026-10-19): replaces `/1` as the base for the next idea, by the rule above; the gain is
+small.** HF job 6ad54276c66288145227a33d at b48fdc5, 6.8 h, 4,800 rows, 0 stale-pose stops (valid).
+No verdict `/1` passed on HF became a fail; long rows' position at randomized 10 Hz rose from
+36.7% to 41.7% (50/120), below the 45 to 55% expected. Long rows took 6 to 9% less time, not a
+fifth to a third: the stops a merged run saves are a small part of a row. Rung 1 still fails
+(stressed 10 Hz). The secondary analysis, reported beside the rule and deciding nothing here,
+finds `/5` worse nowhere, and its rise not clear of noise (p 0.18 over sessions, against both
+`/1` runs pooled at 55/180). The shipped spec stays `/1`. Rows and comparisons:
+`cardreader/sim/results-merge/` (README.md, COMPARE.md, SECONDARY.md).
+
 ### Candidate change: the mat as a compass (`duck-card-loop/4`), pre-registered 2026-10-18
 
 **Written before any development or evaluation row of it ran** (a 4-row plumbing check ran, seed
