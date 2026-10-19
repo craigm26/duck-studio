@@ -452,7 +452,10 @@ struct PlanEditorView: View {
         // A LONG ROW WAITS FOR THE NEST. Between chapters the runner stops the duck and waits here
         // until a person says it is back on the nest; Stop ends the wait as it ends the run.
         let gate = nestGate
-        let nest: RobotPlanRunner.Nest? = robotPlan.chapters.count > 1 ? { _, _ in try await gate.wait() } : nil
+        let wait: RobotPlanRunner.Nest = { @Sendable (_: Int, _: Int) async throws -> Void in
+            try await gate.wait()
+        }
+        let nest: RobotPlanRunner.Nest? = robotPlan.chapters.count > 1 ? wait : nil
         robotLine = nil
         robotRun = Task { @MainActor in
             defer { robotRun = nil }
