@@ -175,7 +175,10 @@ def run(plan_beats: list[Beat], robot, heads: bool = False, sleep=time.sleep, sa
     try:
         if cal is not None and any(b.kind == "card" for b in plan_beats) and _pose_now(raw_state, clock):
             still(robot, cardloop.SPEC["calibrate"]["before_s"], raw_state, cal, sleep)
-        for b in plan_beats:
+        i = -1
+        while i + 1 < len(plan_beats):
+            i += 1
+            b = plan_beats[i]
             say(f"  {b.clause}")
             if heads and b.kind in ("move", "card") and b.head != looking:
                 x, y, z = LOOK_AT[b.head]
@@ -201,7 +204,12 @@ def run(plan_beats: list[Beat], robot, heads: bool = False, sleep=time.sleep, sa
                     hold(robot, b.twist, b.seconds, sleep)
                     board = None
                     continue
-                loop = cardloop.CardLoop(b.action, board or pose, b.speed, lead_deg=sum(coasts) / len(coasts) if coasts else None)
+                n = merged(plan_beats, i, heads)
+                for later in plan_beats[i + 1:i + n]:
+                    say(f"  {later.clause}")
+                i += n - 1
+                loop = cardloop.CardLoop(b.action, board or pose, b.speed,
+                                         lead_deg=sum(coasts) / len(coasts) if coasts else None, cards=n)
                 done = drive(loop, robot, state, sleep, clock)
                 board = loop.board_after
                 if getattr(loop, "coast_deg", None) is not None:
@@ -293,6 +301,23 @@ def drive(loop: "cardloop.CardLoop", robot, state, sleep=time.sleep, clock=time.
 LAST_CAL: "cardloop.DriftCal | None" = None
 LAST_FIX: "cardloop.MatFix | None" = None
 MAT_POINTS = 1500       # at most this many tape points go to one fit
+
+
+def merged(beats: list[Beat], i: int, heads: bool = False) -> int:
+    """How many cards from `beats[i]` run as one (duck-card-loop/5, the spec's `merge`): the same
+    Walk card and speed, nothing between, up to `merge.walks` (0: every one); the same Turn card,
+    two at a time. 1 when the spec does not merge."""
+    m = cardloop.SPEC.get("merge")
+    b = beats[i]
+    if not m or b.kind != "card":
+        return 1
+    cap = 2 if b.action.startswith("turn") else (int(m.get("walks", 0)) or len(beats))
+    n = 1
+    while (n < cap and i + n < len(beats) and beats[i + n].kind == "card"
+           and beats[i + n].action == b.action and beats[i + n].speed == b.speed
+           and (not heads or beats[i + n].head == b.head)):
+        n += 1
+    return n
 
 
 def fixed(state, fix: "cardloop.MatFix"):

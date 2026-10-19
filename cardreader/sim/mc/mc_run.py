@@ -262,7 +262,13 @@ def _logged_drive(loop, robot, state, sleep=time.sleep, clock=time.time):
         entry["odom_off_deg"] = round(math.degrees(wrap(b.h - pose.h)), 2)
     if hasattr(loop, "trims_left"):
         entry["trims_used"] = int(cardloop.SPEC["turn"]["trims"]) - loop.trims_left
-    CARD_LOG.append(entry)
+    n = getattr(loop, "cards", 1)
+    if n > 1:
+        # duck-card-loop/5: a merged run of n cards counts as n cards, each its time over n
+        # (docs/PACKS.md), so the time criterion judges it per card as before.
+        entry["s"] = round((clock() - t0) / n, 3)
+        entry["merged"] = n
+    CARD_LOG.extend(dict(entry) for _ in range(n))
     return done
 
 

@@ -1,0 +1,434 @@
+standing: trunk 0.116 m, gravity z -1.000
+randomized 0 get-to-the-pond/pond-1: finished pos 2.8 cm head 1.0 deg fell False 6 s
+randomized 1 get-to-the-pond/pond-2: finished pos 3.3 cm head 4.0 deg fell False 6 s
+randomized 2 get-to-the-pond/pond-3: finished pos 5.3 cm head 7.3 deg fell False 15 s
+randomized 3 get-to-the-pond/pond-4: finished pos 8.7 cm head 5.5 deg fell False 22 s
+randomized 4 get-to-the-pond/pond-5: finished pos 5.9 cm head 6.7 deg fell False 23 s
+randomized 5 get-to-the-pond/pond-6: finished pos 10.1 cm head 3.2 deg fell False 18 s
+randomized 6 duck-maze/maze-1: finished pos 6.9 cm head 2.2 deg fell False 10 s
+randomized 7 duck-maze/maze-2: finished pos 9.8 cm head 2.3 deg fell False 5 s
+randomized 8 duck-maze/maze-3: finished pos 4.3 cm head 2.9 deg fell False 15 s
+randomized 9 duck-maze/maze-4: finished pos 2.5 cm head 5.5 deg fell False 7 s
+randomized 10 duck-maze/maze-5: finished pos 6.7 cm head 4.4 deg fell False 28 s
+randomized 11 duck-maze/maze-6: finished pos 9.8 cm head 6.6 deg fell False 25 s
+standing: trunk 0.115 m, gravity z -1.000
+randomized 12 duck-maze/maze-7: finished pos 2.6 cm head 7.6 deg fell False 20 s
+randomized 13 duck-maze/maze-8: finished pos 1.9 cm head 6.6 deg fell False 28 s
+randomized 14 duck-maze/maze-9: finished pos 2.6 cm head 2.1 deg fell False 30 s
+randomized 15 duck-maze/maze-10: finished pos 9.8 cm head 10.7 deg fell False 46 s
+randomized 16 loop-the-course/loop-1: finished pos 3.9 cm head 2.2 deg fell False 9 s
+randomized 17 loop-the-course/loop-2: finished pos 3.9 cm head 5.9 deg fell False 12 s
+randomized 18 loop-the-course/loop-3: finished pos 4.6 cm head 4.3 deg fell False 17 s
+randomized 19 loop-the-course/loop-4: finished pos 0.8 cm head 3.1 deg fell False 35 s
+randomized 20 loop-the-course/loop-5: finished pos 6.4 cm head 1.2 deg fell False 38 s
+randomized 21 loop-the-course/loop-6: finished pos 5.1 cm head 4.1 deg fell False 37 s
+randomized 22 loop-the-course/loop-7: finished pos 8.1 cm head 3.9 deg fell False 30 s
+randomized 23 loop-the-course/loop-8: finished pos 15.5 cm head 7.5 deg fell False 57 s
+standing: trunk 0.115 m, gravity z -1.000
+randomized 24 loop-the-course/loop-9: finished pos 4.0 cm head 11.8 deg fell False 83 s
+randomized 25 loop-the-course/loop-10: finished pos 2.9 cm head 0.8 deg fell False 58 s
+randomized 26 design-a-level/design-1: finished pos 2.4 cm head 5.5 deg fell False 50 s
+randomized 27 design-a-level/design-2: finished pos 5.0 cm head 2.7 deg fell False 72 s
+randomized 28 design-a-level/design-3: finished pos 1.0 cm head 4.3 deg fell False 65 s
+randomized 29 FFLFRF: finished pos 1.9 cm head 3.5 deg fell False 18 s
+randomized 30 FRFRFRFR: finished pos 2.3 cm head 4.4 deg fell False 24 s
+randomized 31 FLLF: finished pos 2.8 cm head 0.1 deg fell False 11 s
+randomized 32 FFB: finished pos 4.5 cm head 1.7 deg fell False 9 s
+randomized 33 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 5.8 cm head 3.9 deg fell False 19 s
+randomized 34 LLRR: finished pos 2.8 cm head 11.0 deg fell False 8 s
+randomized 35 FFFF: finished pos 3.7 cm head 2.3 deg fell False 12 s
+standing: trunk 0.116 m, gravity z -1.000
+randomized 36 F: finished pos 2.0 cm head 0.2 deg fell False 3 s
+randomized 37 FF: finished pos 2.9 cm head 2.9 deg fell False 6 s
+randomized 38 FFF: finished pos 5.6 cm head 2.2 deg fell False 10 s
+randomized 39 LLLL: finished pos 0.6 cm head 2.8 deg fell False 8 s
+randomized 40 get-to-the-pond/pond-1: finished pos 2.0 cm head 2.4 deg fell False 6 s
+randomized 41 get-to-the-pond/pond-2: finished pos 2.4 cm head 2.0 deg fell False 6 s
+randomized 42 get-to-the-pond/pond-3: finished pos 6.2 cm head 1.8 deg fell False 14 s
+randomized 43 get-to-the-pond/pond-4: finished pos 3.8 cm head 1.6 deg fell False 22 s
+randomized 44 get-to-the-pond/pond-5: finished pos 2.5 cm head 9.7 deg fell False 23 s
+randomized 45 get-to-the-pond/pond-6: finished pos 9.3 cm head 3.2 deg fell False 19 s
+randomized 46 duck-maze/maze-1: finished pos 4.9 cm head 2.7 deg fell False 9 s
+randomized 47 duck-maze/maze-2: finished pos 3.6 cm head 1.8 deg fell False 5 s
+standing: trunk 0.116 m, gravity z -1.000
+randomized 48 duck-maze/maze-3: finished pos 4.7 cm head 10.9 deg fell False 15 s
+randomized 49 duck-maze/maze-4: finished pos 4.3 cm head 7.8 deg fell False 7 s
+randomized 50 duck-maze/maze-5: finished pos 14.3 cm head 7.9 deg fell False 27 s
+randomized 51 duck-maze/maze-6: finished pos 11.3 cm head 8.6 deg fell False 24 s
+randomized 52 duck-maze/maze-7: finished pos 8.0 cm head 11.8 deg fell False 20 s
+randomized 53 duck-maze/maze-8: finished pos 14.9 cm head 11.3 deg fell False 28 s
+randomized 54 duck-maze/maze-9: finished pos 16.3 cm head 12.0 deg fell False 29 s
+randomized 55 duck-maze/maze-10: finished pos 21.1 cm head 13.6 deg fell False 42 s
+randomized 56 loop-the-course/loop-1: finished pos 3.2 cm head 0.3 deg fell False 9 s
+randomized 57 loop-the-course/loop-2: finished pos 7.1 cm head 4.6 deg fell False 11 s
+randomized 58 loop-the-course/loop-3: finished pos 9.6 cm head 4.4 deg fell False 17 s
+randomized 59 loop-the-course/loop-4: finished pos 15.7 cm head 10.4 deg fell False 32 s
+standing: trunk 0.116 m, gravity z -1.000
+randomized 60 loop-the-course/loop-5: finished pos 17.5 cm head 16.2 deg fell False 35 s
+randomized 61 loop-the-course/loop-6: finished pos 15.0 cm head 17.5 deg fell False 34 s
+randomized 62 loop-the-course/loop-7: finished pos 21.6 cm head 19.4 deg fell False 27 s
+randomized 63 loop-the-course/loop-8: finished pos 38.2 cm head 25.9 deg fell False 51 s
+randomized 64 loop-the-course/loop-9: finished pos 62.4 cm head 45.8 deg fell False 77 s
+randomized 65 loop-the-course/loop-10: finished pos 38.2 cm head 27.6 deg fell False 54 s
+randomized 66 design-a-level/design-1: finished pos 25.7 cm head 21.8 deg fell False 46 s
+randomized 67 design-a-level/design-2: finished pos 54.9 cm head 34.8 deg fell False 63 s
+randomized 68 design-a-level/design-3: finished pos 48.1 cm head 31.4 deg fell False 57 s
+randomized 69 FFLFRF: finished pos 5.8 cm head 9.8 deg fell False 19 s
+randomized 70 FRFRFRFR: finished pos 5.6 cm head 11.9 deg fell False 22 s
+randomized 71 FLLF: finished pos 6.9 cm head 2.7 deg fell False 11 s
+standing: trunk 0.115 m, gravity z -1.000
+randomized 72 FFB: finished pos 5.9 cm head 11.7 deg fell False 9 s
+randomized 73 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 5.3 cm head 10.3 deg fell False 19 s
+randomized 74 LLRR: finished pos 2.4 cm head 12.7 deg fell False 8 s
+randomized 75 FFFF: finished pos 9.6 cm head 2.5 deg fell False 12 s
+randomized 76 F: finished pos 3.4 cm head 2.9 deg fell False 4 s
+randomized 77 FF: finished pos 2.9 cm head 3.4 deg fell False 6 s
+randomized 78 FFF: finished pos 7.5 cm head 3.1 deg fell False 9 s
+randomized 79 LLLL: finished pos 0.4 cm head 0.6 deg fell False 8 s
+randomized 80 get-to-the-pond/pond-1: finished pos 5.2 cm head 0.5 deg fell False 6 s
+randomized 81 get-to-the-pond/pond-2: finished pos 4.2 cm head 2.1 deg fell False 6 s
+randomized 82 get-to-the-pond/pond-3: finished pos 7.0 cm head 8.0 deg fell False 14 s
+randomized 83 get-to-the-pond/pond-4: finished pos 6.9 cm head 6.2 deg fell False 22 s
+standing: trunk 0.115 m, gravity z -1.000
+randomized 84 get-to-the-pond/pond-5: finished pos 2.7 cm head 6.1 deg fell False 21 s
+randomized 85 get-to-the-pond/pond-6: finished pos 6.6 cm head 4.0 deg fell False 18 s
+randomized 86 duck-maze/maze-1: finished pos 3.1 cm head 3.4 deg fell False 9 s
+randomized 87 duck-maze/maze-2: finished pos 6.6 cm head 3.1 deg fell False 5 s
+randomized 88 duck-maze/maze-3: finished pos 2.4 cm head 6.8 deg fell False 16 s
+randomized 89 duck-maze/maze-4: finished pos 7.3 cm head 2.8 deg fell False 7 s
+randomized 90 duck-maze/maze-5: finished pos 12.9 cm head 13.6 deg fell False 28 s
+randomized 91 duck-maze/maze-6: finished pos 11.2 cm head 11.2 deg fell False 24 s
+randomized 92 duck-maze/maze-7: finished pos 8.6 cm head 12.4 deg fell False 22 s
+randomized 93 duck-maze/maze-8: finished pos 10.2 cm head 12.2 deg fell False 30 s
+randomized 94 duck-maze/maze-9: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 90.7 cm head 7.9 deg fell False 21 s
+randomized 95 duck-maze/maze-10: finished pos 23.7 cm head 22.0 deg fell False 46 s
+standing: trunk 0.116 m, gravity z -1.000
+randomized 96 loop-the-course/loop-1: finished pos 1.5 cm head 0.1 deg fell False 9 s
+randomized 97 loop-the-course/loop-2: finished pos 1.9 cm head 1.8 deg fell False 12 s
+randomized 98 loop-the-course/loop-3: finished pos 2.5 cm head 2.0 deg fell False 18 s
+randomized 99 loop-the-course/loop-4: finished pos 3.4 cm head 7.8 deg fell False 33 s
+randomized 100 loop-the-course/loop-5: finished pos 8.2 cm head 1.0 deg fell False 36 s
+randomized 101 loop-the-course/loop-6: finished pos 1.7 cm head 0.1 deg fell False 37 s
+randomized 102 loop-the-course/loop-7: finished pos 5.0 cm head 4.2 deg fell False 29 s
+randomized 103 loop-the-course/loop-8: finished pos 5.0 cm head 5.8 deg fell False 56 s
+randomized 104 loop-the-course/loop-9: finished pos 4.4 cm head 6.3 deg fell False 84 s
+randomized 105 loop-the-course/loop-10: finished pos 3.4 cm head 5.7 deg fell False 56 s
+randomized 106 design-a-level/design-1: finished pos 2.2 cm head 1.2 deg fell False 49 s
+randomized 107 design-a-level/design-2: finished pos 3.2 cm head 2.0 deg fell False 67 s
+standing: trunk 0.116 m, gravity z -1.000
+randomized 108 design-a-level/design-3: finished pos 3.6 cm head 3.9 deg fell False 64 s
+randomized 109 FFLFRF: finished pos 3.4 cm head 1.0 deg fell False 18 s
+randomized 110 FRFRFRFR: finished pos 4.4 cm head 0.1 deg fell False 24 s
+randomized 111 FLLF: finished pos 3.9 cm head 0.6 deg fell False 11 s
+randomized 112 FFB: finished pos 6.8 cm head 3.7 deg fell False 9 s
+randomized 113 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 6.8 cm head 2.5 deg fell False 19 s
+randomized 114 LLRR: finished pos 1.6 cm head 12.9 deg fell False 8 s
+randomized 115 FFFF: finished pos 2.1 cm head 1.6 deg fell False 12 s
+randomized 116 F: finished pos 1.1 cm head 0.8 deg fell False 3 s
+randomized 117 FF: finished pos 4.1 cm head 0.4 deg fell False 6 s
+randomized 118 FFF: finished pos 2.9 cm head 3.6 deg fell False 9 s
+randomized 119 LLLL: finished pos 4.9 cm head 0.8 deg fell False 8 s
+standing: trunk 0.116 m, gravity z -1.000
+randomized 120 get-to-the-pond/pond-1: finished pos 2.9 cm head 6.5 deg fell False 6 s
+randomized 121 get-to-the-pond/pond-2: finished pos 4.4 cm head 3.5 deg fell False 6 s
+randomized 122 get-to-the-pond/pond-3: finished pos 2.3 cm head 6.5 deg fell False 14 s
+randomized 123 get-to-the-pond/pond-4: finished pos 8.4 cm head 6.3 deg fell False 21 s
+randomized 124 get-to-the-pond/pond-5: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 43.0 cm head 79.2 deg fell False 15 s
+randomized 125 get-to-the-pond/pond-6: finished pos 4.7 cm head 8.4 deg fell False 18 s
+randomized 126 duck-maze/maze-1: finished pos 4.8 cm head 5.0 deg fell False 9 s
+randomized 127 duck-maze/maze-2: finished pos 9.2 cm head 0.5 deg fell False 5 s
+randomized 128 duck-maze/maze-3: finished pos 2.8 cm head 6.1 deg fell False 16 s
+randomized 129 duck-maze/maze-4: finished pos 9.8 cm head 2.6 deg fell False 8 s
+randomized 130 duck-maze/maze-5: finished pos 13.8 cm head 13.3 deg fell False 27 s
+randomized 131 duck-maze/maze-6: finished pos 13.0 cm head 8.0 deg fell False 24 s
+standing: trunk 0.116 m, gravity z -1.000
+randomized 132 duck-maze/maze-7: finished pos 7.9 cm head 2.8 deg fell False 21 s
+randomized 133 duck-maze/maze-8: finished pos 11.5 cm head 9.3 deg fell False 29 s
+randomized 134 duck-maze/maze-9: finished pos 14.9 cm head 7.0 deg fell False 29 s
+randomized 135 duck-maze/maze-10: finished pos 17.9 cm head 9.6 deg fell False 43 s
+randomized 136 loop-the-course/loop-1: finished pos 2.6 cm head 4.8 deg fell False 9 s
+randomized 137 loop-the-course/loop-2: finished pos 6.6 cm head 5.2 deg fell False 12 s
+randomized 138 loop-the-course/loop-3: finished pos 8.5 cm head 3.0 deg fell False 18 s
+randomized 139 loop-the-course/loop-4: finished pos 13.4 cm head 10.0 deg fell False 33 s
+randomized 140 loop-the-course/loop-5: finished pos 8.6 cm head 9.6 deg fell False 37 s
+randomized 141 loop-the-course/loop-6: finished pos 11.8 cm head 11.6 deg fell False 35 s
+randomized 142 loop-the-course/loop-7: finished pos 16.4 cm head 10.8 deg fell False 28 s
+randomized 143 loop-the-course/loop-8: finished pos 39.1 cm head 21.7 deg fell False 59 s
+standing: trunk 0.116 m, gravity z -1.000
+randomized 144 loop-the-course/loop-9: finished pos 55.8 cm head 43.7 deg fell False 83 s
+randomized 145 loop-the-course/loop-10: finished pos 33.7 cm head 28.0 deg fell False 55 s
+randomized 146 design-a-level/design-1: finished pos 23.5 cm head 28.0 deg fell False 49 s
+randomized 147 design-a-level/design-2: finished pos 57.3 cm head 34.2 deg fell False 71 s
+randomized 148 design-a-level/design-3: finished pos 40.2 cm head 27.3 deg fell False 62 s
+randomized 149 FFLFRF: finished pos 5.8 cm head 3.9 deg fell False 19 s
+randomized 150 FRFRFRFR: finished pos 5.4 cm head 4.0 deg fell False 24 s
+randomized 151 FLLF: finished pos 3.8 cm head 0.4 deg fell False 12 s
+randomized 152 FFB: finished pos 5.5 cm head 8.7 deg fell False 9 s
+randomized 153 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 5.9 cm head 12.8 deg fell False 20 s
+randomized 154 LLRR: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 1.8 cm head 20.8 deg fell False 10 s
+randomized 155 FFFF: finished pos 8.1 cm head 0.6 deg fell False 12 s
+standing: trunk 0.116 m, gravity z -1.000
+randomized 156 F: finished pos 1.0 cm head 4.3 deg fell False 4 s
+randomized 157 FF: finished pos 1.1 cm head 2.2 deg fell False 6 s
+randomized 158 FFF: finished pos 5.2 cm head 4.7 deg fell False 10 s
+randomized 159 LLLL: finished pos 1.2 cm head 4.7 deg fell False 8 s
+randomized 160 get-to-the-pond/pond-1: finished pos 1.7 cm head 1.2 deg fell False 6 s
+randomized 161 get-to-the-pond/pond-2: finished pos 7.2 cm head 5.2 deg fell False 6 s
+randomized 162 get-to-the-pond/pond-3: finished pos 2.6 cm head 1.5 deg fell False 14 s
+randomized 163 get-to-the-pond/pond-4: finished pos 5.0 cm head 6.8 deg fell False 22 s
+randomized 164 get-to-the-pond/pond-5: finished pos 1.0 cm head 2.6 deg fell False 22 s
+randomized 165 get-to-the-pond/pond-6: finished pos 1.7 cm head 0.4 deg fell False 18 s
+randomized 166 duck-maze/maze-1: finished pos 5.1 cm head 7.2 deg fell False 9 s
+randomized 167 duck-maze/maze-2: finished pos 2.0 cm head 3.0 deg fell False 5 s
+standing: trunk 0.116 m, gravity z -1.000
+randomized 168 duck-maze/maze-3: finished pos 3.3 cm head 8.3 deg fell False 15 s
+randomized 169 duck-maze/maze-4: finished pos 9.5 cm head 3.5 deg fell False 8 s
+randomized 170 duck-maze/maze-5: finished pos 2.1 cm head 1.9 deg fell False 28 s
+randomized 171 duck-maze/maze-6: finished pos 3.3 cm head 0.1 deg fell False 25 s
+randomized 172 duck-maze/maze-7: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 55.6 cm head 19.6 deg fell False 17 s
+randomized 173 duck-maze/maze-8: finished pos 7.0 cm head 2.2 deg fell False 31 s
+randomized 174 duck-maze/maze-9: finished pos 7.6 cm head 2.2 deg fell False 29 s
+randomized 175 duck-maze/maze-10: finished pos 9.3 cm head 6.0 deg fell False 47 s
+randomized 176 loop-the-course/loop-1: finished pos 4.8 cm head 0.8 deg fell False 9 s
+randomized 177 loop-the-course/loop-2: finished pos 5.5 cm head 0.7 deg fell False 12 s
+randomized 178 loop-the-course/loop-3: finished pos 6.3 cm head 4.1 deg fell False 17 s
+randomized 179 loop-the-course/loop-4: finished pos 6.4 cm head 16.4 deg fell False 35 s
+standing: trunk 0.115 m, gravity z -1.000
+randomized 180 loop-the-course/loop-5: finished pos 5.8 cm head 10.6 deg fell False 37 s
+randomized 181 loop-the-course/loop-6: finished pos 7.0 cm head 6.1 deg fell False 37 s
+randomized 182 loop-the-course/loop-7: finished pos 10.8 cm head 8.5 deg fell False 30 s
+randomized 183 loop-the-course/loop-8: finished pos 20.7 cm head 12.0 deg fell False 60 s
+randomized 184 loop-the-course/loop-9: finished pos 23.6 cm head 21.8 deg fell False 85 s
+randomized 185 loop-the-course/loop-10: finished pos 23.8 cm head 12.9 deg fell False 58 s
+randomized 186 design-a-level/design-1: finished pos 15.5 cm head 12.9 deg fell False 50 s
+randomized 187 design-a-level/design-2: finished pos 22.9 cm head 12.0 deg fell False 68 s
+randomized 188 design-a-level/design-3: finished pos 23.1 cm head 12.8 deg fell False 63 s
+randomized 189 FFLFRF: finished pos 2.8 cm head 2.6 deg fell False 19 s
+randomized 190 FRFRFRFR: finished pos 2.6 cm head 9.5 deg fell False 24 s
+randomized 191 FLLF: finished pos 3.3 cm head 0.3 deg fell False 12 s
+standing: trunk 0.116 m, gravity z -1.000
+randomized 192 FFB: finished pos 6.9 cm head 8.7 deg fell False 9 s
+randomized 193 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 6.7 cm head 2.3 deg fell False 20 s
+randomized 194 LLRR: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 0.2 cm head 19.3 deg fell False 10 s
+randomized 195 FFFF: finished pos 2.9 cm head 2.2 deg fell False 12 s
+randomized 196 F: finished pos 2.5 cm head 0.1 deg fell False 3 s
+randomized 197 FF: finished pos 1.3 cm head 3.4 deg fell False 6 s
+randomized 198 FFF: finished pos 0.7 cm head 4.7 deg fell False 9 s
+randomized 199 LLLL: finished pos 1.7 cm head 5.5 deg fell False 8 s
+randomized 200 get-to-the-pond/pond-1: finished pos 1.6 cm head 0.1 deg fell False 6 s
+randomized 201 get-to-the-pond/pond-2: finished pos 1.6 cm head 4.7 deg fell False 6 s
+randomized 202 get-to-the-pond/pond-3: finished pos 3.9 cm head 1.2 deg fell False 15 s
+randomized 203 get-to-the-pond/pond-4: finished pos 2.6 cm head 0.4 deg fell False 22 s
+standing: trunk 0.116 m, gravity z -1.000
+randomized 204 get-to-the-pond/pond-5: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 28.0 cm head 19.4 deg fell False 20 s
+randomized 205 get-to-the-pond/pond-6: finished pos 7.5 cm head 1.4 deg fell False 18 s
+randomized 206 duck-maze/maze-1: finished pos 4.9 cm head 1.1 deg fell False 9 s
+randomized 207 duck-maze/maze-2: finished pos 8.1 cm head 5.7 deg fell False 5 s
+randomized 208 duck-maze/maze-3: finished pos 3.2 cm head 0.1 deg fell False 15 s
+randomized 209 duck-maze/maze-4: finished pos 8.2 cm head 1.1 deg fell False 8 s
+randomized 210 duck-maze/maze-5: finished pos 4.7 cm head 2.0 deg fell False 27 s
+randomized 211 duck-maze/maze-6: finished pos 6.6 cm head 0.7 deg fell False 25 s
+randomized 212 duck-maze/maze-7: finished pos 5.1 cm head 0.7 deg fell False 21 s
+randomized 213 duck-maze/maze-8: finished pos 6.2 cm head 0.6 deg fell False 30 s
+randomized 214 duck-maze/maze-9: finished pos 10.0 cm head 6.2 deg fell False 29 s
+randomized 215 duck-maze/maze-10: finished pos 12.2 cm head 4.6 deg fell False 46 s
+standing: trunk 0.115 m, gravity z -1.000
+randomized 216 loop-the-course/loop-1: finished pos 2.7 cm head 0.8 deg fell False 9 s
+randomized 217 loop-the-course/loop-2: finished pos 4.5 cm head 6.1 deg fell False 11 s
+randomized 218 loop-the-course/loop-3: finished pos 3.6 cm head 5.4 deg fell False 18 s
+randomized 219 loop-the-course/loop-4: finished pos 5.8 cm head 12.7 deg fell False 33 s
+randomized 220 loop-the-course/loop-5: finished pos 15.2 cm head 8.2 deg fell False 37 s
+randomized 221 loop-the-course/loop-6: finished pos 14.7 cm head 12.3 deg fell False 38 s
+randomized 222 loop-the-course/loop-7: finished pos 11.5 cm head 15.4 deg fell False 28 s
+randomized 223 loop-the-course/loop-8: finished pos 30.4 cm head 20.5 deg fell False 57 s
+randomized 224 loop-the-course/loop-9: finished pos 53.7 cm head 23.7 deg fell False 87 s
+randomized 225 loop-the-course/loop-10: finished pos 27.3 cm head 22.0 deg fell False 57 s
+randomized 226 design-a-level/design-1: finished pos 23.9 cm head 17.1 deg fell False 49 s
+randomized 227 design-a-level/design-2: finished pos 50.0 cm head 22.8 deg fell False 69 s
+standing: trunk 0.115 m, gravity z -1.000
+randomized 228 design-a-level/design-3: finished pos 39.1 cm head 22.5 deg fell False 62 s
+randomized 229 FFLFRF: finished pos 3.4 cm head 10.7 deg fell False 18 s
+randomized 230 FRFRFRFR: finished pos 5.3 cm head 11.3 deg fell False 23 s
+randomized 231 FLLF: finished pos 4.1 cm head 5.3 deg fell False 11 s
+randomized 232 FFB: finished pos 4.9 cm head 8.8 deg fell False 9 s
+randomized 233 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 3.3 cm head 10.3 deg fell False 19 s
+randomized 234 LLRR: finished pos 2.4 cm head 9.3 deg fell False 8 s
+randomized 235 FFFF: finished pos 4.7 cm head 3.9 deg fell False 11 s
+randomized 236 F: finished pos 1.9 cm head 11.3 deg fell False 3 s
+randomized 237 FF: finished pos 4.1 cm head 0.9 deg fell False 6 s
+randomized 238 FFF: finished pos 7.2 cm head 1.6 deg fell False 10 s
+randomized 239 LLLL: finished pos 0.0 cm head 2.8 deg fell False 8 s
+standing: trunk 0.115 m, gravity z -1.000
+randomized 240 get-to-the-pond/pond-1: finished pos 1.6 cm head 2.2 deg fell False 6 s
+randomized 241 get-to-the-pond/pond-2: finished pos 1.3 cm head 0.4 deg fell False 6 s
+randomized 242 get-to-the-pond/pond-3: finished pos 3.8 cm head 8.2 deg fell False 14 s
+randomized 243 get-to-the-pond/pond-4: finished pos 8.5 cm head 9.5 deg fell False 21 s
+randomized 244 get-to-the-pond/pond-5: finished pos 3.5 cm head 3.1 deg fell False 21 s
+randomized 245 get-to-the-pond/pond-6: finished pos 5.2 cm head 6.3 deg fell False 17 s
+randomized 246 duck-maze/maze-1: finished pos 2.9 cm head 4.1 deg fell False 9 s
+randomized 247 duck-maze/maze-2: finished pos 4.6 cm head 1.5 deg fell False 5 s
+randomized 248 duck-maze/maze-3: finished pos 1.0 cm head 3.1 deg fell False 16 s
+randomized 249 duck-maze/maze-4: finished pos 6.5 cm head 1.6 deg fell False 8 s
+randomized 250 duck-maze/maze-5: finished pos 15.6 cm head 15.4 deg fell False 29 s
+randomized 251 duck-maze/maze-6: finished pos 13.1 cm head 13.1 deg fell False 25 s
+standing: trunk 0.115 m, gravity z -1.000
+randomized 252 duck-maze/maze-7: finished pos 6.3 cm head 3.0 deg fell False 20 s
+randomized 253 duck-maze/maze-8: finished pos 7.6 cm head 1.2 deg fell False 28 s
+randomized 254 duck-maze/maze-9: finished pos 6.6 cm head 0.3 deg fell False 29 s
+randomized 255 duck-maze/maze-10: finished pos 11.4 cm head 2.3 deg fell False 43 s
+randomized 256 loop-the-course/loop-1: finished pos 3.6 cm head 4.7 deg fell False 10 s
+randomized 257 loop-the-course/loop-2: finished pos 5.4 cm head 0.3 deg fell False 11 s
+randomized 258 loop-the-course/loop-3: finished pos 5.2 cm head 2.4 deg fell False 17 s
+randomized 259 loop-the-course/loop-4: finished pos 6.1 cm head 0.5 deg fell False 33 s
+randomized 260 loop-the-course/loop-5: finished pos 7.8 cm head 5.2 deg fell False 37 s
+randomized 261 loop-the-course/loop-6: finished pos 7.4 cm head 12.0 deg fell False 37 s
+randomized 262 loop-the-course/loop-7: finished pos 9.3 cm head 0.6 deg fell False 29 s
+randomized 263 loop-the-course/loop-8: finished pos 9.8 cm head 6.6 deg fell False 59 s
+standing: trunk 0.116 m, gravity z -1.000
+randomized 264 loop-the-course/loop-9: finished pos 57.0 cm head 36.2 deg fell False 84 s
+randomized 265 loop-the-course/loop-10: finished pos 34.8 cm head 16.3 deg fell False 57 s
+randomized 266 design-a-level/design-1: finished pos 28.9 cm head 20.8 deg fell False 49 s
+randomized 267 design-a-level/design-2: finished pos 57.3 cm head 38.9 deg fell False 72 s
+randomized 268 design-a-level/design-3: finished pos 47.2 cm head 20.0 deg fell False 64 s
+randomized 269 FFLFRF: finished pos 8.4 cm head 9.0 deg fell False 19 s
+randomized 270 FRFRFRFR: finished pos 2.5 cm head 10.2 deg fell False 24 s
+randomized 271 FLLF: finished pos 4.8 cm head 5.4 deg fell False 12 s
+randomized 272 FFB: finished pos 5.7 cm head 5.5 deg fell False 9 s
+randomized 273 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 8.9 cm head 8.0 deg fell False 19 s
+randomized 274 LLRR: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 1.6 cm head 13.4 deg fell False 10 s
+randomized 275 FFFF: finished pos 3.6 cm head 6.4 deg fell False 11 s
+standing: trunk 0.116 m, gravity z -1.000
+randomized 276 F: finished pos 1.8 cm head 4.0 deg fell False 3 s
+randomized 277 FF: finished pos 1.5 cm head 0.5 deg fell False 6 s
+randomized 278 FFF: finished pos 3.5 cm head 3.0 deg fell False 9 s
+randomized 279 LLLL: finished pos 0.9 cm head 5.2 deg fell False 8 s
+randomized 280 get-to-the-pond/pond-1: finished pos 1.7 cm head 4.0 deg fell False 6 s
+randomized 281 get-to-the-pond/pond-2: finished pos 0.2 cm head 0.5 deg fell False 6 s
+randomized 282 get-to-the-pond/pond-3: finished pos 3.3 cm head 1.6 deg fell False 14 s
+randomized 283 get-to-the-pond/pond-4: finished pos 2.2 cm head 0.6 deg fell False 21 s
+randomized 284 get-to-the-pond/pond-5: finished pos 5.2 cm head 1.7 deg fell False 22 s
+randomized 285 get-to-the-pond/pond-6: finished pos 2.7 cm head 4.0 deg fell False 18 s
+randomized 286 duck-maze/maze-1: finished pos 3.3 cm head 3.2 deg fell False 9 s
+randomized 287 duck-maze/maze-2: finished pos 3.1 cm head 8.1 deg fell False 5 s
+standing: trunk 0.116 m, gravity z -1.000
+randomized 288 duck-maze/maze-3: finished pos 5.0 cm head 3.5 deg fell False 16 s
+randomized 289 duck-maze/maze-4: finished pos 6.9 cm head 2.7 deg fell False 8 s
+randomized 290 duck-maze/maze-5: finished pos 11.1 cm head 11.4 deg fell False 29 s
+randomized 291 duck-maze/maze-6: finished pos 9.7 cm head 6.9 deg fell False 24 s
+randomized 292 duck-maze/maze-7: finished pos 6.2 cm head 7.4 deg fell False 21 s
+randomized 293 duck-maze/maze-8: finished pos 8.3 cm head 8.1 deg fell False 30 s
+randomized 294 duck-maze/maze-9: finished pos 8.8 cm head 12.9 deg fell False 29 s
+randomized 295 duck-maze/maze-10: finished pos 19.7 cm head 17.3 deg fell False 47 s
+randomized 296 loop-the-course/loop-1: finished pos 3.0 cm head 4.4 deg fell False 9 s
+randomized 297 loop-the-course/loop-2: finished pos 7.7 cm head 6.8 deg fell False 13 s
+randomized 298 loop-the-course/loop-3: finished pos 8.6 cm head 10.0 deg fell False 18 s
+randomized 299 loop-the-course/loop-4: finished pos 5.1 cm head 13.8 deg fell False 34 s
+standing: trunk 0.115 m, gravity z -1.000
+randomized 300 loop-the-course/loop-5: finished pos 3.8 cm head 2.1 deg fell False 37 s
+randomized 301 loop-the-course/loop-6: finished pos 6.5 cm head 5.8 deg fell False 36 s
+randomized 302 loop-the-course/loop-7: finished pos 9.1 cm head 0.3 deg fell False 29 s
+randomized 303 loop-the-course/loop-8: finished pos 5.3 cm head 4.3 deg fell False 58 s
+randomized 304 loop-the-course/loop-9: finished pos 11.6 cm head 1.4 deg fell False 85 s
+randomized 305 loop-the-course/loop-10: finished pos 5.2 cm head 2.7 deg fell False 57 s
+randomized 306 design-a-level/design-1: finished pos 5.6 cm head 4.4 deg fell False 49 s
+randomized 307 design-a-level/design-2: finished pos 6.9 cm head 0.3 deg fell False 71 s
+randomized 308 design-a-level/design-3: finished pos 19.6 cm head 5.0 deg fell False 62 s
+randomized 309 FFLFRF: finished pos 3.1 cm head 0.8 deg fell False 18 s
+randomized 310 FRFRFRFR: finished pos 3.5 cm head 6.5 deg fell False 24 s
+randomized 311 FLLF: finished pos 2.4 cm head 1.1 deg fell False 12 s
+standing: trunk 0.115 m, gravity z -1.000
+randomized 312 FFB: finished pos 5.9 cm head 0.7 deg fell False 9 s
+randomized 313 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 8.3 cm head 7.5 deg fell False 19 s
+randomized 314 LLRR: finished pos 3.8 cm head 2.2 deg fell False 9 s
+randomized 315 FFFF: finished pos 3.6 cm head 6.2 deg fell False 12 s
+randomized 316 F: finished pos 3.5 cm head 0.8 deg fell False 4 s
+randomized 317 FF: finished pos 3.2 cm head 4.6 deg fell False 6 s
+randomized 318 FFF: finished pos 2.6 cm head 1.6 deg fell False 9 s
+randomized 319 LLLL: finished pos 0.8 cm head 10.6 deg fell False 9 s
+randomized 320 get-to-the-pond/pond-1: finished pos 3.3 cm head 2.4 deg fell False 6 s
+randomized 321 get-to-the-pond/pond-2: finished pos 2.7 cm head 3.2 deg fell False 6 s
+randomized 322 get-to-the-pond/pond-3: finished pos 3.5 cm head 4.2 deg fell False 14 s
+randomized 323 get-to-the-pond/pond-4: finished pos 9.3 cm head 12.1 deg fell False 23 s
+standing: trunk 0.116 m, gravity z -1.000
+randomized 324 get-to-the-pond/pond-5: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 43.7 cm head 80.8 deg fell False 15 s
+randomized 325 get-to-the-pond/pond-6: finished pos 6.1 cm head 12.5 deg fell False 18 s
+randomized 326 duck-maze/maze-1: finished pos 0.7 cm head 3.8 deg fell False 9 s
+randomized 327 duck-maze/maze-2: finished pos 6.5 cm head 2.2 deg fell False 5 s
+randomized 328 duck-maze/maze-3: finished pos 2.4 cm head 6.3 deg fell False 15 s
+randomized 329 duck-maze/maze-4: finished pos 9.0 cm head 2.2 deg fell False 8 s
+randomized 330 duck-maze/maze-5: finished pos 15.1 cm head 15.0 deg fell False 27 s
+randomized 331 duck-maze/maze-6: finished pos 13.8 cm head 11.7 deg fell False 24 s
+randomized 332 duck-maze/maze-7: finished pos 6.9 cm head 10.2 deg fell False 20 s
+randomized 333 duck-maze/maze-8: finished pos 13.6 cm head 10.7 deg fell False 29 s
+randomized 334 duck-maze/maze-9: finished pos 12.4 cm head 13.2 deg fell False 30 s
+randomized 335 duck-maze/maze-10: finished pos 22.5 cm head 19.5 deg fell False 45 s
+standing: trunk 0.115 m, gravity z -1.000
+randomized 336 loop-the-course/loop-1: finished pos 1.2 cm head 3.9 deg fell False 9 s
+randomized 337 loop-the-course/loop-2: finished pos 3.3 cm head 6.1 deg fell False 12 s
+randomized 338 loop-the-course/loop-3: finished pos 5.3 cm head 6.0 deg fell False 17 s
+randomized 339 loop-the-course/loop-4: finished pos 6.9 cm head 10.6 deg fell False 35 s
+randomized 340 loop-the-course/loop-5: finished pos 13.8 cm head 9.3 deg fell False 36 s
+randomized 341 loop-the-course/loop-6: finished pos 12.4 cm head 17.3 deg fell False 37 s
+randomized 342 loop-the-course/loop-7: finished pos 16.2 cm head 8.4 deg fell False 29 s
+randomized 343 loop-the-course/loop-8: finished pos 39.1 cm head 18.9 deg fell False 59 s
+randomized 344 loop-the-course/loop-9: finished pos 56.7 cm head 29.9 deg fell False 83 s
+randomized 345 loop-the-course/loop-10: finished pos 37.7 cm head 23.6 deg fell False 57 s
+randomized 346 design-a-level/design-1: finished pos 29.2 cm head 23.6 deg fell False 50 s
+randomized 347 design-a-level/design-2: finished pos 58.9 cm head 21.7 deg fell False 71 s
+standing: trunk 0.115 m, gravity z -1.000
+randomized 348 design-a-level/design-3: finished pos 20.3 cm head 7.0 deg fell False 62 s
+randomized 349 FFLFRF: finished pos 2.4 cm head 1.1 deg fell False 18 s
+randomized 350 FRFRFRFR: finished pos 3.3 cm head 8.3 deg fell False 24 s
+randomized 351 FLLF: finished pos 2.1 cm head 0.5 deg fell False 11 s
+randomized 352 FFB: finished pos 3.8 cm head 2.8 deg fell False 9 s
+randomized 353 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 8.0 cm head 6.3 deg fell False 20 s
+randomized 354 LLRR: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 1.8 cm head 17.3 deg fell False 10 s
+randomized 355 FFFF: finished pos 3.9 cm head 4.7 deg fell False 12 s
+randomized 356 F: finished pos 2.4 cm head 0.2 deg fell False 4 s
+randomized 357 FF: finished pos 1.7 cm head 3.8 deg fell False 6 s
+randomized 358 FFF: finished pos 2.4 cm head 1.8 deg fell False 9 s
+randomized 359 LLLL: finished pos 1.8 cm head 7.0 deg fell False 8 s
+standing: trunk 0.116 m, gravity z -1.000
+randomized 360 get-to-the-pond/pond-1: finished pos 3.7 cm head 0.1 deg fell False 6 s
+randomized 361 get-to-the-pond/pond-2: finished pos 1.8 cm head 1.4 deg fell False 6 s
+randomized 362 get-to-the-pond/pond-3: finished pos 3.6 cm head 4.8 deg fell False 15 s
+randomized 363 get-to-the-pond/pond-4: finished pos 1.9 cm head 3.6 deg fell False 21 s
+randomized 364 get-to-the-pond/pond-5: finished pos 4.2 cm head 2.5 deg fell False 22 s
+randomized 365 get-to-the-pond/pond-6: finished pos 10.7 cm head 4.9 deg fell False 18 s
+randomized 366 duck-maze/maze-1: finished pos 4.0 cm head 1.1 deg fell False 9 s
+randomized 367 duck-maze/maze-2: finished pos 8.9 cm head 9.4 deg fell False 5 s
+randomized 368 duck-maze/maze-3: finished pos 4.8 cm head 4.8 deg fell False 15 s
+randomized 369 duck-maze/maze-4: finished pos 3.7 cm head 4.2 deg fell False 8 s
+randomized 370 duck-maze/maze-5: finished pos 9.7 cm head 5.6 deg fell False 28 s
+randomized 371 duck-maze/maze-6: finished pos 9.0 cm head 4.0 deg fell False 24 s
+standing: trunk 0.115 m, gravity z -1.000
+randomized 372 duck-maze/maze-7: finished pos 8.1 cm head 5.7 deg fell False 21 s
+randomized 373 duck-maze/maze-8: finished pos 5.9 cm head 2.9 deg fell False 30 s
+randomized 374 duck-maze/maze-9: finished pos 6.8 cm head 4.6 deg fell False 31 s
+randomized 375 duck-maze/maze-10: finished pos 14.9 cm head 3.9 deg fell False 47 s
+randomized 376 loop-the-course/loop-1: finished pos 0.8 cm head 0.7 deg fell False 10 s
+randomized 377 loop-the-course/loop-2: finished pos 2.4 cm head 0.5 deg fell False 13 s
+randomized 378 loop-the-course/loop-3: finished pos 8.8 cm head 0.9 deg fell False 18 s
+randomized 379 loop-the-course/loop-4: finished pos 5.8 cm head 5.6 deg fell False 34 s
+randomized 380 loop-the-course/loop-5: finished pos 10.1 cm head 10.0 deg fell False 39 s
+randomized 381 loop-the-course/loop-6: finished pos 12.6 cm head 12.1 deg fell False 37 s
+randomized 382 loop-the-course/loop-7: finished pos 13.6 cm head 5.5 deg fell False 29 s
+randomized 383 loop-the-course/loop-8: finished pos 20.5 cm head 17.6 deg fell False 57 s
+standing: trunk 0.116 m, gravity z -1.000
+randomized 384 loop-the-course/loop-9: finished pos 18.4 cm head 11.6 deg fell False 86 s
+randomized 385 loop-the-course/loop-10: finished pos 10.5 cm head 10.8 deg fell False 56 s
+randomized 386 design-a-level/design-1: finished pos 5.3 cm head 7.2 deg fell False 49 s
+randomized 387 design-a-level/design-2: finished pos 22.0 cm head 10.0 deg fell False 71 s
+randomized 388 design-a-level/design-3: finished pos 15.3 cm head 12.7 deg fell False 66 s
+randomized 389 FFLFRF: finished pos 1.6 cm head 3.2 deg fell False 19 s
+randomized 390 FRFRFRFR: finished pos 4.0 cm head 13.2 deg fell False 23 s
+randomized 391 FLLF: finished pos 2.4 cm head 1.0 deg fell False 12 s
+randomized 392 FFB: finished pos 5.4 cm head 5.8 deg fell False 9 s
+randomized 393 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 6.1 cm head 0.4 deg fell False 20 s
+randomized 394 LLRR: finished pos 2.1 cm head 8.1 deg fell False 8 s
+randomized 395 FFFF: finished pos 4.9 cm head 0.4 deg fell False 12 s
+standing: trunk 0.116 m, gravity z -1.000
+randomized 396 F: finished pos 4.3 cm head 0.7 deg fell False 4 s
+randomized 397 FF: finished pos 3.4 cm head 0.1 deg fell False 6 s
+randomized 398 FFF: finished pos 2.2 cm head 3.3 deg fell False 9 s
+randomized 399 LLLL: finished pos 0.2 cm head 3.4 deg fell False 8 s
