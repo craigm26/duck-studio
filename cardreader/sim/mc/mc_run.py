@@ -275,33 +275,26 @@ def _logged_drive(loop, robot, state, sleep=time.sleep, clock=time.time):
 runner.drive = _logged_drive
 
 
-def run_row(robot, truth, row, cond_row, rng, square, log, eye=None):
-    CARD_LOG.clear()
-    steps = rowlist.steps(row)
-    beats = runner.beats(steps)
-    said = []                                  # (wall, line)
-    seen = Seen(robot, rng, cond_row["latency_s"], cond_row["noise_m"], cond_row["noise_deg"],
-                cond_row["odom_scale"])
-    # The starting phase: still for a random moment first.
-    still = rng.uniform(0.5, 2.0)
-    end = time.monotonic() + still
-    while time.monotonic() < end:
-        robot.move(0.0, 0.0)
-        time.sleep(0.05)
-    if eye is not None:
-        eye.place()                            # the child seats the duck on the mat
-    t_start = time.monotonic()
-    fell_any = [False]
+def draw_seat(cond, rng):
+    """THE CHILD'S RE-SEAT, for duck-card-loop/6 (docs/PACKS.md, pre-registered 2026-10-19): how far
+    from the nest a child puts the duck back between chapters, (forward m, left m, heading rad) in
+    the nest's frame. Drawn per re-seat; a row's first seat is perfect, as it always was."""
+    if cond.startswith("nominal"):
+        return (0.0, 0.0, 0.0)
+    if cond.startswith("stressed"):
+        a = rng.uniform(-math.pi, math.pi)
+        return (0.03 * math.cos(a), 0.03 * math.sin(a), math.radians(5.0) * rng.choice((-1, 1)))
+    return (rng.gauss(0, 0.015), rng.gauss(0, 0.015), math.radians(rng.gauss(0, 3.0)))
 
-    def say(line):
-        said.append((time.monotonic(), line))
 
-    result = runner.run(beats, robot, say=say, state=seen, clock=time.monotonic, measured=True,
-                        frame=eye.frame if eye is not None else None)
-    t_end = time.monotonic()
-    # When each beat began: the runner says each beat's clause first, in order.
+def _score(beats, said, truth, t_start, t_end, square, seat=(0.0, 0.0, 0.0)):
+    """One row's (or chapter's) errors against where its cards should have put the duck, measured
+    from the true start; `seat` is where the duck truly sits relative to the nest the board
+    believes it is on (zero for a row's first seat)."""
     begins, k = [], 0
     for w, line in said:
+        if w < t_start:
+            continue
         if k < len(beats) and line == f"  {beats[k].clause}":
             begins.append(w)
             k += 1
@@ -315,17 +308,65 @@ def run_row(robot, truth, row, cond_row, rng, square, log, eye=None):
     s0, s1 = truth.at(w0), truth.at(w_score)
     _, x0, y0, h0, _, _ = s0
     _, x1, y1, h1, _, _ = s1
+    # The duck truly sits at nest + seat, so the nest is the true start less the seat.
+    sx, sy, sh = seat
+    h0 = h0 - sh
+    x0 -= sx * math.cos(h0) - sy * math.sin(h0)
+    y0 -= sx * math.sin(h0) + sy * math.cos(h0)
     dx, dy = x1 - x0, y1 - y0
     ex, ey = dx * math.cos(h0) + dy * math.sin(h0), -dx * math.sin(h0) + dy * math.cos(h0)
     bx, by, bh = board_end([beats[i].action for i in moving], square)
-    pos_err = math.hypot(ex - bx, ey - by)
-    head_err = math.degrees(abs(wrap((h1 - h0) - bh)))
-    fell = any(s.get("safety", {}).get("fallen") for w, s in list(robot.frames)[-int((t_end - t_start) * 60):]
-               if w >= t_start)
     card_times = []
     for i in moving:
         if i + 1 < len(begins):
             card_times.append(begins[i + 1] - begins[i] - cardloop.SPEC["between_s"])
+    return {"cards": len(moving), "pos_err_m": math.hypot(ex - bx, ey - by),
+            "head_err_deg": math.degrees(abs(wrap((h1 - h0) - bh))), "card_s": card_times,
+            "board_end": [bx, by, math.degrees(bh)], "truth_end": [ex, ey, math.degrees(wrap(h1 - h0))]}
+
+
+def run_row(robot, truth, row, cond_row, rng, square, log, eye=None, cond=""):
+    CARD_LOG.clear()
+    steps = rowlist.steps(row)
+    beats = runner.beats(steps)
+    parts = runner.chapters(beats)
+    said = []                                  # (wall, line)
+    seen = Seen(robot, rng, cond_row["latency_s"], cond_row["noise_m"], cond_row["noise_deg"],
+                cond_row["odom_scale"])
+
+    def say(line):
+        said.append((time.monotonic(), line))
+
+    def stand():
+        # The starting phase, and between chapters the re-seat: still for a random moment.
+        end = time.monotonic() + rng.uniform(0.5, 2.0)
+        while time.monotonic() < end:
+            robot.move(0.0, 0.0)
+            time.sleep(0.05)
+
+    stand()
+    if eye is not None:
+        eye.place()                            # the child seats the duck on the mat
+    t_start = time.monotonic()
+    chapters, result = [], "finished"
+    for j, part in enumerate(parts):
+        seat = (0.0, 0.0, 0.0)
+        if j:
+            stand()
+            seat = draw_seat(cond, rng)
+        t0 = time.monotonic()
+        result = runner.run(part, robot, say=say, state=seen, clock=time.monotonic, measured=True,
+                            frame=eye.frame if eye is not None else None)
+        got = _score(part, said, truth, t0, time.monotonic(), square, seat)
+        got["result"] = result
+        if j:
+            got["seat"] = [round(seat[0], 4), round(seat[1], 4), round(math.degrees(seat[2]), 2)]
+        chapters.append(got)
+        if result != "finished":
+            break
+    t_end = time.monotonic()
+    fell = any(s.get("safety", {}).get("fallen") for w, s in list(robot.frames)[-int((t_end - t_start) * 60):]
+               if w >= t_start)
     ending = "finished" if result == "finished" else result
     cal = getattr(runner, "LAST_CAL", None)
     calib = {"drift_est_dps": round(math.degrees(cal.rate), 4), "windows": cal.windows} if cal else {}
@@ -337,11 +378,17 @@ def run_row(robot, truth, row, cond_row, rng, square, log, eye=None):
                       "fix_deg": [round(math.degrees(f[0]), 2) for f in ok],
                       "fix_cm": [round(100 * math.hypot(f[1], f[2]), 1) for f in ok]})
     runner.LAST_FIX = None
-    return {"row": row["name"], "cards": len(moving), "result": ending,
+    if len(parts) > 1:
+        # duck-card-loop/6: a row passes only if every chapter does; its error is its worst chapter's.
+        calib["chapters"] = [{k: (round(v, 4) if isinstance(v, float) else v) for k, v in c.items()
+                              if k not in ("card_s", "board_end", "truth_end")} for c in chapters]
+    return {"row": row["name"], "cards": sum(1 for b in beats if b.kind == "card"), "result": ending,
             "said": [line.strip() for _, line in said if not any(line == f"  {b.clause}" for b in beats)],
-            "pos_err_m": pos_err, "head_err_deg": head_err, "fell": fell,
-            "row_s": t_end - t_start, "card_s": card_times, "board_end": [bx, by, math.degrees(bh)],
-            "truth_end": [ex, ey, math.degrees(wrap(h1 - h0))], "card_log": list(CARD_LOG), **calib, **cond_row}
+            "pos_err_m": max(c["pos_err_m"] for c in chapters),
+            "head_err_deg": max(c["head_err_deg"] for c in chapters), "fell": fell,
+            "row_s": t_end - t_start, "card_s": [t for c in chapters for t in c["card_s"]],
+            "board_end": chapters[-1]["board_end"], "truth_end": chapters[-1]["truth_end"],
+            "card_log": list(CARD_LOG), **calib, **cond_row}
 
 
 def main():
@@ -423,7 +470,7 @@ def main():
             while n < a.rows_per_session and i < a.rows:
                 row = rows[(a.start_index + i) % len(rows)]
                 cr = draw_row(a.condition, rng)
-                r = run_row(robot, truth, row, cr, rng, square, print, eye)
+                r = run_row(robot, truth, row, cr, rng, square, print, eye, cond=a.condition)
                 r.update({"i": i, "condition": a.condition, "knobs": knobs, "hz": hz, "spec_sha256": SPEC_SHA})
                 if camera:
                     r["camera"] = camera

@@ -320,6 +320,29 @@ def merged(beats: list[Beat], i: int, heads: bool = False) -> int:
     return n
 
 
+def chapters(beats: list[Beat], cards: int | None = None) -> list[list[Beat]]:
+    """A row as the chapters it is played in (duck-card-loop/6, the spec's `chapters`): the fewest
+    chapters of at most `chapters.cards` closed-loop cards, as equal as possible, earlier chapters
+    taking the extra card. Beats that are not cards stay with the chapter before them (the first
+    chapter takes any before the first card). One chapter when the spec has none or the row fits."""
+    if cards is None:
+        cards = int((cardloop.SPEC.get("chapters") or {}).get("cards", 0))
+    total = sum(1 for b in beats if b.kind == "card")
+    if cards <= 0 or total <= cards:
+        return [list(beats)]
+    k = -(-total // cards)
+    sizes = [total // k + (1 if j < total % k else 0) for j in range(k)]
+    out, cur, used = [], [], 0
+    for b in beats:
+        if b.kind == "card" and used == sizes[len(out)]:
+            out.append(cur)
+            cur, used = [], 0
+        cur.append(b)
+        used += b.kind == "card"
+    out.append(cur)
+    return out
+
+
 def fixed(state, fix: "cardloop.MatFix"):
     """`state` with every `odom` corrected by `fix` (cardloop.MatFix), for the controller."""
     def corrected():
