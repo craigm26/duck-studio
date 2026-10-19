@@ -673,6 +673,26 @@ row.
   re-seat error as large as a chapter's own; a chapter's first card after a re-seat falling.
   What it does not show: that a child will re-seat a duck this well, or will want to.
 
+**Result (2026-10-19): replaces `/5` as the base, by the rule above; the rise is under what was
+expected.** HF job 6ad5a5dbc662881452281109 at 7fbd643, 6.9 h, 4,800 rows, 1 stale-pose stop
+(valid). Long rows' position at randomized 10 Hz rose from 41.7% (50/120) to 63.3% (76/120), one
+sided p 0.026 over sessions (0.0006 over rows), under the 70 to 85% expected. The secondary
+analysis finds `/6` worse nowhere after Holm over 80 tests; 6 tests have p below 0.05 uncorrected.
+Long rows rose in every condition (nominal 119 to 120 of 120, randomized 48 to 79, stressed 10 Hz
+3 to 23) and took 2 to 3 s longer in the sim, not counting the child's re-seats. Re-seat error
+costs about what a chapter does: at randomized 10 Hz, the second chapter of a long row failed 32
+times against the first's 15. Rung 1 still fails (stressed 10 Hz).
+
+The old rule, reported beside it and deciding nothing, would reject `/6`: eight verdicts `/5`
+passed became fails, all in Walk back rows (position at randomized and randomized 10 Hz, heading
+at randomized 10 Hz, a late Turn card at randomized, falls in every condition). None of those rows has more than 7 cards, so none was
+split: they ran `/5`'s code on fresh seeds, a second `/5` run in effect. Its 9 falls in 1,972 Walk
+back rows (against `/5`'s 0) fell in rows of 2 to 5 cards, one per session where a session had
+any. So these are the noise the falls control found, seen again, and the Walk back falls verdict
+(at most 1%, counted over 493 rows) passes or fails on chance. The shipped spec stays `/1`;
+`enabled_on_robot` stays false. Rows and comparisons: `cardreader/sim/results-nest/` (README.md,
+COMPARE.md, SECONDARY.md).
+
 ### Candidate change: merge cards, to spend less time (`duck-card-loop/5`), pre-registered 2026-10-18
 
 **Written before any development or evaluation row of it ran.** Long rows fail because the sensed

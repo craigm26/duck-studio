@@ -1,0 +1,434 @@
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 0 FFLFRF: finished pos 9.8 cm head 8.1 deg fell False 19 s
+stressed-10hz 1 FRFRFRFR: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 27.0 cm head 75.6 deg fell False 8 s
+stressed-10hz 2 FLLF: finished pos 4.4 cm head 8.6 deg fell False 12 s
+stressed-10hz 3 FFB: finished pos 8.6 cm head 0.4 deg fell False 9 s
+stressed-10hz 4 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 12.7 cm head 7.6 deg fell False 19 s
+stressed-10hz 5 LLRR: finished pos 3.2 cm head 4.6 deg fell False 8 s
+stressed-10hz 6 FFFF: finished pos 5.7 cm head 7.4 deg fell False 11 s
+stressed-10hz 7 F: finished pos 4.7 cm head 6.7 deg fell False 4 s
+stressed-10hz 8 FF: finished pos 6.5 cm head 5.4 deg fell False 6 s
+stressed-10hz 9 FFF: finished pos 3.9 cm head 8.6 deg fell False 9 s
+stressed-10hz 10 LLLL: finished pos 0.7 cm head 12.4 deg fell False 9 s
+stressed-10hz 11 FFLFRF: finished pos 7.3 cm head 8.1 deg fell False 18 s
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 12 FRFRFRFR: finished pos 5.7 cm head 26.0 deg fell False 28 s
+stressed-10hz 13 FLLF: finished pos 4.7 cm head 2.4 deg fell False 12 s
+stressed-10hz 14 FFB: finished pos 7.4 cm head 6.1 deg fell False 9 s
+stressed-10hz 15 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 7.4 cm head 17.7 deg fell False 19 s
+stressed-10hz 16 LLRR: finished pos 3.2 cm head 9.5 deg fell False 8 s
+stressed-10hz 17 FFFF: finished pos 11.3 cm head 0.2 deg fell False 13 s
+stressed-10hz 18 F: finished pos 2.3 cm head 2.1 deg fell False 3 s
+stressed-10hz 19 FF: finished pos 2.4 cm head 0.9 deg fell False 6 s
+stressed-10hz 20 FFF: finished pos 9.1 cm head 3.2 deg fell False 10 s
+stressed-10hz 21 LLLL: finished pos 1.2 cm head 5.1 deg fell False 9 s
+stressed-10hz 22 FFLFRF: finished pos 8.3 cm head 5.8 deg fell False 19 s
+stressed-10hz 23 FRFRFRFR: finished pos 10.2 cm head 15.3 deg fell False 29 s
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 24 FLLF: finished pos 4.1 cm head 9.3 deg fell False 11 s
+stressed-10hz 25 FFB: finished pos 6.8 cm head 2.2 deg fell False 10 s
+stressed-10hz 26 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Turn right, fast: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 28.6 cm head 10.4 deg fell False 18 s
+stressed-10hz 27 LLRR: finished pos 3.2 cm head 8.4 deg fell False 8 s
+stressed-10hz 28 FFFF: finished pos 9.1 cm head 7.0 deg fell False 12 s
+stressed-10hz 29 F: finished pos 1.5 cm head 6.4 deg fell False 3 s
+stressed-10hz 30 FF: finished pos 4.7 cm head 6.0 deg fell False 6 s
+stressed-10hz 31 FFF: finished pos 8.6 cm head 6.6 deg fell False 10 s
+stressed-10hz 32 LLLL: finished pos 0.6 cm head 5.4 deg fell False 8 s
+stressed-10hz 33 FFLFRF: finished pos 8.7 cm head 9.5 deg fell False 19 s
+stressed-10hz 34 FRFRFRFR: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 34.6 cm head 80.9 deg fell False 23 s
+stressed-10hz 35 FLLF: finished pos 2.3 cm head 12.5 deg fell False 12 s
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 36 FFB: finished pos 3.9 cm head 0.4 deg fell False 10 s
+stressed-10hz 37 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 14.3 cm head 9.3 deg fell False 19 s
+stressed-10hz 38 LLRR: finished pos 3.0 cm head 7.7 deg fell False 8 s
+stressed-10hz 39 FFFF: finished pos 6.3 cm head 6.1 deg fell False 12 s
+stressed-10hz 40 F: finished pos 5.2 cm head 4.0 deg fell False 4 s
+stressed-10hz 41 FF: finished pos 2.3 cm head 6.0 deg fell False 6 s
+stressed-10hz 42 FFF: finished pos 6.1 cm head 7.8 deg fell False 10 s
+stressed-10hz 43 LLLL: finished pos 0.9 cm head 2.0 deg fell False 8 s
+stressed-10hz 44 FFLFRF: finished pos 9.8 cm head 10.8 deg fell False 20 s
+stressed-10hz 45 FRFRFRFR: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 28.1 cm head 71.3 deg fell False 8 s
+stressed-10hz 46 FLLF: finished pos 5.9 cm head 7.6 deg fell False 12 s
+stressed-10hz 47 FFB: finished pos 7.4 cm head 3.3 deg fell False 10 s
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 48 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 10.8 cm head 7.9 deg fell False 19 s
+stressed-10hz 49 LLRR: finished pos 3.0 cm head 5.0 deg fell False 8 s
+stressed-10hz 50 FFFF: finished pos 10.4 cm head 13.2 deg fell False 13 s
+stressed-10hz 51 F: finished pos 3.8 cm head 8.1 deg fell False 4 s
+stressed-10hz 52 FF: finished pos 1.6 cm head 5.3 deg fell False 6 s
+stressed-10hz 53 FFF: finished pos 8.5 cm head 7.2 deg fell False 10 s
+stressed-10hz 54 LLLL: finished pos 0.9 cm head 12.3 deg fell False 9 s
+stressed-10hz 55 FFLFRF: finished pos 8.9 cm head 7.9 deg fell False 19 s
+stressed-10hz 56 FRFRFRFR: finished pos 8.2 cm head 7.1 deg fell False 27 s
+stressed-10hz 57 FLLF: finished pos 3.2 cm head 7.1 deg fell False 12 s
+stressed-10hz 58 FFB: finished pos 4.3 cm head 5.1 deg fell False 10 s
+stressed-10hz 59 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 9.0 cm head 7.3 deg fell False 21 s
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 60 LLRR: finished pos 3.1 cm head 6.3 deg fell False 8 s
+stressed-10hz 61 FFFF: finished pos 6.3 cm head 9.6 deg fell False 11 s
+stressed-10hz 62 F: finished pos 5.7 cm head 5.3 deg fell False 4 s
+stressed-10hz 63 FF: finished pos 0.5 cm head 4.2 deg fell False 6 s
+stressed-10hz 64 FFF: finished pos 2.7 cm head 7.8 deg fell False 9 s
+stressed-10hz 65 LLLL: finished pos 0.7 cm head 5.4 deg fell False 8 s
+stressed-10hz 66 FFLFRF: finished pos 8.0 cm head 8.4 deg fell False 18 s
+stressed-10hz 67 FRFRFRFR: finished pos 6.6 cm head 9.4 deg fell False 25 s
+stressed-10hz 68 FLLF: finished pos 3.5 cm head 7.9 deg fell False 12 s
+stressed-10hz 69 FFB: finished pos 5.1 cm head 1.9 deg fell False 10 s
+stressed-10hz 70 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Turn right, fast: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 28.0 cm head 8.4 deg fell False 18 s
+stressed-10hz 71 LLRR: finished pos 3.8 cm head 6.9 deg fell False 8 s
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 72 FFFF: finished pos 6.7 cm head 14.2 deg fell False 11 s
+stressed-10hz 73 F: finished pos 4.4 cm head 5.1 deg fell False 3 s
+stressed-10hz 74 FF: finished pos 6.6 cm head 8.9 deg fell False 6 s
+stressed-10hz 75 FFF: finished pos 5.1 cm head 2.5 deg fell False 9 s
+stressed-10hz 76 LLLL: finished pos 1.5 cm head 12.6 deg fell False 8 s
+stressed-10hz 77 FFLFRF: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 29.4 cm head 10.2 deg fell False 17 s
+stressed-10hz 78 FRFRFRFR: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 7.8 cm head 4.9 deg fell False 27 s
+stressed-10hz 79 FLLF: finished pos 3.5 cm head 16.6 deg fell False 11 s
+stressed-10hz 80 FFB: finished pos 5.3 cm head 4.7 deg fell False 10 s
+stressed-10hz 81 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Turn right, fast: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 32.0 cm head 15.4 deg fell False 18 s
+stressed-10hz 82 LLRR: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 1.2 cm head 10.6 deg fell False 10 s
+stressed-10hz 83 FFFF: finished pos 3.2 cm head 7.0 deg fell False 11 s
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 84 F: finished pos 1.0 cm head 2.5 deg fell False 3 s
+stressed-10hz 85 FF: finished pos 4.6 cm head 5.3 deg fell False 6 s
+stressed-10hz 86 FFF: finished pos 6.8 cm head 9.2 deg fell False 10 s
+stressed-10hz 87 LLLL: finished pos 1.3 cm head 12.2 deg fell False 9 s
+stressed-10hz 88 FFLFRF: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 27.7 cm head 9.4 deg fell False 18 s
+stressed-10hz 89 FRFRFRFR: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 27.5 cm head 70.5 deg fell False 20 s
+stressed-10hz 90 FLLF: finished pos 4.1 cm head 5.7 deg fell False 11 s
+stressed-10hz 91 FFB: finished pos 8.9 cm head 5.2 deg fell False 10 s
+stressed-10hz 92 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 11.4 cm head 1.9 deg fell False 19 s
+stressed-10hz 93 LLRR: finished pos 3.9 cm head 5.9 deg fell False 8 s
+stressed-10hz 94 FFFF: finished pos 6.3 cm head 6.4 deg fell False 12 s
+stressed-10hz 95 F: finished pos 4.3 cm head 4.5 deg fell False 4 s
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 96 FF: finished pos 6.3 cm head 15.0 deg fell False 6 s
+stressed-10hz 97 FFF: finished pos 2.5 cm head 9.7 deg fell False 9 s
+stressed-10hz 98 LLLL: finished pos 0.6 cm head 11.7 deg fell False 8 s
+stressed-10hz 99 FFLFRF: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 26.0 cm head 11.0 deg fell False 17 s
+stressed-10hz 100 FRFRFRFR: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 27.8 cm head 74.3 deg fell False 8 s
+stressed-10hz 101 FLLF: finished pos 3.6 cm head 6.8 deg fell False 11 s
+stressed-10hz 102 FFB: finished pos 7.3 cm head 2.2 deg fell False 10 s
+stressed-10hz 103 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 10.0 cm head 10.6 deg fell False 20 s
+stressed-10hz 104 LLRR: finished pos 1.7 cm head 6.4 deg fell False 8 s
+stressed-10hz 105 FFFF: finished pos 3.9 cm head 10.2 deg fell False 11 s
+stressed-10hz 106 F: finished pos 1.3 cm head 0.1 deg fell False 3 s
+stressed-10hz 107 FF: finished pos 1.6 cm head 2.8 deg fell False 6 s
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 108 FFF: finished pos 6.6 cm head 0.3 deg fell False 9 s
+stressed-10hz 109 LLLL: finished pos 0.6 cm head 4.0 deg fell False 9 s
+stressed-10hz 110 FFLFRF: finished pos 7.8 cm head 6.9 deg fell False 19 s
+stressed-10hz 111 FRFRFRFR: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 23.7 cm head 60.8 deg fell False 21 s
+stressed-10hz 112 FLLF: finished pos 4.7 cm head 0.5 deg fell False 12 s
+stressed-10hz 113 FFB: finished pos 7.6 cm head 7.0 deg fell False 9 s
+stressed-10hz 114 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 5.6 cm head 6.6 deg fell False 20 s
+stressed-10hz 115 LLRR: finished pos 3.3 cm head 12.1 deg fell False 8 s
+stressed-10hz 116 FFFF: finished pos 10.5 cm head 2.4 deg fell False 12 s
+stressed-10hz 117 F: finished pos 3.8 cm head 1.6 deg fell False 4 s
+stressed-10hz 118 FF: finished pos 6.6 cm head 1.6 deg fell False 6 s
+stressed-10hz 119 FFF: finished pos 7.8 cm head 0.5 deg fell False 10 s
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 120 LLLL: finished pos 3.2 cm head 3.7 deg fell False 9 s
+stressed-10hz 121 FFLFRF: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 29.3 cm head 12.5 deg fell False 17 s
+stressed-10hz 122 FRFRFRFR: finished pos 9.1 cm head 11.6 deg fell False 26 s
+stressed-10hz 123 FLLF: finished pos 7.1 cm head 1.6 deg fell False 11 s
+stressed-10hz 124 FFB: finished pos 6.1 cm head 1.5 deg fell False 9 s
+stressed-10hz 125 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 11.0 cm head 2.6 deg fell False 18 s
+stressed-10hz 126 LLRR: finished pos 3.2 cm head 9.0 deg fell False 8 s
+stressed-10hz 127 FFFF: finished pos 12.4 cm head 4.9 deg fell False 11 s
+stressed-10hz 128 F: finished pos 3.6 cm head 8.6 deg fell False 3 s
+stressed-10hz 129 FF: finished pos 3.5 cm head 7.2 deg fell False 6 s
+stressed-10hz 130 FFF: finished pos 7.1 cm head 9.1 deg fell False 9 s
+stressed-10hz 131 LLLL: finished pos 1.2 cm head 8.3 deg fell False 8 s
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 132 FFLFRF: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 25.6 cm head 11.0 deg fell False 18 s
+stressed-10hz 133 FRFRFRFR: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 28.2 cm head 76.2 deg fell False 8 s
+stressed-10hz 134 FLLF: finished pos 3.5 cm head 7.2 deg fell False 11 s
+stressed-10hz 135 FFB: finished pos 8.0 cm head 0.4 deg fell False 10 s
+stressed-10hz 136 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 13.2 cm head 9.6 deg fell False 20 s
+stressed-10hz 137 LLRR: finished pos 3.9 cm head 5.5 deg fell False 8 s
+stressed-10hz 138 FFFF: finished pos 8.0 cm head 8.7 deg fell False 12 s
+stressed-10hz 139 F: finished pos 3.6 cm head 5.3 deg fell False 4 s
+stressed-10hz 140 FF: finished pos 0.8 cm head 7.9 deg fell False 6 s
+stressed-10hz 141 FFF: finished pos 6.5 cm head 6.1 deg fell False 10 s
+stressed-10hz 142 LLLL: finished pos 0.9 cm head 7.1 deg fell False 9 s
+stressed-10hz 143 FFLFRF: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 28.3 cm head 7.1 deg fell False 18 s
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 144 FRFRFRFR: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 26.7 cm head 77.2 deg fell False 8 s
+stressed-10hz 145 FLLF: finished pos 1.4 cm head 8.8 deg fell False 13 s
+stressed-10hz 146 FFB: finished pos 5.8 cm head 0.1 deg fell False 9 s
+stressed-10hz 147 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 10.4 cm head 7.2 deg fell False 21 s
+stressed-10hz 148 LLRR: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 3.7 cm head 11.9 deg fell False 10 s
+stressed-10hz 149 FFFF: finished pos 8.6 cm head 5.5 deg fell False 13 s
+stressed-10hz 150 F: finished pos 2.3 cm head 1.8 deg fell False 4 s
+stressed-10hz 151 FF: finished pos 0.4 cm head 5.9 deg fell False 6 s
+stressed-10hz 152 FFF: finished pos 3.4 cm head 3.9 deg fell False 9 s
+stressed-10hz 153 LLLL: finished pos 0.6 cm head 10.8 deg fell False 9 s
+stressed-10hz 154 FFLFRF: finished pos 12.1 cm head 8.3 deg fell False 18 s
+stressed-10hz 155 FRFRFRFR: finished pos 10.3 cm head 2.6 deg fell False 25 s
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 156 FLLF: finished pos 3.7 cm head 6.0 deg fell False 11 s
+stressed-10hz 157 FFB: finished pos 4.1 cm head 1.9 deg fell False 10 s
+stressed-10hz 158 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 12.7 cm head 9.3 deg fell False 20 s
+stressed-10hz 159 LLRR: finished pos 3.5 cm head 8.2 deg fell False 8 s
+stressed-10hz 160 FFFF: finished pos 5.9 cm head 4.8 deg fell False 11 s
+stressed-10hz 161 F: finished pos 3.2 cm head 1.9 deg fell False 4 s
+stressed-10hz 162 FF: finished pos 1.5 cm head 5.1 deg fell False 6 s
+stressed-10hz 163 FFF: finished pos 4.3 cm head 8.0 deg fell False 9 s
+stressed-10hz 164 LLLL: finished pos 0.7 cm head 12.2 deg fell False 9 s
+stressed-10hz 165 FFLFRF: finished pos 10.6 cm head 9.7 deg fell False 20 s
+stressed-10hz 166 FRFRFRFR: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 26.3 cm head 76.4 deg fell False 8 s
+stressed-10hz 167 FLLF: finished pos 3.9 cm head 8.7 deg fell False 12 s
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 168 FFB: finished pos 6.0 cm head 14.0 deg fell False 10 s
+stressed-10hz 169 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 6.0 cm head 14.4 deg fell False 20 s
+stressed-10hz 170 LLRR: finished pos 2.9 cm head 10.0 deg fell False 8 s
+stressed-10hz 171 FFFF: finished pos 10.7 cm head 5.3 deg fell False 12 s
+stressed-10hz 172 F: finished pos 4.6 cm head 1.4 deg fell False 4 s
+stressed-10hz 173 FF: finished pos 3.0 cm head 5.0 deg fell False 6 s
+stressed-10hz 174 FFF: finished pos 8.3 cm head 0.3 deg fell False 10 s
+stressed-10hz 175 LLLL: finished pos 0.6 cm head 4.0 deg fell False 8 s
+stressed-10hz 176 FFLFRF: finished pos 10.0 cm head 8.9 deg fell False 19 s
+stressed-10hz 177 FRFRFRFR: finished pos 10.2 cm head 21.4 deg fell False 26 s
+stressed-10hz 178 FLLF: finished pos 3.6 cm head 5.8 deg fell False 11 s
+stressed-10hz 179 FFB: finished pos 8.4 cm head 7.8 deg fell False 9 s
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 180 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 5.1 cm head 9.4 deg fell False 19 s
+stressed-10hz 181 LLRR: finished pos 2.7 cm head 1.2 deg fell False 10 s
+stressed-10hz 182 FFFF: finished pos 3.3 cm head 3.3 deg fell False 11 s
+stressed-10hz 183 F: finished pos 2.5 cm head 4.2 deg fell False 3 s
+stressed-10hz 184 FF: finished pos 3.0 cm head 0.4 deg fell False 5 s
+stressed-10hz 185 FFF: finished pos 3.5 cm head 6.4 deg fell False 8 s
+stressed-10hz 186 LLLL: finished pos 0.4 cm head 8.0 deg fell False 8 s
+stressed-10hz 187 FFLFRF: finished pos 2.5 cm head 12.2 deg fell False 18 s
+stressed-10hz 188 FRFRFRFR: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 29.7 cm head 71.2 deg fell False 8 s
+stressed-10hz 189 FLLF: finished pos 5.5 cm head 9.8 deg fell False 11 s
+stressed-10hz 190 FFB: finished pos 9.0 cm head 7.2 deg fell False 9 s
+stressed-10hz 191 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 9.1 cm head 12.9 deg fell False 19 s
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 192 LLRR: finished pos 3.0 cm head 8.2 deg fell False 8 s
+stressed-10hz 193 FFFF: finished pos 7.3 cm head 7.4 deg fell False 11 s
+stressed-10hz 194 F: finished pos 1.8 cm head 0.7 deg fell False 3 s
+stressed-10hz 195 FF: finished pos 0.1 cm head 6.0 deg fell False 6 s
+stressed-10hz 196 FFF: finished pos 2.8 cm head 7.8 deg fell False 9 s
+stressed-10hz 197 LLLL: finished pos 1.0 cm head 0.7 deg fell False 8 s
+stressed-10hz 198 FFLFRF: finished pos 8.6 cm head 12.9 deg fell False 19 s
+stressed-10hz 199 FRFRFRFR: finished pos 4.7 cm head 10.4 deg fell False 26 s
+stressed-10hz 200 FLLF: finished pos 4.1 cm head 6.4 deg fell False 11 s
+stressed-10hz 201 FFB: finished pos 7.8 cm head 5.0 deg fell False 9 s
+stressed-10hz 202 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 12.6 cm head 10.4 deg fell False 20 s
+stressed-10hz 203 LLRR: finished pos 3.2 cm head 9.7 deg fell False 10 s
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 204 FFFF: finished pos 8.2 cm head 12.7 deg fell False 13 s
+stressed-10hz 205 F: finished pos 1.1 cm head 1.3 deg fell False 3 s
+stressed-10hz 206 FF: finished pos 6.0 cm head 5.0 deg fell False 6 s
+stressed-10hz 207 FFF: finished pos 3.1 cm head 7.7 deg fell False 9 s
+stressed-10hz 208 LLLL: finished pos 1.3 cm head 9.2 deg fell False 8 s
+stressed-10hz 209 FFLFRF: finished pos 7.2 cm head 7.7 deg fell False 18 s
+stressed-10hz 210 FRFRFRFR: finished pos 7.1 cm head 2.0 deg fell False 27 s
+stressed-10hz 211 FLLF: finished pos 3.4 cm head 7.1 deg fell False 12 s
+stressed-10hz 212 FFB: finished pos 8.1 cm head 1.4 deg fell False 9 s
+stressed-10hz 213 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Turn right, fast: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 34.8 cm head 9.4 deg fell False 19 s
+stressed-10hz 214 LLRR: finished pos 3.4 cm head 4.1 deg fell False 8 s
+stressed-10hz 215 FFFF: finished pos 8.2 cm head 7.3 deg fell False 13 s
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 216 F: finished pos 1.9 cm head 2.2 deg fell False 4 s
+stressed-10hz 217 FF: finished pos 1.3 cm head 9.8 deg fell False 6 s
+stressed-10hz 218 FFF: finished pos 6.1 cm head 9.4 deg fell False 10 s
+stressed-10hz 219 LLLL: finished pos 0.7 cm head 13.2 deg fell False 9 s
+stressed-10hz 220 FFLFRF: finished pos 6.6 cm head 6.3 deg fell False 18 s
+stressed-10hz 221 FRFRFRFR: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 22.0 cm head 75.2 deg fell False 8 s
+stressed-10hz 222 FLLF: finished pos 5.8 cm head 14.2 deg fell False 12 s
+stressed-10hz 223 FFB: finished pos 6.5 cm head 4.6 deg fell False 9 s
+stressed-10hz 224 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Turn right, fast: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 27.8 cm head 17.7 deg fell False 18 s
+stressed-10hz 225 LLRR: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 3.2 cm head 12.5 deg fell False 10 s
+stressed-10hz 226 FFFF: finished pos 9.4 cm head 5.7 deg fell False 11 s
+stressed-10hz 227 F: finished pos 3.8 cm head 3.6 deg fell False 4 s
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 228 FF: finished pos 5.7 cm head 0.5 deg fell False 6 s
+stressed-10hz 229 FFF: finished pos 7.0 cm head 8.5 deg fell False 10 s
+stressed-10hz 230 LLLL: finished pos 1.1 cm head 3.5 deg fell False 8 s
+stressed-10hz 231 FFLFRF: finished pos 7.3 cm head 11.1 deg fell False 18 s
+stressed-10hz 232 FRFRFRFR: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 27.3 cm head 74.9 deg fell False 8 s
+stressed-10hz 233 FLLF: finished pos 3.9 cm head 10.6 deg fell False 12 s
+stressed-10hz 234 FFB: finished pos 4.7 cm head 4.8 deg fell False 10 s
+stressed-10hz 235 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Turn right, fast: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 34.0 cm head 8.9 deg fell False 19 s
+stressed-10hz 236 LLRR: finished pos 3.8 cm head 6.2 deg fell False 9 s
+stressed-10hz 237 FFFF: finished pos 9.8 cm head 9.0 deg fell False 12 s
+stressed-10hz 238 F: finished pos 4.8 cm head 2.6 deg fell False 4 s
+stressed-10hz 239 FF: finished pos 5.4 cm head 8.1 deg fell False 6 s
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 240 FFF: finished pos 8.1 cm head 8.9 deg fell False 10 s
+stressed-10hz 241 LLLL: finished pos 0.8 cm head 3.9 deg fell False 8 s
+stressed-10hz 242 FFLFRF: finished pos 8.4 cm head 8.1 deg fell False 19 s
+stressed-10hz 243 FRFRFRFR: finished pos 3.3 cm head 7.5 deg fell False 26 s
+stressed-10hz 244 FLLF: finished pos 4.7 cm head 12.6 deg fell False 11 s
+stressed-10hz 245 FFB: finished pos 4.9 cm head 2.6 deg fell False 10 s
+stressed-10hz 246 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 9.4 cm head 6.0 deg fell False 20 s
+stressed-10hz 247 LLRR: finished pos 3.9 cm head 7.2 deg fell False 8 s
+stressed-10hz 248 FFFF: finished pos 8.9 cm head 7.2 deg fell False 13 s
+stressed-10hz 249 F: finished pos 4.1 cm head 3.1 deg fell False 4 s
+stressed-10hz 250 FF: finished pos 1.5 cm head 2.7 deg fell False 6 s
+stressed-10hz 251 FFF: finished pos 8.6 cm head 7.7 deg fell False 10 s
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 252 LLLL: finished pos 0.4 cm head 12.2 deg fell False 9 s
+stressed-10hz 253 FFLFRF: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 33.1 cm head 10.3 deg fell False 17 s
+stressed-10hz 254 FRFRFRFR: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 27.8 cm head 76.3 deg fell False 8 s
+stressed-10hz 255 FLLF: finished pos 3.8 cm head 3.8 deg fell False 12 s
+stressed-10hz 256 FFB: finished pos 7.0 cm head 3.2 deg fell False 10 s
+stressed-10hz 257 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Turn right, fast: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 27.0 cm head 8.4 deg fell False 18 s
+stressed-10hz 258 LLRR: finished pos 3.0 cm head 6.6 deg fell False 8 s
+stressed-10hz 259 FFFF: finished pos 4.4 cm head 6.3 deg fell False 12 s
+stressed-10hz 260 F: finished pos 3.7 cm head 2.4 deg fell False 4 s
+stressed-10hz 261 FF: finished pos 1.6 cm head 6.1 deg fell False 6 s
+stressed-10hz 262 FFF: finished pos 2.6 cm head 6.2 deg fell False 9 s
+stressed-10hz 263 LLLL: finished pos 1.0 cm head 9.0 deg fell False 9 s
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 264 FFLFRF: finished pos 6.8 cm head 9.2 deg fell False 18 s
+stressed-10hz 265 FRFRFRFR: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 27.0 cm head 72.4 deg fell False 8 s
+stressed-10hz 266 FLLF: finished pos 4.1 cm head 12.4 deg fell False 11 s
+stressed-10hz 267 FFB: finished pos 6.8 cm head 0.2 deg fell False 10 s
+stressed-10hz 268 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 10.4 cm head 1.1 deg fell False 20 s
+stressed-10hz 269 LLRR: finished pos 3.5 cm head 6.7 deg fell False 8 s
+stressed-10hz 270 FFFF: finished pos 9.9 cm head 8.3 deg fell False 13 s
+stressed-10hz 271 F: finished pos 2.3 cm head 2.6 deg fell False 4 s
+stressed-10hz 272 FF: finished pos 4.7 cm head 8.5 deg fell False 6 s
+stressed-10hz 273 FFF: finished pos 6.0 cm head 9.3 deg fell False 10 s
+stressed-10hz 274 LLLL: finished pos 0.1 cm head 13.5 deg fell False 9 s
+stressed-10hz 275 FFLFRF: finished pos 8.2 cm head 5.0 deg fell False 19 s
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 276 FRFRFRFR: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 22.6 cm head 71.0 deg fell False 22 s
+stressed-10hz 277 FLLF: finished pos 4.2 cm head 10.5 deg fell False 12 s
+stressed-10hz 278 FFB: finished pos 7.3 cm head 1.0 deg fell False 9 s
+stressed-10hz 279 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Turn right, fast: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 34.0 cm head 7.5 deg fell False 19 s
+stressed-10hz 280 LLRR: finished pos 3.8 cm head 1.1 deg fell False 8 s
+stressed-10hz 281 FFFF: finished pos 10.5 cm head 12.3 deg fell False 13 s
+stressed-10hz 282 F: finished pos 3.9 cm head 6.2 deg fell False 4 s
+stressed-10hz 283 FF: finished pos 5.8 cm head 2.1 deg fell False 7 s
+stressed-10hz 284 FFF: finished pos 2.3 cm head 5.9 deg fell False 9 s
+stressed-10hz 285 LLLL: finished pos 1.1 cm head 5.9 deg fell False 9 s
+stressed-10hz 286 FFLFRF: finished pos 11.4 cm head 8.4 deg fell False 18 s
+stressed-10hz 287 FRFRFRFR: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 26.6 cm head 75.0 deg fell False 8 s
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 288 FLLF: finished pos 4.8 cm head 7.6 deg fell False 12 s
+stressed-10hz 289 FFB: finished pos 3.8 cm head 12.1 deg fell False 10 s
+stressed-10hz 290 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 7.8 cm head 11.4 deg fell False 20 s
+stressed-10hz 291 LLRR: finished pos 2.9 cm head 9.5 deg fell False 8 s
+stressed-10hz 292 FFFF: finished pos 10.6 cm head 2.6 deg fell False 13 s
+stressed-10hz 293 F: finished pos 1.3 cm head 0.9 deg fell False 3 s
+stressed-10hz 294 FF: finished pos 5.3 cm head 2.8 deg fell False 6 s
+stressed-10hz 295 FFF: finished pos 8.3 cm head 1.5 deg fell False 10 s
+stressed-10hz 296 LLLL: finished pos 1.2 cm head 3.9 deg fell False 8 s
+stressed-10hz 297 FFLFRF: finished pos 7.4 cm head 6.4 deg fell False 19 s
+stressed-10hz 298 FRFRFRFR: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 25.7 cm head 69.0 deg fell False 22 s
+stressed-10hz 299 FLLF: finished pos 3.8 cm head 6.8 deg fell False 11 s
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 300 FFB: finished pos 5.3 cm head 5.3 deg fell False 10 s
+stressed-10hz 301 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Turn right, fast: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 28.7 cm head 16.9 deg fell False 18 s
+stressed-10hz 302 LLRR: finished pos 3.7 cm head 8.4 deg fell False 8 s
+stressed-10hz 303 FFFF: finished pos 3.9 cm head 5.5 deg fell False 12 s
+stressed-10hz 304 F: finished pos 2.4 cm head 0.7 deg fell False 4 s
+stressed-10hz 305 FF: finished pos 0.7 cm head 2.0 deg fell False 6 s
+stressed-10hz 306 FFF: finished pos 6.5 cm head 11.9 deg fell False 10 s
+stressed-10hz 307 LLLL: finished pos 0.7 cm head 11.9 deg fell False 9 s
+stressed-10hz 308 FFLFRF: finished pos 9.3 cm head 5.5 deg fell False 19 s
+stressed-10hz 309 FRFRFRFR: finished pos 7.2 cm head 8.6 deg fell False 27 s
+stressed-10hz 310 FLLF: finished pos 5.8 cm head 6.0 deg fell False 11 s
+stressed-10hz 311 FFB: finished pos 3.0 cm head 2.2 deg fell False 10 s
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 312 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 7.2 cm head 7.3 deg fell False 19 s
+stressed-10hz 313 LLRR: finished pos 3.3 cm head 7.7 deg fell False 8 s
+stressed-10hz 314 FFFF: finished pos 9.4 cm head 5.0 deg fell False 13 s
+stressed-10hz 315 F: finished pos 3.8 cm head 0.6 deg fell False 3 s
+stressed-10hz 316 FF: finished pos 7.2 cm head 1.5 deg fell False 6 s
+stressed-10hz 317 FFF: finished pos 8.5 cm head 0.6 deg fell False 10 s
+stressed-10hz 318 LLLL: finished pos 0.7 cm head 4.7 deg fell False 8 s
+stressed-10hz 319 FFLFRF: finished pos 8.1 cm head 7.9 deg fell False 19 s
+stressed-10hz 320 FRFRFRFR: finished pos 5.5 cm head 13.5 deg fell False 25 s
+stressed-10hz 321 FLLF: finished pos 5.2 cm head 7.4 deg fell False 12 s
+stressed-10hz 322 FFB: finished pos 1.9 cm head 3.9 deg fell False 10 s
+stressed-10hz 323 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 8.1 cm head 12.0 deg fell False 19 s
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 324 LLRR: finished pos 2.5 cm head 8.4 deg fell False 8 s
+stressed-10hz 325 FFFF: finished pos 10.5 cm head 7.2 deg fell False 11 s
+stressed-10hz 326 F: finished pos 2.3 cm head 4.0 deg fell False 3 s
+stressed-10hz 327 FF: finished pos 1.8 cm head 3.6 deg fell False 5 s
+stressed-10hz 328 FFF: finished pos 9.4 cm head 4.5 deg fell False 9 s
+stressed-10hz 329 LLLL: finished pos 2.5 cm head 7.9 deg fell False 9 s
+stressed-10hz 330 FFLFRF: finished pos 13.4 cm head 5.7 deg fell False 20 s
+stressed-10hz 331 FRFRFRFR: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 32.5 cm head 74.3 deg fell False 22 s
+stressed-10hz 332 FLLF: finished pos 6.3 cm head 0.2 deg fell False 11 s
+stressed-10hz 333 FFB: finished pos 3.8 cm head 4.5 deg fell False 9 s
+stressed-10hz 334 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 9.5 cm head 10.0 deg fell False 18 s
+stressed-10hz 335 LLRR: finished pos 2.5 cm head 13.0 deg fell False 9 s
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 336 FFFF: finished pos 4.5 cm head 9.9 deg fell False 12 s
+stressed-10hz 337 F: finished pos 0.9 cm head 3.8 deg fell False 3 s
+stressed-10hz 338 FF: finished pos 1.5 cm head 5.0 deg fell False 6 s
+stressed-10hz 339 FFF: finished pos 5.8 cm head 8.5 deg fell False 10 s
+stressed-10hz 340 LLLL: finished pos 0.8 cm head 3.4 deg fell False 9 s
+stressed-10hz 341 FFLFRF: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 34.5 cm head 11.5 deg fell False 17 s
+stressed-10hz 342 FRFRFRFR: finished pos 3.8 cm head 9.9 deg fell False 27 s
+stressed-10hz 343 FLLF: finished pos 3.8 cm head 3.4 deg fell False 12 s
+stressed-10hz 344 FFB: finished pos 6.6 cm head 0.3 deg fell False 10 s
+stressed-10hz 345 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 14.5 cm head 4.9 deg fell False 20 s
+stressed-10hz 346 LLRR: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 3.6 cm head 13.5 deg fell False 10 s
+stressed-10hz 347 FFFF: finished pos 7.4 cm head 8.2 deg fell False 12 s
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 348 F: finished pos 5.2 cm head 2.6 deg fell False 4 s
+stressed-10hz 349 FF: finished pos 5.6 cm head 0.6 deg fell False 6 s
+stressed-10hz 350 FFF: finished pos 9.0 cm head 5.9 deg fell False 10 s
+stressed-10hz 351 LLLL: finished pos 0.3 cm head 7.7 deg fell False 8 s
+stressed-10hz 352 FFLFRF: finished pos 8.3 cm head 8.7 deg fell False 19 s
+stressed-10hz 353 FRFRFRFR: finished pos 2.6 cm head 10.1 deg fell False 27 s
+stressed-10hz 354 FLLF: finished pos 4.6 cm head 2.1 deg fell False 12 s
+stressed-10hz 355 FFB: finished pos 7.9 cm head 12.5 deg fell False 9 s
+stressed-10hz 356 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Turn right, fast: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 40.5 cm head 25.5 deg fell False 19 s
+stressed-10hz 357 LLRR: finished pos 0.8 cm head 12.5 deg fell False 8 s
+stressed-10hz 358 FFFF: finished pos 10.3 cm head 0.6 deg fell False 11 s
+stressed-10hz 359 F: finished pos 4.6 cm head 3.9 deg fell False 4 s
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 360 FF: finished pos 1.6 cm head 9.7 deg fell False 6 s
+stressed-10hz 361 FFF: finished pos 6.8 cm head 10.7 deg fell False 10 s
+stressed-10hz 362 LLLL: finished pos 0.8 cm head 2.1 deg fell False 8 s
+stressed-10hz 363 FFLFRF: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 32.4 cm head 10.4 deg fell False 17 s
+stressed-10hz 364 FRFRFRFR: finished pos 7.4 cm head 5.7 deg fell False 25 s
+stressed-10hz 365 FLLF: finished pos 4.5 cm head 9.5 deg fell False 11 s
+stressed-10hz 366 FFB: finished pos 4.8 cm head 1.3 deg fell False 10 s
+stressed-10hz 367 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Turn right, fast: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 28.6 cm head 7.7 deg fell False 18 s
+stressed-10hz 368 LLRR: finished pos 3.9 cm head 8.3 deg fell False 8 s
+stressed-10hz 369 FFFF: finished pos 4.8 cm head 9.0 deg fell False 11 s
+stressed-10hz 370 F: finished pos 1.7 cm head 2.8 deg fell False 3 s
+stressed-10hz 371 FF: finished pos 5.7 cm head 4.5 deg fell False 6 s
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 372 FFF: finished pos 7.6 cm head 8.5 deg fell False 10 s
+stressed-10hz 373 LLLL: finished pos 0.9 cm head 9.2 deg fell False 9 s
+stressed-10hz 374 FFLFRF: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 30.3 cm head 10.1 deg fell False 17 s
+stressed-10hz 375 FRFRFRFR: finished pos 8.4 cm head 12.7 deg fell False 26 s
+stressed-10hz 376 FLLF: finished pos 2.5 cm head 6.3 deg fell False 12 s
+stressed-10hz 377 FFB: finished pos 4.9 cm head 2.9 deg fell False 10 s
+stressed-10hz 378 F(slow)F(fast)L(slow)FR(fast)B(slow): stopped at Turn right, fast: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 27.3 cm head 9.1 deg fell False 18 s
+stressed-10hz 379 LLRR: finished pos 3.6 cm head 2.2 deg fell False 9 s
+stressed-10hz 380 FFFF: finished pos 10.8 cm head 6.3 deg fell False 13 s
+stressed-10hz 381 F: finished pos 1.7 cm head 6.3 deg fell False 3 s
+stressed-10hz 382 FF: finished pos 5.2 cm head 4.5 deg fell False 6 s
+stressed-10hz 383 FFF: finished pos 3.2 cm head 6.0 deg fell False 9 s
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 384 LLLL: finished pos 1.5 cm head 4.2 deg fell False 8 s
+stressed-10hz 385 FFLFRF: finished pos 3.4 cm head 11.3 deg fell False 20 s
+stressed-10hz 386 FRFRFRFR: stopped at Turn right: The card stopped short of a quarter turn after its trims, so the row stopped there. pos 23.0 cm head 65.3 deg fell False 22 s
+stressed-10hz 387 FLLF: finished pos 5.0 cm head 3.7 deg fell False 12 s
+stressed-10hz 388 FFB: finished pos 3.0 cm head 9.8 deg fell False 10 s
+stressed-10hz 389 F(slow)F(fast)L(slow)FR(fast)B(slow): finished pos 7.3 cm head 14.5 deg fell False 19 s
+stressed-10hz 390 LLRR: finished pos 3.4 cm head 14.4 deg fell False 8 s
+stressed-10hz 391 FFFF: finished pos 10.6 cm head 8.0 deg fell False 12 s
+stressed-10hz 392 F: finished pos 1.3 cm head 3.3 deg fell False 3 s
+stressed-10hz 393 FF: finished pos 2.4 cm head 7.6 deg fell False 6 s
+stressed-10hz 394 FFF: finished pos 9.4 cm head 0.9 deg fell False 10 s
+stressed-10hz 395 LLLL: finished pos 1.3 cm head 0.5 deg fell False 8 s
+standing: trunk 0.116 m, gravity z -1.000
+stressed-10hz 396 FFLFRF: finished pos 9.6 cm head 11.1 deg fell False 21 s
+stressed-10hz 397 FRFRFRFR: finished pos 7.0 cm head 21.6 deg fell False 25 s
+stressed-10hz 398 FLLF: finished pos 4.3 cm head 4.8 deg fell False 12 s
+stressed-10hz 399 FFB: finished pos 7.1 cm head 13.9 deg fell False 10 s

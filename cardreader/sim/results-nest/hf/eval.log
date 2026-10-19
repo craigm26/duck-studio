@@ -1,0 +1,15 @@
+eval done Mon Oct 19 12:00:52 UTC 2026
+run_eval exit 0
+raw/nominal: 400 rows
+raw-acceptance/nominal: 400 rows
+raw-back/nominal: 400 rows
+raw/randomized: 400 rows
+raw-acceptance/randomized: 400 rows
+raw-back/randomized: 400 rows
+raw/randomized-10hz: 400 rows
+raw-acceptance/randomized-10hz: 400 rows
+raw-back/randomized-10hz: 400 rows
+raw/stressed-10hz: 400 rows
+raw-acceptance/stressed-10hz: 400 rows
+raw-back/stressed-10hz: 400 rows
+stale-pose stops: 1 (valid if <= 10)
