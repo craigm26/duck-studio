@@ -1,0 +1,14 @@
+{
+ "format": "duck-card-loop/6",
+ "rows": [
+  {"name": "short", "kinds": ["card", "card", "card", "card", "card", "card", "card"], "cards": 7, "chapters": [7]},
+  {"name": "eight", "kinds": ["card", "card", "card", "card", "card", "card", "card", "card"], "cards": 7, "chapters": [4, 4]},
+  {"name": "ten", "kinds": ["card", "card", "card", "card", "card", "card", "card", "card", "card", "card"], "cards": 7, "chapters": [5, 5]},
+  {"name": "twenty", "kinds": ["card", "card", "card", "card", "card", "card", "card", "card", "card", "card", "card", "card", "card", "card", "card", "card", "card", "card", "card", "card"], "cards": 7, "chapters": [7, 7, 6]},
+  {"name": "fifteen", "kinds": ["card", "card", "card", "card", "card", "card", "card", "card", "card", "card", "card", "card", "card", "card", "card"], "cards": 7, "chapters": [5, 5, 5]},
+  {"name": "fifteen_at_four", "kinds": ["card", "card", "card", "card", "card", "card", "card", "card", "card", "card", "card", "card", "card", "card", "card"], "cards": 4, "chapters": [4, 4, 4, 3]},
+  {"name": "others_lead_and_follow", "kinds": ["other", "card", "card", "other", "card", "card", "card", "other", "card"], "cards": 3, "chapters": [5, 4]},
+  {"name": "others_between", "kinds": ["card", "card", "card", "card", "other", "other", "card", "card", "card", "card", "card"], "cards": 3, "chapters": [3, 5, 3]},
+  {"name": "no_chapters", "kinds": ["card", "card", "card", "card", "card", "card", "card", "card", "card", "card", "card", "card"], "cards": 0, "chapters": [12]}
+ ]
+}

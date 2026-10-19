@@ -71,7 +71,9 @@ class MergedTest(unittest.TestCase):
 
     def test_merging_follows_the_spec(self):
         row = self.beats(["walk_forward"] * 3 + ["turn_left"] * 3 + ["walk_forward"])
-        self.assertEqual(runner.merged(row, 0), 1, "the shipped spec merges nothing")
+        self.assertEqual(runner.merged(row, 0), 2, "the shipped spec (/6) merges two walks")
+        cardloop.SPEC = {k: v for k, v in self.saved.items() if k != "merge"}
+        self.assertEqual(runner.merged(row, 0), 1, "a spec with no merge merges nothing")
         cardloop.SPEC = dict(self.saved, merge={"walks": 0})
         self.assertEqual(runner.merged(row, 0), 3)
         self.assertEqual(runner.merged(row, 3), 2, "turns two at a time")

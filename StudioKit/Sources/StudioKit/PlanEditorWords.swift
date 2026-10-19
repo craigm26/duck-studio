@@ -96,6 +96,12 @@ public enum PlanEditorWords {
         "The duck refused step \(n): \(reason). The rest was not sent, and the duck was sent a stop."
     }
     public static let robotStopped = "Stopped. The duck was sent a stop."
+    /// A long Duck Cards row (duck-card-loop/6), said before Run.
+    public static func chapters(_ n: Int) -> String {
+        "This row plays in \(n) chapters. Between them the duck stops and waits: put it back on the nest, "
+            + "the square the board marks, then press \"\(onTheNestButton)\"."
+    }
+    public static let onTheNestButton = "The duck is on the nest"
 
     public static func thenSkill(_ name: String) -> String {
         "Then load \(name) when the moves finish."

@@ -144,6 +144,18 @@ extension DuckPacks {
              unclosed: openRepeats(row))
     }
 
+    // MARK: - chapters (duck-card-loop/6)
+
+    /// Where a duck playing these steps is put back on the nest: for each chapter after the
+    /// first, how many steps come before it, which is its place in `Play.path`. Empty when the
+    /// row plays whole. The chapters are the runner's (`DuckCardLoop.chapters`), counted on Walk
+    /// and Turn cards; a step that is not one moves no board duck, so the nest is where the last
+    /// chapter's last card should have left it.
+    public static func nests(_ steps: [DuckCards.Step], cards: Int? = nil) -> [Int] {
+        let parts = DuckCardLoop.chapters(steps.map { DuckCardLoop.cards.contains($0.action) }, cards: cards)
+        return parts.dropLast().reduce(into: [Int]()) { $0.append(($0.last ?? 0) + $1) }
+    }
+
     // MARK: - par
 
     struct SearchState: Hashable { let at: Square; let facing: Facing; let gates: Int }

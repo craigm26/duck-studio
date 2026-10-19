@@ -100,7 +100,8 @@ batch() {
     for cond in "$@"; do
         port=$((7841 + 10 * i))
         python3 "$HERE/mc/mc_run.py" --condition "$cond" --rows "$n" --port "$port" --rows-set "$set" \
-            --out "$OUT/$dir" --seed $((seed + i)) --state "$WORK/mc-$port" > "$WORK/logs/$dir-$cond.log" 2>&1 &
+            --out "$OUT/$dir" --seed $((seed + i)) --state "$WORK/mc-$port" \
+            --spec "${SPEC:-$HERE/spec-loop1.json}" > "$WORK/logs/$dir-$cond.log" 2>&1 &
         pids="$pids $!"
         i=$((i + 1))
         sleep 20

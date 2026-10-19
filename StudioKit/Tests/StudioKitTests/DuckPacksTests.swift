@@ -201,4 +201,19 @@ final class DuckPacksTests: XCTestCase {
         XCTAssertEqual(DuckPacks.openRepeats(row), 0)
         XCTAssertEqual(DuckPacks.openRepeats(Array(row.prefix(2))), 1)
     }
+
+    // MARK: - chapters (duck-card-loop/6)
+
+    func testALongRowHasItsNestsWhereTheRunnerSplitsIt() throws {
+        let deck = try deck()
+        let row = Array(repeating: DuckCards.Entry(card: "walk_forward"), count: 10) + [DuckCards.Entry(card: "turn_left")]
+        let steps = DuckPacks.steps(of: row, deck: deck)
+        XCTAssertEqual(steps.count, 11)
+        XCTAssertEqual(DuckPacks.nests(steps), [6], "11 cards at 7 a chapter: 6 and 5")
+        XCTAssertEqual(DuckPacks.nests(Array(steps.prefix(7))), [], "a row that fits plays whole")
+        XCTAssertEqual(DuckPacks.nests(steps, cards: 4), [4, 8])
+        XCTAssertEqual(DuckPacks.Words.chapters(2),
+                       "A long row: a duck plays it in 2 chapters. Between them, put the duck back on the nest, "
+                     + "the square the board marks, facing the way the board shows.")
+    }
 }

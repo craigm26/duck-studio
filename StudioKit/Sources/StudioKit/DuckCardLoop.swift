@@ -24,9 +24,12 @@ import DuckKit
 /// its heading is kept.
 public enum DuckCardLoop {
 
-    public static let format = "duck-card-loop/1"
-    /// Every format `Spec.read` takes: `/3` adds `calibrate` (`DriftCal`).
-    public static let formats: Set<String> = ["duck-card-loop/1", "duck-card-loop/3"]
+    public static let format = "duck-card-loop/6"
+    /// Every format `Spec.read` takes: `/3` adds `calibrate` (`DriftCal`), `/5` `merge` (a run of
+    /// cards as one `Card`), `/6` `chapters` (a long row played in chapters, the duck put back on
+    /// a nest between them). `/4`'s `compass` is the card reader's only.
+    public static let formats: Set<String> = ["duck-card-loop/1", "duck-card-loop/3", "duck-card-loop/5",
+                                              "duck-card-loop/6"]
     /// The four cards that close on odometry. Every other card is unchanged.
     public static let cards: Set<String> = ["walk_forward", "walk_backward", "turn_left", "turn_right"]
 
@@ -84,6 +87,15 @@ public enum DuckCardLoop {
                 case beforeS = "before_s", stillAfterS = "still_after_s", maxDps = "max_dps"
             }
         }
+        /// duck-card-loop/5: up to `walks` Walk cards of one speed in a row run as one walk (0: every
+        /// one), and two Turn cards the same way as one half turn.
+        public struct Merge: Equatable, Sendable, Decodable {
+            public let walks: Int
+        }
+        /// duck-card-loop/6: a row of more than `cards` closed-loop cards is played in chapters.
+        public struct Chapters: Equatable, Sendable, Decodable {
+            public let cards: Int
+        }
         public let format: String
         /// THE OFF SWITCH. Closed-loop cards ship OFF for real ducks until they pass
         /// docs/PACKS.md, "Acceptance". Off, `RobotPlan` runs a Duck Card's Walk and Turn as the
@@ -104,10 +116,14 @@ public enum DuckCardLoop {
         public let turn: Turn
         /// Absent in `/1`: no stand, no correction.
         public let calibrate: Calibrate?
+        /// Absent before `/5`: every card runs on its own.
+        public let merge: Merge?
+        /// Absent before `/6`: a row plays whole.
+        public let chapters: Chapters?
         enum CodingKeys: String, CodingKey {
             case format, enabledOnRobot = "enabled_on_robot", validated,
                  squareM = "square_m", controlHz = "control_hz", staleS = "stale_s",
-                 betweenS = "between_s", walk, turn, calibrate
+                 betweenS = "between_s", walk, turn, calibrate, merge, chapters
         }
 
         public static func read(_ data: Data) throws -> Spec {
@@ -320,6 +336,52 @@ public enum DuckCardLoop {
     /// (`cardloop.OFF_NOTE`).
     public static let offNote = "Walk and Turn cards on a duck are timed for now: two seconds each, and the "
         + "duck does not land on board squares. Measured cards are being tested."
+    /// Said before chapter `k` of `of` (duck-card-loop/6, `runner.nest_note`): the duck is put
+    /// back on the nest, the square where the last chapter should have ended.
+    public static func nestNote(_ k: Int, of: Int) -> String {
+        "Chapter \(k) of \(of). Put the duck back on the nest: the square where the last chapter "
+            + "should have ended, facing the way it should face."
+    }
+
+    // MARK: - runs and chapters
+
+    /// How many cards from `i` run as one (duck-card-loop/5, `runner.merged`): the same Walk card
+    /// and speed, nothing between, up to `merge.walks` (0: every one); the same Turn card, two at
+    /// a time. 1 when the spec does not merge. `beats` holds each beat's card and speed, nil for
+    /// a beat that is not a closed-loop card.
+    public static func merged(_ beats: [(action: String, speed: String?)?], at i: Int, spec: Spec = spec) -> Int {
+        guard let m = spec.merge, i < beats.count, let b = beats[i] else { return 1 }
+        let cap = b.action.hasPrefix("turn") ? 2 : (m.walks > 0 ? m.walks : beats.count)
+        var n = 1
+        while n < cap, i + n < beats.count, let next = beats[i + n], next.action == b.action, next.speed == b.speed {
+            n += 1
+        }
+        return n
+    }
+
+    /// A row as the chapters it is played in (duck-card-loop/6, `runner.chapters`), as how many
+    /// beats each takes: the fewest chapters of at most `cards` closed-loop cards, as equal as
+    /// possible, earlier chapters taking the extra card. A beat that is not a card stays with the
+    /// chapter before it (the first takes any before the first card). One chapter when `cards` is
+    /// 0 or the row fits. `vectors/chapters/split.json` holds both readers to it.
+    public static func chapters(_ isCard: [Bool], cards: Int? = nil) -> [Int] {
+        let cap = cards ?? spec.chapters?.cards ?? 0
+        let total = isCard.filter { $0 }.count
+        guard cap > 0, total > cap else { return [isCard.count] }
+        let k = (total + cap - 1) / cap
+        let sizes = (0..<k).map { total / k + ($0 < total % k ? 1 : 0) }
+        var out: [Int] = [], beats = 0, used = 0
+        for card in isCard {
+            if card && used == sizes[out.count] {
+                out.append(beats); beats = 0; used = 0
+            }
+            beats += 1
+            if card { used += 1 }
+        }
+        out.append(beats)
+        return out
+    }
+
     /// Said when the pose stops arriving mid-card (`runner.LOST_NOTE`). The row ends there.
     public static let lostNote = "The duck stopped reporting where it is, so the row stopped there."
     /// Said when robotd reports the duck fell mid-card (`runner.FELL_NOTE`). The row ends there.
@@ -384,21 +446,29 @@ public enum DuckCardLoop {
         /// hands the mean of a row's coasts to its later Turn cards as their `leadDeg`.
         public private(set) var coastDeg: Double?
         var stopE = 0.0, stopWay = 1.0
+        /// duck-card-loop/5: how many cards run as this one, a walk of that many squares or a half
+        /// turn; its time limit scales with them.
+        public let cards: Int
+        /// A half turn steers on the yaw turned since it began, so a duck near 180 degrees off
+        /// never takes the other way round: what it must turn, and what it has.
+        var need: Double?
+        var turned = 0.0, lastH = 0.0
 
         public init?(action: String, board: Pose, speed: String? = nil, spec: Spec = DuckCardLoop.spec,
-                     leadDeg: Double? = nil) {
-            guard DuckCardLoop.cards.contains(action) else { return nil }
-            self.action = action; self.board = board; self.spec = spec
+                     leadDeg: Double? = nil, cards: Int = 1) {
+            guard DuckCardLoop.cards.contains(action), cards >= 1,
+                  !(action.hasPrefix("turn") && cards > 2) else { return nil }
+            self.action = action; self.board = board; self.spec = spec; self.cards = cards
             self.rate = DuckCardLoop.speed(action, speed, spec: spec)
             self.trimsLeft = spec.turn.trims
             self.lead = Card.clampLead(leadDeg ?? spec.turn.approachDeg, spec)
             if action.hasPrefix("walk") {
                 sign = action == "walk_forward" ? 1 : -1
-                boardAfter = Pose(x: board.x + sign * spec.squareM * cos(board.h),
-                                  y: board.y + sign * spec.squareM * sin(board.h), h: board.h)
+                let d = Double(cards) * spec.squareM
+                boardAfter = Pose(x: board.x + sign * d * cos(board.h), y: board.y + sign * d * sin(board.h), h: board.h)
             } else {
                 sign = action == "turn_left" ? 1 : -1
-                boardAfter = Pose(x: board.x, y: board.y, h: DuckCardLoop.wrap(board.h + sign * .pi / 2))
+                boardAfter = Pose(x: board.x, y: board.y, h: DuckCardLoop.wrap(board.h + sign * Double(cards) * .pi / 2))
             }
         }
 
@@ -420,8 +490,8 @@ public enum DuckCardLoop {
             let dx = pose.x - b.x, dy = pose.y - b.y
             let along = sign * (dx * cos(b.h) + dy * sin(b.h))
             let across = -dx * sin(b.h) + dy * cos(b.h)
-            if along >= spec.squareM - (sign > 0 ? w.stopEarlyM : w.backStopEarlyM) { return .done(.reached) }
-            if t >= w.maxS { return .done(.outOfTime) }
+            if along >= Double(cards) * spec.squareM - (sign > 0 ? w.stopEarlyM : w.backStopEarlyM) { return .done(.reached) }
+            if t >= w.maxS * Double(cards) { return .done(.outOfTime) }
             if stalled(along, t, enough: w.stallM, window: w.stallS) { return .done(.stuck) }
             var steer = w.headingGain * DuckCardLoop.wrap(b.h - pose.h) - sign * w.crossGain * across
             steer = max(-w.maxYaw, min(w.maxYaw, steer))
@@ -430,10 +500,21 @@ public enum DuckCardLoop {
 
         mutating func turn(_ pose: Pose, _ t: Double) -> Answer {
             let c = spec.turn
-            let e = DuckCardLoop.wrap(boardAfter.h - pose.h)
+            let e: Double
+            if cards == 1 {
+                e = DuckCardLoop.wrap(boardAfter.h - pose.h)
+            } else {
+                if need == nil {
+                    need = sign * Double(cards) * .pi / 2 + DuckCardLoop.wrap(board.h - pose.h)
+                    lastH = pose.h
+                }
+                turned += DuckCardLoop.wrap(pose.h - lastH)
+                lastH = pose.h
+                e = need! - turned
+            }
             let off = abs(e) * 180 / .pi
             let way: Double = e >= 0 ? 1 : -1
-            if t >= c.maxS { return .done(.outOfTime) }
+            if t >= c.maxS * Double(cards) { return .done(.outOfTime) }
             if phase == "turn" || phase == "trim" {
                 let trim = phase == "trim"
                 // A trim is held at least `trimMinS`: a shorter one never gets past the dead band.

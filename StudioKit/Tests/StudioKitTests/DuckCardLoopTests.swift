@@ -16,6 +16,8 @@ final class DuckCardLoopTests: XCTestCase {
         let expect: [Any]
         /// The lead the card is given, and the coast it must have measured, when any.
         let leadDeg: Double?, coastDeg: Double?
+        /// How many cards run as this one (duck-card-loop/5).
+        let cards: Int
     }
 
     func vectors() throws -> [Vector] {
@@ -28,7 +30,8 @@ final class DuckCardLoopTests: XCTestCase {
                           speed: top["speed"] as? String,
                           board: top["board"] as? [Double] ?? [], boardAfter: top["board_after"] as? [Double] ?? [],
                           trace: top["trace"] as? [[Double]] ?? [], expect: top["expect"] as? [Any] ?? [],
-                          leadDeg: top["lead_deg"] as? Double, coastDeg: top["coast_deg"] as? Double)
+                          leadDeg: top["lead_deg"] as? Double, coastDeg: top["coast_deg"] as? Double,
+                          cards: top["cards"] as? Int ?? 1)
         }
     }
 
@@ -37,7 +40,7 @@ final class DuckCardLoopTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(all.count, 10)
         for v in all {
             var card = try XCTUnwrap(DuckCardLoop.Card(action: v.action, board: .init(x: v.board[0], y: v.board[1], h: v.board[2]),
-                                                       speed: v.speed, leadDeg: v.leadDeg), v.name)
+                                                       speed: v.speed, leadDeg: v.leadDeg, cards: v.cards), v.name)
             XCTAssertEqual(v.trace.count, v.expect.count, v.name)
             for (sample, want) in zip(v.trace, v.expect) {
                 let got = card.step(.init(x: sample[1], y: sample[2], h: sample[3]), t: sample[0])
@@ -59,6 +62,32 @@ final class DuckCardLoopTests: XCTestCase {
                 XCTAssertNil(card.coastDeg, v.name)
             }
         }
+    }
+
+    func testTheChapterVectors() throws {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "Fixtures/DuckCards/vectors/chapters/split", withExtension: "json"))
+        let top = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        let rows = try XCTUnwrap(top["rows"] as? [[String: Any]])
+        XCTAssertGreaterThanOrEqual(rows.count, 8)
+        for row in rows {
+            let kinds = try XCTUnwrap(row["kinds"] as? [String])
+            XCTAssertEqual(DuckCardLoop.chapters(kinds.map { $0 == "card" }, cards: row["cards"] as? Int),
+                           row["chapters"] as? [Int], row["name"] as? String ?? "")
+        }
+    }
+
+    func testRunsMergeAsTheSpecSays() {
+        let w: (action: String, speed: String?)? = ("walk_forward", "normal")
+        let t: (action: String, speed: String?)? = ("turn_left", "normal")
+        let row = [w, w, w, t, t, t, nil, w]
+        XCTAssertEqual(DuckCardLoop.spec.merge?.walks, 2)
+        XCTAssertEqual(DuckCardLoop.merged(row, at: 0), 2)
+        XCTAssertEqual(DuckCardLoop.merged(row, at: 2), 1)
+        XCTAssertEqual(DuckCardLoop.merged(row, at: 3), 2, "turns two at a time")
+        XCTAssertEqual(DuckCardLoop.merged(row, at: 5), 1)
+        XCTAssertEqual(DuckCardLoop.merged(row, at: 6), 1, "a beat that is not a card")
+        XCTAssertEqual(DuckCardLoop.merged([w, ("walk_forward", "fast")], at: 0), 1, "a change of speed breaks a run")
+        XCTAssertNil(DuckCardLoop.Card(action: "turn_left", board: .init(x: 0, y: 0, h: 0), cards: 3))
     }
 
     // MARK: - Pollen's envelope
@@ -151,6 +180,9 @@ final class DuckCardLoopTests: XCTestCase {
             guard case .move(let t) = c else { return }
             lock.withLock { _moves.append(t); vx = t.vx; vyaw = t.vyaw }
         }
+
+        /// Picked up and put down, as a child re-seats a duck on the nest.
+        func put(_ dx: Double, _ dy: Double, _ dh: Double) { lock.withLock { x += dx; y += dy; h += dh } }
 
         func advance(_ dt: Double) {
             lock.lock()
@@ -263,6 +295,32 @@ final class DuckCardLoopTests: XCTestCase {
         XCTAssertEqual(said.lines.filter { $0 == DuckCardLoop.timedNote }.count, 1)
         XCTAssertEqual(duck.moves.count, 2 * Int((DuckIntentPlan.defaultSeconds / 0.05).rounded()))
         XCTAssertEqual(duck.moves.first, try SequenceProposal.twist(for: "forward", share: 2.0 / 3.0))
+    }
+
+    // MARK: - chapters and the nest (duck-card-loop/6)
+
+    func testALongRowWaitsForTheNestAndStartsAgainFromIt() async throws {
+        let duck = FakeDuck(), said = Said(), asked = Said()
+        let outcome = try await RobotPlanRunner.run(
+            try cardPlan(Array(repeating: "walk_forward", count: 10)), on: duck, interval: 0.05,
+            sleep: { duck.advance($0) }, event: { if case .said(let s) = $0 { said.add(s) } },
+            state: { @Sendable () async -> DuckState? in duck.state() },
+            nest: { k, of in asked.add("\(k)/\(of)"); duck.put(0.05, -0.04, 0.1) })
+        XCTAssertEqual(outcome, .finished)
+        XCTAssertEqual(asked.lines, ["2/2"])
+        XCTAssertTrue(said.lines.contains(DuckCardLoop.nestNote(2, of: 2)))
+        // The second chapter walked its five squares along where the duck was put down.
+        let d = DuckCardLoop.spec.squareM, (x, y, _) = duck.where_
+        XCTAssertEqual(x, 5 * d + 0.05 + 5 * d * cos(0.1), accuracy: 0.06)
+        XCTAssertEqual(y, -0.04 + 5 * d * sin(0.1), accuracy: 0.06)
+    }
+
+    func testWithoutANestALongRowPlaysWhole() async throws {
+        let duck = FakeDuck(), said = Said()
+        let outcome = try await run(try cardPlan(Array(repeating: "walk_forward", count: 10)), on: duck, said: said)
+        XCTAssertEqual(outcome, .finished)
+        XCTAssertFalse(said.lines.contains { $0.hasPrefix("Chapter") })
+        XCTAssertEqual(duck.where_.0, 10 * DuckCardLoop.spec.squareM, accuracy: 0.06)
     }
 
     func testNoStateAtAllIsTimedToo() async throws {

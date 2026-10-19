@@ -291,7 +291,9 @@ public enum DuckMeasure {
                     case .said(let line): await said(line)
                     }
                 },
-                state: state, now: now)
+                // THE PROTOCOL IS CARD BY CARD: every card's start and end is recorded, so no two run
+                // as one here, whatever the spec's `merge` says.
+                state: state, now: now, merge: false)
             switch outcome {
             case .finished: await recorder.finish(.finished, said: nil, odom: await odom())
             case .stopped(_, let reason): await recorder.finish(.stopped, said: reason, odom: await odom())

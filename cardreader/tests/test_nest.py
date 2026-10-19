@@ -1,5 +1,6 @@
 """duck-card-loop/6, a nest and chapters: runner.chapters, and mc_run's re-seat and scoring."""
 
+import json
 import math
 import pathlib
 import random
@@ -37,11 +38,11 @@ class ChaptersTest(unittest.TestCase):
 
     def test_only_a_spec_with_chapters_splits(self):
         row = beats(["card"] * 20)
-        self.assertEqual(len(runner.chapters(row)), 1, "the shipped spec plays a row whole")
+        self.assertEqual(cards(runner.chapters(row)), [7, 7, 6], "the shipped spec is /6")
         saved = cardloop.SPEC
         try:
-            cardloop.SPEC = cardloop.load_spec(SIM / "candidate-nest.json")
-            self.assertEqual(cards(runner.chapters(row)), [7, 7, 6])
+            cardloop.SPEC = cardloop.load_spec(SIM / "spec-loop1.json")
+            self.assertEqual(len(runner.chapters(row)), 1, "/1 plays a row whole")
         finally:
             cardloop.SPEC = saved
 
@@ -92,3 +93,47 @@ class ReseatTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SplitVectorsTest(unittest.TestCase):
+    """vectors/chapters/split.json: the chapters StudioKit's DuckCardLoop.chapters must make too."""
+
+    def test_the_split_vectors(self):
+        data = json.loads((pathlib.Path(__file__).resolve().parent.parent / "vectors/chapters/split.json").read_text())
+        for row in data["rows"]:
+            got = runner.chapters(beats(row["kinds"]), row["cards"])
+            self.assertEqual([len(c) for c in got], row["chapters"], row["name"])
+
+
+class NestRowTest(unittest.TestCase):
+    """runner.run with a `nest`: the row stops between chapters, says so, and starts again from
+    where the duck was put down."""
+
+    def test_a_long_row_waits_for_the_nest_and_starts_again_from_it(self):
+        from test_cardloop import FakeDuck, step
+        duck, said, asked = FakeDuck(), [], []
+
+        def nest(k, of):
+            asked.append((k, of))
+            duck.x, duck.y, duck.h = duck.x + 0.05, duck.y - 0.04, duck.h + 0.1   # put down a little off
+
+        out = runner.run(runner.beats([step("walk_forward")] * 10), duck, sleep=duck.sleep, say=said.append,
+                         state=duck.state, clock=duck.clock, measured=True, nest=nest)
+        self.assertEqual(out, "finished")
+        self.assertEqual(asked, [(2, 2)])
+        self.assertIn(runner.nest_note(2, 2), [s.strip() for s in said])
+        # The second chapter walked its five squares along where the duck was put down, not back
+        # onto the first chapter's line.
+        d = cardloop.SPEC["square_m"]
+        x0, y0 = 5 * d + 0.05, -0.04                # about where it was put down
+        self.assertAlmostEqual(duck.x, x0 + 5 * d * math.cos(0.1), delta=0.06)
+        self.assertAlmostEqual(duck.y, y0 + 5 * d * math.sin(0.1), delta=0.06)
+
+    def test_no_nest_plays_the_row_whole(self):
+        from test_cardloop import FakeDuck, step
+        duck, said = FakeDuck(), []
+        out = runner.run(runner.beats([step("walk_forward")] * 10), duck, sleep=duck.sleep, say=said.append,
+                         state=duck.state, clock=duck.clock, measured=True)
+        self.assertEqual(out, "finished")
+        self.assertFalse([s for s in said if "Chapter" in s])
+        self.assertAlmostEqual(duck.x, 10 * cardloop.SPEC["square_m"], delta=0.06)

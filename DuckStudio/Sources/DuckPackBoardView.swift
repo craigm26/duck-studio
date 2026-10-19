@@ -49,6 +49,9 @@ struct DuckPackBoardView: View {
     var trail: [DuckPacks.Place] = []
     /// Gates passed so far, by their place in the list.
     var passed: Set<Int> = []
+    /// Nests reached so far (duck-card-loop/6): where a duck is put back on the board before
+    /// each later chapter of a long row, drawn as a ring with the way it faces.
+    var nests: [DuckPacks.Place] = []
     /// Changes when the duck moves, so Reduce Motion can cross-fade it.
     var step = 0
     /// What VoiceOver hears for the whole board when it is not being drawn.
@@ -121,6 +124,18 @@ struct DuckPackBoardView: View {
             for p in trail.dropFirst() { path.addLine(to: centre(p.at, side)) }
             context.stroke(path, with: .color(Theme.actionSecondary.opacity(0.55)),
                            style: StrokeStyle(lineWidth: max(side * 0.06, 2), lineCap: .round, lineJoin: .round))
+        }
+
+        // Nests: a ring on the square, and a tick on it the way the duck is put down facing.
+        for nest in nests {
+            let c = centre(nest.at, side), r = side * 0.4, a = nest.facing.ahead
+            let ring = Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r))
+            context.stroke(ring, with: .color(Theme.sensorActive),
+                           style: StrokeStyle(lineWidth: max(side * 0.06, 2.5), dash: [side * 0.12, side * 0.07]))
+            var tick = Path()
+            tick.move(to: CGPoint(x: c.x + CGFloat(a.dx) * r * 0.7, y: c.y + CGFloat(a.dy) * r * 0.7))
+            tick.addLine(to: CGPoint(x: c.x + CGFloat(a.dx) * r * 1.15, y: c.y + CGFloat(a.dy) * r * 1.15))
+            context.stroke(tick, with: .color(Theme.sensorActive), style: StrokeStyle(lineWidth: max(side * 0.07, 3), lineCap: .round))
         }
 
         // Gates: two rails along the way the duck walks through, and an arrow both ways between them.

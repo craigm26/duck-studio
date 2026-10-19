@@ -38,6 +38,10 @@ struct DuckPackChallengeView: View {
     @State private var shown = 1
     @State private var finished = false
     @State private var playing: Task<Void, Never>?
+    /// Where a long row's later chapters start (duck-card-loop/6, `DuckPacks.nests`), as places
+    /// in the play's path, and what the board said at the last one reached.
+    @State private var nests: [Int] = []
+    @State private var nestLine: String?
 
     private var deck: DuckCards.Deck? { store.playDeck(pack) }
     private var par: Int { DuckPacks.par(challenge, in: pack) ?? challenge.par }
@@ -93,6 +97,7 @@ struct DuckPackChallengeView: View {
                               duck: play.map { $0.path[min(shown, $0.path.count) - 1] },
                               trail: play.map { Array($0.path.prefix(shown)) } ?? [],
                               passed: finished ? Set(play?.gatesPassed ?? []) : [],
+                              nests: play.map { p in nests.filter { $0 < min(shown, p.path.count) }.map { p.path[$0] } } ?? [],
                               step: shown,
                               label: DuckPacks.Words.board(challenge))
                 .padding(.vertical, Theme.spacing(.tight))
@@ -273,9 +278,19 @@ struct DuckPackChallengeView: View {
 
     private var playSection: some View {
         Section {
+            if let deck, case let n = DuckPacks.nests(DuckPacks.steps(of: row, deck: deck)).count, n > 0 {
+                Label(DuckPacks.Words.chapters(n + 1), systemImage: "circle.dashed")
+                    .font(.footnote).foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if playing != nil && !finished, let play {
                 Text(DuckPacks.Words.playing(min(shown, play.path.count) - 1, of: max(play.path.count - 1, 0)))
                     .font(.footnote.monospacedDigit()).foregroundStyle(Theme.textSecondary)
+            }
+            if let nestLine {
+                Text(nestLine)
+                    .font(.footnote).foregroundStyle(Theme.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Button(DuckPacks.Words.play) { start() }
                 .buttonStyle(.primaryAction)
@@ -299,6 +314,7 @@ struct DuckPackChallengeView: View {
         play = nil
         shown = 1
         finished = false
+        nestLine = nil
     }
 
     /// Play the row, one step on the board at a time. The result is the kit's; this only shows its
@@ -307,12 +323,20 @@ struct DuckPackChallengeView: View {
         guard let deck else { return }
         reset()
         let result = DuckPacks.play(challenge, row: row, score: pack.score, deck: deck)
+        let marks = DuckPacks.nests(DuckPacks.steps(of: row, deck: deck))
         play = result
+        nests = marks
         playing = Task { @MainActor in
             for k in 1..<max(result.path.count, 1) {
                 try? await Task.sleep(nanoseconds: 450_000_000)
                 if Task.isCancelled { return }
                 withAnimation(Theme.motion(reduced: reduceMotion)) { shown = k + 1 }
+                // A NEST IS A PAUSE. The board stops on it long enough to say where the duck goes back.
+                if let j = marks.firstIndex(of: k) {
+                    nestLine = DuckPacks.Words.nestAt(j + 2, of: marks.count + 1, result.path[k])
+                    try? await Task.sleep(nanoseconds: 1_500_000_000)
+                    if Task.isCancelled { return }
+                }
             }
             if Task.isCancelled { return }
             withAnimation(Theme.motion(reduced: reduceMotion)) { finished = true }

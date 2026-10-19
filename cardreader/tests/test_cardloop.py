@@ -79,7 +79,7 @@ class Vectors(unittest.TestCase):
         for f in files:
             v = json.loads(f.read_text())
             with self.subTest(v["name"]):
-                loop = cardloop.CardLoop(v["action"], cardloop.Pose(*v["board"]), v["speed"],
+                loop = cardloop.CardLoop(v["action"], cardloop.Pose(*v["board"]), v["speed"], cards=v.get("cards", 1),
                                          lead_deg=v["lead_deg"])
                 for (t, x, y, yaw), want in zip(v["trace"], v["expect"]):
                     got = loop.step(cardloop.Pose(x, y, yaw), t)
