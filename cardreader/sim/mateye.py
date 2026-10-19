@@ -14,7 +14,8 @@ Newline JSON on `--port`, one client at a time:
 
 - `{"op": "place"}`: lay the mat so the duck's trunk is in the middle of a square and its heading
   runs along the grid, as a child seats a duck on the mat at the start of a row. Answers
-  `{"ok": true, "truth": [x, y, yaw]}`.
+  `{"ok": true, "truth": [x, y, yaw]}`. With `"seat": [forward, left, turn]` (duck-card-loop/6
+  and /7: a re-seat between chapters, off the nest by that much) the nest is laid there instead.
 - `{"op": "frame"}`: render one frame now. Answers one JSON line `{"w", "h", "fovy", "rot", "pos",
   "sim_time", "n"}` and then `n` bytes of 8-bit luma, row by row. `rot` and `pos` describe the
   camera in the yaw-free trunk frame (`duckcards/matcam.py`) as the duck would believe it: the
@@ -110,10 +111,16 @@ class Eye:
         q = r.get("truth_quat") or r["imu"]["quat"]
         return dict(r, imu=dict(r["imu"], quat=q))
 
-    def place(self) -> dict:
+    def place(self, seat=(0.0, 0.0, 0.0)) -> dict:
         r = self.read()
         x, y = r["trunk"][0], r["trunk"][1]
         h = yaw_of(r["imu"]["quat"])
+        # duck-card-loop/6 and /7: between chapters the duck sits `seat` (forward, left, turn) off
+        # the nest, so the nest, the square's middle, is the true pose less the seat.
+        sx, sy, sh = seat
+        h -= sh
+        x -= sx * math.cos(h) - sy * math.sin(h)
+        y -= sx * math.sin(h) + sy * math.cos(h)
         d = self.mirror.data
         d.mocap_pos[0] = (x, y, 0.0)
         d.mocap_quat[0] = (math.cos(h / 2), 0.0, 0.0, math.sin(h / 2))
@@ -148,7 +155,7 @@ class Handler(socketserver.StreamRequestHandler):
         for line in self.rfile:
             op = json.loads(line).get("op")
             if op == "place":
-                self.wfile.write((json.dumps(eye.place()) + "\n").encode())
+                self.wfile.write((json.dumps(eye.place(json.loads(line).get("seat") or (0, 0, 0))) + "\n").encode())
             elif op == "frame":
                 head, data = eye.frame()
                 self.wfile.write((json.dumps(head) + "\n").encode() + data)
