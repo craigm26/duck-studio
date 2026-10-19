@@ -2,8 +2,8 @@
 # run_batch.sh DIR ROWSET ROWS SEED0 PORT0 [SPEC] -- CONDITION...
 # One duck per condition, in parallel, on Pollen's stack as cardreader/sim/results/ ran it
 # (~/scratch/ducksim: microduck d7560ef, microduck_rl b02fdea4, v8 policies). SPEC, when given and
-# not "-", is a candidate spec for the development seeds only; the evaluation runs the shipped
-# duck-card-loop.json.
+# not "-", is a candidate spec; "-" is duck-card-loop/1 as it shipped until 2026-10-19
+# (`../spec-loop1.json`, the same bytes and sha256 these results recorded).
 set -eu
 HERE="$(cd "$(dirname "$0")" && pwd)"
 SIM="$(cd "$HERE/.." && pwd)"
@@ -15,7 +15,7 @@ mkdir -p "$dir" "$dir/logs"
 i=0
 for cond in "$@"; do
   p=$((port + 10 * i))
-  extra=""
+  extra="--spec $SIM/spec-loop1.json"
   [ "$spec" != "-" ] && extra="--spec $spec"
   python3 "$SIM/mc/mc_run.py" --condition "$cond" --rows "$n" --port "$p" --rows-set "$set_" \
       --out "$dir" --seed $((seed + i)) --state "$S/wb-state-$p" $extra > "$dir/logs/$cond.log" 2>&1 &

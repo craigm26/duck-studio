@@ -39,7 +39,7 @@ from dataclasses import dataclass
 
 HERE = pathlib.Path(__file__).resolve().parent
 SPEC_FILE = HERE / "duck-card-loop.json"
-FORMAT = "duck-card-loop/1"
+FORMAT = "duck-card-loop/6"
 FORMATS = ("duck-card-loop/1", "duck-card-loop/3", "duck-card-loop/4", "duck-card-loop/5", "duck-card-loop/6")
 # /3 adds `calibrate` (DriftCal), /4 `compass` (MatFix), /5 `merge` (runner.merged: one CardLoop for n cards),
 # /6 `chapters` (runner.chapters: a long row played in chapters, the duck re-seated on a nest between)

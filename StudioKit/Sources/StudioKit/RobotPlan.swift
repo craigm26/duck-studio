@@ -54,6 +54,9 @@ public struct RobotPlan: Equatable, Sendable {
     /// A Duck Cards plan whose Walk and Turn run timed because measured cards are off: the screen
     /// and the runner say `DuckCardLoop.offNote`.
     public let cardsTimed: Bool
+    /// Which beats are a Duck Card's Walk or Turn, timed or closed on odometry: what a row's
+    /// chapters count (duck-card-loop/6, `chapters`).
+    public let cardBeats: [Bool]
 
     /// The plan's skill labels as the names a stock robotd answers to (`do_names`, robotd
     /// 1fa8438: `ground_pick` and `sit_toggle` are built in; the kicks and the roll are the
@@ -98,6 +101,7 @@ public struct RobotPlan: Equatable, Sendable {
     /// caller that runs a test on purpose says otherwise.
     public init(_ plan: DuckIntentPlan, measuredCards: Bool = DuckCardLoop.spec.enabledOnRobot) throws {
         var beats: [Beat] = []
+        var isCard: [Bool] = []
         var heads = false
         var timed = false
         let cards = plan.model == DuckCards.model
@@ -106,12 +110,14 @@ public struct RobotPlan: Equatable, Sendable {
             if let slot = DuckIntentPlan.skills[node.action], let name = RobotPlan.robotdName[slot] {
                 let s = RobotPlan.skillSeconds[name] ?? 1
                 beats.append(.skill(name, seconds: s, clause: node.clause))
+                isCard.append(false)
                 total += s + RobotPlan.settleSeconds
                 continue
             }
             if node.action == "make_sound" {
                 let tag = RobotPlan.soundTags[node.labels["sound"] ?? "chirp"] ?? .chirp
                 beats.append(.sound(tag, clause: node.clause))
+                isCard.append(false)
                 continue
             }
             guard let go = DuckIntentPlan.goes[node.action] else { continue }
@@ -127,6 +133,7 @@ public struct RobotPlan: Equatable, Sendable {
                 if cards && DuckCardLoop.cards.contains(node.action) { timed = true }
                 beats.append(.move(twist, seconds: seconds, clause: node.clause))
             }
+            isCard.append(cards && DuckCardLoop.cards.contains(node.action))
             total += seconds
         }
         guard !beats.isEmpty else { throw Refusal.nothingToRun }
@@ -134,11 +141,16 @@ public struct RobotPlan: Equatable, Sendable {
         self.request = plan.request
         self.beats = beats
         self.cardsTimed = timed
+        self.cardBeats = isCard
         self.notSent = heads
             ? ["Where the head looks is kept in the plan but not sent yet: a plan drives the body, "
              + "and the head stays where it is."]
             : []
     }
+
+    /// The chapters a duck plays this row in, as beats each (duck-card-loop/6): one unless it
+    /// has more Walk and Turn cards than the spec's `chapters.cards`.
+    public var chapters: [Int] { DuckCardLoop.chapters(cardBeats) }
 
     /// Whether any beat is a Duck Card's Walk or Turn, which closes on robotd's odometry and so
     /// wants the state stream while the plan runs.
@@ -279,6 +291,10 @@ public enum RobotPlanRunner {
         }
     }
 
+    /// Asked before chapter `k` of `of` (duck-card-loop/6), the duck still and
+    /// `DuckCardLoop.nestNote` said: returns once a person has put the duck back on the nest.
+    public typealias Nest = @Sendable (_ k: Int, _ of: Int) async throws -> Void
+
     /// The latest `robot.state` the link has seen, or nil. Walk and Turn cards close on its
     /// `odom` (`DuckCardLoop`); a duck that sends none runs them timed.
     public typealias State = @Sendable () async -> DuckState?
@@ -318,7 +334,9 @@ public enum RobotPlanRunner {
                            sleep: @escaping Sleep,
                            event: @escaping @Sendable (Event) async -> Void = { _ in },
                            state: State? = nil,
-                           now: @escaping @Sendable () -> Date = { Date() })
+                           now: @escaping @Sendable () -> Date = { Date() },
+                           nest: Nest? = nil,
+                           merge: Bool = true)
         async throws -> Outcome {
         for m in plan.methods.sorted(by: { $0.rawValue < $1.rawValue }) where !peer.reach.contains(m) {
             throw Refusal.outOfReach(m, peer.transportKind)
@@ -365,7 +383,27 @@ public enum RobotPlanRunner {
                await rawPose() != nil {
                 try await still(for: c.beforeS, cal: cal, rawPose: rawPose, on: peer, tick: tick, sleep: sleep)
             }
-            for (i, beat) in plan.beats.enumerated() {
+            // duck-card-loop/6: where each later chapter begins, as a beat index. Only with a `nest`
+            // to ask for the re-seat; without one a row plays whole. Timed cards are counted too:
+            // a timed duck lands on no square, so the nest is where a child puts it back on one.
+            let parts = nest != nil ? plan.chapters : [plan.beats.count]
+            let starts = parts.dropLast().reduce(into: [Int]()) { $0.append(($0.last ?? 0) + $1) }
+            // duck-card-loop/5: each beat's card and speed, for runs of cards that go as one.
+            let runs: [(action: String, speed: String?)?] = plan.beats.map {
+                if case .card(let a, let sp, _, _, _) = $0 { return (a, sp) } else { return nil }
+            }
+            var i = -1
+            while i + 1 < plan.beats.count {
+                i += 1
+                let beat = plan.beats[i]
+                if let k = starts.firstIndex(of: i), let nest {
+                    // A CHAPTER ENDS STILL, AND THE NEXT BEGINS WHERE THE DUCK WAS PUT DOWN.
+                    _ = try await peer.call(.stop)
+                    await event(.said(DuckCardLoop.nestNote(k + 2, of: parts.count)))
+                    try await nest(k + 2, parts.count)
+                    board = nil
+                    coasts = []
+                }
                 await event(.began(i, beat))
                 switch beat {
                 case .move(let twist, let seconds, _):
@@ -379,14 +417,19 @@ public enum RobotPlanRunner {
                         _ = try await peer.call(.stop)
                         return .stopped(beat: i, reason: DuckCardLoop.lostNote)
                     }
+                    let end = starts.first(where: { $0 > i }) ?? plan.beats.count
+                    let n = merge ? DuckCardLoop.merged(Array(runs[..<end]), at: i) : 1
                     guard let here = await pose(),
                           var card = DuckCardLoop.Card(action: action, board: board ?? here, speed: speed,
-                                                       leadDeg: coasts.isEmpty ? nil : coasts.reduce(0, +) / Double(coasts.count)) else {
+                                                       leadDeg: coasts.isEmpty ? nil : coasts.reduce(0, +) / Double(coasts.count),
+                                                       cards: n) else {
                         if !timedSaid { await event(.said(DuckCardLoop.timedNote)); timedSaid = true }
                         try await hold(timed, for: seconds, on: peer, tick: tick, sleep: sleep)
                         board = nil
                         continue
                     }
+                    for later in (i + 1)..<(i + n) { await event(.began(later, plan.beats[later])) }
+                    i += n - 1
                     let ended = try await drive(&card, on: peer, pose: pose, fallen: fallen, sleep: sleep)
                     board = card.boardAfter
                     if let c = card.coastDeg { coasts.append(c) }

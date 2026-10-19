@@ -187,6 +187,20 @@ extension DuckPacks {
             return "Score \(play.score) \(unit)\(play.score == 1 ? "" : "s"). Par \(play.par)."
         }
 
+        /// A row long enough to play in chapters (duck-card-loop/6), said before it is played.
+        public static func chapters(_ n: Int) -> String {
+            "A long row: a duck plays it in \(n) chapters. Between them, put the duck back on the nest, "
+                + "the square the board marks, facing the way the board shows."
+        }
+        /// Said as the board's play reaches a nest.
+        public static func nestAt(_ k: Int, of n: Int, _ p: Place) -> String {
+            "Chapter \(k) of \(n) starts on the nest, at \(square(p.at)), facing \(facing(p.facing))."
+        }
+        /// A nest on the board, as VoiceOver says it.
+        public static func nestLabel(_ k: Int, _ p: Place) -> String {
+            "Nest for chapter \(k), at \(square(p.at)), facing \(facing(p.facing))."
+        }
+
         public static let run = "Run on the duck"
         public static var runFooter: String {
             "The duck runs the same row as a plan, and nothing moves until you press Run in the plan editor. "

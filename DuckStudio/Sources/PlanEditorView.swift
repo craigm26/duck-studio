@@ -66,6 +66,8 @@ struct PlanEditorView: View {
     @State private var checkResult: String?
     @State private var robotRun: Task<Void, Never>?
     @State private var robotLine: String?
+    /// A long Duck Cards row's pause for the nest (duck-card-loop/6).
+    @StateObject private var nestGate = NestGate()
     /// The reader's notes on a handed plan, shown while that plan is the one on screen.
     @State private var handedNotes: [String] = []
 
@@ -382,6 +384,11 @@ struct PlanEditorView: View {
                         .font(.caption).foregroundStyle(Theme.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                if robotPlan.chapters.count > 1 {
+                    Label(PlanEditorWords.chapters(robotPlan.chapters.count), systemImage: "circle.dashed")
+                        .font(.caption).foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 if robotPlan.cardsTimed {
                     // Closed-loop cards are off for real ducks: said before Run, and again by the runner.
                     Label(DuckCardLoop.offNote, systemImage: "info.circle")
@@ -396,6 +403,10 @@ struct PlanEditorView: View {
                 Label(RobotPlan.stopDoesNotCancelASkill, systemImage: "hand.raised")
                     .font(.caption).foregroundStyle(Theme.warning)
                     .fixedSize(horizontal: false, vertical: true)
+                if robotRun != nil, nestGate.waiting {
+                    Button(PlanEditorWords.onTheNestButton) { nestGate.onNest() }
+                        .buttonStyle(.primaryActionMoves)
+                }
                 if robotRun != nil {
                     Button(PlanEditorWords.stopOnDuckButton) { robotRun?.cancel() }
                         .buttonStyle(.primaryAction)
@@ -438,6 +449,13 @@ struct PlanEditorView: View {
         // refuses, or sends no `odom`, runs the cards timed and the runner says so.
         let cards = robotPlan.closesOnOdometry
         let state: RobotPlanRunner.State? = cards ? Self.latestState(of: robot) : nil
+        // A LONG ROW WAITS FOR THE NEST. Between chapters the runner stops the duck and waits here
+        // until a person says it is back on the nest; Stop ends the wait as it ends the run.
+        let gate = nestGate
+        let wait: RobotPlanRunner.Nest = { @Sendable (_: Int, _: Int) async throws -> Void in
+            try await gate.wait()
+        }
+        let nest: RobotPlanRunner.Nest? = robotPlan.chapters.count > 1 ? wait : nil
         robotLine = nil
         robotRun = Task { @MainActor in
             defer { robotRun = nil }
@@ -459,7 +477,7 @@ struct PlanEditorView: View {
                             }
                         }
                     },
-                    state: state)
+                    state: state, nest: nest)
                 switch outcome {
                 case .finished: robotLine = PlanEditorWords.robotFinished
                 case .refused(let beat, let reason):
@@ -615,5 +633,32 @@ private struct PlanNodeCard: View {
         }
         .frame(width: 12)
         .accessibilityHidden(true)
+    }
+}
+
+/// The runner's wait for the nest (duck-card-loop/6): `wait` returns when a person presses "The
+/// duck is on the nest", and throws `CancellationError` when the run is stopped instead.
+@MainActor final class NestGate: ObservableObject {
+    @Published private(set) var waiting = false
+    private var resume: CheckedContinuation<Void, Error>?
+
+    func wait() async throws {
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { c in
+                resume = c
+                waiting = true
+            }
+        } onCancel: {
+            Task { @MainActor in self.release(CancellationError()) }
+        }
+    }
+
+    func onNest() { release(nil) }
+
+    private func release(_ error: Error?) {
+        guard let r = resume else { return }
+        resume = nil
+        waiting = false
+        if let error { r.resume(throwing: error) } else { r.resume() }
     }
 }

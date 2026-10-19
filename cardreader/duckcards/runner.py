@@ -80,6 +80,13 @@ TIMED_NOTE = ("This duck does not report odometry, so Walk and Turn cards run as
               "two seconds each, and do not land on board squares.")
 LOST_NOTE = "The duck stopped reporting where it is, so the row stopped there."
 FELL_NOTE = "The duck fell, so the row stopped there."
+
+
+def nest_note(k: int, of: int) -> str:
+    """Said before chapter `k` of `of` (duck-card-loop/6): the duck is put back on the nest, the
+    square where the last chapter should have ended. StudioKit's `DuckCardLoop.nestNote`."""
+    return (f"Chapter {k} of {of}. Put the duck back on the nest: the square where the last chapter "
+            "should have ended, facing the way it should face.")
 # How a closed-loop card ended, and what is said when it did not arrive: the row ends there, the
 # duck commanded still (docs/PACKS.md, "Acceptance"). StudioKit's `RobotPlanRunner.CardEnd.said`.
 ENDED = {
@@ -133,14 +140,18 @@ def beats(steps: list[Step]) -> list[Beat]:
 
 
 def run(plan_beats: list[Beat], robot, heads: bool = False, sleep=time.sleep, say=print,
-        state=None, clock=time.time, measured: bool | None = None, frame=None) -> str:
+        state=None, clock=time.time, measured: bool | None = None, frame=None, nest=None) -> str:
     """RobotPlanRunner.run: skills checked first, every move held at 20 Hz, a stop at the end.
 
     `state()`, when given, answers the latest `robot.state` params and when they arrived (on
     `clock`), or None: Walk and Turn cards close on its `odom` when it has one AND measured cards
     are on. `measured` is the spec's `enabled_on_robot` unless given (`--measured-cards`); off,
     every Walk and Turn card runs timed and `cardloop.OFF_NOTE` is said once. `frame()`, when given
-    and the spec has `compass` (duck-card-loop/4), answers one head-camera frame (`look`)."""
+    and the spec has `compass` (duck-card-loop/4), answers one head-camera frame (`look`).
+    `nest(k, of)`, when given and the spec has `chapters` (duck-card-loop/6), is called before
+    each later chapter of a row, timed or closed on odometry, the duck still and `nest_note` said,
+    and returns once the duck is back on the nest; the board is then anchored where it stands.
+    With no `nest` a row plays whole: the duck's own reader has no way to ask for a re-seat."""
     if measured is None:
         measured = cardloop.ENABLED_ON_ROBOT
     wanted = sorted({b.name for b in plan_beats if b.kind == "skill"})
@@ -175,10 +186,20 @@ def run(plan_beats: list[Beat], robot, heads: bool = False, sleep=time.sleep, sa
     try:
         if cal is not None and any(b.kind == "card" for b in plan_beats) and _pose_now(raw_state, clock):
             still(robot, cardloop.SPEC["calibrate"]["before_s"], raw_state, cal, sleep)
+        # duck-card-loop/6: where each later chapter begins, as a beat index.
+        # Timed cards are counted too: a timed duck lands on no square, so the nest is where a
+        # child puts it back on one.
+        parts = chapters(plan_beats) if nest is not None else [plan_beats]
+        starts = [sum(len(c) for c in parts[:k]) for k in range(1, len(parts))]
         i = -1
         while i + 1 < len(plan_beats):
             i += 1
             b = plan_beats[i]
+            if i in starts:
+                robot.call("robot.stop")
+                say(f"  {nest_note(starts.index(i) + 2, len(parts))}")
+                nest(starts.index(i) + 2, len(parts))
+                board, coasts = None, []
             say(f"  {b.clause}")
             if heads and b.kind in ("move", "card") and b.head != looking:
                 x, y, z = LOOK_AT[b.head]
@@ -204,7 +225,7 @@ def run(plan_beats: list[Beat], robot, heads: bool = False, sleep=time.sleep, sa
                     hold(robot, b.twist, b.seconds, sleep)
                     board = None
                     continue
-                n = merged(plan_beats, i, heads)
+                n = merged(plan_beats[:min([k for k in starts if k > i], default=len(plan_beats))], i, heads)
                 for later in plan_beats[i + 1:i + n]:
                     say(f"  {later.clause}")
                 i += n - 1

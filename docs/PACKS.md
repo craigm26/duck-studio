@@ -693,6 +693,28 @@ any. So these are the noise the falls control found, seen again, and the Walk ba
 `enabled_on_robot` stays false. Rows and comparisons: `cardreader/sim/results-nest/` (README.md,
 COMPARE.md, SECONDARY.md).
 
+**Ported (2026-10-19), as the rule above says.** `duck-card-loop.json` is now `/6` (`merge.walks`
+2, `chapters.cards` 7; byte for byte `cardreader/sim/candidate-nest.json`), in both readers:
+`DuckCardLoop.Card(cards:)`, `DuckCardLoop.merged` and `DuckCardLoop.chapters` in StudioKit,
+`CardLoop(cards=)`, `runner.merged` and `runner.chapters` here, held to each other by five new
+card-loop vectors (two walks as one, half turns, one across pi) and `vectors/chapters/split.json`.
+`/1` as it shipped is kept as `cardreader/sim/spec-loop1.json` (same sha256 its rows recorded), and
+the scripts that ran it name it. What a person sees:
+
+- **The Packs board marks the nests.** A row of more than 7 Walk and Turn cards is said to play in
+  chapters; the board's play stops on each nest, rings it, and says the square and facing.
+- **Run on the duck waits at each nest.** `RobotPlanRunner.run(nest:)` stops the duck, says
+  `DuckCardLoop.nestNote`, and waits for "The duck is on the nest" (Stop ends the wait), then
+  anchors the board where the duck stands. Timed cards, which real ducks still run, are counted
+  too: a timed duck lands on no square, so the nest is where a child puts it back on one. That
+  part is a game rule, not a measured result; nothing above measured timed cards.
+- **Measure my duck does not merge.** Its protocol records every card's start and end, so it runs
+  each card on its own (`RobotPlanRunner.run(merge: false)`); its rows are 4 cards or fewer, so no
+  chapters either. It runs `/1`'s card loop under `/6`'s spec, and its report names the spec by
+  sha256.
+- The card reader on the duck (`python3 -m duckcards`) merges cards when measured cards are on and
+  never splits a row: it has no way to ask a child for a re-seat. `enabled_on_robot` stays false.
+
 ### Candidate change: merge cards, to spend less time (`duck-card-loop/5`), pre-registered 2026-10-18
 
 **Written before any development or evaluation row of it ran.** Long rows fail because the sensed

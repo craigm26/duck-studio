@@ -1,11 +1,13 @@
 {
-  "format": "duck-card-loop/1",
+  "format": "duck-card-loop/6",
   "enabled_on_robot": false,
   "validated": null,
   "square_m": 0.30,
   "control_hz": 20,
   "stale_s": 0.5,
   "between_s": 0.5,
+  "merge": { "walks": 2 },
+  "chapters": { "cards": 7 },
   "walk": {
     "speed": { "slow": 0.30, "normal": 0.35, "fast": 0.40 },
     "back_speed": { "slow": 0.40, "normal": 0.40, "fast": 0.40 },
