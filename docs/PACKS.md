@@ -757,6 +757,37 @@ changes nothing that ships.
   new rows. If `/1` falls 2 or fewer times, the falls belong to the mat: `/4` stays not adopted,
   and a later mat candidate must remove them.
 
+**Result (2026-10-19): `/1` fell 2 times in 4,800 rows**, so by the rule above the falls belong
+to the mat: `/4` stays not adopted and no amendment is made. Valid: 0 stale-pose stops. HF job
+6ad5217e5ccb47ba0f7c6eb4 at 2d6cadc, 7.1 h; rows, logs and comparisons in
+`cardreader/sim/results-control/` (README.md).
+
+What it found beyond its question: **`/1` judged against `/1` fails the decision rule.** Beside
+`results/rung2-hf/`, seven verdicts differ, two of them pass to fail on falls, because one fall in
+510 rows puts the Wilson upper bound at 1.10%, over the 1% bound. And rows are not independent:
+a condition's knobs are drawn once per session of 12 rows (`mc/mc_run.py`), so 400 rows are
+about 34 ducks, and every interval in this file that treats rows as independent is too narrow.
+
+### Secondary analysis, declared 2026-10-19 before any row of `/5` was read
+
+`cardreader/sim/results-control/secondary.py`. Against both `/1` HF runs pooled
+(`results/rung2-hf/` and `results-control/`): for every row set, condition and criterion counted
+over rows, the candidate is **worse** where its share of failing rows is higher by a one-sided
+permutation test over sessions (4,000 permutations, fixed seed), the 80 tests held to 0.05
+together by Holm's correction; long rows' position at randomized 10 Hz **rises** where the
+candidate's share within the bound is higher by the same test at 0.05. A candidate would replace
+`/1` under it if it is worse nowhere and long rows rise. On `/1` against `/1`, each way, it finds
+nothing worse and no rise (`SELF.md`, `SELF-reverse.md`).
+
+- **For `/5`** the pre-registered rule above stays the decision; this analysis is reported beside
+  it and decides nothing for `/5`.
+- **For later candidates** it is meant to be the decision rule, written into each one's own
+  pre-registration.
+- **Post hoc, exploratory, verdicts unchanged** (`POSTHOC-*.md`): `/3` is worse at nominal, as
+  its rejection said. `/4`'s repeat is not worse on falls; it is worse on Walk back rows'
+  position at stressed 10 Hz (158/493 failing against 177/896), and its long rows' rise is
+  clear (111/120 against 55/180, p 0.0002). A later mat candidate has that to fix, not falls.
+
 ### Candidate change: calibrate at every stop (`duck-card-loop/3`), pre-registered 2026-10-17
 
 **Written before any row of it ran.** The diagnosis it tests: `/1` already aims every card at an
