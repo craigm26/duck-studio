@@ -624,6 +624,55 @@ floors, a real IMU's drift and real foot slip are modelled only by the randomize
 fall, stale-state and out-of-time exits never fired in the simulator. Studio's Swift runner ran
 its unit tests and vectors on Linux, not against duck-sim.
 
+### Candidate change: a nest and chapters (`duck-card-loop/6`), pre-registered 2026-10-19
+
+**Written before any code, development or evaluation row of it.** `/3`, `/4` and `/5` each tried
+to make the duck drift less over a long row. This one accepts the drift and shortens what drifts:
+a long challenge is played in chapters, and between chapters the child puts the duck back on a
+nest square, as a child already seats it at the start. Drift then builds over a chapter, not a
+row.
+
+- **The change.** From `/5` (`candidate-merge.json`), nothing else in the loop. A row of more
+  than `chapters.cards` closed-loop cards is split at card boundaries into the fewest chapters of
+  at most `chapters.cards` cards, as equal as possible, earlier chapters taking the extra card
+  (10 cards: 5 and 5; 20: 7, 7 and 6). Each chapter starts on the board square where the last one
+  should have ended (the nest), and runs as a row of its own does now: the board is anchored where
+  the duck stands, cards merge only within a chapter. Between chapters the duck stands still for
+  the row's starting pause (0.5 to 2 s). The duck is the same duck: same session, same knobs,
+  same odometry. Candidate spec: `cardreader/sim/candidate-nest.json`.
+- **`chapters.cards` is 7, fixed now by rule from `/5`'s HF rows** (`results-merge/raw/`,
+  randomized 10 Hz): the largest n for which rows of n cards or fewer end within both bounds at
+  least 95% of the time (7: 228/240 = 95.0%; 8: 244/260 = 93.8%). No development choice.
+- **The child's re-seat is not perfect, a new part of each condition** (drawn per re-seat, not for
+  a row's first seat, which is unchanged): nominal, none. Randomized: position N(0, 1.5 cm) on
+  each axis, heading N(0, 3 degrees). Stressed: 3 cm in a random direction and 5 degrees of a
+  random sign. The duck is placed with the error; the board believes it is on the nest; each
+  chapter is scored against the true nest.
+- **What a row's result is.** Each chapter is judged by "Acceptance" as a row is; the row passes
+  position (or heading) only if every chapter does, and its error is its worst chapter's. A
+  chapter that ends badly ends the row there. Card times and the time criterion are per card,
+  unchanged; the re-seat is not inside any card's time.
+- **Development**: plumbing only (seeds 101 to 104, the Pi, a few rows, not kept). Nothing is
+  chosen on it.
+- **Evaluation, run once**, on HF Jobs `cpu-upgrade` from a fresh checkout: fresh seeds 721 to
+  724 (pre-registered rows), 741 to 744 (Walk back rows), 711 to 714 (every row), 400 rows per
+  condition per batch, judged by "Acceptance" unchanged. Valid only if 10 or fewer rows stop on a
+  stale pose; otherwise inconclusive.
+- **Decision rule: the secondary analysis, declared above after the falls control**
+  (`results-control/secondary.py`), against `/5`'s HF run (`results-merge/`): `/6` replaces `/5`
+  as the base if it is worse nowhere (sessions, Holm over the family) and long rows' position at
+  randomized 10 Hz rises (sessions, p below 0.05). The old rule (`/3`'s) is reported beside it and
+  decides nothing. If `/6` replaces `/5`, chapters and the nest are ported to both readers
+  (StudioKit held to shared vectors) and shipped in the Packs game; `enabled_on_robot` stays
+  false until all three rungs pass, and rung 1 is not expected to pass (stressed 10 Hz rows of 7
+  cards or fewer end within both bounds about 70% of the time in `/5`).
+- **Expected, said now so it can be wrong.** Chapters of 5 to 7 cards land about 95% of the time
+  each, so a long row of 2 to 4 chapters lands about 80 to 90% before re-seat error, 70 to 85%
+  after: long rows' position at randomized 10 Hz from 41.7% to 70 to 85%. Rows of 7 cards or fewer
+  are unchanged except for runs of chance. Stressed long rows stay poor. What could break it:
+  re-seat error as large as a chapter's own; a chapter's first card after a re-seat falling.
+  What it does not show: that a child will re-seat a duck this well, or will want to.
+
 ### Candidate change: merge cards, to spend less time (`duck-card-loop/5`), pre-registered 2026-10-18
 
 **Written before any development or evaluation row of it ran.** Long rows fail because the sensed
