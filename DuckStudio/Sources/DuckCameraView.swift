@@ -24,6 +24,15 @@ final class DuckCameraFeed: ObservableObject {
     /// The last card or row held still long enough to act on (`DuckCards.Watcher`).
     @Published private(set) var cardEvent: DuckCards.Watcher.Event?
 
+    /// Keep the last few pictures as small JPEGs for Dream-1 (`DreamRunModel`). Off unless a run asks.
+    var keepsDreamFrames = false {
+        didSet { if !keepsDreamFrames { dreamFrames = [] } }
+    }
+    private var dreamFrames: [String] = []
+
+    /// The head camera's newest frames for Dream-1, oldest first.
+    func dreamWindow() -> [String] { dreamFrames }
+
     private var task: Task<Void, Never>?
     private var finder: DuckCards.Finder?
     private var watcher = DuckCards.Watcher()
@@ -65,6 +74,9 @@ final class DuckCameraFeed: ObservableObject {
                     self.picture = image
                     self.problem = nil
                     if self.readCards { self.read(image) }
+                    if self.keepsDreamFrames, let jpeg = Self.dreamJPEG(image) {
+                        self.dreamFrames = Array((self.dreamFrames + [jpeg]).suffix(DreamPilot.window))
+                    }
                     stamps.append(Date())
                     stamps = stamps.filter { Date().timeIntervalSince($0) < 3 }
                     self.fps = Double(stamps.count) / 3
@@ -103,6 +115,25 @@ final class DuckCameraFeed: ObservableObject {
         if let event = watcher.feed(reading.program, at: Date().timeIntervalSinceReferenceDate) {
             cardEvent = event
         }
+    }
+
+    /// One picture as Dream-1 is sent it: 320 by 176, JPEG, base64. The size Dream Labs says uploads fastest.
+    nonisolated static func dreamJPEG(_ image: CGImage) -> String? {
+        let width = 320, height = 176
+        guard let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8,
+                                      bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return nil }
+        context.interpolationQuality = .medium
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        guard let small = context.makeImage() else { return nil }
+        let out = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(out, "public.jpeg" as CFString, 1, nil) else {
+            return nil
+        }
+        CGImageDestinationAddImage(destination, small,
+                                   [kCGImageDestinationLossyCompressionQuality: 0.85] as CFDictionary)
+        guard CGImageDestinationFinalize(destination) else { return nil }
+        return (out as Data).base64EncodedString()
     }
 
     nonisolated static func decode(_ png: Data) -> CGImage? {
@@ -158,6 +189,9 @@ struct DuckCameraCard: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 if feed.readCards { cardButtons }
+                if let robot, robot.greeting?.answersDream == true {
+                    DreamRunView(robot: robot, feed: feed, stopDriving: stopDriving)
+                }
             }
             TextField(DuckCamera.Words.addressPlaceholder, text: $address)
 #if os(iOS)

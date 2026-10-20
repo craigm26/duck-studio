@@ -139,6 +139,13 @@ public enum DuckMethod: String, CaseIterable, Sendable {
     // is the one a physical duck should get networks through.
     case installPolicy = "studio.installPolicy"
 
+    /// Dream Labs' Dream-1, with the person's own key: the bridge's, not robotd's.
+    ///
+    /// A FAMILY, LIKE `update.*`, AND THE GLOB IS NEVER SENT. `DuckDream.Verb`
+    /// names each method; `DuckCall.line` writes that name. Bridge only: the
+    /// key lives on the robot's computer, and only OpenCastor's bridge holds it.
+    case dream = "dream.*"
+
     /// Whether getting this method wrong locks somebody out of their robot.
     ///
     /// THE PIN AND THE UPDATER ARE THE RECOVERY PATH, so they must never be
@@ -159,6 +166,9 @@ public enum DuckMethod: String, CaseIterable, Sendable {
         // installed policy does nothing until robotd is restarted and a slot
         // names it, and the screen that sends it confirms first.
         case .installPolicy: return false
+        // A KEY AND A MODEL ARE NOT THE RECOVERY PATH. What Dream-1 answers is
+        // played as ordinary moves, which every transport's deadman covers.
+        case .dream: return false
         }
     }
 
@@ -211,7 +221,7 @@ public enum DuckMethod: String, CaseIterable, Sendable {
              .subscribe: return false
         // A kick over a link that cannot carry a stop is a kick nobody can take back.
         case .doSkill, .skills, .sound: return false
-        case .installPolicy: return false
+        case .installPolicy, .dream: return false
         }
     }
 
@@ -223,7 +233,7 @@ public enum DuckMethod: String, CaseIterable, Sendable {
              .subscribe, .doSkill, .skills, .sound: return true
         // `state` is not a method `robotd` answers, and `reach` is not the
         // place to wish that it were.
-        case .state, .pairingPin, .setPairingPin, .update, .installPolicy: return false
+        case .state, .pairingPin, .setPairingPin, .update, .installPolicy, .dream: return false
         }
     }
 
@@ -249,7 +259,7 @@ public enum DuckMethod: String, CaseIterable, Sendable {
         // names, and it has no voice bank. Denied here so a plan sent to a bench says so
         // rather than a kick being posted to a URL that does not exist.
         case .doSkill, .skills, .sound: return false
-        case .pairingPin, .setPairingPin, .update, .installPolicy: return false
+        case .pairingPin, .setPairingPin, .update, .installPolicy, .dream: return false
         }
     }
 
@@ -266,6 +276,9 @@ public enum DuckMethod: String, CaseIterable, Sendable {
         case .hello, .move, .head, .look, .stop, .enable, .initPose, .relax, .state,
              .subscribe, .doSkill, .skills, .sound: return true
         case .installPolicy: return true
+        // OPENCASTOR'S BRIDGE ANSWERS IT; one without the verbs says so in its
+        // greeting (`Greeting.dream`), and the screen reads that first.
+        case .dream: return true
         case .pairingPin, .setPairingPin, .update: return false
         }
     }
@@ -407,6 +420,8 @@ public enum DuckCall: Equatable, Sendable {
     case subscribe(hz: Int?)
     /// `studio.installPolicy` — the bridge's, not robotd's. See `DuckMethod.installPolicy`.
     case installPolicy(DuckPolicyInstall)
+    /// `dream.*` — the bridge's, not robotd's. See `DuckMethod.dream` and `DuckDream`.
+    case dream(DuckDream)
     /// `robot.do` — one of the robot's one-shot skills, by the name `robot.skills` gave it.
     case doSkill(String)
     /// `robot.skills` — what this robot can do, read before a plan names any of it.
@@ -428,6 +443,7 @@ public enum DuckCall: Equatable, Sendable {
         case .state: return .state
         case .subscribe: return .subscribe
         case .installPolicy: return .installPolicy
+        case .dream: return .dream
         case .doSkill: return .doSkill
         case .skills: return .skills
         case .sound: return .sound
@@ -447,7 +463,7 @@ public enum DuckCall: Equatable, Sendable {
         switch self {
         case .move, .head: return true
         case .hello, .look, .stop, .enable, .initPose, .relax, .state, .subscribe,
-             .installPolicy, .doSkill, .skills, .sound: return false
+             .installPolicy, .dream, .doSkill, .skills, .sound: return false
         }
     }
 
@@ -527,7 +543,10 @@ public enum DuckCall: Equatable, Sendable {
         // of them gained a field would be the day they disagreed.
         if case .hello = self { return try DuckLink.helloRequest(id: id!) }
 
-        var body: [String: Any] = ["jsonrpc": "2.0", "method": method.rawValue]
+        // A FAMILY'S CALL NAMES ITS OWN METHOD, never the family's glob.
+        let name: String
+        if case .dream(let request) = self { name = request.verb.rawValue } else { name = method.rawValue }
+        var body: [String: Any] = ["jsonrpc": "2.0", "method": name]
         if let id { body["id"] = id }
         if let params = try parameters() { body["params"] = params }
         var data = try JSONSerialization.data(withJSONObject: body, options: [.sortedKeys])
@@ -581,6 +600,8 @@ public enum DuckCall: Equatable, Sendable {
             return ["hz": hz]
         case .installPolicy(let install):
             return install.wire
+        case .dream(let request):
+            return request.wire
         case .doSkill(let name):
             // `DoParams { skill }` — the only field, Pollen's name for it.
             guard DuckCall.isSkillName(name) else { throw Misuse.notASkillName(name) }
@@ -622,6 +643,7 @@ public enum DuckCall: Equatable, Sendable {
         case .state: return .state
         case .subscribe: return .subscribe(hz: DuckSubscription.watchingRateHz)
         case .installPolicy: return .installPolicy(DuckPolicyInstall.shape)
+        case .dream: return .dream(DuckDream.shape)
         case .doSkill: return .doSkill("kick_left")
         case .skills: return .skills
         case .sound: return .sound(.chirp)

@@ -205,6 +205,7 @@ public actor BenchPeer: DuckPeer {
         case .relax: return .noMotorBus(.relax)
         case .initPose: return .resetIsNotTheInitialPose
         case .installPolicy: return .noDiskToInstallOn
+        case .dream: return .noKeyHolder
         case .subscribe: return .nothingToSubscribeTo
         case .doSkill: return .skillsAreTheBenchsOwn(.doSkill)
         case .skills: return .skillsAreTheBenchsOwn(.skills)
@@ -234,6 +235,8 @@ public actor BenchPeer: DuckPeer {
         case nothingHasHappenedYet
         /// `studio.installPolicy`: a bench has no robot's disk to put a file on.
         case noDiskToInstallOn
+        /// `dream.*`: a bench is not the robot's computer, which is where the key lives.
+        case noKeyHolder
         /// `robot.subscribe`: a bench pushes nothing, so there is no stream to
         /// turn on.
         case nothingToSubscribeTo
@@ -277,6 +280,10 @@ public actor BenchPeer: DuckPeer {
                      + "computer, and a bench is not that. A bench takes a network through "
                      + "/upload, under a name, for as long as it runs — which is what putting one "
                      + "of your networks on this bench does from the Play tab."
+            case .noKeyHolder:
+                return "dream.* asks the bridge on a robot's computer for Dream-1's next steps, with the "
+                     + "Dream Labs key kept there, and a bench is not that computer. Connect to the "
+                     + "robot through its bridge to run Dream-1."
             case .nothingToSubscribeTo:
                 return "robot.subscribe turns a connection into a stream of states a robot pushes "
                      + "at its loop rate. A bench pushes nothing: it answers every request with "
@@ -379,7 +386,7 @@ public actor BenchPeer: DuckPeer {
             // answer, so a "read" would be a command.
             guard let live else { throw Refusal.nothingHasHappenedYet }
             return DuckReply(id: id, result: try Self.stateResult(live), failure: nil)
-        case .move, .head, .look, .enable, .initPose, .relax, .installPolicy, .subscribe,
+        case .move, .head, .look, .enable, .initPose, .relax, .installPolicy, .dream, .subscribe,
              .doSkill, .skills, .sound:
             // UNREACHABLE, AND A THROW RATHER THAN A CRASH. `refusal(for:)`
             // has answered for five of these six — head, look, enable,

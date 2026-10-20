@@ -47,7 +47,7 @@ final class DuckPeerTests: XCTestCase {
     func testEveryMethodIsSpelledOnce() {
         let names = Set(DuckMethod.allCases.map(\.rawValue))
         XCTAssertEqual(names.count, DuckMethod.allCases.count)
-        XCTAssertEqual(DuckMethod.allCases.count, 17,
+        XCTAssertEqual(DuckMethod.allCases.count, 18,
                        "A method was added or removed. That is fine — but the routing table and "
                        + "the reach tests below are the reason this count is pinned.")
         // FOURTEEN SINCE `robot.subscribe` ARRIVED. It is the method that turns
@@ -234,10 +234,10 @@ final class DuckPeerTests: XCTestCase {
     /// line for a transport to send by mistake.
     func testTheRecoveryPathIsNotEvenRepresentableAsACall() {
         let buildable = Set(DuckCall.allShapes.map(\.method))
-        // FOURTEEN: the thirteen robot calls — `robot.subscribe`, `robot.do`,
+        // FIFTEEN: the thirteen robot calls — `robot.subscribe`, `robot.do`,
         // `robot.skills` and `robot.sound` included — and the bridge's own
-        // `studio.installPolicy`.
-        XCTAssertEqual(buildable.count, 14)
+        // `studio.installPolicy` and `dream.*`.
+        XCTAssertEqual(buildable.count, 15)
         for method in DuckMethod.allCases where method.mutatesTheRecoveryPath {
             XCTAssertNil(DuckCall.shape(of: method), method.rawValue)
             XCTAssertFalse(buildable.contains(method), method.rawValue)
