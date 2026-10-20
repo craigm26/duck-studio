@@ -37,15 +37,21 @@ public enum BridgeHandshake {
         /// assumed a default here would draw a promise nobody made.
         public let deadmanMilliseconds: Int?
 
-        public init(bridge: String, deadmanMilliseconds: Int?, policyInstall: Bool? = nil) {
+        public init(bridge: String, deadmanMilliseconds: Int?, policyInstall: Bool? = nil,
+                    dream: Bool? = nil) {
             self.bridge = bridge
             self.deadmanMilliseconds = deadmanMilliseconds
             self.policyInstall = policyInstall
+            self.dream = dream
         }
         /// Whether this bridge was started with a policy directory. Nil from a
         /// bridge older than the verb, which is the same as no.
         public let policyInstall: Bool?
         public var installsPolicies: Bool { policyInstall == true }
+        /// Whether this bridge answers `dream.*` (OpenCastor's does). Nil from an
+        /// older bridge, which is the same as no.
+        public let dream: Bool?
+        public var answersDream: Bool { dream == true }
     }
 
     public enum Refusal: Error, Equatable {
@@ -88,7 +94,8 @@ public enum BridgeHandshake {
         guard version == BridgeHandshake.version else { throw Refusal.wrongVersion(version) }
         return Greeting(bridge: top["bridge"] as? String ?? "unnamed",
                         deadmanMilliseconds: top["deadman_ms"] as? Int,
-                        policyInstall: top["policy_install"] as? Bool)
+                        policyInstall: top["policy_install"] as? Bool,
+                        dream: top["dream"] as? Bool)
     }
 
     /// What the bridge advertises itself as, for a Bonjour browse.

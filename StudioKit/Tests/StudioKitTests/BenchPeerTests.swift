@@ -323,8 +323,8 @@ final class BenchPeerTests: XCTestCase {
             XCTAssertNotEqual(said, DuckCall.Misuse.outOfReach(call.method, .bench).message)
             sentences.append(said)
         }
-        XCTAssertEqual(sentences.count, 10,
-                       "The bench carries four of the fourteen calls; the other ten each owe an "
+        XCTAssertEqual(sentences.count, 11,
+                       "The bench carries four of the fifteen calls; the other eleven each owe an "
                        + "explanation. The seventh is robot.subscribe: a bench pushes nothing, so "
                        + "there is no stream to turn on, and accepting one would be a promise "
                        + "that states are now arriving unbidden. The last three are robotd's "

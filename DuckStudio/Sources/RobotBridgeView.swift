@@ -114,6 +114,7 @@ struct RobotBridgeView: View {
                 .listRowBackground(Theme.surfacePrimary)
 
                 if greeting.installsPolicies { installSection }
+                if greeting.answersDream { DreamKeySection(robot: robot) }
             }
 
             if let failure {
