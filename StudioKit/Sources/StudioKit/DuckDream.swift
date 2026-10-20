@@ -204,6 +204,18 @@ public struct DuckDream: Equatable, Sendable, CustomStringConvertible, CustomDeb
 
     public enum Words {
         public static let heading = "Dream-1"
+        public static let saveKeyInSettings =
+            "To run Dream-1, save your Dream Labs key in Settings, Dream-1. Recording runs needs no key."
+        public static let cannotRecord = "This device could not start a video for the run."
+        public static let simChip = "Dream-1"
+        public static let simSheetTitle = "Dream-1 on this duck"
+        public static let simCameraLabel = "What the simulated duck's head camera sees"
+        public static let simCameraNote =
+            "A drawing of what this duck's head camera would see on a practice mat, from Pollen's own camera "
+          + "position. It lets you record runs and try Dream-1 with no robot. A model trained only on these "
+          + "pictures learns this mat, not your floor."
+        public static let simCameraNeedsNewerSystem =
+            "The simulated head camera needs iOS 18 or macOS 15. On a real duck, its own camera works here."
         public static let keyRefused = "Dream Labs refused that key. Check it on platform.dreamlabs.ai and paste it again."
         public static let sessionRestarted =
             "Dream Labs restarted the run on its side. Start it again from where the duck is now."

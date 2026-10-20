@@ -91,6 +91,9 @@ public actor BenchPeer: DuckPeer {
     /// stays here in the type `DuckDrive.readLive` already returns.
     public private(set) var live: DuckDrive.Live?
 
+    /// The bench's own word for the command in force: the one its last state block carried.
+    public func lastCommand() async -> DuckDrive.Twist? { live?.command }
+
     /// How much sim time one intent buys, seconds.
     ///
     /// `DuckDrive.holdSeconds` — five ticks at 50 Hz — unless the caller says

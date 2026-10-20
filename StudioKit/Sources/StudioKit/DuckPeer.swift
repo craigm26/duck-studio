@@ -918,6 +918,15 @@ public protocol DuckPeer: AnyObject, Sendable {
     /// order; a member that had to be awaited would make "start listening
     /// before you start driving" a race rather than a sequence.
     func states() -> AsyncStream<DuckState>
+
+    /// The walk command in force: the last `robot.move` this peer sent, still after a `robot.stop`,
+    /// nil before either. What a recording for Dream-1 writes as each frame's action.
+    func lastCommand() async -> DuckDrive.Twist?
+}
+
+public extension DuckPeer {
+    /// A peer that does not keep it says nothing rather than "standing still".
+    func lastCommand() async -> DuckDrive.Twist? { nil }
 }
 
 extension DuckPeer {
