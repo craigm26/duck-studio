@@ -157,6 +157,8 @@ struct DuckCameraCard: View {
     /// Hands the duck over from the sticks before a plan drives it.
     var stopDriving: (() async -> Void)? = nil
     @StateObject private var feed = DuckCameraFeed()
+    @StateObject private var dreamModel = DreamRunModel()
+    @StateObject private var dreamRecorder = DreamRecorder()
     /// What the card has opened: cards held still, or the class deck.
     @State private var opened: DuckCardsOpening?
 
@@ -189,9 +191,11 @@ struct DuckCameraCard: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 if feed.readCards { cardButtons }
-                if let robot, robot.isConnected,
-                   DreamKeyStore.load() != nil || robot.greeting?.answersDream == true {
-                    DreamRunView(robot: robot, feed: feed, stopDriving: stopDriving)
+                if let robot, robot.isConnected {
+                    DreamPanel(peer: robot.peer, source: feed,
+                               bridgeAnswersDream: robot.greeting?.answersDream == true,
+                               stopDriving: stopDriving, model: dreamModel, recorder: dreamRecorder,
+                               hasPicture: feed.picture != nil)
                 }
             }
             TextField(DuckCamera.Words.addressPlaceholder, text: $address)
@@ -246,7 +250,11 @@ struct DuckCameraCard: View {
             .tint(Theme.actionSecondary)
             .frame(minHeight: DesignMetric.minimumTarget)
         }
-        .onDisappear { feed.stop() }
+        .onDisappear {
+            feed.stop()
+            dreamModel.stop()
+            dreamRecorder.stop()
+        }
         .sheet(item: $opened) { opening in
             DuckCardsSheet(opening: opening, robot: robot, models: models, stopDriving: stopDriving, camera: feed)
         }

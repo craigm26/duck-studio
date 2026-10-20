@@ -246,7 +246,7 @@ struct DriveView: View {
     @State private var mimicKept: IntentDraft?
 
     private enum Shelf: String, Identifiable {
-        case scene, motions
+        case scene, motions, dream
         var id: String { rawValue }
     }
     /// Round trips completed since Drive was pressed, and the sim seconds they
@@ -284,6 +284,10 @@ struct DriveView: View {
     /// the id counter, both of which a fresh instance per request would throw
     /// away every request.
     @State private var benchPeer: BenchPeer?
+    /// Dream-1 on the simulated duck: its drawn head camera, a run, and recordings (`DreamSimSheet`).
+    @StateObject private var simHeadCamera = SimHeadCameraFeed()
+    @StateObject private var dreamModel = DreamRunModel()
+    @StateObject private var dreamRecorder = DreamRecorder()
 
     /// THE PEER THE DRIVE LOOP ACTUALLY TALKS TO, AS THE VOCABULARY AND NOT AS
     /// A TRANSPORT.
@@ -611,6 +615,11 @@ struct DriveView: View {
                 ControlMotionsSheet(motions: motionRows, running: runningMotion,
                                     outcome: motionOutcome,
                                     run: { id in Task { await runMotion(id) } })
+            case .dream:
+                // THE BENCH'S OWN PEER, made if driving has not made it yet: the camera draws its duck.
+                DreamSimSheet(peer: (try? requirePeer()) as? BenchPeer, feed: simHeadCamera,
+                              model: dreamModel, recorder: dreamRecorder,
+                              stopDriving: { await halt() })
             }
         }
         .alert(failureTitle, isPresented: Binding(
@@ -804,6 +813,12 @@ struct DriveView: View {
                 }
             }
             .overlay(alignment: .top) { topChrome }
+            .overlay(alignment: .top) {
+                if venue == .sim {
+                    DreamSimStatus(model: dreamModel, recorder: dreamRecorder)
+                        .padding(.top, topChromeHeight + Theme.spacing(.tight))
+                }
+            }
             .overlay(alignment: .topLeading) { stageNotes }
             // BOTTOM-TRAILING, NEVER TRAILING-CENTRED. Width along an edge is
             // free; height over the middle is what covers a robot.
@@ -1185,6 +1200,13 @@ struct DriveView: View {
                                       },
                                       mimic: { mimicking ? stopMimic() : startMimic() },
                                       simple: isSimple)
+                    if venue == .sim {
+                        Button { shelf = .dream } label: {
+                            Label(DuckDream.Words.simChip, systemImage: "sparkles")
+                        }
+                        .buttonStyle(.bordered)
+                        .font(.footnote)
+                    }
                     // RECORD, SAY IT, PLAN IT, SEQUENCES: authoring from the pad.
                     // Everything only; Simple is for driving and playing.
                     if !isSimple {

@@ -110,6 +110,10 @@ public actor LinePeer: DuckPeer {
     private var queued: DuckLineSequence.Stamped?
 
     private var closed = false
+    /// The last move sent (`lastCommand()`), still after a stop.
+    private var commanded: DuckDrive.Twist?
+
+    public func lastCommand() async -> DuckDrive.Twist? { commanded }
     private var readingAlready = false
 
     /// What has actually happened on this link, in counts.
@@ -264,6 +268,7 @@ public actor LinePeer: DuckPeer {
     public func call(_ c: DuckCall) async throws -> DuckReply {
         try vet(c, asNotification: false)
         if closed { throw LinkEnded.theFarEndStopped }
+        if case .stop = c { commanded = .still }
         let id = try mint(c.method)
         // THE CORRELATOR MINTS THE ID AND THIS BUILDS THE LINE, WHICH IS TWO
         // JOBS ON PURPOSE. `Correlator.request` can produce bytes as well, and
@@ -338,6 +343,7 @@ public actor LinePeer: DuckPeer {
     public func notify(_ c: DuckCall) async throws {
         try vet(c, asNotification: true)
         if closed { throw LinkEnded.theFarEndStopped }
+        if case .move(let twist) = c { commanded = twist }
         let frame = sequence.stamp(try c.line(id: nil))
         guard !sending else {
             if queued != nil { traffic.supersededNotifications += 1 }

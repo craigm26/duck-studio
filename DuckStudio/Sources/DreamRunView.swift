@@ -1,12 +1,27 @@
 import SwiftUI
+import CoreGraphics
 import StudioKit
 
-/// Runs Dream-1 on the duck the bridge reaches, from the camera card.
+/// Where Dream-1's pictures come from: the robot's head camera (`DuckCameraFeed`, mediad's `/frame`)
+/// or the simulated duck's (`SimHeadCameraFeed`, drawn on this device).
+@MainActor
+protocol DreamFrameSource: AnyObject {
+    /// The newest picture, at Dream-1's size or any other; nil before the first.
+    var latestPicture: CGImage? { get }
+    /// The newest pictures as Dream-1 is sent them, oldest first.
+    func dreamWindow() -> [String]
+    var keepsDreamFrames: Bool { get set }
+}
+
+extension DuckCameraFeed: DreamFrameSource {
+    var latestPicture: CGImage? { picture }
+}
+
+/// Runs Dream-1 on a duck: the robot through its bridge, or the duck in this device's physics.
 ///
-/// THE KEY IS NOT HERE. It is saved on the robot's computer from the bridge
-/// screen (`DreamKeySection`); this asks that computer which of the person's
-/// models a duck can run, and plays what the chosen one answers through
-/// `DreamPilot`, which clamps every step to the sticks' envelope.
+/// THE KEY: this device's (Settings, `DreamDirect`) first, else the robot's computer's (bridge
+/// `dream.*`, OpenCastor 3.7). The rows are played through `DreamPilot`, which clamps every step to
+/// the sticks' envelope.
 @MainActor
 final class DreamRunModel: ObservableObject {
     @Published private(set) var models: [DuckDream.Model] = []
@@ -16,19 +31,24 @@ final class DreamRunModel: ObservableObject {
     @Published private(set) var running = false
     @Published var chosen: String?
     private var task: Task<Void, Never>?
-
-    /// Where the rows come from: this device's key first, else the robot's computer.
     private var direct: DreamDirect?
 
-    func check(_ peer: any DuckPeer) async {
+    func check(_ peer: any DuckPeer, bridgeAnswersDream: Bool) async {
         do {
             let answer: DuckDream.KeyAnswer
             if let direct = DreamKeyStore.client() {
                 self.direct = direct
                 answer = try await direct.models()
-            } else {
+            } else if bridgeAnswersDream {
                 direct = nil
                 answer = try DuckDream.readKey(try await peer.call(.dream(.keyCheck)))
+            } else {
+                direct = nil
+                key = nil
+                models = []
+                line = DuckDream.Words.saveKeyInSettings
+                checked = true
+                return
             }
             key = answer.key
             models = answer.duckModels
@@ -44,12 +64,12 @@ final class DreamRunModel: ObservableObject {
         checked = true
     }
 
-    func run(_ peer: any DuckPeer, feed: DuckCameraFeed, prompt: String,
+    func run(_ peer: any DuckPeer, source: DreamFrameSource, prompt: String,
              stopDriving: (() async -> Void)?) {
         guard !running, let chosen else { return }
         running = true
         line = nil
-        feed.keepsDreamFrames = true
+        source.keepsDreamFrames = true
         let pilot = DreamPilot(checkpoint: chosen, prompt: prompt)
         let rows: any DreamRows = direct ?? BridgeDreamRows(peer)
         task = Task { [weak self] in
@@ -57,10 +77,10 @@ final class DreamRunModel: ObservableObject {
             // A first window of pictures before the first ask: the model reads motion, not one frame.
             try? await Task.sleep(nanoseconds: 1_200_000_000)
             await pilot.run(on: peer, rows: rows,
-                            frames: { await feed.dreamWindow() },
+                            frames: { await source.dreamWindow() },
                             events: { event in await self?.apply(event) })
             await MainActor.run {
-                feed.keepsDreamFrames = false
+                source.keepsDreamFrames = false
                 self?.running = false
             }
         }
@@ -78,20 +98,43 @@ final class DreamRunModel: ObservableObject {
     }
 }
 
-struct DreamRunView: View {
-    @ObservedObject var robot: BridgeLink
-    @ObservedObject var feed: DuckCameraFeed
+/// Run Dream-1, and record runs to train it: one panel for a real duck and the simulated one.
+struct DreamPanel: View {
+    let peer: (any DuckPeer)?
+    let source: DreamFrameSource
+    var bridgeAnswersDream = false
     var stopDriving: (() async -> Void)?
-    @StateObject private var model = DreamRunModel()
+    @ObservedObject var model: DreamRunModel
+    @ObservedObject var recorder: DreamRecorder
+    /// Whether a picture is there to send; the source's own published state, passed in.
+    var hasPicture: Bool
     @AppStorage("dream.prompt") private var prompt = ""
     @State private var confirming = false
 
     var body: some View {
+        VStack(alignment: .leading, spacing: Theme.spacing(.standard)) {
+            runSection
+            Divider()
+            DreamRecordSection(peer: peer, source: source, recorder: recorder, hasPicture: hasPicture)
+        }
+        .task(id: peer.map { ObjectIdentifier($0) }) {
+            if let peer { await model.check(peer, bridgeAnswersDream: bridgeAnswersDream) }
+        }
+        .confirmationDialog(DuckDream.Words.run, isPresented: $confirming, titleVisibility: .visible) {
+            Button(DuckDream.Words.run, role: .destructive) {
+                guard let peer else { return }
+                model.run(peer, source: source, prompt: prompt.trimmingCharacters(in: .whitespacesAndNewlines),
+                          stopDriving: stopDriving)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(DuckDream.Words.howItDrives)
+        }
+    }
+
+    @ViewBuilder private var runSection: some View {
         VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
             Text(DuckDream.Words.heading).font(.headline)
-            if model.checked, model.key == nil {
-                Text(DuckDream.Words.noKey).font(.footnote).foregroundStyle(Theme.textSecondary)
-            }
             if !model.models.isEmpty {
                 Picker(DuckDream.Words.model, selection: $model.chosen) {
                     ForEach(model.models) { m in Text(m.label).tag(String?.some(m.id)) }
@@ -107,27 +150,13 @@ struct DreamRunView: View {
                     Button(DuckDream.Words.run) { confirming = true }
                         .buttonStyle(.primaryActionMoves)
                         .disabled(prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                                  || model.chosen == nil || feed.picture == nil)
+                                  || model.chosen == nil || !hasPicture || recorder.recording)
                 }
             }
             if let line = model.line {
                 Text(line).font(.caption).foregroundStyle(Theme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-        }
-        .task {
-            if let peer = robot.peer { await model.check(peer) }
-        }
-        .onDisappear { model.stop() }
-        .confirmationDialog(DuckDream.Words.run, isPresented: $confirming, titleVisibility: .visible) {
-            Button(DuckDream.Words.run, role: .destructive) {
-                guard let peer = robot.peer else { return }
-                model.run(peer, feed: feed, prompt: prompt.trimmingCharacters(in: .whitespacesAndNewlines),
-                          stopDriving: stopDriving)
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text(DuckDream.Words.howItDrives)
         }
     }
 }
