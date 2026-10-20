@@ -676,6 +676,20 @@ and a Walk back card's overshoot (about 6 cm, in `/1` too) takes the rest past 1
   (0.3 degrees) and roll error passing for pitch; falls from the renderer's load, as in `/4`'s
   first run. What it does not show: a real lens, real light or a real taped mat.
 
+**Result (2026-10-19): replaces `/6` as the base, by the rule above, and each expectation said in
+advance held.** HF job 6ad654ca5275124786e0b675 at e119d7f, about 7.5 h, 4,800 rows, 0 stale-pose
+stops (valid). Long rows' position at randomized 10 Hz rose from 63.3% (76/120) to 97.5% (117/120),
+one-sided p 0.0002 over sessions, above the 90% expected. Worse nowhere after Holm (80 tests; 1
+below 0.05 uncorrected, nominal heading on the pre-registered rows, 2 against 7 of 510). Walk back
+rows' position at stressed 10 Hz went from 73.8% to 89.2% (129 to 53 of 493 failing), and the
+camera pitch split is gone: at +2 degrees 20 of 180 finished rows pass 10 cm, at -2 degrees 26 of
+220 (under `/4`, 89 of 214 against 1 of 142). The pitch taken out is unbiased (mean error +0.00 to
++0.10 degrees) and within half a degree in 92% of chapters at randomized 10 Hz, 79% at stressed.
+Rung 1 still fails at stressed 10 Hz (91.4% position on the pre-registered rows). The looks cost
+about 5 s on a long row. Numbers, tables and the decision: `cardreader/sim/results-mat-nest/`
+(`README.md`, `SECONDARY.md`, `COMPARE.md`). The shipped spec stays `/6`: the mat waits for a
+head camera path in StudioKit and a printed mat, as said above.
+
 ### Candidate change: a nest and chapters (`duck-card-loop/6`), pre-registered 2026-10-19
 
 **Written before any code, development or evaluation row of it.** `/3`, `/4` and `/5` each tried
