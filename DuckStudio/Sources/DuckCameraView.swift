@@ -189,7 +189,8 @@ struct DuckCameraCard: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 if feed.readCards { cardButtons }
-                if let robot, robot.greeting?.answersDream == true {
+                if let robot, robot.isConnected,
+                   DreamKeyStore.load() != nil || robot.greeting?.answersDream == true {
                     DreamRunView(robot: robot, feed: feed, stopDriving: stopDriving)
                 }
             }

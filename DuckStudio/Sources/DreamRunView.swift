@@ -17,9 +17,19 @@ final class DreamRunModel: ObservableObject {
     @Published var chosen: String?
     private var task: Task<Void, Never>?
 
+    /// Where the rows come from: this device's key first, else the robot's computer.
+    private var direct: DreamDirect?
+
     func check(_ peer: any DuckPeer) async {
         do {
-            let answer = try DuckDream.readKey(try await peer.call(.dream(.keyCheck)))
+            let answer: DuckDream.KeyAnswer
+            if let direct = DreamKeyStore.client() {
+                self.direct = direct
+                answer = try await direct.models()
+            } else {
+                direct = nil
+                answer = try DuckDream.readKey(try await peer.call(.dream(.keyCheck)))
+            }
             key = answer.key
             models = answer.duckModels
             if chosen == nil || !models.contains(where: { $0.id == chosen }) { chosen = models.first?.id }
@@ -41,11 +51,12 @@ final class DreamRunModel: ObservableObject {
         line = nil
         feed.keepsDreamFrames = true
         let pilot = DreamPilot(checkpoint: chosen, prompt: prompt)
+        let rows: any DreamRows = direct ?? BridgeDreamRows(peer)
         task = Task { [weak self] in
             await stopDriving?()
             // A first window of pictures before the first ask: the model reads motion, not one frame.
             try? await Task.sleep(nanoseconds: 1_200_000_000)
-            await pilot.run(on: peer,
+            await pilot.run(on: peer, rows: rows,
                             frames: { await feed.dreamWindow() },
                             events: { event in await self?.apply(event) })
             await MainActor.run {
@@ -136,6 +147,9 @@ struct DreamKeySection: View {
             Text(DuckDream.Words.whatItIs)
                 .font(.footnote).foregroundStyle(Theme.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
+            Text(DuckDream.Words.keepOnRobot)
+                .font(.caption).foregroundStyle(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
             SecureField(DuckDream.Words.keyPlaceholder, text: $typed)
                 .autocorrectionDisabled()
 #if os(iOS)
@@ -208,6 +222,81 @@ struct DreamKeySection: View {
             problem = refusal.message
         } catch {
             problem = error.localizedDescription
+        }
+    }
+}
+
+/// The key on this device, from Settings: checked with Dream Labs, then kept in
+/// the Keychain. Dream-1 then runs over any link that drives the duck, with
+/// nothing about Dream on the robot's computer.
+struct DreamKeyHereSection: View {
+    @State private var typed = ""
+    @State private var busy = false
+    @State private var said: String?
+    @State private var problem: String?
+    @State private var saved = DreamKeyStore.load() != nil
+
+    var body: some View {
+        Section {
+            SecureField(DuckDream.Words.keyPlaceholder, text: $typed)
+                .autocorrectionDisabled()
+#if os(iOS)
+                .textInputAutocapitalization(.never)
+#endif
+            Button { Task { await save() } } label: {
+                Label(busy ? "Checking…" : DuckDream.Words.saveKey, systemImage: "key")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.primaryAction)
+            .disabled(busy || typed.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            if saved {
+                Button(role: .destructive) {
+                    DreamKeyStore.clear(); saved = false; said = nil
+                } label: {
+                    Text(DuckDream.Words.removeHere).foregroundStyle(Theme.critical)
+                }
+            }
+            if let said {
+                Text(said).font(.footnote).foregroundStyle(Theme.measured)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if let problem {
+                Label(problem, systemImage: "xmark.octagon")
+                    .font(.footnote).foregroundStyle(Theme.refused)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        } header: {
+            SectionHeading(text: DuckDream.Words.heading)
+        } footer: {
+            Text(DuckDream.Words.whatItIsHere).foregroundStyle(Theme.textSecondary)
+        }
+        .listRowBackground(Theme.surfacePrimary)
+        .task {
+            if let key = DreamKeyStore.load() { said = DuckDream.Words.savedHere(DuckDream.hint(key)) }
+        }
+    }
+
+    private func save() async {
+        problem = nil
+        switch DuckDream.cleaned(typed) {
+        case .failure(let why): problem = why.message
+        case .success(let key):
+            busy = true
+            defer { busy = false }
+            do {
+                // CHECKED BEFORE IT IS KEPT. A key Dream Labs refuses is not saved.
+                let answer = try await DreamDirect(key: key, version: DreamKeyStore.version).models()
+                DreamKeyStore.save(key)
+                typed = ""
+                saved = true
+                let first = DuckDream.Words.savedHere(DuckDream.hint(key))
+                said = answer.duckModels.isEmpty ? first + " " + DuckDream.Words.noDuckModel
+                    : first + " " + answer.duckModels.map(\.id).joined(separator: ", ")
+            } catch let refusal as DuckDream.ReadError {
+                problem = refusal.message
+            } catch {
+                problem = error.localizedDescription
+            }
         }
     }
 }

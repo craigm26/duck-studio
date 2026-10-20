@@ -1,5 +1,6 @@
 import Foundation
 import Security
+import StudioKit
 
 /// A write token, kept in the Keychain and nowhere else.
 ///
@@ -29,6 +30,25 @@ enum BridgeTokenStore {
     static func save(_ token: String) { KeychainSecret.save(token, service: service, account: account) }
     static func load() -> String? { KeychainSecret.load(service: service, account: account) }
     static func clear() { KeychainSecret.clear(service: service, account: account) }
+}
+
+/// A Dream Labs key, kept the same way and under its own name.
+///
+/// ITS OWN SLOT, for the same reason the bridge's token has one: it pays for
+/// something (Dream Labs bills it), and it goes to one host only.
+enum DreamKeyStore {
+    private static let service = "ai.dreamlabs.api-key"
+    private static let account = "duck-studio"
+
+    static func save(_ key: String) { KeychainSecret.save(key, service: service, account: account) }
+    static func load() -> String? { KeychainSecret.load(service: service, account: account) }
+    static func clear() { KeychainSecret.clear(service: service, account: account) }
+
+    /// The app's build, for the User-Agent Dream Labs sees.
+    static var version: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0" }
+    static func client() -> DreamDirect? {
+        load().map { DreamDirect(key: $0, version: version) }
+    }
 }
 
 /// One generic-password item, by service and account. The two stores above

@@ -168,6 +168,8 @@ struct SettingsView: View {
 
             huggingFace
 
+            DreamKeyHereSection()
+
             // WHAT A PERSON TEACHES THE APP, AND HOW FAR IT MAY GO. Last,
             // because it changes nothing about how anything runs; it only
             // decides whether a correction may ever leave this phone.

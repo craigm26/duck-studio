@@ -179,8 +179,13 @@ public struct DuckDream: Equatable, Sendable, CustomStringConvertible, CustomDeb
     /// than played in part.
     public static func readChunk(_ reply: DuckReply) throws -> Chunk {
         if let failure = failure(reply) { throw failure }
-        guard let actions: [String: Any] = reply.field("actions"),
-              let perKey = actions["per_key"] as? [String: Any],
+        guard let actions: [String: Any] = reply.field("actions") else { throw ReadError.notADreamAnswer }
+        return try chunk(fromActions: actions, sessionID: reply.field("session_id"))
+    }
+
+    /// The `actions` of a reply, from the bridge or from Dream Labs itself, as twists.
+    public static func chunk(fromActions actions: [String: Any], sessionID: String?) throws -> Chunk {
+        guard let perKey = actions["per_key"] as? [String: Any],
               let rows = perKey["action.\(part)"] as? [Any] else {
             throw ReadError.notADreamAnswer
         }
@@ -192,13 +197,26 @@ public struct DuckDream: Equatable, Sendable, CustomStringConvertible, CustomDeb
             twists.append(DuckDrive.Twist(vx: numbers[0], vy: numbers[1], vyaw: numbers[2]))
         }
         if twists.isEmpty { throw ReadError.notADreamAnswer }
-        return Chunk(rows: twists, sessionID: reply.field("session_id"))
+        return Chunk(rows: twists, sessionID: sessionID)
     }
 
     // MARK: - words
 
     public enum Words {
         public static let heading = "Dream-1"
+        public static let keyRefused = "Dream Labs refused that key. Check it on platform.dreamlabs.ai and paste it again."
+        public static let sessionRestarted =
+            "Dream Labs restarted the run on its side. Start it again from where the duck is now."
+        public static let whatItIsHere =
+            "Dream Labs' Dream-1 drives a robot from its camera and a task in words. Use your own key from "
+          + "platform.dreamlabs.ai. It is kept in this device's Keychain and sent only to Dream Labs, and "
+          + "Dream Labs bills that key. Dream-1 then runs from the camera card when a duck is connected."
+        public static let keepOnRobot =
+            "This bridge can keep a Dream Labs key on the robot's computer instead. Use that if you would "
+          + "rather this device did not hold it; a key saved on this device is used first."
+        public static let removeHere = "Remove the key from this device"
+        public static let checkKey = "Check the key with Dream Labs"
+        public static func savedHere(_ hint: String) -> String { "This device holds key \(hint)." }
         public static let whatItIs =
             "Dream Labs' Dream-1 drives a robot from its camera and a task in words. Use your own key from "
           + "platform.dreamlabs.ai. It is saved on the robot's computer, never in this app, and Dream Labs "
@@ -282,10 +300,12 @@ public struct DreamPilot: Sendable {
     /// Runs until done, cancelled or refused. `frames` returns the head camera's
     /// newest frames as base64 JPEGs, oldest first; `sleep` is injectable for tests.
     public func run(on peer: any DuckPeer,
+                    rows: (any DreamRows)? = nil,
                     frames: @Sendable () async -> [String],
                     events: @Sendable (Event) async -> Void,
                     sleep: @Sendable (TimeInterval) async throws -> Void = { try await Task.sleep(nanoseconds: UInt64($0 * 1e9)) },
                     now: @Sendable () -> Date = Date.init) async {
+        let source: any DreamRows = rows ?? BridgeDreamRows(peer)
         let start = now()
         var last = DuckDrive.Twist(vx: 0, vy: 0, vyaw: 0)
         var played = 0
@@ -298,13 +318,12 @@ public struct DreamPilot: Sendable {
                 let window = Array(await frames().suffix(DreamPilot.window))
                 if window.isEmpty { said = DuckDream.Words.needsCamera; break }
                 await events(.asked)
-                let reply = try await peer.call(.dream(.act(
-                    checkpoint: checkpoint, prompt: prompt,
-                    frames: [DuckDream.cameraRole: window],
-                    state: [DuckDream.part: [last.vx, last.vy, last.vyaw]], reset: first)))
                 let chunk: DuckDream.Chunk
                 do {
-                    chunk = try DuckDream.readChunk(reply)
+                    chunk = try await source.act(
+                        checkpoint: checkpoint, prompt: prompt,
+                        frames: [DuckDream.cameraRole: window],
+                        state: [DuckDream.part: [last.vx, last.vy, last.vyaw]], reset: first)
                 } catch DuckDream.ReadError.warming(let wait) where warmings < 6 {
                     // A STARTING MODEL IS NOT A FAILURE. Hold still while it starts.
                     warmings += 1
@@ -336,7 +355,7 @@ public struct DreamPilot: Sendable {
             said = error.localizedDescription
         }
         _ = try? await peer.call(.stop)
-        _ = try? await peer.call(.dream(.end))
+        await source.end()
         await events(.ended(said))
     }
 }
