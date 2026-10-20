@@ -1,0 +1,12 @@
+== Pollen's code at the pinned commits
+== robotd (cargo, debug, as duck-sim builds it)
+== the body's venv, without torch
+== the analysis venv
+== Pollen's v8 policy set
+== Monte Carlo, raw: nominal randomized randomized-10hz stressed-10hz (0 rows each, all rows)
+== Monte Carlo, raw-acceptance: nominal randomized randomized-10hz stressed-10hz (0 rows each, acceptance rows)
+== Monte Carlo, raw-back: nominal randomized randomized-10hz stressed-10hz (0 rows each, acceptance-back rows)
+== Monte Carlo, raw-rate: nominal-10hz nominal-50hz (0 rows each, acceptance rows)
+== results: /work/results/RESULTS.md (this repository's: cardreader/sim/results/RESULTS.md)
+setup exit 0
+render ok (360, 640, 3) one thread 0.049 s a frame

@@ -395,7 +395,20 @@ def look(robot, fix: "cardloop.MatFix", frame, state, clock) -> None:
     gray, fovy, rot, pos = got
     pts = matcam.floor_points(gray, fovy, rot, pos)
     step = max(1, -(-len(pts) // MAT_POINTS))
-    fix.fit([(float(f), float(l)) for f, l in pts[::step]], pose)
+    pts = pts[::step]
+    pitch = (cardloop.SPEC.get("compass") or {}).get("pitch")
+    if pitch and len(pts):
+        # duck-card-loop/7: the camera's pitch error, from every look so far this chapter, taken
+        # out of this look's points before they are fitted.
+        import numpy as np
+        top, by = float(pitch["max_deg"]), float(pitch["step_deg"])
+        deltas = np.radians(np.arange(-top, top + by / 2, by))
+        got_scores = matcam.pitch_scores(pts, pos, fix.s, deltas)
+        fix.pitch_scores = got_scores if fix.pitch_scores is None else fix.pitch_scores + got_scores
+        d = float(deltas[int(np.argmax(fix.pitch_scores))])
+        fix.pitch_deg.append(round(math.degrees(d), 2))
+        pts = matcam.repitch(pts, pos, d)
+    fix.fit([(float(f), float(l)) for f, l in pts], pose)
     robot.notify("robot.move", {"vx": 0.0, "vy": 0.0, "vyaw": 0.0})
 
 

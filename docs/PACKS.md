@@ -624,6 +624,72 @@ floors, a real IMU's drift and real foot slip are modelled only by the randomize
 fall, stale-state and out-of-time exits never fired in the simulator. Studio's Swift runner ran
 its unit tests and vectors on Linux, not against duck-sim.
 
+### Candidate change: the mat on the nest, the camera calibrated by the mat (`duck-card-loop/7`, "/4b"), pre-registered 2026-10-19
+
+**Written before any development or evaluation row of it.** `/4` (the mat as a compass) lifted long
+rows far more than anything since (long rows' position at randomized 10 Hz 36.7% to 92.5% against
+`/1`), and was not adopted. Counted over sessions (the control's post hoc, `results-control/
+POSTHOC-compass.md`), its falls are not significant; what is worse is Walk back rows' position at
+stressed 10 Hz (158 of 493 failing against 177 of 896). Read after that analysis, so a hypothesis
+this tests, not a finding: those rows split on the session's camera pitch error. At +2 degrees, 89
+of 214 finished rows fail, their error along the last walk averaging -9 to -10 cm; at -2 degrees, 1
+of 142 fails, at -2 to -3 cm. A camera pitched other than the duck believes squeezes or stretches
+the floor along its view, so the mat's position fix is off along the walk by a few centimetres,
+and a Walk back card's overshoot (about 6 cm, in `/1` too) takes the rest past 10 cm.
+
+- **The change.** From `/6` (`candidate-nest.json`), `/4`'s mat added unchanged (`MatFix`,
+  `matcam.floor_points`, the same `compass` settings, a look at every stop), and one thing new:
+  **the mat calibrates the camera.** At each look `matcam.pitch_scores` scores pitch errors from
+  -4 to +4 degrees in 0.2 degree steps by how well the tape points, corrected by each
+  (`matcam.repitch`), lie on lines `square_m` apart, the phase coherence of their forward and left
+  coordinates summed over the grid's first four harmonics, best over turns within 20 degrees.
+  Scores are summed over the chapter's looks so far; the best is taken out of this look's points
+  before `MatFix.fit`. Four harmonics, 0.2 degrees and 400 points were chosen on synthetic frames
+  before any simulated row (`tests/test_matpitch.py`: within 0.1 degree at 0, 1 and 2 degrees of
+  either sign; one harmonic leans about a degree). Candidate spec:
+  `cardreader/sim/candidate-mat-nest.json` (`compass.pitch`).
+- **The mat and the nest.** Each chapter's mat is laid so its nest is a square's middle along the
+  grid, as a child re-seats a duck on a square of a mat that does not move. The mat therefore sees
+  the re-seat error too, and corrects it like any other.
+- **Conditions unchanged**, `/4`'s camera errors among them (stressed: pitch 2 degrees of a random
+  sign, roll and yaw 1, height 5 mm, gain 0.7, noise 8, IMU 0.3 degrees a frame), and `/6`'s
+  re-seat errors.
+- **Development: plumbing only** (seeds 101 to 102, the Pi, a few rows, not kept): the pitch it
+  takes out against the session's, and that each chapter's mat lies on its nest. Nothing is chosen
+  on it.
+- **Evaluation, run once**, on HF Jobs `cpu-upgrade` from a fresh checkout, the mat eye on one
+  render thread at nice 10 as `/4`'s repeat: fresh seeds 821 to 824 (pre-registered rows), 841 to
+  844 (Walk back rows), 811 to 814 (every row), 400 rows per condition per batch, judged by
+  "Acceptance" unchanged. Valid only if 10 or fewer rows stop on a stale pose.
+- **Decision rule**, `/6`'s: the secondary analysis (`results-control/secondary.py`) against
+  `/6`'s HF run (`results-nest/`): `/7` replaces `/6` as the base if it is worse nowhere (sessions,
+  Holm over the family) and long rows' position at randomized 10 Hz rises (sessions, p below
+  0.05). The old rule is reported beside it and decides nothing.
+- **If it replaces `/6`**: the shipped spec stays `/6` until the mat is ported (StudioKit has no
+  head camera path yet: frames from mediad's `/frame`, `matcam` and `MatFix` in Swift, held to the
+  reader by shared vectors), and a printed mat exists. `enabled_on_robot` stays false.
+- **Expected, said now so it can be wrong.** Long rows' position at randomized 10 Hz from 63.3%
+  to above 90%; Walk back rows' position at stressed 10 Hz no worse than `/6`'s 73.8%, and the
+  +2 degree sessions no longer worse than the -2 degree ones; the pitch taken out within half a
+  degree of the session's in most chapters; stressed 10 Hz still failing rung 1 somewhere. What
+  could break it: a few looks too few to sum to a clear peak; the IMU's per-frame tilt error
+  (0.3 degrees) and roll error passing for pitch; falls from the renderer's load, as in `/4`'s
+  first run. What it does not show: a real lens, real light or a real taped mat.
+
+**Result (2026-10-19): replaces `/6` as the base, by the rule above, and each expectation said in
+advance held.** HF job 6ad654ca5275124786e0b675 at e119d7f, about 7.5 h, 4,800 rows, 0 stale-pose
+stops (valid). Long rows' position at randomized 10 Hz rose from 63.3% (76/120) to 97.5% (117/120),
+one-sided p 0.0002 over sessions, above the 90% expected. Worse nowhere after Holm (80 tests; 1
+below 0.05 uncorrected, nominal heading on the pre-registered rows, 2 against 7 of 510). Walk back
+rows' position at stressed 10 Hz went from 73.8% to 89.2% (129 to 53 of 493 failing), and the
+camera pitch split is gone: at +2 degrees 20 of 180 finished rows pass 10 cm, at -2 degrees 26 of
+220 (under `/4`, 89 of 214 against 1 of 142). The pitch taken out is unbiased (mean error +0.00 to
++0.10 degrees) and within half a degree in 92% of chapters at randomized 10 Hz, 79% at stressed.
+Rung 1 still fails at stressed 10 Hz (91.4% position on the pre-registered rows). The looks cost
+about 5 s on a long row. Numbers, tables and the decision: `cardreader/sim/results-mat-nest/`
+(`README.md`, `SECONDARY.md`, `COMPARE.md`). The shipped spec stays `/6`: the mat waits for a
+head camera path in StudioKit and a printed mat, as said above.
+
 ### Candidate change: a nest and chapters (`duck-card-loop/6`), pre-registered 2026-10-19
 
 **Written before any code, development or evaluation row of it.** `/3`, `/4` and `/5` each tried

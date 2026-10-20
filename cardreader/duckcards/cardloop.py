@@ -40,9 +40,11 @@ from dataclasses import dataclass
 HERE = pathlib.Path(__file__).resolve().parent
 SPEC_FILE = HERE / "duck-card-loop.json"
 FORMAT = "duck-card-loop/6"
-FORMATS = ("duck-card-loop/1", "duck-card-loop/3", "duck-card-loop/4", "duck-card-loop/5", "duck-card-loop/6")
+FORMATS = ("duck-card-loop/1", "duck-card-loop/3", "duck-card-loop/4", "duck-card-loop/5", "duck-card-loop/6",
+           "duck-card-loop/7")
 # /3 adds `calibrate` (DriftCal), /4 `compass` (MatFix), /5 `merge` (runner.merged: one CardLoop for n cards),
-# /6 `chapters` (runner.chapters: a long row played in chapters, the duck re-seated on a nest between)
+# /6 `chapters` (runner.chapters: a long row played in chapters, the duck re-seated on a nest between),
+# /7 `compass.pitch` (the mat calibrates the camera's pitch: matcam.pitch_scores, runner.look)
 CARDS = ("walk_forward", "walk_backward", "turn_left", "turn_right")
 
 
@@ -372,6 +374,8 @@ class MatFix:
         self.ct, self.cx, self.cy = 0.0, 0.0, 0.0       # odometry to the mat's frame
         self.origin: Pose | None = None                 # the row's first corrected pose
         self.fixes: list[tuple[float, float, float] | None] = []     # each look: (dh, dx, dy) or None
+        self.pitch_scores = None                        # /7: summed `matcam.pitch_scores` this chapter
+        self.pitch_deg: list[float] = []                # /7: the camera pitch error taken out, each look
 
     def correct(self, pose: Pose) -> Pose:
         c, s = math.cos(self.ct), math.sin(self.ct)

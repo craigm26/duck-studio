@@ -200,8 +200,10 @@ class MatEye:
         self.f = self.sock.makefile("rwb")
         self.frames = self.fails = 0
 
-    def place(self) -> list:
-        self.f.write(b'{"op":"place"}\n')
+    def place(self, seat=(0.0, 0.0, 0.0)) -> list:
+        """Lay the mat so the nest is a square's middle, along the grid: the duck's true pose, less
+        `seat` (where the duck truly sits relative to the nest, duck-card-loop/6)."""
+        self.f.write((json.dumps({"op": "place", "seat": list(seat)}) + "\n").encode())
         self.f.flush()
         return json.loads(self.f.readline())["truth"]
 
@@ -349,14 +351,21 @@ def run_row(robot, truth, row, cond_row, rng, square, log, eye=None, cond=""):
         eye.place()                            # the child seats the duck on the mat
     t_start = time.monotonic()
     chapters, result = [], "finished"
+    fixes_by_chapter = []                      # each chapter's cardloop.MatFix, when it looked
     for j, part in enumerate(parts):
         seat = (0.0, 0.0, 0.0)
         if j:
             stand()
             seat = draw_seat(cond, rng)
+            if eye is not None:
+                eye.place(seat)                    # the nest is a square of the mat (/7)
         t0 = time.monotonic()
         result = runner.run(part, robot, say=say, state=seen, clock=time.monotonic, measured=True,
                             frame=eye.frame if eye is not None else None)
+        part_fix = getattr(runner, "LAST_FIX", None)
+        if part_fix is not None:
+            fixes_by_chapter.append(part_fix)
+            runner.LAST_FIX = None
         got = _score(part, said, truth, t0, time.monotonic(), square, seat)
         got["result"] = result
         if j:
@@ -371,12 +380,15 @@ def run_row(robot, truth, row, cond_row, rng, square, log, eye=None, cond=""):
     cal = getattr(runner, "LAST_CAL", None)
     calib = {"drift_est_dps": round(math.degrees(cal.rate), 4), "windows": cal.windows} if cal else {}
     runner.LAST_CAL = None
-    fix = getattr(runner, "LAST_FIX", None)
-    if fix is not None:
-        ok = [f for f in fix.fixes if f is not None]
-        calib.update({"looks": len(fix.fixes), "fixes": len(ok),
+    if fixes_by_chapter:
+        every = [f for fix in fixes_by_chapter for f in fix.fixes]
+        ok = [f for f in every if f is not None]
+        calib.update({"looks": len(every), "fixes": len(ok),
                       "fix_deg": [round(math.degrees(f[0]), 2) for f in ok],
                       "fix_cm": [round(100 * math.hypot(f[1], f[2]), 1) for f in ok]})
+        pitch = [fix.pitch_deg for fix in fixes_by_chapter]
+        if any(pitch):
+            calib["pitch_deg"] = pitch             # /7: the pitch error taken out, per chapter and look
     runner.LAST_FIX = None
     if len(parts) > 1:
         # duck-card-loop/6: a row passes only if every chapter does; its error is its worst chapter's.
