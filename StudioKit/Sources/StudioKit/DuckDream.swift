@@ -119,7 +119,21 @@ public struct DuckDream: Equatable, Sendable, CustomStringConvertible, CustomDeb
         public let owner: String
         public let servable: Bool
         public let fits: Bool
-        public var label: String { owner == "mine" ? id : "\(id) (\(owner))" }
+        /// Where it runs: Dream Labs' servers, or this phone (a driver from `PhoneDrivers`).
+        public var kind: Kind = .cloud
+        /// For a phone driver, its own name for itself (the manifest's label).
+        public var title: String? = nil
+        public var label: String {
+            if kind == .phone { return Words.onPhone(title ?? id) }
+            return owner == "mine" ? id : "\(id) (\(owner))"
+        }
+
+        public enum Kind: Equatable, Sendable { case cloud, phone }
+
+        public init(id: String, owner: String, servable: Bool, fits: Bool, kind: Kind = .cloud, title: String? = nil) {
+            self.id = id; self.owner = owner; self.servable = servable; self.fits = fits
+            self.kind = kind; self.title = title
+        }
     }
 
     public struct KeyAnswer: Equatable, Sendable {
@@ -132,6 +146,10 @@ public struct DuckDream: Equatable, Sendable, CustomStringConvertible, CustomDeb
     public struct Chunk: Equatable, Sendable {
         public let rows: [DuckDrive.Twist]
         public let sessionID: String?
+
+        public init(rows: [DuckDrive.Twist], sessionID: String?) {
+            self.rows = rows; self.sessionID = sessionID
+        }
     }
 
     public enum ReadError: Error, Equatable {
@@ -299,6 +317,21 @@ public struct DuckDream: Equatable, Sendable, CustomStringConvertible, CustomDeb
         }
         public static let stopped = "Stopped. The duck was told to stop."
         public static let timeUp = "Stopped at the time limit."
+        public static func onPhone(_ label: String) -> String { "On this phone: \(label)" }
+        public static func oneJob(_ task: String) -> String {
+            "This driver knows one job: \(task). It does not read what you type."
+        }
+        public static func drivingAs(_ task: String) -> String { "Driving as: \(task)" }
+        public static func tooSlow(_ ms: Int) -> String {
+            "The driver took \(ms) ms to answer, too long to steer by. The duck was told to stop."
+        }
+        public static let tooHot = "This phone is too hot to drive the duck. Let it cool, then try again."
+        public static let simOnly =
+            "Phone drivers run on the simulated duck for now: they learned from its pictures, not a real floor."
+        public static let noPicture = "No picture from the head camera yet."
+        public static let notThisDriver = "That is not the driver this run was started with."
+        public static let driverFailed = "The driver could not read this picture or gave numbers that are not commands."
+        public static func timing(p50: Int, p95: Int) -> String { "Driver answered in \(p50) ms (most within \(p95) ms)." }
         public static let howItDrives =
             "The duck walks only the way the sticks can: every step is clamped to the sticks' speeds, "
           + "sent as an ordinary move, and the bridge's deadman still stops the duck if this phone goes quiet."
