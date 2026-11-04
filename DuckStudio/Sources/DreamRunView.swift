@@ -32,6 +32,8 @@ final class DreamRunModel: ObservableObject {
     @Published var chosen: String?
     private var task: Task<Void, Never>?
     private var direct: DreamDirect?
+    /// The duck the running pilot drives, so Stop can reach it without waiting on the pilot.
+    private var driving: (any DuckPeer)?
 
     func check(_ peer: any DuckPeer, bridgeAnswersDream: Bool) async {
         do {
@@ -69,6 +71,7 @@ final class DreamRunModel: ObservableObject {
         guard !running, let chosen else { return }
         running = true
         line = nil
+        driving = peer
         source.keepsDreamFrames = true
         let pilot = DreamPilot(checkpoint: chosen, prompt: prompt)
         let rows: any DreamRows = direct ?? BridgeDreamRows(peer)
@@ -86,7 +89,11 @@ final class DreamRunModel: ObservableObject {
         }
     }
 
-    func stop() { task?.cancel() }
+    /// Stop on the wire first, then cancel: the duck stops even if the model is mid-answer.
+    func stop() {
+        if let peer = driving { Task { await DreamPilot.stopNow(peer) } }
+        task?.cancel()
+    }
 
     private func apply(_ event: DreamPilot.Event) {
         switch event {

@@ -308,9 +308,26 @@ public actor LinePeer: DuckPeer {
         // link that has finished admitting it is gone — the hang this whole
         // arrangement exists to prevent.
         if closed { throw LinkEnded.theFarEndStopped }
-        return try await withCheckedThrowingContinuation { continuation in
-            waiting[id] = continuation
+        // A CANCELLED CALLER IS LET GO AT ONCE. Without this, a caller cancelled
+        // while waiting (a Stop pressed during a long `dream.act`) stayed parked
+        // until the far end answered, up to the bridge's own timeout. The answer,
+        // if it ever comes, lands in `arrived` and is never read, which is harmless.
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                if Task.isCancelled {
+                    continuation.resume(throwing: CancellationError())
+                } else {
+                    waiting[id] = continuation
+                }
+            }
+        } onCancel: {
+            Task { await self.letGo(id) }
         }
+    }
+
+    /// Resume a parked caller with a cancellation, if it is still parked.
+    private func letGo(_ id: DuckRPC.ID) {
+        waiting.removeValue(forKey: id)?.resume(throwing: CancellationError())
     }
 
     private func mint(_ method: DuckMethod) throws -> DuckRPC.ID {

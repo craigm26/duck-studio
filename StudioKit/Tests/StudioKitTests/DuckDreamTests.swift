@@ -152,7 +152,7 @@ final class DuckDreamTests: XCTestCase {
         let sent = duck.sent
         XCTAssertTrue(sent.first?.contains(#""method":"dream.act""#) == true)
         XCTAssertTrue(sent.first?.contains(#""reset":true"#) == true)
-        let moves = sent.filter { $0.contains("robot.move") }.map(Self.twist)
+        let moves = sent.filter { $0.contains("robot.move") }.map(Self.twist).filter { $0 != [0, 0, 0] }
         XCTAssertEqual(moves.first, [DuckDrive.maxForward, 0, 0.2])   // 0.9 clamped to the sticks
         XCTAssertEqual(moves.dropFirst().first, [0.1, -DuckDrive.maxSideways, -DuckDrive.maxTurn])
         // The last two lines, always and in this order: stop the duck, then give the seat back.
@@ -196,7 +196,7 @@ final class DuckDreamTests: XCTestCase {
         await DreamPilot(checkpoint: "m", prompt: "walk", limit: 0.95)
             .run(on: duck, frames: { ["F"] }, events: { events.add($0) },
                  sleep: { clock.advance($0) }, now: { clock.now() })
-        let moves = duck.sent.filter { $0.contains("robot.move") }
+        let moves = duck.sent.filter { $0.contains("robot.move") }.map(Self.twist).filter { $0 != [0, 0, 0] }
         XCTAssertEqual(moves.count, 10, "the whole second of driving, after the wait")
         XCTAssertTrue(events.all.contains(.waiting(DuckDream.Words.startingFor(290))))
         XCTAssertEqual(events.all.last, .ended(DuckDream.Words.timeUp))
@@ -249,10 +249,54 @@ final class DuckDreamTests: XCTestCase {
         await DreamPilot(checkpoint: "m", prompt: "walk", limit: 0.25)
             .run(on: duck, frames: { ["F"] }, events: { _ in },
                  sleep: { clock.advance($0) }, now: { clock.now() })
-        let moves = duck.sent.filter { $0.contains("robot.move") }.map(Self.twist)
+        let moves = duck.sent.filter { $0.contains("robot.move") }.map(Self.twist).filter { $0 != [0, 0, 0] }
         XCTAssertEqual(moves.first, [0.2, 0, 0], "no motion to continue before the first chunk")
         XCTAssertEqual(moves.count, 3)
         XCTAssertEqual(moves[2], [0.2, 0, 0], "easing between equal commands changes nothing")
+    }
+
+    func testTheDuckIsToldZeroBeforeEveryLaterAsk() async {
+        let duck = FakeBridge()
+        let clock = Clock()
+        await DreamPilot(checkpoint: "m", prompt: "walk", limit: 0.45)
+            .run(on: duck, frames: { ["F"] }, events: { _ in },
+                 sleep: { clock.advance($0) }, now: { clock.now() })
+        let sent = duck.sent
+        let asks = sent.indices.filter { sent[$0].contains("dream.act") }
+        XCTAssertGreaterThanOrEqual(asks.count, 2)
+        for ask in asks.dropFirst() {
+            XCTAssertTrue(sent[ask - 1].contains("robot.move"), "the line before a later ask")
+            XCTAssertEqual(Self.twist(sent[ask - 1]), [0, 0, 0], "is a zero twist")
+        }
+        XCTAssertTrue(asks[0] == 0 || !sent[asks[0] - 1].contains("robot.move"), "nothing to zero before the first ask")
+    }
+
+    /// A model that never answers: the Stop path still reaches the duck at once.
+    private final class Hung: DreamRows, @unchecked Sendable {
+        func act(checkpoint: String, prompt: String, frames: [String: [String]],
+                 state: [String: [Double]], reset: Bool) async throws -> DuckDream.Chunk {
+            try await Task.sleep(nanoseconds: 60_000_000_000)
+            throw CancellationError()
+        }
+        func end() async {}
+    }
+
+    func testStopReachesTheDuckWhileTheModelHangs() async throws {
+        let duck = FakeBridge()
+        let asked = expectation(description: "asked")
+        let run = Task {
+            await DreamPilot(checkpoint: "m", prompt: "walk")
+                .run(on: duck, rows: Hung(), frames: { ["F"] },
+                     events: { if case .asked = $0 { asked.fulfill() } })
+        }
+        await fulfillment(of: [asked], timeout: 5)
+        let pressed = Date()
+        await DreamPilot.stopNow(duck)
+        XCTAssertLessThan(Date().timeIntervalSince(pressed), 0.05, "robot.stop went out within 50 ms")
+        XCTAssertTrue(duck.sent.last?.contains("robot.stop") == true, "and it is the last thing on the wire")
+        run.cancel()
+        await run.value
+        XCTAssertTrue(duck.sent.suffix(2).first?.contains("robot.stop") == true, "the run still ends stop, then end")
     }
 
     func testARefusalStopsTheDuckAndSaysWhy() async {
