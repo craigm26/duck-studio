@@ -277,10 +277,28 @@ Acceptance: these tests pass, using FakeNet with PlainLink and Clock (DreamDirec
 
 T7 and the HubTraining DriveRecipe (in-app training launch) are the parts that can be cut if the session runs long. The recipe is optional for 90, and T7 can fold into T10.
 
+## Rescue ladder if M1 misses
+
+Cheapest first. Each rung is judged by the same M1 test (10 seeded sim starts, the same seeds every time), and the next rung starts only if this one misses.
+
+**Rung 1. Diagnose, then edit the output bias (no training).** After the idea in Weight-Space Programming for VLAs (github.com/Geeksongs/Weight-Space-Programming-VLA, 2026-11-04). There, one number added to SmolVLA's output bias took one LIBERO task from 42 to 64 of 100. That is one task, one model and no peer review, so it is a cheap thing to try, not a promise. The repo has no license, so only the idea is used, not its code.
+
+- **Diagnose from what the driver did, not from guesses.** Each M1 run logs its rows (the twists the driver asked for), the duck's pose and the ball's position at 10 Hz. A failure counts as systematic when at least 3 of the failed runs share one signature: a steady sideways drift (mean vy or vyaw offset while the ball is dead ahead), turning too little (heading error to the ball that shrinks slower than the expert's), or overshoot (still walking inside the reach radius).
+- **Write the edit.** The last layer is `Linear 256 → 144`, reshaped to 48 rows × [vx, vy, vyaw]. An edit adds one constant per column to that layer's bias, the same constant to all 48 rows, in normalised action units: for example `vyaw += c` for drift, or `vx -= c` for overshoot. Try at most two magnitudes per signature, chosen from the logged error, never by sweeping against the M1 seeds.
+- **Store it as a patch, not new weights.** `edit.json` names the base driver (repo and commit), the tensor, the column, the constant and the reason in one sentence. A patched driver is its base plus the edit: the store applies it after the base passes its SHA-256 and golden checks, then replays golden inputs with the edit applied against golden outputs the edit script writes. The patch has its own SHA-256 in policy.json, so it can be reviewed, reverted or stacked.
+- **Do not overfit the test.** The diagnosis uses the logs of the failed M1 runs. The check that counts is M1 on a fresh set of 10 seeds the diagnosis never saw, and its result is reported beside the original.
+- **Code.** `DriverEdit` in StudioKit (parse, apply to `DuckNetS1`'s output bias, refuse an unknown tensor, a column out of range or a non-finite constant), with Linux tests. `bc_ducknet.py --edit` writes `edit.json` and the edited golden outputs. About half a session.
+
+**Rung 2. One round of DAgger-lite and a retrain**, warm-started from the driver's checkpoint (`hf://` spec, per the provenance bundle). The scripted expert labels the states the driver actually visited, which suits a scripted expert well: it can label any state.
+
+**Rung 3. The spatial-softmax head** (`ducknet-s1k`), retrained.
+
+**Then K2:** build 90 waits.
+
 ## Risks and kill criteria
 
 **Risks**
-1. **Behaviour cloning from 30 to 40 takes may not generalise.** The duck may overshoot or circle. Mitigations: varied starts, the 2-frame input, the flatten head, and one round of DAgger-lite (record corrections while the driver runs) before any bigger model.
+1. **Behaviour cloning from 30 to 40 takes may not generalise.** The duck may overshoot or circle. Mitigations: varied starts, the 2-frame input, the flatten head, then the rescue ladder below (a bias edit first, then one round of DAgger-lite) before any bigger model.
 2. **Train/serve pixel mismatch.** Training sees H.264 frames and the phone sees JPEG q0.85. Both are face-blurred (verified in DreamRecorder). The JPEG augmentation covers the remaining gap.
 3. **The golden tolerance (1e-3) between Accelerate and PyTorch is unverified.** T4 measures it on the Mac first.
 4. **The 2 s reaction loop.** This is acceptable for walking to a ball. A `horizon` parameter on DreamPilot changes tested behaviour and is a build-91 item.
@@ -291,7 +309,7 @@ T7 and the HubTraining DriveRecipe (in-app training launch) are the parts that c
 
 **Kill criteria** (stop and report rather than push on)
 - **K1.** After T9, the validation L1 does not beat both baselines. If a spatial-softmax head plus one DAgger-lite round also fails to beat them, drop S1 and reopen ACT on Core ML for build 91.
-- **K2.** At T10, fewer than 6 of 10 runs succeed after one DAgger-lite round and one retrain. Then ship build 90 without the Drivers section (or do not ship 90 for this feature), and record the result honestly.
+- **K2.** At T10, fewer than 6 of 10 runs succeed after the whole rescue ladder (a bias edit, then one DAgger-lite round and one retrain). Then build 90 waits (Craig's decision: no upload until M1 passes), and the result is recorded honestly.
 - **K3.** The golden replay cannot be brought under 1e-3 on the device after checking the layout and summation order. That is a correctness bug, and no driver ships until it is fixed.
 - **K4.** Device infer p50 is over 50 ms, or any act goes over 1 s. Profile it before shipping. Do not raise the deadline to pass.
 - **K5.** Any task needs the Pi for more than targeted StudioKit tests. Stop and move the work to the Mac.
