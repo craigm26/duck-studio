@@ -122,7 +122,7 @@ final class LocalDreamRowsTests: XCTestCase {
             .run(on: duck, rows: rows(net, clock: clock), frames: { ["J", "J", "J"] }, events: { _ in },
                  sleep: { clock.advance($0) }, now: { clock.date() })
         let moves = duck.sent.filter { $0 == "robot.move" }.count
-        XCTAssertEqual(moves, 25, "two and a half seconds of rows at 10 Hz")
+        XCTAssertEqual(moves, 26, "two and a half seconds of rows at 10 Hz, plus the zero before the second ask")
         XCTAssertEqual(net.calls, 2, "one ask per 20 rows")
         XCTAssertEqual(duck.sent.last, "robot.stop")
     }
