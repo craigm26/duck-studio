@@ -348,6 +348,14 @@ public struct DreamPilot: Sendable {
     /// Frames each camera sends, oldest first.
     public static let window = 9
 
+    /// STOP FIRST, AND WITHOUT WAITING ON ANYTHING ELSE. What a Stop button calls before it
+    /// cancels a run: `robot.stop` goes on the wire now, alongside any request still waiting
+    /// for a model, instead of after the run notices it was cancelled. (A line peer carries
+    /// calls concurrently, so a parked `dream.act` does not hold this one back.)
+    public static func stopNow(_ peer: any DuckPeer) async {
+        _ = try? await peer.call(.stop)
+    }
+
     public static func clamped(_ t: DuckDrive.Twist) -> DuckDrive.Twist {
         DuckDrive.Twist(vx: min(max(t.vx, -DuckDrive.maxBackward), DuckDrive.maxForward),
               vy: min(max(t.vy, -DuckDrive.maxSideways), DuckDrive.maxSideways),
@@ -394,6 +402,11 @@ public struct DreamPilot: Sendable {
                 try Task.checkCancellation()
                 let window = Array(await frames().suffix(DreamPilot.window))
                 if window.isEmpty { said = DuckDream.Words.needsCamera; break }
+                // NEVER WALK BLIND WHILE THE MODEL THINKS. Between chunks the duck is told
+                // zero, so a slow or hung answer leaves it standing, not still walking on
+                // the last row. `last` stays the command in force before this pause, which
+                // is what the recordings call state.
+                if !first { try await peer.notify(.move(.still)) }
                 await events(.asked)
                 let chunk: DuckDream.Chunk
                 let asked = now()

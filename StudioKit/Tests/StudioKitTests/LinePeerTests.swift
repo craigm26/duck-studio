@@ -454,4 +454,28 @@ final class LinePeerTests: XCTestCase {
         fromChild.fileHandleForReading.readabilityHandler = nil
         XCTAssertEqual(child.terminationStatus, 0)
     }
+
+    // MARK: - a cancelled caller is let go
+
+    func testACancelledCallIsLetGoWithoutAnAnswer() async throws {
+        let far = makeLink()
+        let peer = far.peer
+        let reading = Task { await peer.read() }
+        let call = Task { try await peer.call(.dream(.status)) }
+        await settle(until: { await far.written.count >= 1 }, "the call was written")
+        let started = Date()
+        call.cancel()
+        do {
+            _ = try await call.value
+            XCTFail("a call nobody answered returned")
+        } catch is CancellationError {
+            XCTAssertLessThan(Date().timeIntervalSince(started), 0.5, "let go at once, not at the far end's timeout")
+        }
+        // The link is still usable: the next call is written and can be answered.
+        let next = Task { try await peer.call(.stop) }
+        await settle(until: { await far.written.count >= 2 }, "the next call was written")
+        next.cancel()
+        far.stop()
+        reading.cancel()
+    }
 }
