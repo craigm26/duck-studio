@@ -8,7 +8,9 @@ import Foundation
 /// person's, and it has never seen a real floor.
 ///
 /// THE RULE, FROM WHAT THE SIM KNOWS (the duck's pose, the ball's position):
-/// - turn toward the ball, harder the further off it is, up to the stick's turn limit;
+/// - turn toward the ball, harder the further off it is, up to the stick's turn limit, and when
+///   it is well off to one side or behind, turn on an arc (`arcForward`): the sim's walker cannot
+///   turn in place;
 /// - walk only when roughly facing it, slowing over the last stretch, never below the speed
 ///   the standing policy treats as standing (`DuckDrive.deadZone`), so "walking" always walks;
 /// - inside `reach`, stand still: the whole command is zero, which the walker is trained on.
@@ -23,6 +25,13 @@ public enum BallExpert {
     public static let facing = 0.6
     /// The last stretch before `reach` over which it slows.
     public static let slowing = 0.35
+    /// Forward speed while turning toward a ball that is off to one side or behind.
+    ///
+    /// THE SIM'S WALKER DOES NOT TURN IN PLACE. Measured on duckbench 2026-11-04, `alpha_walking`
+    /// (the policy the app's simulated duck walks with) turned 12 degrees in 3 s at vyaw 1.0 with
+    /// vx 0, and 95 degrees at vx 0.25. So the expert turns by walking an arc. The turn radius at
+    /// this speed (about 0.16 m) is inside `reach`, so the arc cannot orbit the ball.
+    public static let arcForward = 0.25
 
     public struct Style: Equatable, Sendable {
         public let speed: Double      // share of the stick's forward limit
@@ -55,9 +64,8 @@ public enum BallExpert {
         let off = remainder(atan2(dy, dx) - yaw, 2 * .pi)
         let vyaw = min(max(style.turnGain * off, -DuckDrive.maxTurn), DuckDrive.maxTurn)
         guard abs(off) < facing else {
-            // Turning in place: never a turn so slow the walker reads it as standing.
-            let turn = vyaw < 0 ? min(vyaw, -2 * DuckDrive.deadZone) : max(vyaw, 2 * DuckDrive.deadZone)
-            return DuckDrive.Twist(vx: 0, vy: 0, vyaw: turn)
+            // Turning on an arc at the full turn rate: the walker turns only while it walks.
+            return DuckDrive.Twist(vx: arcForward, vy: 0, vyaw: off < 0 ? -DuckDrive.maxTurn : DuckDrive.maxTurn)
         }
         let ease = min(1, (distance - reach) / slowing)
         let floor = 2 * DuckDrive.deadZone
