@@ -1,0 +1,49 @@
+{
+ "arch": "ducknet-s1",
+ "format": "safetensors",
+ "task": "walk to the ball",
+ "label": "fixture (random weights)",
+ "input": [
+  6,
+  88,
+  160
+ ],
+ "frame_offsets": [
+  0,
+  -4
+ ],
+ "chunk": 48,
+ "uses_state": false,
+ "trained_on": "sim",
+ "img_mean": [
+  0.5,
+  0.5,
+  0.5
+ ],
+ "img_std": [
+  0.25,
+  0.25,
+  0.25
+ ],
+ "act_mean": [
+  0.1,
+  0.0,
+  0.0
+ ],
+ "act_std": [
+  0.1,
+  0.05,
+  0.4
+ ],
+ "files": {
+  "model.safetensors": {
+   "sha256": "a3f296293084ecd29a935b36a6280beb29475e6b96106f492bcbfd5ba1402954",
+   "bytes": 4364856
+  },
+  "golden.json": {
+   "sha256": "fd89dfcd445e72fb1d581a475689b3d5d902dbffad5b691cec7a85e66e7d2a6b",
+   "bytes": 10958
+  }
+ },
+ "fixture": true
+}
