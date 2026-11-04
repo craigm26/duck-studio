@@ -63,12 +63,16 @@ public enum DreamWire {
     public static let okNewSession = "DA-0001"
     public static let unauthorized = "DA-1000"
     public static let warming = "DA-2000"
+    public static let malformed = "DA-4000"
 
     public static func headers(key: String, version: String) -> [String: String] {
         ["Authorization": "Bearer \(key)", "Accept": "application/json",
          "Content-Type": "application/json", "User-Agent": "microduck-studio/\(version)"]
     }
 
+    /// FRAMES ARE A LIST PER CAMERA ON THE WIRE. Dream Labs' "one JPEG per camera, never a list" is
+    /// about what a caller hands their Python client each tick; that client keeps the window itself
+    /// (`DreamFrameWindow` here) and sends it as a list, oldest first.
     public static func actBody(checkpoint: String, sessionID: String?, prompt: String,
                                frames: [String: [String]], state: [String: [Double]]) throws -> Data {
         var observation: [String: Any] = ["prompt": prompt]
@@ -94,10 +98,11 @@ public enum DreamWire {
         if code == okNewSession {
             throw DuckDream.ReadError.refused(DuckDream.Words.sessionRestarted)
         }
-        if code == warming, status["retryable"] as? Bool == true || reason == "pool_warming" {
-            throw DuckDream.ReadError.warming((status["retry_after_s"] as? NSNumber)?.doubleValue)
-        }
-        if code == unauthorized { throw DuckDream.ReadError.refused(DuckDream.Words.keyRefused) }
+        let after = (status["retry_after_s"] as? NSNumber)?.doubleValue
+        if code == warming, reason == "pool_warming" { throw DuckDream.ReadError.warming(after) }
+        if code == warming, status["retryable"] as? Bool == true { throw DuckDream.ReadError.busy(reason, after) }
+        if code == unauthorized { throw DuckDream.ReadError.refused(DuckDream.Words.keyProblem(reason)) }
+        if code == malformed, reason == "client_outdated" { throw DuckDream.ReadError.refused(DuckDream.Words.clientOutdated) }
         let name = status["name"] as? String ?? code
         throw DuckDream.ReadError.refused("Dream-1 refused the request: \(code) \(name)" + (reason.isEmpty ? "" : " (\(reason))"))
     }

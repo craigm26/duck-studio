@@ -182,10 +182,77 @@ final class DuckDreamTests: XCTestCase {
         await DreamPilot(checkpoint: "m", prompt: "walk", limit: 11)
             .run(on: duck, frames: { ["F"] }, events: { events.add($0) },
                  sleep: { clock.advance($0) }, now: { clock.now() })
-        XCTAssertTrue(events.all.contains(.waiting(DuckDream.Words.warming)))
+        XCTAssertTrue(events.all.contains(.waiting(DuckDream.Words.startingFor(0))))
         let sent = duck.sent
         XCTAssertTrue(sent[1].contains("robot.stop"), "held still while the model starts")
         XCTAssertTrue(sent.contains { $0.contains("robot.move") })
+    }
+
+    func testAColdStartIsWaitedOutAndDoesNotEatTheRun() async {
+        // Dream Labs: a model that is not running can take up to an hour to start.
+        let duck = FakeBridge()
+        duck.failActs = 30            // 30 asks at 10 s each: five minutes standing still
+        let clock = Clock(), events = Events()
+        await DreamPilot(checkpoint: "m", prompt: "walk", limit: 0.95)
+            .run(on: duck, frames: { ["F"] }, events: { events.add($0) },
+                 sleep: { clock.advance($0) }, now: { clock.now() })
+        let moves = duck.sent.filter { $0.contains("robot.move") }
+        XCTAssertEqual(moves.count, 10, "the whole second of driving, after the wait")
+        XCTAssertTrue(events.all.contains(.waiting(DuckDream.Words.startingFor(290))))
+        XCTAssertEqual(events.all.last, .ended(DuckDream.Words.timeUp))
+    }
+
+    func testAfterAPauseTheNextAskSaysTheDuckIsStanding() async {
+        let duck = FakeBridge()
+        let clock = Clock()
+        // Two rows, then busy once (no retry_after_s), then rows again.
+        await DreamPilot(checkpoint: "m", prompt: "walk", limit: 0.25)
+            .run(on: duck, frames: { ["F"] }, events: { _ in },
+                 sleep: { s in
+                     clock.advance(s)
+                     if clock.now().timeIntervalSince1970 > 0.15, clock.now().timeIntervalSince1970 < 0.25 { duck.failActs = 1 }
+                 }, now: { clock.now() })
+        let acts = duck.sent.filter { $0.contains("dream.act") }
+        XCTAssertGreaterThanOrEqual(acts.count, 3)
+        let p = try? JSONSerialization.jsonObject(with: Data(acts[2].utf8)) as? [String: Any]
+        let state = (p?["params"] as? [String: Any])?["state"] as? [String: [Double]]
+        XCTAssertEqual(state?["velocity"], [0, 0, 0], "the duck was stopped for the wait")
+    }
+
+    func testAModelThatNeverStartsIsGivenUpOnAfterAnHour() async {
+        let duck = FakeBridge()
+        duck.failActs = 10_000
+        let clock = Clock(), events = Events()
+        await DreamPilot(checkpoint: "m", prompt: "walk")
+            .run(on: duck, frames: { ["F"] }, events: { events.add($0) },
+                 sleep: { clock.advance($0) }, now: { clock.now() })
+        XCTAssertFalse(duck.sent.contains { $0.contains("robot.move") })
+        XCTAssertEqual(events.all.last, .ended(DuckDream.Words.gaveUpWaiting))
+        XCTAssertLessThanOrEqual(clock.now().timeIntervalSince1970, DreamPilot.waitLimit + 1)
+        XCTAssertTrue(duck.sent.suffix(2).first!.contains("robot.stop"))
+    }
+
+    func testEachChunkAfterTheFirstEasesInFromTheLastCommand() {
+        let last = DuckDrive.Twist(vx: 0.2, vy: 0, vyaw: 0)
+        let plan = Array(repeating: DuckDrive.Twist(vx: 0, vy: 0.4, vyaw: -0.8), count: 6)
+        let rows = DreamPilot.blended(plan, from: last)
+        XCTAssertEqual(rows[0].vx, 0.15, accuracy: 1e-9)
+        XCTAssertEqual(rows[1].vy, 0.2, accuracy: 1e-9)
+        XCTAssertEqual(rows[2].vyaw, -0.6, accuracy: 1e-9)
+        XCTAssertEqual(Array(rows[3...]), Array(plan[3...]), "the plan's own rows once eased in")
+    }
+
+    func testTheFirstChunkIsPlayedAsTheModelSaidAndTheSecondIsEased() async {
+        let duck = FakeBridge()
+        duck.chunk = #"{"actions":{"per_key":{"action.velocity":[[0.2,0,0],[0.2,0,0]]}},"session_id":"s"}"#
+        let clock = Clock()
+        await DreamPilot(checkpoint: "m", prompt: "walk", limit: 0.25)
+            .run(on: duck, frames: { ["F"] }, events: { _ in },
+                 sleep: { clock.advance($0) }, now: { clock.now() })
+        let moves = duck.sent.filter { $0.contains("robot.move") }.map(Self.twist)
+        XCTAssertEqual(moves.first, [0.2, 0, 0], "no motion to continue before the first chunk")
+        XCTAssertEqual(moves.count, 3)
+        XCTAssertEqual(moves[2], [0.2, 0, 0], "easing between equal commands changes nothing")
     }
 
     func testARefusalStopsTheDuckAndSaysWhy() async {

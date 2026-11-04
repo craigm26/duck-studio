@@ -84,6 +84,33 @@ final class DreamDirectTests: XCTestCase {
         } catch { XCTFail("\(error)") }
     }
 
+    private func refusal(_ reply: String) async -> DuckDream.ReadError? {
+        let fake = FakeDream()
+        fake.actReply = reply
+        do {
+            _ = try await DreamDirect(key: Self.key, version: "88", http: fake)
+                .act(checkpoint: "m", prompt: "x", frames: [:], state: [:], reset: true)
+            return nil
+        } catch { return error as? DuckDream.ReadError }
+    }
+
+    func testABusyGatewayIsNotAStartingModel() async {
+        for reason in ["rate_limited", "pool_full", "queue_timeout", "max_serves"] {
+            let e = await refusal(#"{"session_id":"","status":{"code":"DA-2000","reason":"\#(reason)","retryable":true,"retry_after_s":1.5}}"#)
+            XCTAssertEqual(e, .busy(reason, 1.5), reason)
+            XCTAssertNotEqual(e?.message, DuckDream.Words.warming)
+        }
+    }
+
+    func testEachKeyRefusalSaysWhatToDo() async {
+        let over = await refusal(#"{"status":{"code":"DA-1000","reason":"over_cap","retryable":false}}"#)
+        XCTAssertEqual(over, .refused(DuckDream.Words.keyOverCap))
+        let off = await refusal(#"{"status":{"code":"DA-1000","reason":"disabled","retryable":false}}"#)
+        XCTAssertEqual(off, .refused(DuckDream.Words.keyDisabled))
+        let old = await refusal(#"{"status":{"code":"DA-4000","name":"INVALID_REQUEST","reason":"client_outdated","retryable":false}}"#)
+        XCTAssertEqual(old, .refused(DuckDream.Words.clientOutdated))
+    }
+
     func testTheGatewaysKeyRefusalIsTheSameSentence() async {
         do {
             _ = try await DreamDirect(key: "dl_live_nopenope", version: "88", http: FakeDream())

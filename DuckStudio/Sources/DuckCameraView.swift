@@ -24,14 +24,15 @@ final class DuckCameraFeed: ObservableObject {
     /// The last card or row held still long enough to act on (`DuckCards.Watcher`).
     @Published private(set) var cardEvent: DuckCards.Watcher.Event?
 
-    /// Keep the last few pictures as small JPEGs for Dream-1 (`DreamRunModel`). Off unless a run asks.
+    /// Keep the last few pictures as small JPEGs for Dream-1 (`DreamRunModel`). Off unless a run asks;
+    /// each run starts an empty window, as Dream Labs' client does per episode.
     var keepsDreamFrames = false {
-        didSet { if !keepsDreamFrames { dreamFrames = [] } }
+        didSet { dreamFrames.clear() }
     }
-    private var dreamFrames: [String] = []
+    private var dreamFrames = DreamFrameWindow()
 
-    /// The head camera's newest frames for Dream-1, oldest first.
-    func dreamWindow() -> [String] { dreamFrames }
+    /// The head camera's newest frames for Dream-1, one per 0.2 s, oldest first.
+    func dreamWindow() -> [String] { dreamFrames.frames }
 
     private var task: Task<Void, Never>?
     private var finder: DuckCards.Finder?
@@ -75,7 +76,7 @@ final class DuckCameraFeed: ObservableObject {
                     self.problem = nil
                     if self.readCards { self.read(image) }
                     if self.keepsDreamFrames, let jpeg = Self.dreamJPEG(image) {
-                        self.dreamFrames = Array((self.dreamFrames + [jpeg]).suffix(DreamPilot.window))
+                        self.dreamFrames.add(jpeg, at: ProcessInfo.processInfo.systemUptime)
                     }
                     stamps.append(Date())
                     stamps = stamps.filter { Date().timeIntervalSince($0) < 3 }
@@ -117,8 +118,10 @@ final class DuckCameraFeed: ObservableObject {
         }
     }
 
-    /// One picture as Dream-1 is sent it: 320 by 176, JPEG, base64. The size Dream Labs says uploads fastest.
+    /// One picture as Dream-1 is sent it: faces blurred (`DreamFaceBlur`), 320 by 176, JPEG, base64.
+    /// The size Dream Labs says uploads fastest. Nil, and the frame is not sent, if blurring failed.
     nonisolated static func dreamJPEG(_ image: CGImage) -> String? {
+        guard let image = DreamFaceBlur.scrubbed(image) else { return nil }
         let width = 320, height = 176
         guard let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8,
                                       bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),

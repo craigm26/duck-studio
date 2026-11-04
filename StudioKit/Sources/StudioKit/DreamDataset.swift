@@ -9,7 +9,7 @@ import Foundation
 /// rate `DreamPilot` plays rows at. So a model trained on these answers rows the pilot can play.
 ///
 /// HELD TO DREAM LABS' OWN CHECKS, not to a reading of LeRobot: the tests here write a dataset, and
-/// `dream.datasets.validate_dataset` (dreamlabs-client 1.0.1) is what has to pass it. That is the
+/// `dream.datasets.validate_dataset` (dreamlabs-client 1.0.14) is what has to pass it. That is the
 /// check the Upload page runs in a browser before it sends anything.
 ///
 /// THIS FILE WRITES EVERYTHING BUT THE VIDEOS, which need the platform's encoder (`AVAssetWriter`,
@@ -25,6 +25,10 @@ public enum DreamDataset {
     public static let minimumRows = 48 * fps / 30 + 1
     /// LeRobot's episodes per chunk folder.
     public static let chunksSize = 1000
+    /// Dream Labs' longest task text, in characters.
+    public static let maxTaskLength = 512
+    /// Dream Labs' most recording in one dataset: 10 hours, counted as frames at their rate.
+    public static let maxHours = 10
 
     public struct Row: Equatable, Sendable {
         public let state: DuckDrive.Twist
@@ -40,6 +44,7 @@ public enum DreamDataset {
 
     public enum Refusal: Error, Equatable {
         case noEpisodes, emptyTask(Int), tooShort(Int, Int), tooMany
+        case taskTooLong(Int), taskHasControl(Int), tooManyHours
 
         public var message: String {
             switch self {
@@ -49,6 +54,12 @@ public enum DreamDataset {
                 return "Run \(i + 1) is \(n) steps; Dream Labs takes runs of at least \(DreamDataset.minimumRows) "
                     + "(about \(DreamDataset.minimumRows / DreamDataset.fps + 1) seconds). Delete it or record it again."
             case .tooMany: return "A dataset here holds at most \(DreamDataset.chunksSize) runs."
+            case .taskTooLong(let i):
+                return "Run \(i + 1)'s task is longer than Dream Labs takes (\(DreamDataset.maxTaskLength) characters). Say it shorter."
+            case .taskHasControl(let i):
+                return "Run \(i + 1)'s task holds a line break or a tab. Dream Labs takes one plain line."
+            case .tooManyHours:
+                return "Dream Labs takes at most \(DreamDataset.maxHours) hours of runs in one dataset. Export fewer runs."
             }
         }
     }
@@ -69,13 +80,26 @@ public enum DreamDataset {
         return seen
     }
 
+    /// What is wrong with one task text as Dream Labs reads it, or nil. `index` names the run.
+    public static func taskProblem(_ task: String, index: Int = 0) -> Refusal? {
+        if task.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return .emptyTask(index) }
+        // Dream Labs' rules exactly (shared/datasets/validation.py): length in code points, and
+        // only C0 controls and DEL refused, so a zero-width joiner in an emoji passes.
+        if task.unicodeScalars.count > maxTaskLength { return .taskTooLong(index) }
+        if task.unicodeScalars.contains(where: { $0.value < 0x20 || $0.value == 0x7F }) {
+            return .taskHasControl(index)
+        }
+        return nil
+    }
+
     public static func check(_ episodes: [Episode]) throws {
         if episodes.isEmpty { throw Refusal.noEpisodes }
         if episodes.count > chunksSize { throw Refusal.tooMany }
         for (i, e) in episodes.enumerated() {
-            if e.task.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { throw Refusal.emptyTask(i) }
+            if let problem = taskProblem(e.task, index: i) { throw problem }
             if e.rows.count < minimumRows { throw Refusal.tooShort(i, e.rows.count) }
         }
+        if episodes.reduce(0, { $0 + $1.rows.count }) > maxHours * 3600 * fps { throw Refusal.tooManyHours }
     }
 
     /// Every file of the dataset but the videos, by path inside the dataset's folder.
@@ -192,14 +216,23 @@ public enum DreamDataset {
         public static let stop = "End the run"
         public static let discard = "Delete the last run"
         public static let export = "Export for Dream Labs"
+        public static func notBlurred(_ n: Int) -> String {
+            "\(n) of these run\(n == 1 ? " was" : "s were") recorded before this app blurred faces, and "
+                + "\(n == 1 ? "is" : "are") in the export as recorded. If anyone was in view, do not "
+                + "upload this export; record those tasks again instead."
+        }
         public static func runs(_ n: Int, _ seconds: Double) -> String {
             String(format: "%d run%@, %.0f s recorded.", n, n == 1 ? "" : "s", seconds)
         }
         public static func recording(_ seconds: Double) -> String { String(format: "Recording, %.1f s.", seconds) }
         public static let howToUpload =
-            "On a computer, open platform.dreamlabs.ai, Fine-tuning. Under New configuration, choose this "
-          + "folder, then name the state part and the action part velocity (3 values each) and give the "
-          + "camera the role head. Then Upload data with the same folder, and start a job. Your fine-tuned "
-          + "model then appears in Dream-1 here."
+            "On a computer, unzip this, open platform.dreamlabs.ai, Fine-tuning. Under New configuration, "
+          + "choose the folder, then name the state part and the action part velocity (3 values each) and "
+          + "give the camera the role head. Check it before you save: Dream Labs cannot change or delete a "
+          + "configuration once it is registered. Then Upload data with the same folder and wait until it "
+          + "shows processed (a few minutes). Starting a job holds about $200 of prepaid Dream Labs credit "
+          + "and cannot be cancelled once queued; it takes about 7 to 8 hours (Dream Labs' figures, "
+          + "November 2026). Your fine-tuned model then appears in Dream-1 here. Its first run waits while "
+          + "Dream Labs starts it, which can take up to an hour."
     }
 }

@@ -13,13 +13,13 @@ final class SimHeadCameraFeed: ObservableObject, DreamFrameSource {
     @Published private(set) var running = false
     let unavailable: String?
 
-    var keepsDreamFrames = false { didSet { if !keepsDreamFrames { window = [] } } }
-    private var window: [String] = []
+    var keepsDreamFrames = false { didSet { window.clear() } }
+    private var window = DreamFrameWindow()
     private var task: Task<Void, Never>?
     private var renderer: AnyObject?
 
     var latestPicture: CGImage? { picture }
-    func dreamWindow() -> [String] { window }
+    func dreamWindow() -> [String] { window.frames }
 
     init() {
         if #available(iOS 18.0, macOS 15.0, *) {
@@ -53,7 +53,7 @@ final class SimHeadCameraFeed: ObservableObject, DreamFrameSource {
         guard let renderer = renderer as? SimHeadCameraRenderer, let image = await renderer.render(live) else { return }
         picture = image
         if keepsDreamFrames, let jpeg = DuckCameraFeed.dreamJPEG(image) {
-            window = Array((window + [jpeg]).suffix(DreamPilot.window))
+            window.add(jpeg, at: ProcessInfo.processInfo.systemUptime)
         }
     }
 }

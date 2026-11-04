@@ -4,12 +4,12 @@
 The app writes every file but the videos in StudioKit (DreamDatasetTests, with DREAM_DATASET_OUT set) and the
 videos with AVAssetWriter on a device. This gives a StudioKit-written dataset videos of the right count, size and
 rate with ffmpeg (unless it already has them), then runs `dream.datasets.validate_dataset` from dreamlabs-client
-1.0.1, the check Dream Labs' Upload page runs, against the duck's embodiment config.
+1.0.14, the check Dream Labs' Upload page runs, against the duck's embodiment config.
 
     DREAM_DATASET_OUT=/tmp/ds swift test --filter DreamDatasetTests      # in StudioKit
     ~/venvs/dreamval/bin/python scripts/check_dream_dataset.py /tmp/ds/microduck-test
 
-Needs: pip install "dreamlabs-client[datasets]==1.0.1", and ffmpeg on PATH.
+Needs: pip install "dreamlabs-client[datasets]==1.0.14", and ffmpeg on PATH.
 """
 import json
 import pathlib

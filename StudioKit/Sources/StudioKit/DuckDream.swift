@@ -136,7 +136,11 @@ public struct DuckDream: Equatable, Sendable, CustomStringConvertible, CustomDeb
 
     public enum ReadError: Error, Equatable {
         case refused(String)
+        /// The model is starting on Dream Labs' side (DA-2000 `pool_warming`): up to an hour.
         case warming(Double?)
+        /// Dream Labs is busy for another reason it says may pass (DA-2000 `rate_limited`,
+        /// `pool_full`, `queue_timeout`, `max_serves`): try again shortly.
+        case busy(String, Double?)
         case notADreamAnswer
 
         public var message: String {
@@ -144,6 +148,7 @@ public struct DuckDream: Equatable, Sendable, CustomStringConvertible, CustomDeb
             case .refused(let why): return why
             case .warming(let wait):
                 return wait.map { String(format: Words.warmingFor, $0) } ?? Words.warming
+            case .busy(let reason, _): return Words.busy(reason)
             case .notADreamAnswer: return Words.notADreamAnswer
             }
         }
@@ -217,6 +222,40 @@ public struct DuckDream: Equatable, Sendable, CustomStringConvertible, CustomDeb
         public static let simCameraNeedsNewerSystem =
             "The simulated head camera needs iOS 18 or macOS 15. On a real duck, its own camera works here."
         public static let keyRefused = "Dream Labs refused that key. Check it on platform.dreamlabs.ai and paste it again."
+        public static let keyOverCap =
+            "Dream Labs stopped this key at the account's monthly spending limit. Raise the limit on "
+          + "platform.dreamlabs.ai; requests work again about a minute later."
+        public static let keyDisabled = "Dream Labs has turned this key off. Make a new one on platform.dreamlabs.ai."
+        public static let keyNotEntitled = "This key's Dream Labs account may not run that model."
+        public static let clientOutdated =
+            "Dream Labs says this model needs a newer Dream client than this app speaks (client_outdated). "
+          + "Update Microduck Studio, or tell us at microduckstudio.com if you already have."
+        /// DA-1000 in the words that say what to do about it.
+        public static func keyProblem(_ reason: String) -> String {
+            switch reason {
+            case "over_cap": return keyOverCap
+            case "disabled": return keyDisabled
+            case "not_entitled": return keyNotEntitled
+            default: return keyRefused
+            }
+        }
+        public static func busy(_ reason: String) -> String {
+            switch reason {
+            case "rate_limited": return "Dream Labs asked this app to ask less often. Trying again."
+            case "pool_full", "max_serves", "queue_timeout":
+                return "Dream Labs has no free seat for this model right now (\(reason)). Trying again."
+            default: return "Dream Labs is busy" + (reason.isEmpty ? "" : " (\(reason))") + ". Trying again."
+            }
+        }
+        /// While a model starts: the duck stands still, and the wait does not count against the run.
+        public static func startingFor(_ waited: TimeInterval) -> String {
+            let minutes = Int(waited / 60)
+            return "The model is starting on Dream Labs' side. The first run of a model can wait up to an hour; "
+                + "the duck stands still meanwhile, and Stop ends the wait. "
+                + (minutes < 1 ? "Waiting." : "Waited \(minutes) min.")
+        }
+        public static let gaveUpWaiting =
+            "Dream Labs' model did not start within an hour. Try again later; the duck was told to stop."
         public static let sessionRestarted =
             "Dream Labs restarted the run on its side. Start it again from where the duck is now."
         public static let whatItIsHere =
@@ -281,8 +320,31 @@ public struct DreamPilot: Sendable {
     public static let rowsPerSecond = 10.0
     /// Rows played from each chunk of 48 before asking again.
     public static let horizon = 20
-    /// The longest one run lasts.
+    /// The longest one run drives. Time spent waiting for Dream Labs, standing still, is not counted.
     public static let defaultLimit: TimeInterval = 60
+    /// The longest a run waits, standing still, for a model to start or a seat to free. Dream Labs
+    /// says a model that is not running can take up to an hour to start.
+    public static let waitLimit: TimeInterval = 3600
+    /// How long to wait when Dream Labs says busy without saying for how long.
+    public static let busyWait: TimeInterval = 2
+    /// The least time between asks while waiting, whatever `retry_after_s` says (0 or less included).
+    public static let shortestWait: TimeInterval = 0.5
+    /// Rows of each chunk after the first that ease from the last command into the new plan. Dream
+    /// Labs: "The client doesn't smooth the change from one chunk to the next. Blend from your last
+    /// command into each new chunk over a few rows."
+    public static let blendRows = 3
+
+    /// A chunk's rows eased in from `last`: row i (of `blendRows`) is (i+1)/(blendRows+1) of the
+    /// way from `last` to the model's row, and every row after is the model's own.
+    public static func blended(_ rows: [DuckDrive.Twist], from last: DuckDrive.Twist) -> [DuckDrive.Twist] {
+        rows.enumerated().map { i, row in
+            guard i < blendRows else { return row }
+            let w = Double(i + 1) / Double(blendRows + 1)
+            return DuckDrive.Twist(vx: last.vx + (row.vx - last.vx) * w,
+                                   vy: last.vy + (row.vy - last.vy) * w,
+                                   vyaw: last.vyaw + (row.vyaw - last.vyaw) * w)
+        }
+    }
     /// Frames each camera sends, oldest first.
     public static let window = 9
 
@@ -319,44 +381,63 @@ public struct DreamPilot: Sendable {
                     now: @Sendable () -> Date = Date.init) async {
         let source: any DreamRows = rows ?? BridgeDreamRows(peer)
         let start = now()
+        // Standing still while Dream Labs starts the model is not driving: it is kept apart, so a
+        // first run on a new fine-tune can wait out a cold start and still drive its full limit.
+        var waited: TimeInterval = 0
+        func driven() -> TimeInterval { now().timeIntervalSince(start) - waited }
         var last = DuckDrive.Twist(vx: 0, vy: 0, vyaw: 0)
         var played = 0
         var first = true
-        var warmings = 0
         var said = DuckDream.Words.stopped
         do {
-            while now().timeIntervalSince(start) < limit {
+            while driven() < limit {
                 try Task.checkCancellation()
                 let window = Array(await frames().suffix(DreamPilot.window))
                 if window.isEmpty { said = DuckDream.Words.needsCamera; break }
                 await events(.asked)
                 let chunk: DuckDream.Chunk
+                let asked = now()
                 do {
                     chunk = try await source.act(
                         checkpoint: checkpoint, prompt: prompt,
                         frames: [DuckDream.cameraRole: window],
                         state: [DuckDream.part: [last.vx, last.vy, last.vyaw]], reset: first)
-                } catch DuckDream.ReadError.warming(let wait) where warmings < 6 {
-                    // A STARTING MODEL IS NOT A FAILURE. Hold still while it starts.
-                    warmings += 1
+                } catch let pause as DuckDream.ReadError {
+                    // A STARTING MODEL OR A BUSY GATEWAY IS NOT A FAILURE. Hold still and ask again.
+                    let wait: TimeInterval, line: String
+                    switch pause {
+                    case .warming(let after):
+                        wait = max(after ?? 10, DreamPilot.shortestWait)
+                        line = DuckDream.Words.startingFor(waited)
+                    case .busy(_, let after):
+                        wait = max(after ?? DreamPilot.busyWait, DreamPilot.shortestWait)
+                        line = pause.message
+                    default:
+                        throw pause
+                    }
+                    if waited + wait > DreamPilot.waitLimit { said = DuckDream.Words.gaveUpWaiting; break }
                     _ = try await peer.call(.stop)
-                    await events(.waiting(DuckDream.ReadError.warming(wait).message))
-                    try await sleep(wait ?? 10)
+                    // The duck is standing now: the next ask says so, and the next chunk eases from still.
+                    last = DuckDrive.Twist(vx: 0, vy: 0, vyaw: 0)
+                    await events(.waiting(line))
+                    try await sleep(wait)
+                    // The refused ask, the stop and the sleep: none of it was driving.
+                    waited += now().timeIntervalSince(asked)
                     continue
                 }
+                let rows = first ? chunk.rows : DreamPilot.blended(chunk.rows, from: last)
                 first = false
-                warmings = 0
-                for row in chunk.rows.prefix(DreamPilot.horizon) {
+                for row in rows.prefix(DreamPilot.horizon) {
                     try Task.checkCancellation()
-                    if now().timeIntervalSince(start) >= limit { break }
+                    if driven() >= limit { break }
                     last = DreamPilot.clamped(row)
                     try await peer.notify(.move(last))
                     played += 1
                     try await sleep(1 / DreamPilot.rowsPerSecond)
                 }
-                await events(.played(rows: played, seconds: now().timeIntervalSince(start)))
+                await events(.played(rows: played, seconds: driven()))
             }
-            if now().timeIntervalSince(start) >= limit { said = DuckDream.Words.timeUp }
+            if driven() >= limit { said = DuckDream.Words.timeUp }
         } catch is CancellationError {
             said = DuckDream.Words.stopped
         } catch let refusal as DuckDream.ReadError {
