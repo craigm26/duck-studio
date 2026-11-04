@@ -98,13 +98,13 @@ public enum DuckTalk {
                 return "Every number in this sequence came out of your sentence."
             case .understoodWithGuesses:
                 return "Read here on the phone, with no model. Where you did not say a speed or a "
-                     + "time, this used its own — those are listed below. Say the number and the "
+                     + "time, this used its own, listed below. Say the number and the "
                      + "guess goes away."
             case .notUnderstood:
                 return "This app could not read that as driving. On its own it understands "
-                     + "\(DuckTalk.vocabulary). A model can read the rest — Apple's on-device one, "
+                     + "\(DuckTalk.vocabulary). A model can read the rest (Apple's on-device one, "
                      + "one downloaded onto this phone, or anything on your network speaking the "
-                     + "OpenAI chat API — and you add one in Settings."
+                     + "OpenAI chat API), and you add one in Settings."
             }
         }
     }
@@ -212,13 +212,13 @@ public enum DuckTalk {
 
     public static func degreesAssumption(_ degrees: Double, seconds: Double) -> String {
         String(format: "\"%g degrees\" at %.2f rad/s is %.2f s of command. Whether the duck turns "
-             + "%g degrees is the policy's business — this app commands a rate, not an angle.",
+             + "%g degrees is the policy's business: this app commands a rate, not an angle.",
                degrees, DuckDrive.maxTurn, seconds, degrees)
     }
 
     public static func timeUnderstood(_ word: String, seconds: Double,
                                       saidSeconds: Bool) -> String {
-        String(format: "\"%@\"%@ — %.2f s of the bench's clock.", word,
+        String(format: "\"%@\"%@: %.2f s of the bench's clock.", word,
                saidSeconds ? "" : ", read as seconds", seconds)
     }
 
@@ -228,17 +228,17 @@ public enum DuckTalk {
     }
 
     public static func speedUnderstood(_ share: Double) -> String {
-        String(format: "Half speed — %.2f m/s forward, %.2f rad/s turning.",
+        String(format: "Half speed: %.2f m/s forward, %.2f rad/s turning.",
                DuckDrive.maxForward * share, DuckDrive.maxTurn * share)
     }
 
     public static func speedAssumed(_ go: String) -> String {
-        String(format: "You did not say how fast, so \"%@\" goes at the fastest this app sends — "
+        String(format: "You did not say how fast, so \"%@\" goes at the fastest this app sends, "
              + "%.2f m/s, which is a stick pushed all the way.", go, DuckDrive.maxForward)
     }
 
     public static var quicklyAssumed: String {
-        String(format: "\"quickly\" — already at the fastest this app sends, %.2f m/s.",
+        String(format: "\"quickly\" is already at the fastest this app sends, %.2f m/s.",
                DuckDrive.maxForward)
     }
 

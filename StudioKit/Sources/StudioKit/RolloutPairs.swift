@@ -369,7 +369,7 @@ public enum RolloutPreferenceWords {
              + "you can train a walker from, in Train on Hugging Face."
     }
     public static let finished =
-        "That is every pair in this set. Thank you — each choice is in the feedback log."
+        "That is every pair in this set. Thank you. Each choice is in the feedback log."
     public static let unreadable =
         "The recorded walkers that ship with the app could not be read, so there is nothing to "
       + "compare."

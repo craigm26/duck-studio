@@ -29,7 +29,7 @@ public enum PlanEditorWords {
     public static let routerHeading = "Router"
     public static let routerPlaceholder = "http://192.168.1.20:8771"
     public static let routerFooter =
-        "The router runs on a computer you own, at an address you type — this app has no "
+        "The router runs on a computer you own, at an address you type; this app has no "
       + "server of its own. Start it with duckbatch's scripts/route_server.py."
     public static let noRouter =
         "Type the router's address first. Without one there is nothing to propose steps."
@@ -59,13 +59,13 @@ public enum PlanEditorWords {
     }
     /// The flag: the router was unsure, by its own number.
     public static func unsure(_ head: DuckIntentPlan.Head, confidence: Double) -> String {
-        String(format: "Check the %@ — the router was unsure (%.0f%%).",
+        String(format: "Check the %@: the router was unsure (%.0f%%).",
                headName(head).lowercased(), confidence * 100)
     }
     public static let refusal = "The router thinks this is not something the duck can do."
     public static let discard = "Discard step"
     public static let restore = "Keep step"
-    public static let discarded = "Discarded — not sent, and recorded as rejected."
+    public static let discarded = "Discarded: not sent, and recorded as rejected."
     public static let edited = "Changed by you."
     public static func holdFor(_ seconds: Double) -> String {
         String(format: "Hold for %.1f s", seconds)
@@ -122,7 +122,7 @@ public enum PlanEditorWords {
     public static let sourceRouter = "The router"
     public static let sourceModel = "A model"
     public static func usingModel(_ name: String) -> String {
-        "\(name) writes the whole plan — repeats and durations included — from duckbatch's p002 "
+        "\(name) writes the whole plan, repeats and durations included, from duckbatch's p002 "
       + "prompt. Choose which model in Settings. Apple's and a downloaded model run on this "
       + "phone; a server address runs wherever it points."
     }

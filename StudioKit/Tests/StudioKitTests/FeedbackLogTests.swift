@@ -46,7 +46,7 @@ final class FeedbackLogTests: XCTestCase {
 
     func testThePlanEditorSaysHowUnsureTheRouterWasInItsOwnNumber() {
         XCTAssertEqual(PlanEditorWords.unsure(.head, confidence: 0.52),
-                       "Check the head — the router was unsure (52%).")
+                       "Check the head: the router was unsure (52%).")
         XCTAssertEqual(PlanEditorWords.flaggedLeft(1),
                        "1 label is still flagged. You can run anyway; it will go as proposed.")
         XCTAssertTrue(PlanEditorWords.routerFooter.contains("no server of its own"))
