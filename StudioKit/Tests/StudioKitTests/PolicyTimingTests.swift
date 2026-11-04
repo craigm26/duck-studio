@@ -39,7 +39,7 @@ final class PolicyTimingTests: XCTestCase {
                               jointPositions: DuckModel.homePose,
                               jointVelocities: [Double](repeating: 0.3, count: DuckModel.jointCount),
                               lastAction: [Float](repeating: 0.05, count: DuckModel.policyJointCount),
-                              command: DuckCommand(twist: (0.2, 0, 0.3))),
+                              command: DuckKit.DuckCommand(twist: (0.2, 0, 0.3))),
     ]
 
     func testATimingNamesItsNetworkAndItsDevice() throws {

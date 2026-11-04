@@ -45,15 +45,15 @@ public enum ObservationPreset: String, CaseIterable, Identifiable, Sendable {
         case .standing:
             return .build(gyro: [0, 0, 0], gravity: Self.level,
                           jointPositions: DuckModel.homePose, jointVelocities: still,
-                          lastAction: noAction, command: DuckCommand(twist: (0, 0, 0)))
+                          lastAction: noAction, command: DuckKit.DuckCommand(twist: (0, 0, 0)))
         case .walking:
             return .build(gyro: [0, 0, 0], gravity: Self.level,
                           jointPositions: DuckModel.homePose, jointVelocities: still,
-                          lastAction: noAction, command: DuckCommand(twist: (0.15, 0, 0)))
+                          lastAction: noAction, command: DuckKit.DuckCommand(twist: (0.15, 0, 0)))
         case .turning:
             return .build(gyro: [0, 0, 0], gravity: Self.level,
                           jointPositions: DuckModel.homePose, jointVelocities: still,
-                          lastAction: noAction, command: DuckCommand(twist: (0, 0, 1.0)))
+                          lastAction: noAction, command: DuckKit.DuckCommand(twist: (0, 0, 1.0)))
         }
     }
 

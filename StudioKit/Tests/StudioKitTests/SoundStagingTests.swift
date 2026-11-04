@@ -41,7 +41,7 @@ final class SoundStagingTests: XCTestCase {
     /// not reach it, and drawing past one shows hardware doing what it would
     /// refuse to do.
     func testAHeadAngleCannotBeDrawnPastItsStop() throws {
-        let absurd = DuckCommand(twist: (0, 0, 0), head: (9, 9, 9, 9),
+        let absurd = DuckKit.DuckCommand(twist: (0, 0, 0), head: (9, 9, 9, 9),
                                  bodyZ: 0, bodyRoll: 0, bodyPitch: 0)
         let stance = SoundStaging.stance(.init(command: absurd, mouth: 0.5),
                                          legs: try standingLegs())
@@ -84,7 +84,7 @@ final class SoundStagingTests: XCTestCase {
     /// A head sweep must not make the duck think it is walking — the runtime
     /// reads the twist alone, and this is the case that rule exists for.
     func testAHeadSweepDoesNotStartAWalk() {
-        let sweeping = DuckCommand(twist: (0, 0, 0), head: (0, 0, 0.9, 0.3),
+        let sweeping = DuckKit.DuckCommand(twist: (0, 0, 0), head: (0, 0, 0.9, 0.3),
                                    bodyZ: 0, bodyRoll: 0, bodyPitch: 0)
         XCTAssertEqual(SoundStaging.gait(for: .init(command: sweeping, mouth: 0)), .stand)
     }
@@ -102,7 +102,7 @@ final class SoundStagingTests: XCTestCase {
     /// THE FLOOR IS WHERE THE FLOOR IS. A settle deeper than the duck is tall
     /// would put the feet under it.
     func testASettleCannotPushTheDuckThroughTheFloor() throws {
-        let sunk = DuckCommand(twist: (0, 0, 0), head: (0, 0, 0, 0),
+        let sunk = DuckKit.DuckCommand(twist: (0, 0, 0), head: (0, 0, 0, 0),
                                bodyZ: -10, bodyRoll: 0, bodyPitch: 0)
         let stance = SoundStaging.stance(.init(command: sunk, mouth: 0),
                                          legs: try standingLegs())
