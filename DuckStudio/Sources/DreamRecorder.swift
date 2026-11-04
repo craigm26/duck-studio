@@ -16,7 +16,11 @@ import StudioKit
 /// Export, and then only to where the person sends it.
 @MainActor
 final class DreamRecorder: ObservableObject {
-    struct Saved: Codable { let task: String; let rows: [[Double]]; let video: String }
+    struct Saved: Codable {
+        let task: String; let rows: [[Double]]; let video: String
+        /// True for runs recorded with faces blurred (build 89 on); nil for older runs, which were not.
+        var facesBlurred: Bool?
+    }
 
     @Published private(set) var takes: [Saved] = []
     @Published private(set) var recording = false
@@ -43,6 +47,10 @@ final class DreamRecorder: ObservableObject {
 
     func start(task name: String, peer: any DuckPeer, source: DreamFrameSource) {
         guard !recording else { return }
+        if let problem = DreamDataset.taskProblem(name) {
+            line = problem.message
+            return
+        }
         let video = "take-\(UUID().uuidString).mp4"
         guard let writer = DreamTakeWriter(url: folder.appendingPathComponent(video)) else {
             line = DuckDream.Words.cannotRecord
@@ -55,11 +63,15 @@ final class DreamRecorder: ObservableObject {
         task = Task { [weak self] in
             var take = DreamDataset.Take(task: name)
             let began = Date()
+            var ticks = 0
             while !Task.isCancelled {
-                let due = began.addingTimeInterval(Double(take.rows.count + 1) * period)
-                if let picture = source.latestPicture {
-                    take.tick(command: await peer.lastCommand())
-                    writer.append(picture, frame: take.rows.count - 1)
+                ticks += 1
+                let due = began.addingTimeInterval(Double(ticks) * period)
+                // A ROW ONLY WITH ITS PICTURE. Dream Labs pairs row n with video frame n, so a
+                // frame the writer could not take drops its row too, never shifting the rest.
+                let command = await peer.lastCommand()
+                if let picture = source.latestPicture, writer.append(picture, frame: take.rows.count) {
+                    take.tick(command: command)
                     self?.seconds = take.seconds
                 }
                 let wait = due.timeIntervalSinceNow
@@ -82,7 +94,7 @@ final class DreamRecorder: ObservableObject {
         takes.append(Saved(task: take.task,
                            rows: take.rows.map { [$0.state.vx, $0.state.vy, $0.state.vyaw,
                                                   $0.action.vx, $0.action.vy, $0.action.vyaw] },
-                           video: video))
+                           video: video, facesBlurred: true))
         save()
     }
 
@@ -127,6 +139,8 @@ final class DreamRecorder: ObservableObject {
                 try FileManager.default.copyItem(at: folder.appendingPathComponent(t.video), to: url)
             }
             exported = try Self.zip(root, named: name, into: staging)
+            let unblurred = takes.filter { $0.facesBlurred != true }.count
+            if unblurred > 0 { line = DreamDataset.Words.notBlurred(unblurred) }
         } catch let refusal as DreamDataset.Refusal {
             line = refusal.message
         } catch {
@@ -184,12 +198,22 @@ final class DreamTakeWriter: @unchecked Sendable {
         self.writer = writer
     }
 
-    /// The picture for frame `frame`, scaled to Dream-1's size; its time is frame / fps exactly.
-    func append(_ picture: CGImage, frame: Int) {
-        guard input.isReadyForMoreMediaData, let pool = adaptor.pixelBufferPool else { return }
+    private var lastPicture: CGImage?
+    private var lastScrubbed: CGImage?
+
+    /// The picture for frame `frame`, faces blurred (`DreamFaceBlur`) and scaled to Dream-1's size;
+    /// its time is frame / fps exactly. Whether the writer took it.
+    func append(_ picture: CGImage, frame: Int) -> Bool {
+        guard input.isReadyForMoreMediaData, let pool = adaptor.pixelBufferPool else { return false }
+        // The camera gives a new picture about four times a second and this asks ten: blur each once.
+        if picture !== lastPicture {
+            lastPicture = picture
+            lastScrubbed = DreamFaceBlur.scrubbed(picture)
+        }
+        guard let clean = lastScrubbed else { return false }
         var buffer: CVPixelBuffer?
         CVPixelBufferPoolCreatePixelBuffer(nil, pool, &buffer)
-        guard let buffer else { return }
+        guard let buffer else { return false }
         CVPixelBufferLockBaseAddress(buffer, [])
         if let context = CGContext(data: CVPixelBufferGetBaseAddress(buffer), width: DreamDataset.width,
                                    height: DreamDataset.height, bitsPerComponent: 8,
@@ -197,10 +221,11 @@ final class DreamTakeWriter: @unchecked Sendable {
                                    space: CGColorSpaceCreateDeviceRGB(),
                                    bitmapInfo: CGImageAlphaInfo.noneSkipFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue) {
             context.interpolationQuality = .medium
-            context.draw(picture, in: CGRect(x: 0, y: 0, width: DreamDataset.width, height: DreamDataset.height))
+            context.draw(clean, in: CGRect(x: 0, y: 0, width: DreamDataset.width, height: DreamDataset.height))
         }
         CVPixelBufferUnlockBaseAddress(buffer, [])
-        adaptor.append(buffer, withPresentationTime: CMTime(value: CMTimeValue(frame), timescale: CMTimeScale(DreamDataset.fps)))
+        return adaptor.append(buffer, withPresentationTime: CMTime(value: CMTimeValue(frame),
+                                                                   timescale: CMTimeScale(DreamDataset.fps)))
     }
 
     func finish() async {

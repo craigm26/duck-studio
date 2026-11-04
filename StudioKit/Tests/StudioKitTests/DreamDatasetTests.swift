@@ -32,6 +32,30 @@ final class DreamDatasetTests: XCTestCase {
         XCTAssertEqual(DreamDataset.minimumRows, 17)
     }
 
+    func testTaskTextIsHeldToDreamLabsRules() {
+        XCTAssertNil(DreamDataset.taskProblem("walk to the red mat"))
+        XCTAssertNil(DreamDataset.taskProblem(String(repeating: "a", count: 512)))
+        XCTAssertEqual(DreamDataset.taskProblem(String(repeating: "a", count: 513), index: 2), .taskTooLong(2))
+        XCTAssertEqual(DreamDataset.taskProblem("walk\nthen stop"), .taskHasControl(0))
+        XCTAssertEqual(DreamDataset.taskProblem("walk\tthere"), .taskHasControl(0))
+        XCTAssertNil(DreamDataset.taskProblem("walk to the 👩\u{200D}🚀 mat"), "a zero-width joiner is not a control")
+        XCTAssertEqual(DreamDataset.taskProblem(String(repeating: "é", count: 300).decomposedStringWithCanonicalMapping),
+                       .taskTooLong(0), "counted in code points, as Dream Labs counts")
+        XCTAssertThrowsError(try DreamDataset.files([take("walk\nstop", 40).episode])) {
+            XCTAssertEqual($0 as? DreamDataset.Refusal, .taskHasControl(0))
+        }
+    }
+
+    func testTenHoursIsTheMostOneDatasetHolds() {
+        let row = DreamDataset.Row(state: .still, action: .still)
+        let hour = DreamDataset.Episode(task: "walk", rows: Array(repeating: row, count: 3600 * DreamDataset.fps))
+        XCTAssertNoThrow(try DreamDataset.check(Array(repeating: hour, count: 10)))
+        let over = DreamDataset.Episode(task: "walk", rows: Array(repeating: row, count: DreamDataset.minimumRows))
+        XCTAssertThrowsError(try DreamDataset.check(Array(repeating: hour, count: 10) + [over])) {
+            XCTAssertEqual($0 as? DreamDataset.Refusal, .tooManyHours)
+        }
+    }
+
     func testTheLayoutIsLeRobots() throws {
         let files = try DreamDataset.files([take("walk to the red mat", 40).episode, take("turn left", 25).episode,
                                             take("walk to the red mat", 30).episode])
