@@ -42,7 +42,8 @@ final class BallExpertTests: XCTestCase {
         XCTAssertEqual(ahead.vx, DuckDrive.maxForward, accuracy: 1e-9)
         XCTAssertEqual(ahead.vyaw, 0, accuracy: 1e-9)
         let behind = BallExpert.command(x: 0, y: 0, yaw: 0, bx: -1, by: 0.01, t: 0)
-        XCTAssertEqual(behind.vx, 0, "turns in place before walking")
+        XCTAssertEqual(behind.vx, BallExpert.arcForward, "turns on an arc: the sim's walker cannot turn in place")
+        XCTAssertEqual(behind.vyaw, DuckDrive.maxTurn)
         XCTAssertGreaterThan(behind.vyaw, 0, "ball slightly to the left behind: turns left")
     }
 
@@ -52,5 +53,32 @@ final class BallExpertTests: XCTestCase {
         var a = SplitMix64(seed: 0)
         XCTAssertEqual(a.next(), Double(UInt64(0xE220_A839_7B1D_CDAF) >> 11) / 9007199254740992.0,
                        "SplitMix64's published first output for seed 0")
+    }
+
+    /// The Pi-side recorder (scripts/record_ball_takes.py) carries a port of this expert. The
+    /// recorded takes are only this expert's if the two decide identically.
+    func testThePythonPortDecidesExactlyAsThisDoes() throws {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "Fixtures/ball-expert-vectors", withExtension: "json"))
+        let file = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        let styles = try XCTUnwrap(file["styles"] as? [String: [String: Double]])
+        for (key, s) in styles {
+            let mine = BallExpert.Style(seed: UInt64(key)!)
+            XCTAssertEqual(mine.speed, s["speed"]!, accuracy: 1e-12)
+            XCTAssertEqual(mine.turnGain, s["turnGain"]!, accuracy: 1e-12)
+            XCTAssertEqual(mine.weave, s["weave"]!, accuracy: 1e-12)
+            XCTAssertEqual(mine.weavePeriod, s["weavePeriod"]!, accuracy: 1e-12)
+        }
+        let cases = try XCTUnwrap(file["cases"] as? [[String: Any]])
+        XCTAssertGreaterThan(cases.count, 60)
+        for c in cases {
+            func d(_ k: String) -> Double { (c[k] as? NSNumber)?.doubleValue ?? .nan }
+            let seed = (c["styleSeed"] as? NSNumber)?.uint64Value ?? 0
+            let style = seed == 0 ? BallExpert.Style.plain : BallExpert.Style(seed: seed)
+            let got = BallExpert.command(x: d("x"), y: d("y"), yaw: d("yaw"), bx: d("bx"), by: d("by"), t: d("t"), style: style)
+            let want = (c["command"] as? [NSNumber])!.map(\.doubleValue)
+            XCTAssertEqual(got.vx, want[0], accuracy: 1e-12)
+            XCTAssertEqual(got.vy, want[1], accuracy: 1e-12)
+            XCTAssertEqual(got.vyaw, want[2], accuracy: 1e-12)
+        }
     }
 }
