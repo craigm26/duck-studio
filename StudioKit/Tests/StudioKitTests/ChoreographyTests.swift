@@ -720,7 +720,7 @@ final class ChoreographyTests: XCTestCase {
         XCTAssertThrowsError(try Score.holding(.stop, on: ada, from: 0, for: 1)) { error in
             XCTAssertEqual(error as? Choreography.Problem, .notSustainable(.stop))
         }
-        XCTAssertThrowsError(try Score.holding(.look(.level), on: ada, from: 0, for: 1))
+        XCTAssertThrowsError(try Score.holding(.look(.ahead), on: ada, from: 0, for: 1))
     }
 
     func testAHoldNeedsARealRateAndARealLength() {

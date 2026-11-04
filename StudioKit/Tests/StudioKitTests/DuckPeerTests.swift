@@ -383,7 +383,7 @@ final class DuckPeerTests: XCTestCase {
     func testAPeerRefusesAMethodItsLinkDoesNotCarry() async {
         let peer = benchPeer()
         do {
-            _ = try await peer.call(.look(.level))
+            _ = try await peer.call(.look(.ahead))
             XCTFail("A bench answered robot.look")
         } catch {
             XCTAssertEqual(error as? DuckCall.Misuse, .outOfReach(.look, .bench))

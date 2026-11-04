@@ -255,7 +255,7 @@ public enum SearchWords {
                 let removed = before - handles.count
                 notes.append(removed == 0
                     ? "\"\(word)\" was already held \(where_)."
-                    : "\(word) held \(where_) — "
+                    : "\(word) held \(where_): "
                     + "\(removed) handle\(removed == 1 ? "" : "s") removed.")
 
             case .free(let word, let at, let degrees):
@@ -286,7 +286,7 @@ public enum SearchWords {
                     handles.append(handle)
                     added += 1
                 }
-                notes.append(String(format: "%@ free to move ±%.0f° at %@ — %d handle%@ added.",
+                notes.append(String(format: "%@ free to move ±%.0f° at %@: %d handle%@ added.",
                                     word, room, moment(found.index, found.time), added,
                                     added == 1 ? "" : "s"))
 
@@ -353,25 +353,25 @@ public enum SearchWords {
     // MARK: - the sentences
 
     public static let nothingWasRead =
-        "Nothing in that changed the search. Try naming a part and a moment — \"hold the hips in "
+        "Nothing in that changed the search. Try naming a part and a moment: \"hold the hips in "
       + "the second pose\", \"let the left leg move 5° at the launch\"."
 
     public static let termWeightsAreNotYours =
         "A weight was asked for and none was set. There is no reward to weigh here: the score is "
       + "the bench's own measurement of one cell, and the app is not going to invent a second one "
       + "from a sentence. On the policy search the weights are read out of Pollen's own training "
-      + "config for the same reason — a search optimising a second copy of them would be climbing "
+      + "config for the same reason: a search optimising a second copy of them would be climbing "
       + "a hill the rest of the app cannot see."
 
     public static let freeNeedsAMoment =
         "Freeing a part needs a moment as well as a name: a handle is one keyframe's pose, not "
-      + "the whole move's. Say which pose — \"let the left leg move 5° at 0.42 s\" — and it "
+      + "the whole move's. Say which pose (\"let the left leg move 5° at 0.42 s\") and it "
       + "lands on that keyframe."
 
     /// Apple's on-device path, on both screens.
     public static func appleHandsBackOneValue(_ name: String) -> String {
         "\(name) hands back one typed value, which is the shape it guarantees. A search change is "
-      + "a list — hold this, free that, ten degrees — and there is no typed shape here for a "
+      + "a list (hold this, free that, ten degrees), and there is no typed shape here for a "
       + "list, the same reason the motion editor asks a server for its edits. Add a server or "
       + "download a model onto this phone; every number either one asks for is checked here "
       + "afterwards."
