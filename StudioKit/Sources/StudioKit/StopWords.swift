@@ -51,7 +51,7 @@ public struct StopWords: Equatable, Sendable {
     }
 
     /// The text as folded whole words: lowercased, accents gone, split on anything that is not
-    /// a letter or a digit. `DuckCommandMatcher` reads sentences through the same function, so
+    /// a letter or a digit. `DuckOrderMatcher` reads sentences through the same function, so
     /// what counts as a word cannot differ between the two.
     public static func tokens(_ text: String) -> [String] {
         let folded = text.folding(options: [.caseInsensitive, .diacriticInsensitive],

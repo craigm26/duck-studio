@@ -2,12 +2,12 @@ import XCTest
 import DuckKit
 @testable import StudioKit
 
-final class DuckCommandMatcherTests: XCTestCase {
+final class DuckOrderMatcherTests: XCTestCase {
 
     let skills = ["kick_left", "kick_right", "roulade", "sit_toggle", "happy", "pick_up"]
 
-    func m(_ s: String) -> StudioKit.DuckCommand? {
-        DuckCommandMatcher.match(s, skills: skills, names: ["Puddle"])
+    func m(_ s: String) -> StudioKit.DuckOrder? {
+        DuckOrderMatcher.match(s, skills: skills, names: ["Puddle"])
     }
 
     func testStop() {
@@ -37,9 +37,9 @@ final class DuckCommandMatcherTests: XCTestCase {
         // Two kicks: "kick" alone is a guess, so nil.
         XCTAssertNil(m("kick"))
         // Not on this duck's list.
-        XCTAssertNil(DuckCommandMatcher.match("roulade", skills: ["kick_left"]))
+        XCTAssertNil(DuckOrderMatcher.match("roulade", skills: ["kick_left"]))
         // sit_toggle is read only as sit or stand.
-        XCTAssertNil(DuckCommandMatcher.match("sit toggle", skills: ["sit_toggle"]))
+        XCTAssertNil(DuckOrderMatcher.match("sit toggle", skills: ["sit_toggle"]))
     }
 
     func testSounds() {

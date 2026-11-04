@@ -18,8 +18,8 @@ final class NoEmDashTests: XCTestCase {
     /// Files that must have none, whether or not they declare a Words enum.
     static let strict: Set<String> = [
         "Onboarding.swift", "ScreenHierarchy.swift", "FirstRun.swift", "Provenance.swift",
-        "Learn.swift", "DuckTalk.swift", "DuckCommand.swift", "StopPath.swift",
-        "StopWords.swift", "DuckCommandMatcher.swift", "ControlArbiter.swift",
+        "Learn.swift", "DuckTalk.swift", "DuckOrder.swift", "StopPath.swift",
+        "StopWords.swift", "DuckOrderMatcher.swift", "ControlArbiter.swift",
     ]
 
     /// Em-dashes inside string literals, per file, on 2026-11-04.

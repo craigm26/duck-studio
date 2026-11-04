@@ -20,7 +20,9 @@ import Foundation
 ///   reconnect, a return to the foreground or a tick after a stop starts nothing.
 /// - LEAVING THE FOREGROUND ENDS EVERY RUN, except one an intent started that holds a Live
 ///   Activity. That one keeps going while the app process runs and still ends the moment the
-///   connection drops.
+///   connection drops. A start that arrives while the app is already off screen (Siri, a
+///   Control) is REFUSED unless it holds a Live Activity: the `.background` that would have
+///   ended it has already passed, so nothing else would.
 public struct ControlArbiter: Equatable, Sendable {
 
     /// The top switch.
@@ -128,8 +130,10 @@ public struct ControlArbiter: Equatable, Sendable {
         }
         public static let connectionLost = "Stopped. The connection to the duck dropped."
         public static let leftForeground = "Stopped when the app left the screen."
+        public static let notOnScreen = "Nothing started, because the app is not on screen. Open it to start this."
 
-        public static let all: [String] = [tookOver, capped(30), capped(60), connectionLost, leftForeground]
+        public static let all: [String] = [tookOver, capped(30), capped(60), connectionLost, leftForeground,
+                                           notOnScreen]
     }
 
     public private(set) var mode: Mode
@@ -147,6 +151,12 @@ public struct ControlArbiter: Equatable, Sendable {
     public mutating func handle(_ event: Event, at now: Date) -> Decision {
         switch event {
         case .start(let kind, let duck, let owner):
+            // Off screen, only a run with a Live Activity may begin: anything else would run
+            // with nothing left to end it. Refused before anything else, so the latch stays
+            // shut and whatever is running keeps its own rules.
+            if !inForeground, owner != .intentWithLiveActivity {
+                return Decision(effects: [.caption(Words.notOnScreen)], passInput: false)
+            }
             // A person's own action: the one place a run begins, and so the one place the latch
             // reopens. Whatever ran before is stopped first; two runs never share the duck.
             var effects: [Effect] = []

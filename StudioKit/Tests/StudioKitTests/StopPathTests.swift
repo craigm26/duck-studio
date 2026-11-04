@@ -11,7 +11,7 @@ final class StopTestDuck: DuckPeer, @unchecked Sendable {
     private let lock = NSLock()
     private var _sent: [String] = []
     private var refusals: [DuckMethod: [String]] = [:]
-    private var stopGate: CheckedContinuation<Void, Never>?
+    private var stopGates: [CheckedContinuation<Void, Never>] = []
     private var holdStop = false
     /// Methods whose calls never answer until the caller is cancelled.
     var hang: Set<DuckMethod> = []
@@ -27,8 +27,8 @@ final class StopTestDuck: DuckPeer, @unchecked Sendable {
     /// Keep `robot.stop` waiting for its answer until `release()`.
     func holdStopAnswers() { lock.lock(); holdStop = true; lock.unlock() }
     func release() {
-        lock.lock(); holdStop = false; let g = stopGate; stopGate = nil; lock.unlock()
-        g?.resume()
+        lock.lock(); holdStop = false; let gs = stopGates; stopGates = []; lock.unlock()
+        for g in gs { g.resume() }
     }
 
     private func record(_ c: DuckCall) {
@@ -40,7 +40,7 @@ final class StopTestDuck: DuckPeer, @unchecked Sendable {
         record(c)
         if c.method == .stop {
             lock.lock(); let hold = holdStop; lock.unlock()
-            if hold { await withCheckedContinuation { g in lock.lock(); stopGate = g; lock.unlock() } }
+            if hold { await withCheckedContinuation { g in lock.lock(); stopGates.append(g); lock.unlock() } }
         }
         if hang.contains(c.method) {
             let box = Box()
@@ -52,6 +52,11 @@ final class StopTestDuck: DuckPeer, @unchecked Sendable {
         lock.lock()
         let reason = refusals[c.method]?.isEmpty == false ? refusals[c.method]!.removeFirst() : nil
         lock.unlock()
+        // robotd answers robot.look with a LookResult (the joints it chose), never `accepted`.
+        if c.method == .look {
+            let look = #"{"head":{"neck_pitch":0,"head_pitch":-0.2,"head_yaw":0,"head_roll":0},"clamped":false}"#
+            return DuckReply(id: 1, result: Data(look.utf8), failure: nil)
+        }
         let body = reason.map { #"{"accepted":false,"reason":"\#($0)"}"# } ?? #"{"accepted":true}"#
         return DuckReply(id: 1, result: Data(body.utf8), failure: nil)
     }
@@ -94,7 +99,7 @@ final class StopPathTests: XCTestCase {
             .filter { $0.hasPrefix("import ") || $0.hasPrefix("@testable import ") || $0.hasPrefix("@_exported import ") }
         XCTAssertEqual(imports, ["import Foundation"], "StopPath imports Foundation and nothing else")
         for name in ["DreamPilot", "DreamRows", "Planner", "PhoneModel", "ModelEndpoint", "DuckTalk",
-                     "FoundationModels", "LanguageModel", "DuckCommand", "await self", "Dream"] {
+                     "FoundationModels", "LanguageModel", "DuckOrder", "await self", "Dream"] {
             XCTAssertFalse(text.contains(name), "StopPath must not name \(name)")
         }
     }
@@ -153,6 +158,62 @@ final class StopPathTests: XCTestCase {
         XCTAssertFalse(path.admits)
     }
 
+    /// A robot.stop that never answers (a half-open link) must not silence later presses.
+    func testAnUnansweredStopDoesNotSilenceALaterPress() async {
+        let duck = StopTestDuck()
+        duck.holdStopAnswers()
+        let clock = StopClock()
+        let path = StopPath(peer: duck, now: { clock.now })
+        _ = path.stop()
+        try? await Task.sleep(nanoseconds: 30_000_000)
+        XCTAssertEqual(duck.stops, 1)
+        clock.advance(StopPath.resendAfter + 0.01)
+        _ = path.stop()
+        try? await Task.sleep(nanoseconds: 30_000_000)
+        XCTAssertEqual(duck.stops, 2, "past the window, a press writes robot.stop again")
+        duck.release()
+    }
+
+    /// The answer is held, the duck is re-attached on a new connection, and Stop must reach it.
+    func testAStopAfterAReattachIsWrittenToTheNewDuck() async {
+        let old = StopTestDuck()
+        old.holdStopAnswers()
+        let path = StopPath(peer: old)
+        _ = path.stop()
+        try? await Task.sleep(nanoseconds: 30_000_000)
+        let fresh = StopTestDuck()
+        path.attach(fresh)
+        let pressed = path.stop()
+        await pressed.wire?.value
+        XCTAssertEqual(fresh.sent, ["robot.stop"], "the new connection hears the stop at once")
+        XCTAssertEqual(old.stops, 1)
+        old.release()
+    }
+
+    /// A stop that lands while a caption is being said keeps the step behind it off the wire.
+    func testAStopDuringTheCaptionKeepsTheStepOffTheWire() async {
+        let duck = StopTestDuck()
+        let path = StopPath(peer: duck)
+        let ended = await DuckOrderRunner.run(.skill("kick_left"), ready: DuckOrder.Readiness(driving: true, homed: true),
+                                              on: duck, stopPath: path,
+                                              said: { _ in path.stop() }, sleep: { _ in })
+        XCTAssertEqual(ended, .stopped)
+        try? await Task.sleep(nanoseconds: 30_000_000)
+        XCTAssertFalse(duck.sent.contains("robot.do"), "robot.do never went out: \(duck.sent)")
+    }
+
+    /// A stop that lands during the homing retry's sleep keeps the next try off the wire.
+    func testAStopDuringAHomingRetryEndsTheRetries() async {
+        let duck = StopTestDuck()
+        duck.refuse(.doSkill, Array(repeating: "the robot is still going to its home pose; try again in a moment",
+                                    count: 5))
+        let path = StopPath(peer: duck)
+        let ended = await DuckOrderRunner.run(.skill("kick_left"), ready: DuckOrder.Readiness(driving: true),
+                                              on: duck, stopPath: path, sleep: { _ in path.stop() })
+        XCTAssertEqual(ended, .stopped)
+        XCTAssertEqual(duck.sent.filter { $0 == "robot.do" }.count, 1, "one try, then the stop")
+    }
+
     func testAPressAfterTheAnswerSendsStopAgain() async {
         let duck = StopTestDuck()
         let path = StopPath(peer: duck)
@@ -178,7 +239,9 @@ final class StopPathTests: XCTestCase {
         let duck = StopTestDuck()
         let path = StopPath(peer: duck)
         let ticks = StopCounter()
-        let ended = await DuckCommandRunner.run(.walk(.forward, seconds: 5), on: duck, stopPath: path,
+        let ended = await DuckOrderRunner.run(.walk(.forward, seconds: 5),
+                                              ready: DuckOrder.Readiness(sitting: false, driving: true, homed: true),
+                                              on: duck, stopPath: path,
                                                 sleep: { _ in if ticks.next() == 3 { path.stop() } })
         XCTAssertEqual(ended, .stopped)
         try? await Task.sleep(nanoseconds: 50_000_000)
@@ -187,11 +250,11 @@ final class StopPathTests: XCTestCase {
 
         // A step queued after the stop goes nowhere until a person re-arms.
         let before = duck.sent
-        let again = await DuckCommandRunner.run(.skill("kick_left"), on: duck, stopPath: path, sleep: { _ in })
+        let again = await DuckOrderRunner.run(.skill("kick_left"), on: duck, stopPath: path, sleep: { _ in })
         XCTAssertEqual(again, .stopped)
         XCTAssertEqual(duck.sent, before)
         path.rearm()
-        let fresh = await DuckCommandRunner.run(.sound(.chirp), on: duck, stopPath: path, sleep: { _ in })
+        let fresh = await DuckOrderRunner.run(.sound(.chirp), on: duck, stopPath: path, sleep: { _ in })
         XCTAssertEqual(fresh, .finished)
     }
 
@@ -217,7 +280,7 @@ final class StopPathTests: XCTestCase {
         let duck = StopTestDuck()
         duck.hang = [.doSkill]
         let path = StopPath(peer: duck)
-        let run = Task { await DuckCommandRunner.run(.skill("roulade"), on: duck, stopPath: path, sleep: { _ in }) }
+        let run = Task { await DuckOrderRunner.run(.skill("roulade"), on: duck, stopPath: path, sleep: { _ in }) }
         while !duck.sent.contains("robot.do") { try? await Task.sleep(nanoseconds: 2_000_000) }
         XCTAssertEqual(path.registered, [.command])
         path.stop()

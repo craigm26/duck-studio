@@ -363,6 +363,38 @@ public struct DuckHead: Equatable, Sendable {
     }
 }
 
+/// A point for the head to look at: `robot.look`'s parameters.
+///
+/// TRANSCRIBED FROM `duck-ipc-proto`'s `LookParams`: metres in the trunk frame (x forward,
+/// y left, z up; the floor is about 0.12 m below the trunk origin) plus `neck_pitch`, which is
+/// posture the IK holds rather than aim. The struct is `deny_unknown_fields`, so these four
+/// names are the whole of what may be sent.
+public struct DuckGaze: Equatable, Sendable {
+    public let x: Double
+    public let y: Double
+    public let z: Double
+    public let neckPitch: Double
+
+    public init(x: Double, y: Double = 0, z: Double = 0, neckPitch: Double = 0) {
+        self.x = x
+        self.y = y
+        self.z = z
+        self.neckPitch = neckPitch
+    }
+
+    /// A metre in front of the duck and a little above it: up and ahead, where a person's
+    /// face is more likely to be than the floor.
+    public static let ahead = DuckGaze(x: 1.0, y: 0, z: 0.3)
+
+    var wire: [String: Any] {
+        ["x": x, "y": y, "z": z, "neck_pitch": neckPitch]
+    }
+
+    var isFinite: Bool {
+        x.isFinite && y.isFinite && z.isFinite && neckPitch.isFinite
+    }
+}
+
 // MARK: - a call
 
 /// One thing to say, complete enough to serialise.
@@ -388,19 +420,13 @@ public enum DuckCall: Equatable, Sendable {
     /// `DuckDrive.twist(for:)`.
     case move(DuckDrive.Twist)
     case head(DuckHead)
-    /// `robot.look`, the answered counterpart of the continuous head intent.
-    ///
-    /// ITS PARAMETERS ARE THE ONE SHAPE IN THIS FILE THAT IS NOT TRANSCRIBED.
-    /// `duck-ipc-proto` names `robot.look` in its method list, and this app has
-    /// read the list without reading `LookParams`. The four head angles are
-    /// carried here because they are the only head vocabulary the proto
-    /// defines, and because a discrete "point the head there and tell me when"
-    /// wants the same numbers the continuous one does. If that guess is wrong,
-    /// the robot answers with a refusal naming the parameter, and
-    /// `DuckReply.failure` carries it to the screen — which is how the first
-    /// person to point this at a duck will find out, and is why it is written
-    /// down here rather than assumed.
-    case look(DuckHead)
+    /// `robot.look`, the answered counterpart of the continuous head intent: a POINT to look
+    /// at, not four angles. robotd's `LookParams` is `deny_unknown_fields {x, y, z,
+    /// neck_pitch}` in the trunk frame, and the daemon solves the head's IK itself; the
+    /// answer is a `LookResult {head, clamped}` with no `accepted` field, and robotd never
+    /// refuses a look (read from robotd's source, 2026-11-04). An earlier version of this
+    /// case carried a `DuckHead`, which robotd could not decode.
+    case look(DuckGaze)
     case stop
     case enable
     /// `robot.init`. See `DuckMethod.initPose` for why the Swift name differs
@@ -580,9 +606,9 @@ public enum DuckCall: Equatable, Sendable {
         case .head(let pose):
             guard pose.isFinite else { throw Misuse.notANumber(.head) }
             return pose.wire
-        case .look(let pose):
-            guard pose.isFinite else { throw Misuse.notANumber(.look) }
-            return pose.wire
+        case .look(let gaze):
+            guard gaze.isFinite else { throw Misuse.notANumber(.look) }
+            return gaze.wire
         case .enable:
             // `EnableParams { on, toggle? }` is a required struct: robotd answers a bare
             // `robot.enable` with "invalid type: null, expected struct EnableParams" (-32602),
@@ -635,7 +661,7 @@ public enum DuckCall: Equatable, Sendable {
         case .hello: return .hello
         case .move: return .move(.still)
         case .head: return .head(.level)
-        case .look: return .look(.level)
+        case .look: return .look(.ahead)
         case .stop: return .stop
         case .enable: return .enable
         case .initPose: return .initPose

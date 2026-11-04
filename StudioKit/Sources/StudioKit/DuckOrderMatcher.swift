@@ -1,7 +1,7 @@
 import Foundation
 import DuckKit
 
-/// Turns a final transcript into one `DuckCommand` when the sentence is plainly one, with no
+/// Turns a final transcript into one `DuckOrder` when the sentence is plainly one, with no
 /// model: the deterministic fast path of the Tell voice path (docs/plans/native-first-redesign.md,
 /// "Voice path" step 3).
 ///
@@ -18,7 +18,7 @@ import DuckKit
 /// ANY STOP WORD MAKES THE WHOLE SENTENCE A STOP. "No, sit down" stops: `StopWords` has already
 /// fired on the partial transcript, and answering it with a motion would undo the one thing the
 /// person certainly said.
-public enum DuckCommandMatcher {
+public enum DuckOrderMatcher {
 
     /// Words that carry nothing about which command was meant.
     public static let fillers: Set<String> = [
@@ -43,7 +43,7 @@ public enum DuckCommandMatcher {
 
     /// Read `text`. `skills` is what `robot.skills` listed (or the practice duck's list); `names`
     /// are the duck's own names ("Puddle"), which are fillers too.
-    public static func match(_ text: String, skills: [String] = [], names: [String] = []) -> DuckCommand? {
+    public static func match(_ text: String, skills: [String] = [], names: [String] = []) -> DuckOrder? {
         let all = StopWords.tokens(text)
         guard !all.isEmpty else { return nil }
 
@@ -64,7 +64,7 @@ public enum DuckCommandMatcher {
         // 3. A skill by its own name, the whole name and nothing else.
         if let skill = skill(words, among: skills) { return .skill(skill) }
 
-        // 4. Look. v1 aims level and ahead whatever was asked, so only phrases that mean that go:
+        // 4. Look. v1 aims up and ahead whatever was asked, so only phrases that mean that go:
         //    "look at me", "look here", "look ahead", "look up".
         if words.first == "look" {
             let rest = Array(words.dropFirst())
@@ -92,14 +92,14 @@ public enum DuckCommandMatcher {
         let said = words.filter { !skillFillers.contains($0) }.sorted()
         guard !said.isEmpty else { return nil }
         let hits = skills.filter { name in
-            name != DuckCommand.sitToggle
+            name != DuckOrder.sitToggle
                 && DuckCall.isSkillName(name)
                 && name.split(separator: "_").map(String.init).sorted() == said
         }
         return hits.count == 1 ? hits[0] : nil
     }
 
-    static func walk(_ text: String, tokens: [String], nameWords: Set<String>) -> DuckCommand? {
+    static func walk(_ text: String, tokens: [String], nameWords: Set<String>) -> DuckOrder? {
         // A speed or an angle would be silently changed by a command's own fixed walk.
         let refused = Set(DuckTalk.gentleWords + DuckTalk.quickWords + DuckTalk.degreeWords + ["half"])
         guard !tokens.contains(where: refused.contains), !text.contains("°") else { return nil }
@@ -109,7 +109,7 @@ public enum DuckCommandMatcher {
         let unread = reading.unread.flatMap(StopWords.tokens)
         guard unread.allSatisfy({ walkFillers.contains($0) || nameWords.contains($0) }) else { return nil }
 
-        let direction: DuckCommand.Direction
+        let direction: DuckOrder.Direction
         switch move.go {
         case "forward": direction = .forward
         case "back": direction = .back
@@ -119,6 +119,6 @@ public enum DuckCommandMatcher {
         case "turn right": direction = .turnRight
         default: return nil
         }
-        return .walk(direction, seconds: DuckCommand.walkSeconds(move.seconds))
+        return .walk(direction, seconds: DuckOrder.walkSeconds(move.seconds))
     }
 }

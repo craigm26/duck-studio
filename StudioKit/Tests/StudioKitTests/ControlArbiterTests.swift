@@ -108,6 +108,32 @@ final class ControlArbiterTests: XCTestCase {
         }
     }
 
+    /// Siri or a Control starting a run while the app is off screen: the `.background` that
+    /// would have ended it has passed, so it is refused unless it holds a Live Activity.
+    func testAStartOffScreenWithoutALiveActivityIsRefused() {
+        for owner in [ControlArbiter.Owner.app, .intent] {
+            for kind in [ControlArbiter.RunKind.tell, .goal] {
+                var a = ControlArbiter(mode: .tell)
+                _ = a.handle(.background, at: t0)
+                let d = a.handle(.start(kind, duck: .real, owner: owner), at: at(1))
+                XCTAssertEqual(d.effects, [.caption(ControlArbiter.Words.notOnScreen)])
+                XCTAssertFalse(d.effects.contains(.rearm), "the latch stays shut")
+                XCTAssertFalse(d.passInput)
+                XCTAssertNil(a.running, "\(owner) \(kind)")
+            }
+        }
+        var a = ControlArbiter(mode: .auto)
+        _ = a.handle(.background, at: t0)
+        let d = a.handle(.start(.goal, duck: .real, owner: .intentWithLiveActivity), at: at(1))
+        XCTAssertEqual(d.effects.last, .rearm)
+        XCTAssertNotNil(a.running)
+        // Back on screen, an intent run starts as before.
+        var b = ControlArbiter(mode: .tell)
+        _ = b.handle(.background, at: t0)
+        _ = b.handle(.foreground, at: at(1))
+        XCTAssertEqual(b.handle(.start(.tell, duck: .sim, owner: .intent), at: at(2)).effects.last, .rearm)
+    }
+
     func testAnIntentRunWithALiveActivityOutlivesTheForegroundButNotTheConnection() {
         var a = ControlArbiter(mode: .auto)
         goal(&a, duck: .sim, owner: .intentWithLiveActivity)

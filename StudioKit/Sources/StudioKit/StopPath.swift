@@ -25,10 +25,15 @@ import Foundation
 /// runs to its end. While one is running the caption is "Stopping after this move." and no
 /// sentence in this app may describe Stop as cancelling a skill.
 ///
-/// IDEMPOTENT. A second call while the first `robot.stop` is still waiting for its answer
-/// sends nothing more and returns the same wire task; the latch is already set and the runs are
-/// already gone. A press after the duck has answered sends `robot.stop` again, which robotd
-/// treats the same as the first (it zeroes an already-zero twist): a stop is never refused.
+/// IDEMPOTENT, BUT NEVER SILENCED. A second press within `resendAfter` of a `robot.stop` that
+/// has not been answered yet sends nothing more and returns the same wire task (a double tap,
+/// or the disc and a heard "stop" together); the latch is already set and the runs are already
+/// gone. Any later press sends `robot.stop` again, answered or not, which robotd treats the
+/// same as the first (it zeroes an already-zero twist). The window is short and time-bound on
+/// purpose: `LinePeer.call` has no timeout, so a `robot.stop` lost on a half-open link never
+/// answers, and a dedupe keyed on "still waiting" alone would make every later Stop send
+/// nothing. `attach(_:)` forgets the unanswered stop too, so Stop on a new connection always
+/// reaches the new duck.
 public final class StopPath: @unchecked Sendable {
 
     /// The app's one instance. Tests make their own.
@@ -76,10 +81,15 @@ public final class StopPath: @unchecked Sendable {
     private var nextID = 0
     private var latched = false
     private var inFlight: Task<Void, Never>?
+    private var inFlightSince: Date?
     private var wireGeneration = 0
     private var skillUntil: Date?
     private var _journal: [Step] = []
     private let now: @Sendable () -> Date
+
+    /// How long an unanswered `robot.stop` stands in for a second press. Past this, a press
+    /// writes `robot.stop` again whether or not the first was answered.
+    public static let resendAfter = 0.25
 
     public init(peer: (any DuckPeer)? = nil, now: @escaping @Sendable () -> Date = { Date() }) {
         self.peer = peer
@@ -89,9 +99,15 @@ public final class StopPath: @unchecked Sendable {
     // MARK: - which duck
 
     /// The duck a stop goes to: the one the app is connected to now. Nil when there is none,
-    /// and a stop then still latches and cancels.
+    /// and a stop then still latches and cancels. A `robot.stop` still waiting on the old
+    /// connection is forgotten, so the next Stop is written to this one.
     public func attach(_ peer: (any DuckPeer)?) {
-        lock.lock(); self.peer = peer; lock.unlock()
+        lock.lock()
+        self.peer = peer
+        inFlight = nil
+        inFlightSince = nil
+        wireGeneration += 1
+        lock.unlock()
     }
 
     // MARK: - stop
@@ -103,7 +119,12 @@ public final class StopPath: @unchecked Sendable {
         //    here waits for it.
         lock.lock()
         let target = peer
-        var wire = inFlight
+        let pressedAt = now()
+        var wire: Task<Void, Never>? = nil
+        if let pending = inFlight, let since = inFlightSince,
+           pressedAt.timeIntervalSince(since) < Self.resendAfter {
+            wire = pending
+        }
         var sent = false
         if wire == nil, let target {
             wireGeneration += 1
@@ -113,6 +134,7 @@ public final class StopPath: @unchecked Sendable {
                 self?.answered(generation)
             }
             inFlight = wire
+            inFlightSince = pressedAt
             sent = true
         }
         if sent || target == nil { _journal.append(.robotStop(sent: sent)) }
@@ -141,7 +163,7 @@ public final class StopPath: @unchecked Sendable {
 
     private func answered(_ generation: Int) {
         lock.lock()
-        if generation == wireGeneration { inFlight = nil }
+        if generation == wireGeneration { inFlight = nil; inFlightSince = nil }
         lock.unlock()
     }
 

@@ -245,7 +245,7 @@ final class BenchPeerTests: XCTestCase {
     func testAHeadPoseIsRefusedWithTheReasonRatherThanTheGenericDenial() async throws {
         let fake = walkingBench()
         let peer = try peer(fake)
-        for call in [DuckCall.head(.level), .look(.level)] {
+        for call in [DuckCall.head(.level), .look(.ahead)] {
             do {
                 if call.isNotification { try await peer.notify(call) }
                 else { _ = try await peer.call(call) }
