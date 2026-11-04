@@ -14,6 +14,21 @@ Not in build 90:
 - MLX or Core ML for the driver (pending the owner's sign-off, see Open questions)
 - training in the app
 
+## Decisions (Craig, 2026-11-04)
+
+1. **Runtime: plain Swift with Accelerate** (the judged design). `PolicyNet` stays a protocol, so a Core ML or MLX version can drop in later.
+2. **Publishing: public driver repos, plus one pinned public demo driver** in the app, so testers can try it without recording. Public repos hold weights only, never a dataset of anyone's room.
+3. **Recording: scripted.** A scripted expert drives the simulated duck to the ball and records the takes, instead of a person. This replaces T8 (below). The honest cost: the driver learns the script's way of driving, and the model card and the app say so.
+4. **If M1 misses: wait.** Build 90 is not uploaded until the driver passes M1.
+
+Head (open question 2) defaults to flatten with spatial softmax as the fallback; in-app training (6) stays at the command line until 91; drivers stay sim-only (7). Those were recommendations not overruled.
+
+**T8 (replaced). Scripted expert recording. [Linux for the expert, Mac for the pictures]**
+- `StudioKit/Sources/StudioKit/BallExpert.swift`: a pure function from the sim duck's pose and the ball's position (both known in BenchPeer) to a twist. Turn toward the ball, walk when roughly facing it, slow on approach, stop inside the reach radius, with seeded noise in start pose, heading and gains so the takes vary.
+- Drive it through the same recorder path the app uses (`DreamDataset.Take` at 10 Hz, `SimHeadCameraRenderer` pictures, face blur no-op on renders), headless in the native macOS app on MacInCloud, where headless RealityRenderer is known to work.
+- Acceptance: on Linux, BallExpertTests show the expert reaches the ball in at least 95% of 200 seeded sim starts (physics only, no pictures). On the Mac, 40 takes export and pass `dreamlabs-client` 1.0.14's `validate_dataset`, then upload with `hf upload` at a pinned commit.
+- M1's zero-twist baseline is unchanged, and the expert's own success rate is logged beside the driver's as the ceiling.
+
 ## What the person sees
 
 1. **Phone models screen (PhoneModelPickerView), new "Drivers" section.** It has a field for a Hugging Face repo id and an Add button. After Add, the steps show in order: resolving the commit, downloading (about 6 MB), checking the file hash, checking the shapes, replaying the test inputs on this phone, and Installed. If any step fails, plain words say which check refused and why, and nothing gets installed. Each installed driver shows its label, the task it knows, the pinned commit, its size on disk, the replay result, the first-inference ms, and a Delete button.
