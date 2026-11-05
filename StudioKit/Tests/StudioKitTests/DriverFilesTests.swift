@@ -137,4 +137,58 @@ final class DriverFilesTests: XCTestCase {
         flat[5] = .nan
         XCTAssertThrowsError(try DriverPrep.rows(flat, rows: 48, manifest: m)) { XCTAssertEqual($0 as? DriverPrep.Problem, .badOutput(5)) }
     }
+
+    // MARK: - snap
+
+    func testSnapPutsRowsOnTheExpertsCommands() {
+        let s = DriverSnap.expert
+        func vx(_ v: Double) -> Double { s.apply(.init(vx: v, vy: 0, vyaw: 0)).vx }
+        func yaw(_ v: Double) -> Double { s.apply(.init(vx: 0, vy: 0, vyaw: v)).vyaw }
+        XCTAssertEqual(vx(-0.05), 0); XCTAssertEqual(vx(0.03), 0); XCTAssertEqual(vx(0.1199), 0)
+        XCTAssertEqual(vx(0.12), 0.25); XCTAssertEqual(vx(0.2), 0.25); XCTAssertEqual(vx(0.2499), 0.25)
+        XCTAssertEqual(vx(0.27), 0.27); XCTAssertEqual(vx(0.9), DuckDrive.maxForward)
+        XCTAssertEqual(yaw(0.09), 0); XCTAssertEqual(yaw(-0.09), 0)
+        XCTAssertEqual(yaw(0.1), 0.1); XCTAssertEqual(yaw(-0.4), -0.4); XCTAssertEqual(yaw(-3), -DuckDrive.maxTurn)
+        XCTAssertEqual(s.apply(.init(vx: 0.26, vy: 0.2, vyaw: 0)).vy, 0)
+        XCTAssertEqual(DriverSnap(forwardZeroBelow: 0.12, forwardStart: 0.25, turnZeroBelow: 0.1, keepSideways: true)
+            .apply(.init(vx: 0, vy: 0.9, vyaw: 0)).vy, DuckDrive.maxSideways)
+        // Every snapped forward is a stand or one the walker starts for.
+        for v in stride(from: -0.3, through: 0.5, by: 0.01) {
+            let out = vx(v)
+            XCTAssertTrue(out == 0 || out >= BallExpert.walkStart, "\(v) -> \(out)")
+        }
+    }
+
+    func testSnapComesFromTheManifestOrTheWeightsPin() throws {
+        let block: [String: Any] = ["forward_zero_below": 0.1, "forward_start": 0.22, "turn_zero_below": 0.05]
+        let own = try DriverManifest.read(Self.manifest { $0["snap"] = block })
+        XCTAssertEqual(own.outputSnap, DriverSnap(forwardZeroBelow: 0.1, forwardStart: 0.22, turnZeroBelow: 0.05))
+        // No block, unknown weights: played as answered.
+        XCTAssertNil(try DriverManifest.read(Self.manifest()).outputSnap)
+        // No block, v4's weights: the expert's numbers.
+        let v4 = "7e00bdb27c7668604f8eef335dc12aabba4902b1b80cc10c7ec3f7e377b476c2"
+        let pinned = try DriverManifest.read(Self.manifest {
+            $0["files"] = ["model.safetensors": ["sha256": v4, "bytes": 4_364_856],
+                           "golden.json": ["sha256": String(repeating: "b", count: 64), "bytes": 9000]]
+        })
+        XCTAssertEqual(pinned.outputSnap, .expert)
+        // Present and wrong is refused.
+        XCTAssertEqual(problem { $0["snap"] = ["forward_zero_below": 0.3, "forward_start": 0.25, "turn_zero_below": 0.1] }, .snap)
+        XCTAssertEqual(problem { $0["snap"] = ["forward_zero_below": 0.1, "forward_start": 0.5, "turn_zero_below": 0.1] }, .snap)
+        XCTAssertEqual(problem { $0["snap"] = ["forward_zero_below": 0.1, "forward_start": 0.25, "turn_zero_below": -1] }, .snap)
+        XCTAssertEqual(problem { $0["snap"] = ["forward_start": 0.25] }, .notJSON)
+    }
+
+    func testSnappedRowsComeOutOfPrep() throws {
+        let m = try DriverManifest.read(Self.manifest { $0["snap"] = ["forward_zero_below": 0.12, "forward_start": 0.25, "turn_zero_below": 0.1] })
+        var flat = [Float](repeating: 0, count: 144)   // act_mean 0.1 forward: a soft stand
+        flat[3] = 0.4                                  // row 1: 0.1 + 0.4 * 0.2 = 0.18 forward
+        flat[5] = 0.1                                  // row 1: 0.05 turn
+        flat[8] = -0.6                                 // row 2: -0.3 turn
+        let rows = try DriverPrep.rows(flat, rows: 48, manifest: m)
+        XCTAssertEqual(rows[0], DuckDrive.Twist(vx: 0, vy: 0, vyaw: 0))
+        XCTAssertEqual(rows[1], DuckDrive.Twist(vx: 0.25, vy: 0, vyaw: 0))
+        XCTAssertEqual(rows[2].vyaw, -0.3, accuracy: 1e-6)
+        XCTAssertEqual(rows[2].vx, 0)
+    }
 }

@@ -41,9 +41,11 @@ public struct DriverManifest: Decodable, Equatable, Sendable {
     public let valL1: Double?
     public let baselineZeroL1: Double?
     public let baselineRepeatL1: Double?
+    /// How its answers are put onto the expert's commands (`DriverSnap`), when it says.
+    public let snap: DriverSnap?
 
     enum CodingKeys: String, CodingKey {
-        case arch, format, task, label, input, chunk, files, dataset
+        case arch, format, task, label, input, chunk, files, dataset, snap
         case frameOffsets = "frame_offsets", usesState = "uses_state", trainedOn = "trained_on"
         case imgMean = "img_mean", imgStd = "img_std", actMean = "act_mean", actStd = "act_std"
         case valL1 = "val_l1", baselineZeroL1 = "baseline_zero_l1", baselineRepeatL1 = "baseline_repeat_l1"
@@ -57,7 +59,7 @@ public struct DriverManifest: Decodable, Equatable, Sendable {
 
     public enum Problem: Error, Equatable, Sendable {
         case notJSON, arch(String), format(String), shape, chunk(Int), usesState, notSim(String)
-        case stats, path(String), tooBig(String), missing(String), hash(String), task(String)
+        case stats, path(String), tooBig(String), missing(String), hash(String), task(String), snap
 
         public var message: String {
             switch self {
@@ -75,6 +77,7 @@ public struct DriverManifest: Decodable, Equatable, Sendable {
             case .missing(let p): return "This driver's policy.json does not list \(p)."
             case .hash(let p): return "This driver's file \(p) does not match the hash its policy.json gives."
             case .task(let why): return why
+            case .snap: return "This driver's snap numbers are not commands the sticks can give."
             }
         }
     }
@@ -105,7 +108,13 @@ public struct DriverManifest: Decodable, Equatable, Sendable {
         }
         for needed in [Self.weightsFile, Self.goldenFile] where files[needed] == nil { return .missing(needed) }
         if let refusal = DreamDataset.taskProblem(task) { return .task(refusal.message) }
+        if let snap, !snap.isValid { return .snap }
         return nil
+    }
+
+    /// The snap its rows get: its own `snap` block, else the one pinned for its weights, else none.
+    public var outputSnap: DriverSnap? {
+        snap ?? files[Self.weightsFile].flatMap { DriverSnap.known[$0.sha256.lowercased()] }
     }
 
     /// Whether `data` is the file `path` this manifest describes, by size and SHA-256.
