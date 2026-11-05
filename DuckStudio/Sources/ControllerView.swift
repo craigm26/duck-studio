@@ -249,20 +249,20 @@ struct AutoPanel: View {
 
     /// The cards, with nothing running.
     private var idle: some View {
-            HStack(alignment: .top, spacing: Theme.spacing(.tight)) {
-                AskCard(duck: duck, ask: ask, listener: listener, caption: caption, plan: plan, example: example,
-                        stop: stop)
-                    .frame(maxWidth: .infinity)
-                VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
-                    Text(ControllerWords.otherHelpers)
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(Theme.textSecondary)
-                    ForEach(AutoGoal.allCases) { goal in
-                        if goal == .walkToBall { driverHelper } else { helper(goal) }
-                    }
+        HStack(alignment: .top, spacing: Theme.spacing(.tight)) {
+            AskCard(duck: duck, ask: ask, listener: listener, caption: caption, plan: plan, example: example,
+                    stop: stop)
+                .frame(maxWidth: .infinity)
+            VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
+                Text(ControllerWords.otherHelpers)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(Theme.textSecondary)
+                ForEach(AutoGoal.allCases) { goal in
+                    if goal == .walkToBall { driverHelper } else { helper(goal) }
                 }
-                .frame(width: ControllerMetric.helperColumn, alignment: .leading)
             }
+            .frame(width: ControllerMetric.helperColumn, alignment: .leading)
+        }
     }
 
     /// The phone driver's card: Get with its size, progress with Cancel, then Go and Delete.
