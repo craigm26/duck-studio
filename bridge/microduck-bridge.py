@@ -7,20 +7,27 @@ phone speaks SSH (a real implementation, host-key trust, key management) or a
 small program on the robot's own computer moves the bytes. This is the small
 program.
 
-WHAT IT IS NOT. It is not a protocol. It does not parse robotd's vocabulary,
-rewrite its parameters, or answer on its behalf: every byte a client sends
-reaches robotd unchanged and every byte robotd sends reaches the client
-unchanged. Two things are added and both are safety rather than semantics —
-a first line that authorises the relay, and a deadman that sends a stop when a
-client goes quiet.
+WHAT IT IS NOT. It is not a protocol. It does not rewrite robotd's vocabulary or
+parameters, or answer on its behalf: every byte a client sends reaches robotd
+unchanged and every byte robotd sends reaches the client unchanged. Two things
+are added and both are safety rather than semantics: a first line that
+authorises the relay, and a deadman that sends a stop when a client stops
+steering. The deadman is the one reason a line is ever looked at, and all it
+reads is whether the line is a move or a stop.
 
 THE DEADMAN IS THE REASON TO PREFER THIS OVER A RAW `socat`. A simulator gives
 you a duck that stops when nobody is asking it to move; hardware does not. If
 the phone goes down a lift, the Wi-Fi drops, or the app is killed mid-hold, the
-robot is still walking. This sends `robot.stop` when no client line has arrived
-for `--deadman` milliseconds, then keeps sending nothing. It is a floor, not a
-guarantee: it cannot act if this process itself dies, which is why the systemd
-unit restarts it and why robotd's own twist deadman stays the real backstop.
+robot is still walking. This sends `robot.stop` when no MOTION line (a
+`robot.move` with a non-zero twist) has arrived for `--deadman` milliseconds,
+then keeps sending nothing until motion starts again. Other traffic (state
+polls, sounds, skills, dream.* questions) does not feed it: a client that keeps
+asking for state but stopped steering is a client whose last move has gone
+stale, and a stale move expires into a stop. A zero twist and a `robot.stop`
+disarm it, because a standing duck has nothing to time out. It is a floor, not
+a guarantee: it cannot act if this process itself dies, which is why the
+systemd unit restarts it and why robotd's own twist deadman stays the real
+backstop.
 
 THE TOKEN IS NOT A SECURITY BOUNDARY, and saying so is part of shipping it. It
 stops a television or a housemate's laptop stumbling into a robot. It does not
@@ -46,11 +53,58 @@ import sys
 import threading
 import time
 
-VERSION = "microduck-bridge/1"
+# /2: only motion feeds the deadman, and a hang-up mid-stride sends robot.stop.
+# The hello is unchanged ("microduck": "v1"), so an older app still connects.
+VERSION = "microduck-bridge/2"
 DEFAULT_SOCKET = "/run/robotd.sock"
 DEFAULT_PORT = 7788
 DEFAULT_DEADMAN_MS = 700
 STOP_LINE = b'{"jsonrpc":"2.0","method":"robot.stop","params":{},"id":"bridge-deadman"}\n'
+
+# What the bridge sends when a client hangs up while its last move is still
+# live: the same stop, named differently, so a robotd log tells the two apart.
+# Without it the watchdog ends with the connection and only robotd's own twist
+# deadman is left to stop a duck whose app pressed Disconnect mid-stride.
+HANGUP_LINE = b'{"jsonrpc":"2.0","method":"robot.stop","params":{},"id":"bridge-hangup"}\n'
+
+# The only client verb that feeds the deadman. A head turn, a sound or a state
+# poll is not steering; only a twist keeps a walking duck walking. Kept in step
+# with OpenCastor's castor/microduck_bridge.py (PR #991).
+MOTION_METHODS = frozenset({"robot.move"})
+STOP_METHOD = "robot.stop"
+
+
+def line_method(line: bytes) -> str | None:
+    """The JSON-RPC method of one client line, or None, parsed only when it could matter.
+
+    The substring test is the cheap gate every line pays; the parse is the
+    exact one, so a line that merely mentions "robot.move" in a parameter (a
+    sound called that, say) is not mistaken for motion.
+    """
+    if b'"robot.move"' not in line and b'"robot.stop"' not in line:
+        return None
+    try:
+        message = json.loads(line.decode("utf-8"))
+        method = message.get("method")
+    except (ValueError, UnicodeDecodeError, AttributeError):
+        return None
+    return method if isinstance(method, str) else None
+
+
+def is_zero_twist(line: bytes) -> bool:
+    """True when a `robot.move` line asks for no motion at all (every speed 0 or missing).
+
+    A ZERO TWIST IS STANDING, NOT STEERING. Studio's DreamPilot sends one before
+    every later `dream.act` so the duck stands while the model thinks; that wait
+    can run past the deadman, and a standing duck has nothing to time out. So a
+    zero twist disarms the deadman instead of arming it. Unparseable params
+    count as motion (the safe side: the deadman stays armed).
+    """
+    try:
+        params = json.loads(line.decode("utf-8")).get("params") or {}
+        return all(float(params.get(k, 0.0) or 0.0) == 0.0 for k in ("vx", "vy", "vyaw"))
+    except (ValueError, TypeError, UnicodeDecodeError, AttributeError):
+        return False
 
 
 class Refusal(Exception):
@@ -261,8 +315,18 @@ class Relay:
         self.deadman = deadman_ms / 1000 if deadman_ms > 0 else 0
         self.log = log
         self.installer = installer
-        self.last_from_client = time.monotonic()
-        self.stopped_for_silence = False
+        # THE DEADMAN IS ARMED BY MOTION AND ONLY BY MOTION. A client that has
+        # never sent a move has nothing to go stale; one that has, and then
+        # only polls state, has a move going stale and gets a stop.
+        self.last_motion = time.monotonic()
+        self.armed = False
+        # ONE WRITER AT A TIME TO ROBOTD: the client's lines and the deadman's
+        # stop come from two threads, and a stop must not land inside a line.
+        # IT ALSO COVERS `armed`: the deadman's check, its clear and its write
+        # are one step, and so are a move's arming and its write. Otherwise a
+        # move arriving between the check and the clear is live and unarmed.
+        # Re-entrant, because both of them write through `to_robotd`.
+        self.robotd_lock = threading.RLock()
         self.running = True
         # WHAT THE CLIENT HAS SENT SINCE ITS LAST NEWLINE. The one verb this
         # relay answers itself has to be seen whole to be recognised, so the
@@ -291,12 +355,9 @@ class Relay:
                         self.running = False
                         break
                     if who == "client":
-                        # ANY BYTE FROM THE CLIENT FEEDS THE DEADMAN, not only a
-                        # move: a client that is asking for state is a client
-                        # that is still there, and a robot that stops because
-                        # nobody drove it for a moment is a robot nobody trusts.
-                        self.last_from_client = time.monotonic()
-                        self.stopped_for_silence = False
+                        # ONLY MOTION FEEDS THE DEADMAN (see `_from_client`).
+                        # It used to be any byte, which meant a phone polling
+                        # state kept a duck walking on a twist it sent long ago.
                         self._from_client(chunk)
                         continue
                     target.sendall(chunk)
@@ -307,6 +368,13 @@ class Relay:
             selector.close()
             if watchdog:
                 watchdog.join(timeout=1)
+            if self.deadman > 0 and self.armed:
+                self.armed = False
+                try:
+                    self.to_robotd(HANGUP_LINE)
+                    self.log("client left while steering, sent robot.stop")
+                except OSError:
+                    pass
 
     def _from_client(self, chunk: bytes) -> None:
         self.pending += chunk
@@ -315,22 +383,40 @@ class Relay:
             if self.installer is not None and Installer.wants(line):
                 self.client.sendall(self.installer.handle(line))
                 continue
-            self.robotd.sendall(line + b"\n")
+            method = line_method(line)
+            with self.robotd_lock:
+                if method == STOP_METHOD:
+                    self.armed = False  # the client stopped it; nothing left to time out
+                elif method in MOTION_METHODS:
+                    if is_zero_twist(line):
+                        self.armed = False  # standing still: nothing for the deadman to stop
+                    else:
+                        self.last_motion = time.monotonic()
+                        self.armed = True
+                self.to_robotd(line + b"\n")
+
+    def to_robotd(self, data: bytes) -> None:
+        with self.robotd_lock:
+            self.robotd.sendall(data)
 
     def _watch(self) -> None:
         while self.running:
             time.sleep(0.05)
-            if self.deadman <= 0 or self.stopped_for_silence:
+            if self.deadman <= 0:
                 continue
-            quiet = time.monotonic() - self.last_from_client
-            if quiet < self.deadman:
-                continue
-            try:
-                self.robotd.sendall(STOP_LINE)
-                self.stopped_for_silence = True
-                self.log(f"deadman: {quiet * 1000:.0f} ms of silence, sent robot.stop")
-            except OSError:
-                self.running = False
+            with self.robotd_lock:
+                if not self.armed:
+                    continue
+                quiet = time.monotonic() - self.last_motion
+                if quiet < self.deadman:
+                    continue
+                try:
+                    self.armed = False
+                    self.to_robotd(STOP_LINE)
+                except OSError:
+                    self.running = False
+                    continue
+            self.log(f"deadman: {quiet * 1000:.0f} ms without a move, sent robot.stop")
 
 
 def serve(host: str, port: int, socket_path: str, token: str,
@@ -419,7 +505,7 @@ def main(argv=None) -> int:
     parser.add_argument("--robotd-toml", default=None,
                         help="robotd's config, so an install can point a [policy] key at the file")
     parser.add_argument("--deadman", type=int, default=DEFAULT_DEADMAN_MS,
-                        help="milliseconds of client silence before robot.stop. "
+                        help="milliseconds without a non-zero robot.move before robot.stop. "
                              "0 disables it, which you should not do on hardware.")
     args = parser.parse_args(argv)
     try:

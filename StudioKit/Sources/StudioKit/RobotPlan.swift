@@ -247,9 +247,10 @@ public struct RobotIntentAnswer: Equatable, Sendable {
 /// halfway through and then find the duck has no kick is refused at the start, with the list.
 ///
 /// THE LINK IS FED THROUGHOUT. A move streams `robot.move` at `interval`; a skill is followed
-/// by `.still` at the same rate until it has had its time. The bridge's deadman sends a stop on
-/// 700 ms of silence, and robotd's own twist deadman is shorter still, so a gap here would be
-/// a plan that stops itself.
+/// by `.still` at the same rate until it has had its time. The bridge's deadman sends a stop
+/// 700 ms after the last moving twist, and robotd's own twist deadman is shorter still, so a
+/// gap in a move would be a plan that stops itself. The `.still` frames disarm the bridge's
+/// and keep robotd's fresh.
 ///
 /// IT ALWAYS ENDS IN `robot.stop`, finished, refused or cancelled.
 public enum RobotPlanRunner {

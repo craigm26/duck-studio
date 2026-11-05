@@ -32,9 +32,10 @@ public enum BridgeHandshake {
         /// The bridge's own version string, for the log and for a person
         /// reading a bug report.
         public let bridge: String
-        /// How long the bridge will let this client go quiet before it sends
-        /// the robot a stop. NIL WHEN THE BRIDGE DID NOT SAY: an app that
-        /// assumed a default here would draw a promise nobody made.
+        /// How long the bridge will let a moving twist from this client go
+        /// unrefreshed before it sends the robot a stop. NIL WHEN THE BRIDGE
+        /// DID NOT SAY: an app that assumed a default here would draw a
+        /// promise nobody made.
         public let deadmanMilliseconds: Int?
 
         public init(bridge: String, deadmanMilliseconds: Int?, policyInstall: Bool? = nil,
@@ -112,7 +113,7 @@ public enum BridgeHandshake {
     public static let whatABridgeIs =
         "A bridge is a small program on the machine your robot's software runs on. It moves bytes "
       + "between this app and robotd, which listens on a socket a phone cannot open, and it sends "
-      + "the robot a stop if this app goes quiet."
+      + "the robot a stop if this app stops steering a moving duck."
 
     /// The deadman, named with the number the bridge reported rather than one
     /// this app assumed.
@@ -122,9 +123,13 @@ public enum BridgeHandshake {
                  + "one. A robot that keeps walking when the link drops is the failure the "
                  + "simulator gives us for free and hardware does not."
         }
-        return "If this app goes quiet for \(milliseconds) ms — a pocket, a dropped network, a "
-             + "crash — the bridge sends the robot a stop. It cannot act if the bridge itself "
-             + "dies, which is what robotd's own deadman is under it."
+        // AN OLDER BRIDGE COUNTS ANY TALK AS STEERING, and OpenCastor's says the same version
+        // before and after its fix, so the sentence cannot be picked by the greeting.
+        return "If this app stops steering a moving duck for \(milliseconds) ms (a pocket, a "
+             + "dropped network, a crash), the bridge sends the robot a stop. On an up-to-date "
+             + "bridge, checking on the duck does not count as steering. A duck told to stand "
+             + "has nothing to time out. The bridge cannot act if it dies itself, which is what "
+             + "robotd's own deadman is under it."
     }
 
     /// Every sentence, so a screen can be checked against it.

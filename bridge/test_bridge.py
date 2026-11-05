@@ -172,18 +172,18 @@ class BridgeTests(unittest.TestCase):
 
     # MARK: the deadman, which is the reason to prefer this to a raw relay
 
-    def testSilenceSendsAStopAndOnlyOne(self):
+    def testAStaleMoveSendsAStopAndOnlyOne(self):
         client = self.connect()
         self.line(client)
         client.sendall(b'{"jsonrpc":"2.0","method":"robot.move","params":{"vx":0.3},"id":1}\n')
         time.sleep(0.9)
         stops = [line for line in self.robotd.lines if '"robot.stop"' in line]
         self.assertEqual(len(stops), 1,
-                         f"one stop for one silence, got {len(stops)}: {self.robotd.lines}")
+                         f"one stop for one stale move, got {len(stops)}: {self.robotd.lines}")
         self.assertIn("bridge-deadman", stops[0])
         client.close()
 
-    def testTalkingAgainRearmsTheDeadman(self):
+    def testSteeringAgainRearmsTheDeadman(self):
         client = self.connect()
         self.line(client)
         client.sendall(b'{"jsonrpc":"2.0","method":"robot.move","params":{"vx":0.3},"id":1}\n')
@@ -191,10 +191,10 @@ class BridgeTests(unittest.TestCase):
         client.sendall(b'{"jsonrpc":"2.0","method":"robot.move","params":{"vx":0.3},"id":2}\n')
         time.sleep(0.5)                                  # and a second
         stops = [line for line in self.robotd.lines if '"robot.stop"' in line]
-        self.assertEqual(len(stops), 2, "the deadman re-arms when the client speaks again")
+        self.assertEqual(len(stops), 2, "the deadman re-arms when the client steers again")
         client.close()
 
-    def testAClientThatKeepsTalkingIsNeverStopped(self):
+    def testAClientThatKeepsSteeringIsNeverStopped(self):
         client = self.connect()
         self.line(client)
         for _ in range(10):
@@ -204,7 +204,134 @@ class BridgeTests(unittest.TestCase):
         self.assertEqual(stops, [], "a driven robot is not stopped by its own driver")
         client.close()
 
+    # MARK: only motion feeds it (ported from OpenCastor PR #991)
 
+    MOVE = b'{"jsonrpc":"2.0","method":"robot.move","params":{"vx":0.3},"id":1}\n'
+    POLL = b'{"jsonrpc":"2.0","method":"robot.state","params":{},"id":"poll"}\n'
+
+    def bridge_stops(self):
+        return [line for line in self.robotd.lines if "bridge-deadman" in line]
+
+    def testPollingStateDoesNotKeepAStaleMoveAlive(self):
+        client = self.connect()
+        self.line(client)
+        client.sendall(self.MOVE)
+        for _ in range(8):                               # 800 ms of polls, no steering
+            client.sendall(self.POLL)
+            time.sleep(0.1)
+        self.assertEqual(len(self.bridge_stops()), 1,
+                         f"a poll is not steering; the stale move must expire: {self.robotd.lines}")
+        client.close()
+
+    def testAClientThatNeverMovedIsNeverStopped(self):
+        client = self.connect()
+        self.line(client)
+        for _ in range(6):
+            client.sendall(self.POLL)
+            time.sleep(0.1)
+        time.sleep(0.3)
+        self.assertEqual(self.bridge_stops(), [], "nothing moved, so nothing went stale")
+        client.close()
+
+    def testAZeroTwistDisarmsSoASlowAnswerIsNotCutOff(self):
+        # DreamPilot sends a zero twist before every later dream.act; the answer
+        # can take longer than the deadman, and a standing duck has nothing to stop.
+        client = self.connect()
+        self.line(client)
+        client.sendall(self.MOVE)
+        time.sleep(0.1)
+        client.sendall(b'{"jsonrpc":"2.0","method":"robot.move","params":{"vx":0,"vy":0.0,"vyaw":0},"id":2}\n')
+        time.sleep(0.8)
+        self.assertEqual(self.bridge_stops(), [], f"a zero twist must disarm: {self.robotd.lines}")
+        client.sendall(self.MOVE)                        # steering again re-arms it
+        time.sleep(0.6)
+        self.assertEqual(len(self.bridge_stops()), 1)
+        client.close()
+
+    def testAClientStopDisarmsTheDeadman(self):
+        client = self.connect()
+        self.line(client)
+        client.sendall(self.MOVE)
+        time.sleep(0.1)
+        client.sendall(b'{"jsonrpc":"2.0","method":"robot.stop","params":{},"id":3}\n')
+        time.sleep(0.6)
+        stops = [line for line in self.robotd.lines if '"robot.stop"' in line]
+        self.assertEqual(len(stops), 1, f"the client's own stop, and no second one: {stops}")
+        self.assertNotIn("bridge-deadman", stops[0])
+        client.close()
+
+    def testHangingUpWhileSteeringSendsAStop(self):
+        client = self.connect()
+        self.line(client)
+        client.sendall(self.MOVE)
+        time.sleep(0.1)
+        client.close()
+        time.sleep(0.2)                                  # well inside the 300 ms deadman
+        self.assertTrue([l for l in self.robotd.lines if "bridge-hangup" in l],
+                        f"a hang-up mid-stride must not wait on robotd alone: {self.robotd.lines}")
+
+    def testHangingUpWhileStandingSendsNothing(self):
+        client = self.connect()
+        self.line(client)
+        client.sendall(self.POLL)
+        time.sleep(0.1)
+        client.close()
+        time.sleep(0.5)
+        self.assertEqual([l for l in self.robotd.lines if '"robot.stop"' in l], [])
+
+    def testWordsThatMentionAMoveAreNotAMove(self):
+        self.assertNotIn(bridge.line_method(b'{"method":"robot.sound","params":{"name":"robot.move"}}'),
+                         bridge.MOTION_METHODS)
+        self.assertEqual(bridge.line_method(self.MOVE.strip()), "robot.move")
+        self.assertIsNone(bridge.line_method(b'["robot.move"]'))
+        self.assertIsNone(bridge.line_method(b'not json "robot.stop"'))
+        self.assertTrue(bridge.is_zero_twist(b'{"method":"robot.move","params":{}}'))
+        self.assertTrue(bridge.is_zero_twist(b'{"method":"robot.move","params":{"vx":0,"vyaw":0.0}}'))
+        self.assertFalse(bridge.is_zero_twist(b'{"method":"robot.move","params":{"vyaw":-0.2}}'))
+        self.assertFalse(bridge.is_zero_twist(b'{"method":"robot.move","params":{"vx":"fast"}}'))
+
+
+
+
+class DeadmanRaceTests(unittest.TestCase):
+    """The deadman's check, clear and write are one step with a move's arming."""
+
+    class HeldRobotd:
+        """Records writes, and holds the deadman's stop inside `sendall` until told."""
+
+        def __init__(self):
+            self.lines = []
+            self.in_stop = threading.Event()
+            self.release = threading.Event()
+
+        def sendall(self, data):
+            self.lines.append(data)
+            if b"bridge-deadman" in data:
+                self.in_stop.set()
+                self.release.wait(2)
+
+    def testAMoveDuringTheDeadmansStopIsArmedAndWrittenAfterIt(self):
+        robotd = self.HeldRobotd()
+        relay = bridge.Relay(None, robotd, 1000, log=lambda *_: None)
+        relay.armed = True
+        relay.last_motion = time.monotonic() - 5
+        watcher = threading.Thread(target=relay._watch, daemon=True)
+        watcher.start()
+        self.assertTrue(robotd.in_stop.wait(2))
+        mover = threading.Thread(target=relay._from_client, args=(BridgeTests.MOVE,), daemon=True)
+        mover.start()
+        time.sleep(0.05)
+        # The stop is mid-write, so the move has neither armed nor been written.
+        self.assertFalse(relay.armed)
+        self.assertEqual(len(robotd.lines), 1)
+        robotd.release.set()
+        mover.join(2)
+        relay.running = False
+        watcher.join(2)
+        self.assertEqual(len(robotd.lines), 2)
+        self.assertIn(b"bridge-deadman", robotd.lines[0])
+        self.assertIn(b"robot.move", robotd.lines[1])
+        self.assertTrue(relay.armed, "the live twist the client sent last is armed")
 
 
 class InstallTests(unittest.TestCase):

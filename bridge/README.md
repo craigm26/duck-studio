@@ -18,8 +18,9 @@ asks for the token once.
 
 A relay, and two safety features. Every byte a client sends reaches robotd
 unchanged and every byte robotd sends reaches the client unchanged: the bridge
-does not parse the vocabulary, rewrite parameters or answer on robotd's
-behalf. That is deliberate. A relay that understands the protocol is a second
+does not rewrite the vocabulary or parameters, or answer on robotd's behalf.
+The deadman is the one reason it looks at a line, and all it reads is whether
+that line is a move or a stop. That is deliberate. A relay that understands the protocol is a second
 implementation of it, and the second implementation is the one that is wrong
 when they disagree.
 
@@ -27,13 +28,21 @@ when they disagree.
 `{"microduck":"v1","token":"…"}` and gets the bridge's own hello back. A wrong
 token is told which door it is at and closed, and never reaches robotd.
 
-**The deadman sends a stop when a client goes quiet.** A simulator gives you a
+**The deadman sends a stop when a client stops steering.** A simulator gives you a
 duck that stops when nobody asks it to move; hardware does not. If the phone
 goes down a lift, the Wi-Fi drops or the app is killed mid-hold, the robot is
-still walking. After `--deadman` milliseconds without a byte from the client,
-the bridge sends `robot.stop` once, and sends it again only after the client
-has spoken and gone quiet again. Any byte re-arms it, not only a move: a client
-asking for state is a client that is still there.
+still walking. After `--deadman` milliseconds without a moving `robot.move`
+from the client, the bridge sends `robot.stop` once, and sends it again only
+after the client has steered again and let go again. Only a non-zero twist arms
+it: a client that keeps polling state but stopped steering has a move going
+stale, and a stale move expires into a stop. A zero twist or the client's own
+`robot.stop` disarms it, because a standing duck has nothing to time out (the
+app sends a zero twist before every Dream question, and an answer slower than
+the deadman must not be cut off). A client that never moved is never stopped.
+A client that hangs up while its last move is still live gets one
+`robot.stop` (id `bridge-hangup`) at once, since the watchdog ends with the
+connection. OpenCastor's bridge (`castor/microduck_bridge.py`, PR #991) shares
+the motion-only rule.
 
 It cannot act if this process is the thing that died, which is why the service
 restarts and why robotd's own twist deadman stays the backstop under it.
@@ -62,18 +71,21 @@ change the other.
 ## Proving it
 
 ```sh
-python3 test_bridge.py          # 17 tests, stdlib only, no duck required
+python3 test_bridge.py          # 25 tests, stdlib only, no duck required
 ```
 
-Seventeen tests against a mock robotd that records what it was sent, in two
+Twenty-five tests against a mock robotd that records what it was sent, in two
 groups.
 
-**Nine on the relay itself:** bytes reach robotd unchanged, answers reach the
+**Sixteen on the relay itself:** bytes reach robotd unchanged, answers reach the
 client unchanged, a wrong token is refused by name, a hello that is not JSON is
 refused, a token file other people can read is refused by mode, a short token
-is refused with its length, a silent client is stopped exactly once, talking
-again re-arms the deadman, and a client that keeps talking is never stopped by
-its own driver.
+is refused with its length, a stale move is stopped exactly once, steering
+again re-arms the deadman, a client that keeps steering is never stopped by
+its own driver, state polls do not keep a stale move alive, a client that never
+moved is never stopped, a zero twist disarms it, the client's own stop disarms
+it, a hang-up mid-stride sends a stop at once, a hang-up while standing sends
+nothing, and a line that only mentions a move is not a move.
 
 **Eight on `studio.installPolicy`,** which landed after the relay and is the reason
 this count moved: the greeting says whether install is on, an install lands on

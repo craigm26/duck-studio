@@ -334,7 +334,7 @@ public struct DuckDream: Equatable, Sendable, CustomStringConvertible, CustomDeb
         public static func timing(p50: Int, p95: Int) -> String { "Driver answered in \(p50) ms (most within \(p95) ms)." }
         public static let howItDrives =
             "The duck walks only the way the sticks can: every step is clamped to the sticks' speeds, "
-          + "sent as an ordinary move, and the bridge's deadman still stops the duck if this phone goes quiet."
+          + "sent as an ordinary move, and the bridge's deadman still stops the duck if this phone stops sending them."
     }
 }
 

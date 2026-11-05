@@ -158,7 +158,7 @@ made at all.
 bridge. That stopped being true at build 46 and the sentence outlived it.** The
 bridge exists: `bridge/microduck-bridge.py` relays robotd's unix socket to TCP
 7788 behind a token and a 700 ms deadman, `bridge/install.sh` installs it as a
-systemd user unit needing no root, 17 stdlib tests cover it, and the kit half
+systemd user unit needing no root, 24 stdlib tests cover it, and the kit half
 is done — `DuckTransportKind.bridge` and `BridgeHandshake` write the exact
 bytes the Python expects. What is still true is narrower and worth stating
 plainly, because it is what the review at this gate has to weigh: **the app has

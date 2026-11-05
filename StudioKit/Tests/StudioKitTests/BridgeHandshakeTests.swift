@@ -64,6 +64,22 @@ final class BridgeHandshakeTests: XCTestCase {
         XCTAssertFalse(BridgeHandshake.deadmanSaid(nil).contains("ms —"))
     }
 
+    /// THE BRIDGE'S DEADMAN IS FED BY STEERING, NOT BY TALKING (microduck-bridge.py
+    /// `MOTION_METHODS`). A sentence that said "goes quiet" promised a stop the
+    /// bridge no longer sends while the app polls, and none it does send while
+    /// the app only polls.
+    func testTheDeadmanSentenceSaysSteeringNotQuiet() {
+        for said in [BridgeHandshake.deadmanSaid(700), BridgeHandshake.whatABridgeIs,
+                     BridgeDrive.deadmanChainSaid(bridgeDeadmanMilliseconds: 700),
+                     BridgeDrive.disconnectEndsDriving, DriveVenue.whatABridgeWouldTake,
+                     DuckDream.Words.howItDrives] {
+            XCTAssertFalse(said.contains("goes quiet"), said)
+        }
+        XCTAssertTrue(BridgeHandshake.deadmanSaid(700).contains("stops steering"))
+        XCTAssertTrue(BridgeDrive.deadmanChainSaid(bridgeDeadmanMilliseconds: 700)
+                        .contains("700 ms without a twist"))
+    }
+
     func testTheTokenSentenceRefusesToCallItSecurity() {
         XCTAssertTrue(BridgeHandshake.tokenIsNotSecurity.contains("not a security boundary"))
         XCTAssertTrue(BridgeHandshake.tokenIsNotSecurity.contains("port-forwarded"))
