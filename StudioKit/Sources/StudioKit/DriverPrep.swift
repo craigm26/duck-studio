@@ -70,11 +70,10 @@ public enum DriverPrep {
     public static func rows(_ flat: [Float], rows: Int, manifest: DriverManifest) throws -> [DuckDrive.Twist] {
         guard flat.count == rows * 3 else { throw Problem.badOutput(flat.count) }
         if let bad = flat.firstIndex(where: { !$0.isFinite }) { throw Problem.badOutput(bad) }
-        let snap = manifest.outputSnap
-        return (0..<rows).map { r in
+        let raw = (0..<rows).map { r in
             func v(_ c: Int) -> Double { Double(flat[r * 3 + c] * manifest.actStd[c] + manifest.actMean[c]) }
-            let raw = DuckDrive.Twist(vx: v(0), vy: v(1), vyaw: v(2))
-            return snap?.apply(raw) ?? raw
+            return DuckDrive.Twist(vx: v(0), vy: v(1), vyaw: v(2))
         }
+        return manifest.outputSnap?.chunk(raw) ?? raw
     }
 }

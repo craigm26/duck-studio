@@ -14,6 +14,12 @@ import Foundation
 /// - a turn smaller than `turnZeroBelow` either way is 0, larger is kept, up to the stick;
 /// - sideways is 0 unless `keepSideways`.
 ///
+/// ONCE IT STANDS, THE CHUNK STANDS (`chunk`). The expert's stand is latched: `BallExpert` stands
+/// still until the take ends, and a stand never turns. A driver only averages that. The v5 driver
+/// said stand on row 0 at the line and walk by row 19, so the pilot, which plays 20 rows of each
+/// chunk, walked it through the ball (fresh seeds: 20 of 20 reached, 1 parked). From the first row
+/// whose forward snaps to 0, every row is still; the next ask looks again.
+///
 /// WHERE IT COMES FROM. `policy.json` may carry a `snap` block; a driver without one gets the
 /// numbers pinned for its weights in `known` (v4, published before snapping existed), and any
 /// other driver is played as it answers.
@@ -69,5 +75,15 @@ public struct DriverSnap: Decodable, Equatable, Sendable {
         let vyaw = abs(t.vyaw) < turnZeroBelow ? 0 : min(max(t.vyaw, -DuckDrive.maxTurn), DuckDrive.maxTurn)
         let vy = keepSideways ? min(max(t.vy, -DuckDrive.maxSideways), DuckDrive.maxSideways) : 0
         return DuckDrive.Twist(vx: vx, vy: vy, vyaw: vyaw)
+    }
+
+    /// A chunk on the expert's command set: each row snapped, and still from the first stand on.
+    public func chunk(_ rows: [DuckDrive.Twist]) -> [DuckDrive.Twist] {
+        var standing = false
+        return rows.map { row in
+            let snapped = apply(row)
+            standing = standing || snapped.vx == 0
+            return standing ? .still : snapped
+        }
     }
 }

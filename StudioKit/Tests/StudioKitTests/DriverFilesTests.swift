@@ -182,13 +182,28 @@ final class DriverFilesTests: XCTestCase {
     func testSnappedRowsComeOutOfPrep() throws {
         let m = try DriverManifest.read(Self.manifest { $0["snap"] = ["forward_zero_below": 0.12, "forward_start": 0.25, "turn_zero_below": 0.1] })
         var flat = [Float](repeating: 0, count: 144)   // act_mean 0.1 forward: a soft stand
-        flat[3] = 0.4                                  // row 1: 0.1 + 0.4 * 0.2 = 0.18 forward
+        flat[0] = 0.4; flat[3] = 0.4                   // rows 0, 1: 0.1 + 0.4 * 0.2 = 0.18 forward
+        flat[2] = -0.6                                 // row 0: -0.3 turn
         flat[5] = 0.1                                  // row 1: 0.05 turn
-        flat[8] = -0.6                                 // row 2: -0.3 turn
+        flat[9] = 0.4                                  // row 3: walks again, after the stand on row 2
         let rows = try DriverPrep.rows(flat, rows: 48, manifest: m)
-        XCTAssertEqual(rows[0], DuckDrive.Twist(vx: 0, vy: 0, vyaw: 0))
+        XCTAssertEqual(rows[0].vx, 0.25)
+        XCTAssertEqual(rows[0].vyaw, -0.3, accuracy: 1e-6)
         XCTAssertEqual(rows[1], DuckDrive.Twist(vx: 0.25, vy: 0, vyaw: 0))
-        XCTAssertEqual(rows[2].vyaw, -0.3, accuracy: 1e-6)
-        XCTAssertEqual(rows[2].vx, 0)
+        XCTAssertEqual(Array(rows[2...]), Array(repeating: .still, count: 46))
+    }
+
+    func testOnceAChunkStandsItStands() {
+        let s = DriverSnap.expert
+        let walk = DuckDrive.Twist(vx: 0.26, vy: 0, vyaw: -0.5)
+        let stand = DuckDrive.Twist(vx: 0.05, vy: 0, vyaw: -0.16)
+        XCTAssertEqual(s.chunk([walk, walk, walk]), [walk, walk, walk])
+        // Walk, stand, walk again: still from the stand on, a stand's turn included.
+        XCTAssertEqual(s.chunk([walk, stand, walk]), [walk, .still, .still])
+        XCTAssertEqual(s.chunk([stand, walk]), [.still, .still])
+        XCTAssertEqual(s.chunk([]), [])
+        // A soft walk is not a stand.
+        XCTAssertEqual(s.chunk([DuckDrive.Twist(vx: 0.13, vy: 0, vyaw: 0), walk]),
+                       [DuckDrive.Twist(vx: 0.25, vy: 0, vyaw: 0), walk])
     }
 }
