@@ -49,6 +49,16 @@
 # nothing else is. EvalLog.swift is still required to spell all four, so the
 # exemption cannot hide the schema itself going missing.
 #
+# FIVE MORE WORDS ARE TAKEN BY OTHER FORMATS IN NAMED FILES, AND ONLY THERE.
+# `created`, `embodiment`, `seed`, `status` and `task` are ordinary words later
+# wire formats also use. Typing EvalLog.Key.seed into a LeRobot writer would be the
+# wrong fix: it would tie that format to a schema it has nothing to do with, and
+# a rename here would silently change a file another tool reads. But these five
+# get no key-wide exemption either, since a hand-built log could then spell
+# "seed" anywhere. So ELSEWHERE allows one key in one file, each pair naming its
+# format below; every other file, and the app target, is held to the rules. A
+# pair whose file stops spelling the key is red too, so the list cannot go stale.
+#
 # PROVED ABLE TO FAIL. On 2026-09-05, with the tree otherwise green, the line
 #   let scratch = "total_scenes"
 # was added to DuckStudio/Sources/EvalStore.swift and this script exited 1
@@ -57,6 +67,9 @@
 # EvalRun.swift made it exit 1 on the one-file rule instead, naming both files.
 # Both lines were removed and the script returned to exit 0. A gate nobody has
 # watched go red is a comment.
+# On 2026-11-05 ELSEWHERE went red the same way: "seed" in EvalRun.swift, in a
+# file the list does not name, exit 1 naming the file; "task" in the app target,
+# exit 1; "seed" taken out of Shoot.swift, exit 1 calling that pair stale.
 #
 # Usage:  scripts/check_evallog_schema.sh
 # Run from anywhere. Exit 0 = one spelling per key, none in the app target.
@@ -91,6 +104,20 @@ KEYS=(
 
 EXEMPT=(error policy eval duration_s)
 
+# One key in one file under StudioKit/Sources/StudioKit, each another format's.
+ELSEWHERE=(
+  "created DuckFeedback.swift"     # a feedback card's own JSONL line
+  "embodiment DuckDream.swift"     # dream.* request params, Dream Labs' wire
+  "seed BallTakes.swift"           # a line of the driver's ball-takes file
+  "seed DuckFeedback.swift"        # the `shown` block of a feedback card
+  "seed RolloutPairs.swift"        # duckbench's rollout-pairs source block
+  "seed Shoot.swift"               # duckbench's POST /shoot body
+  "status DreamDirect.swift"       # Dream Labs' error body, read not written
+  "status HubTraining.swift"       # the Hugging Face Jobs API, read not written
+  "task BallTakes.swift"           # a line of the driver's ball-takes file
+  "task DreamDataset.swift"        # LeRobot's meta/tasks.jsonl
+)
+
 fail=0
 
 # RULE 3 FIRST, because the other two are meaningless over the wrong list.
@@ -118,8 +145,29 @@ is_exempt() {
 kit_files() { grep -rlF "\"$1\"" "$KIT" --include='*.swift' 2>/dev/null | sort || true; }
 app_files() { grep -rlF "\"$1\"" "$APP" --include='*.swift' 2>/dev/null | sort || true; }
 
+# The kit's files for a key, less the ones ELSEWHERE gives to another format.
+schema_files() {
+  local key="$1" pair
+  local files
+  files=$(kit_files "$key")
+  for pair in "${ELSEWHERE[@]}"; do
+    if [ "${pair%% *}" = "$key" ]; then
+      files=$(printf '%s\n' "$files" | grep -vxF "$KIT/StudioKit/${pair##* }" || true)
+    fi
+  done
+  printf '%s' "$files"
+}
+
+for pair in "${ELSEWHERE[@]}"; do
+  if ! grep -qF "\"${pair%% *}\"" "$KIT/StudioKit/${pair##* }" 2>/dev/null; then
+    echo "check_evallog_schema: ELSEWHERE allows \"${pair%% *}\" in ${pair##* }, which no longer spells it" >&2
+    echo "    Take the pair out of the list, so the allowance cannot outlive its reason." >&2
+    fail=1
+  fi
+done
+
 for key in "${KEYS[@]}"; do
-  kit=$(kit_files "$key")
+  kit=$(schema_files "$key")
   app=$(app_files "$key")
   count=$(printf '%s' "$kit" | grep -c . || true)
 
@@ -156,4 +204,4 @@ if [ "$fail" -ne 0 ]; then
   exit 1
 fi
 
-echo "check_evallog_schema: 40 keys, ${#EXEMPT[@]} exempt by another protocol, one spelling each."
+echo "check_evallog_schema: 40 keys, ${#EXEMPT[@]} exempt by another protocol, ${#ELSEWHERE[@]} pairs named elsewhere, one spelling each."
