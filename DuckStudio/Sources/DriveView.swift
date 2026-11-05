@@ -1755,7 +1755,9 @@ struct DriveView: View {
                                       example: tryExample,
                                       go: go,
                                       takeOver: takeOver,
-                                      stop: { stopNow() })
+                                      stop: { stopNow() },
+                                      shortScreenHeight: CGFloat(StageViewport.drawerHeight(
+                                          available: Double(glass.height))))
                         }
                     case .drive:
                         padDeck(compact: true)

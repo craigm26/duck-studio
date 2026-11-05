@@ -213,6 +213,9 @@ struct AutoPanel: View {
     let go: (AutoGoal) -> Void
     let takeOver: () -> Void
     let stop: () -> Void
+    /// The tallest the idle panel may be on a short screen.
+    let shortScreenHeight: CGFloat
+    @Environment(\.verticalSizeClass) private var verticalSize
 
     var body: some View {
         if let running {
@@ -233,7 +236,17 @@ struct AutoPanel: View {
             .background(Theme.surfacePrimary, in: Capsule())
             .overlay(Capsule().strokeBorder(Theme.outline, lineWidth: DesignMetric.outlineStroke))
             .shadow(color: PondShadow.colour, radius: PondShadow.blur, y: PondShadow.y)
+        } else if verticalSize == .compact {
+            // A LANDSCAPE PHONE IS ABOUT 390 PT TALL. The cards scroll under the drawer's own height
+            // limit, so the panel cannot climb over the top strip and the red disc.
+            ScrollView { idle }.frame(maxHeight: shortScreenHeight)
         } else {
+            idle
+        }
+    }
+
+    /// The cards, with nothing running.
+    private var idle: some View {
             HStack(alignment: .top, spacing: Theme.spacing(.tight)) {
                 AskCard(duck: duck, ask: ask, listener: listener, caption: caption, plan: plan, example: example,
                         stop: stop)
@@ -246,7 +259,6 @@ struct AutoPanel: View {
                 }
                 .frame(width: ControllerMetric.helperColumn, alignment: .leading)
             }
-        }
     }
 
     private func helper(_ goal: AutoGoal) -> some View {
