@@ -295,6 +295,32 @@ Cheapest first. Each rung is judged by the same M1 test (10 seeded sim starts, t
 
 **Then K2:** build 90 waits.
 
+### Round 3 expert (2026-11-04)
+
+Round 2's driver (`craigm26/duck-driver-walk-to-ball-v3`) reached 10 of 20 balls and stopped at none. Both causes were the expert's, so round 3 changes the expert before any DAgger round:
+
+- **The stop line is inside the picture.** `BallExpert.reach` is 0.35 m (was 0.20). Measured by projecting the ball through `SimHeadCamera.pose` for 6,388 recorded rows and checking against the Mac's rendered frames (centre row within 0.3 px on average): the ball's last pixels leave the bottom of the head picture at 0.29 to 0.30 m; at 0.34 to 0.36 m its top half shows (median 715 to 996 of 320 by 176 pixels). The duck stands only with the ball in the 30 degree cone, so no standing row is a picture of bare floor.
+- **No command in the walker's dead band.** Measured from rest on duckbench: vx 0.20 moves 0.003 m/s, 0.22 moves 0.038, 0.25 moves 0.086; vx 0 with vyaw 1.0 turns 12 degrees in 3 s. Forward is now 0 or at least 0.25 (`walkStart`), never eased; no sideways weave; a steer under 0.1 rad/s is 0.
+- **M1 logs keep the bench's full state per tick**, so the DAgger round can draw the driver's own pictures.
+- **takes-v4:** 240 takes, seeds 20001 to 20242 (2 dropped: a ball the bench set rolling ended under a standing duck's camera), 25,531 rows, 3,840 standing rows (16 a take, all 0.32 to 0.35 m from the ball), mean 10.6 s. Expert on M1 seeds 5001 to 5010: 10 of 10 reached and stopped, mean 6.9 s to reach.
+
+### Round 3 result (2026-11-04)
+
+- **Data.** dataset-v4 rendered on the Mac (240 episodes, 25,531 frames, Dream validator ok, video frames = take rows in every episode), private `craigm26/duck-drive-walk-to-ball-v4`. A standing frame at 0.337 m shows the top half of the ball, as measured.
+- **Training.** t4-small now fits (pictures 2.16 GB with duckbatch #22's uint16 store). Driver public `craigm26/duck-driver-walk-to-ball-v4`: val L1 0.139 (zero 0.963, repeat-first 0.341). Round 2 was 0.358.
+- **M1, seeds 5001 to 5010 and 6001 to 6010:**
+
+| who | reached | stopped | parked | reached and parked | time to reach (mean) | first seen (mean) |
+|---|---|---|---|---|---|---|
+| driver v4 | 12 | 0 | 14 | 7 | 21.3 s | 12.5 s |
+| zero | 1 (6007, the ball rolls in) | 1 | 1 | 1 | 0.1 s | |
+| expert | 20 | 20 | 20 | 20 | 8.5 s | 2.7 s |
+
+- **PASS, narrowly** (rule: reached at least 12 and stopped or parked in most of those; 7 of 12). No DAgger round was run.
+- **What the misses are.** All 8 misses parked 0.36 to 0.41 m from the ball, 1 to 6 cm short of the 0.35 m line. No run froze away from the ball (round 2: 14 of 20). The driver's stand is small, not zero (last commands vx 0.00 to 0.05), so "stopped" scores 0 though the duck is still.
+- **What the walk-throughs are.** 5 reached runs ended walking (5006, 5008, 5009, 6002, 6007). Most of them had the ball in view under 15% of the time: the search arc carried the duck onto a ball it never saw. The search turn is still softened (toward the hidden ball 0.2 to 0.5 of the expert's full turn).
+- **Ready for the next round:** `scripts/dagger_relabel.py` turns M1 driver logs into takes with expert labels (rows with the ball under the camera dropped, standing capped at 16 rows).
+
 ## Risks and kill criteria
 
 **Risks**

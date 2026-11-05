@@ -10,8 +10,10 @@ signatures, each judged per run on the ticks after the pilot's first ask:
   against the expert's labels on the same states.
 - OVERSHOOT: ticks inside the reach radius with vx above the dead zone (still walking).
 - NO STOP: after the run first reaches, the share of ticks still walking and the mean vx asked;
-  and the same under the camera (closer than UNDER_CAMERA, 0.29 m, where the ball has left the
-  bottom of the head picture: measured on dataset-v3 episode 0), where the picture holds no ball.
+  and the same under the camera (closer than UNDER_CAMERA, 0.30 m, where the ball has left the
+  bottom of the head picture: measured on 40 dataset-v3 episodes, 2026-11-04), where the picture
+  holds no ball. Since round 3 the reach (BallExpert.reach, 0.35 m) is outside that, so a driver that
+  stops at the line still sees the ball.
 A signature is systematic when at least 3 failed runs share it.
 
 THE HEAD CAMERA SEES ABOUT +-37 DEGREES (fovy 45 at 320 x 176), so every number is also split by
@@ -31,7 +33,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from record_ball_takes import DEAD_ZONE, PLAIN, REACH, SEEN as FACING, command  # noqa: E402
 
 AHEAD = 0.15
-UNDER_CAMERA = 0.29
+UNDER_CAMERA = 0.30
 HALF_HFOV = math.atan(math.tan(math.radians(45 / 2)) * 320 / 176)
 
 
