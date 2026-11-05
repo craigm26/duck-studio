@@ -400,7 +400,7 @@ Files read: `/home/craigm26/projects/duck-studio/StudioKit/Sources/StudioKit/Dre
 
 The Auto card is live on the practice duck: Get (4.4 MB), then Go, then the one Stop and the 60 s Auto cap.
 
-**Install.** `DriverRelease.walkToBall` pins `craigm26/duck-driver-walk-to-ball-v5` at `fe94d4a`, plus the SHA-256 of `policy.json` and of the weights. `DriverInstaller` fetches the three files over plain URLSession from public resolve URLs, with no token and no lock. It checks sizes and hashes, writes a side folder, runs `DriverTrial.load` on it (the golden replay included) and only then renames it into Application Support. `status()` re-reads the disk at launch and removes a damaged driver. Mac, real download with `DuckStudio -driver-get-check`: installed in 1.2 s, Cancel left nothing, delete left nothing.
+**Install.** `DriverRelease.walkToBall` pins `craigm26/duck-driver-walk-to-ball-v6` at `5985110` (it was v5 at `fe94d4a` when this was written and measured; see the v6 section at the end), plus the SHA-256 of `policy.json` and of the weights. `DriverInstaller` fetches the three files over plain URLSession from public resolve URLs, with no token and no lock. It checks sizes and hashes, writes a side folder, runs `DriverTrial.load` on it (the golden replay included) and only then renames it into Application Support. `status()` re-reads the disk at launch and removes a damaged driver. Mac, real download with `DuckStudio -driver-get-check`: installed in 1.2 s, Cancel left nothing, delete left nothing.
 
 **Three things found while wiring it.**
 1. `/ball` was not in `DuckBench.routes`, so the phone's bench would have answered 404. It is now, with a factory (`DuckDrive.placeBall`) and the factory test.
@@ -423,3 +423,29 @@ The start is the same calls as `layOut`, with the 1.2 s pre-roll as one `/stop`.
 **The real duck stays out.** `mediad`'s `/frame` is wired for Dream-1, but this driver has only seen the drawn stage. The card says "Practice duck only for now" and has no Go there (risk 7 above).
 
 **Not run:** any of this on a phone. The Mac runs are the shipped pilot, driver and renderer in lockstep with the bench; the wall-clock path (`SimHeadCameraFeed` at 5 fps with the phone's own bench) has compiled and has not been driven.
+
+## The hard arrival: driver v6 (2026-11-05)
+
+**The change.** `dagger_relabel.py` now ends a take at the expert's first stand: that row and the next 15 are stand (16 in all, as a recorded take does), on the pictures the driver really saw, and every later tick is dropped. The model trains on 48 rows from each picture, and a v5 stand label was followed by whatever the driver did next.
+
+**Data.** The same 40 v4 runs (seeds 30001 to 30040): 15,684 rows (8,795 search, 6,521 approach, 368 stand). Only 23 of the 40 ever reach a stand, so the stand rows rose from 335 to 368; what changed is that they now sit in unbroken tails. 2,645 rows after a stand are gone. The `m1-app2` v5 runs were not added.
+
+**Not rendered again.** The Mac was held by the build 93 upload when the data was cut, expected for 20 more minutes, and waiting for it would have left no time for both arms. It came free sooner, about 04:11. Every kept row already had its picture in `dataset-v5`, matched by sim time (none missing, no held frames), so `dataset-v6` is v5 with the 40 DAgger episodes cut and copied as YUV into a new H.264 at crf 12 (mean pixel change 0.05 to 0.43 of 255 on the two episodes sampled). 280 episodes, 41,215 frames, Dream validator ok. Private `craigm26/duck-drive-walk-to-ball-v6`@7c84d1f. Tool: `~/scratch/round2/make_v6.py`, not in this repo. takes-v6 = takes-v4 + those 40.
+
+**Training.** t4-small, 30,000 steps, 990 s, about $0.11, duckbatch 2dfec0b. Public `craigm26/duck-driver-walk-to-ball-v6`: val L1 0.118 (zero 1.221, repeat 0.279). Snap block in policy.json at 5985110, the revision pinned.
+
+**Judged on seeds 9001-9020, used by nothing before, from the app's start (`--app-start`), both with snap and latch.** Same app build. Logs `~/scratch/ball-takes/m1-9001`.
+
+| Arm | Reached | Parked | Reached and parked | Stopped | Reach s | First sight s | Ball push m | Pushed over 5 cm | Within 0.2 m | Walking at end |
+|---|---|---|---|---|---|---|---|---|---|---|
+| expert | 20 | 20 | 20 | 20 | 8.7 | 2.3 | 0 | 0 | 0 | 0 |
+| v5 snap+latch | 20 | 14 | 14 | 14 | 14.4 | 2.5 | 0.23 | 8 | 14 | 6 |
+| **v6 snap+latch** | 19 | 18 | 17 | 18 | 11.7 | 2.5 | 0.17 | 9 | 10 | 2 |
+
+**Pick: v6.** The rule was parked clearly higher, ball push lower, reached at least 19. Parked 18 is above all five v5 scores with the latch (12 to 14), and it parks 6 seeds v5 does not, against 2 the other way. It reaches 2.7 s sooner and ends walking in 2 runs, not 6.
+
+**How much this proves.** Less than the means say. The lower push leans on one v5 run that shoved the ball 1.18 m; seed by seed v6 pushes less on 7 and more on 6, the median is 0 for both, and it still moves the ball over 5 cm in 9 of 20. It bumps as often as v5. It stops better and walks off less. So the hard arrival is reduced, not fixed, and the card keeps "It often bumps the ball first." Seed 9015 is the one miss on reach: it parked at 0.355 m, 5 mm short of the line.
+
+**The card** says reached 19 of 20, stopped there 17 of 20: the 17 that did both, the lower number, because the 9015 run parked without reaching.
+
+**Not run:** `-driver-get-check` on the v6 pin. The three public files were fetched and match the hashes and sizes; the trial loaded the same policy.json and weights, golden replay included. Next for the push: DAgger on v5 or v6 runs, which arrive hard where v4's did not (no v4 tail ran out of picture).

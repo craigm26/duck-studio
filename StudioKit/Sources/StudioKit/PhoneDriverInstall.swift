@@ -32,12 +32,12 @@ public struct DriverRelease: Equatable, Sendable {
 
     /// M1 pick of 2026-11-05: v5, weights commit 306f2a6 plus the snap block.
     public static let walkToBall = DriverRelease(
-        repo: "craigm26/duck-driver-walk-to-ball-v5",
-        revision: "fe94d4ac5eaf88e7e2e752bf9d43bc7e3d49ca80",
-        policySHA256: "aecee22097aefa07cf0b0a2486c4a6ee2f22b781597cf085d7ce9c5cfd2a57ab",
-        weightsSHA256: "9ddfdabe6135f3ff94e3260b8e4b0405572a05b90b79f4b24d7016f3be64f4cf",
-        bytes: 1225 + 4_364_856 + 10_885,
-        freshRuns: 20, freshReached: 20, freshParked: 12)
+        repo: "craigm26/duck-driver-walk-to-ball-v6",
+        revision: "5985110aefdef3da98dfcbebe939a77da631de5a",
+        policySHA256: "cd0f5aa692d77e7f43954e16c904be33459ad549fd2b50aaabacc4ff649d8f7e",
+        weightsSHA256: "d1a1015708306b2153c7139a58906d10776a5bfb06b6a9123d1cc13f8515246f",
+        bytes: 1229 + 4_364_856 + 10_754,
+        freshRuns: 20, freshReached: 19, freshParked: 17)
 
     /// Its folder on this device: changing the pin is a new install, and never a mixed one.
     public var folder: String {

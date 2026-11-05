@@ -174,7 +174,7 @@ final class BallRunTests: XCTestCase {
         let card = DriverCard(phase: .absent, duck: .sim)
         XCTAssertEqual(card.actions, [.get])
         XCTAssertEqual(card.title(.get, release: .walkToBall), "Get (4.4 MB)")
-        XCTAssertEqual(card.lines, ["Simulator test: reached the ball 20 of 20 times, stopped there 12 of 20. It often bumps the ball first.",
+        XCTAssertEqual(card.lines, ["Simulator test: reached the ball 19 of 20 times, stopped there 17 of 20. It often bumps the ball first.",
                                     "Runs on this device. Not made by Pollen."])
     }
 
