@@ -138,11 +138,16 @@ public enum ControllerWords {
     public static let moreCameraLine = "Put the camera back behind the duck."
     public static let moreSettings = "Driving settings"
     public static let moreRealDuck = "Scene, recording and the camera view are for the practice duck."
+    /// Moves with no duck to run on (build 93): what to do, not only what is missing.
+    public static let movesNoDuckTitle = "No duck to run these on yet"
+    public static let movesNoDuckLine = "Open Play to drive the Practice duck, or tap the duck pill there to add your own."
+    public static let movesGoPlay = "Open Play"
 
     public static var sheetWords: [String] {
         [movesSheet, movesSheetHint, motions, more, moreHint, moreScene, moreRecord, moreRecordLine,
          moreCamera, moreCameraLine, moreSettings, moreRealDuck, putBack, putBackHint, fellOver,
-         recentreCamera, takeOver, takeOverHint, otherHelpers, autoRunning("Walk", elapsed: 4, cap: 60)]
+         recentreCamera, takeOver, takeOverHint, otherHelpers, autoRunning("Walk", elapsed: 4, cap: 60),
+         movesNoDuckTitle, movesNoDuckLine, movesGoPlay]
     }
 }
 

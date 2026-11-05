@@ -119,13 +119,13 @@ struct LearnView: View {
                 open(go)
             }
             if lesson.id == nextLessonID {
-                Button(button, action: press).buttonStyle(.borderedProminent)
+                Button(button, action: press).buttonStyle(.primaryAction)
             } else {
                 Button(button, action: press).buttonStyle(.bordered)
             }
         } else if !done {
             if lesson.id == nextLessonID {
-                Button("Got it") { progress.mark(lesson.id) }.buttonStyle(.borderedProminent)
+                Button("Got it") { progress.mark(lesson.id) }.buttonStyle(.primaryAction)
             } else {
                 Button("Got it") { progress.mark(lesson.id) }.buttonStyle(.bordered)
             }

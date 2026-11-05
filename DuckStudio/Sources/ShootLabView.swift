@@ -173,7 +173,7 @@ struct ShootLabView: View {
                 .font(.caption).foregroundStyle(Theme.textTertiary)
                 .fixedSize(horizontal: false, vertical: true)
             Button(search.bestScore == nil ? "Train (3 rounds)" : "Train 3 more rounds") { train() }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.primaryAction)
                 .disabled(busy != nil)
             Button("Use the head start instead") {
                 search = Shoot.Search(start: .headStart, children: 3)

@@ -39,7 +39,7 @@ public enum Onboarding {
 
     /// A button on a page.
     public enum ChoiceID: String, CaseIterable, Sendable {
-        case yesItsHere, notYet
+        case yesItsHere, hereNotOnWifi, notYet
         case onWifi, notOnWifi
         case openPollensApp, doneThat
         case lookForMyDuck, practiceInstead
@@ -79,9 +79,12 @@ public enum Onboarding {
         "Microduck Studio is a companion app, not Pollen's official app."
 
     public static let pages: [Page] = [
+        // BUILD 93: THE WI-FI QUESTION RIDES ON PAGE ONE, so a duck on the Wi-Fi stands in four
+        // taps (the plan's exit check), not five. The Wi-Fi page stays for "Add your duck".
         Page(id: .haveDuck,
              title: "Do you have a Microduck with you?",
-             choices: [Choice(.yesItsHere, "Yes, it's here", prominent: true),
+             choices: [Choice(.yesItsHere, "Yes, it's here and on my Wi-Fi", prominent: true),
+                       Choice(.hereNotOnWifi, "It's here, but not on Wi-Fi yet"),
                        Choice(.notYet, "Not yet, let me practise")],
              smallPrint: companionLine),
         Page(id: .wifi,
@@ -137,7 +140,8 @@ public enum Onboarding {
     /// page leaves the person on it.
     public static func next(from page: PageID, choosing choice: ChoiceID) -> Destination {
         switch (page, choice) {
-        case (.haveDuck, .yesItsHere): return .page(.wifi)
+        case (.haveDuck, .yesItsHere): return .page(.find)
+        case (.haveDuck, .hereNotOnWifi): return .page(.wifiHelp)
         case (.haveDuck, .notYet): return .controller(onPracticeDuck: true)
         case (.wifi, .onWifi): return .page(.find)
         case (.wifi, .notOnWifi): return .page(.wifiHelp)
@@ -157,8 +161,14 @@ public enum Onboarding {
     /// The buttons a person presses from a fresh install to a standing duck,
     /// with a duck on the Wi-Fi and found on the first look. Picking the duck
     /// from a list of more than one adds a tap the flow cannot count.
+    ///
+    /// FOUR PRESSES, AND THE BRIDGE CODE IS NOT ONE OF THEM. A fresh install has no code, and
+    /// `look()` connects by itself only with one saved, so the code the bridge printed is typed
+    /// on the Find page first (the plan's "zero typing" is not met), or the found duck takes one
+    /// more tap. Nothing that keeps the duck safe was cut: the quack still asks "is this yours?"
+    /// and Stand up is still its own press.
     public static let tapsToStand: [(PageID, ChoiceID)] = [
-        (.haveDuck, .yesItsHere), (.wifi, .onWifi), (.find, .lookForMyDuck),
+        (.haveDuck, .yesItsHere), (.find, .lookForMyDuck),
         (.sayHi, .quacked), (.standUp, .standUp),
     ]
 
@@ -218,6 +228,46 @@ public enum Onboarding {
         "Tap the red disc any time to stop",
     ]
 
+    /// Which one-time coach mark Play shows, and which are done (build 93).
+    ///
+    /// ONE AT A TIME, ONLY IN DRIVE, EACH ONCE: "Push the stick a little" until the first stick
+    /// drive, then "Tap the red disc any time to stop" until the first Stop or a tap on the chip.
+    /// "Press Stand" is not shown: Drive has no Stand button to point at (Tell's tile stands it).
+    /// `done` is a bit set the app keeps in its settings.
+    public struct CoachMarks: Equatable, Sendable {
+        public enum Mark: Int, CaseIterable, Sendable {
+            case stand = 0, stick, stop
+            public var says: String { Onboarding.coachMarks[rawValue] }
+            /// The glyph on the chip.
+            public var symbol: String {
+                switch self {
+                case .stand: return "figure.stand"
+                case .stick: return "hand.point.up.left"
+                case .stop: return "stop.circle"
+                }
+            }
+            /// The marks Play may show, in order.
+            public static let shown: [Mark] = [.stick, .stop]
+        }
+
+        /// What activating a chip does, for VoiceOver.
+        public static let dismissHint = "Hides this tip."
+
+        public private(set) var done: Int
+
+        public init(done: Int = 0) { self.done = done }
+
+        public func isDone(_ mark: Mark) -> Bool { done & (1 << mark.rawValue) != 0 }
+
+        /// The mark to show now, or nil.
+        public func showing(in mode: ControlArbiter.Mode) -> Mark? {
+            guard mode == .drive else { return nil }
+            return Mark.shown.first { !isDone($0) }
+        }
+
+        public mutating func did(_ mark: Mark) { done |= 1 << mark.rawValue }
+    }
+
     /// Shown once, after the first successful stand.
     public static let siriTip = "Say: Duck Studio, stop the duck."
 
@@ -267,7 +317,7 @@ public enum Onboarding {
             if let s = p.smallPrint { all.append(s) }
             all += p.choices.map(\.label)
         }
-        all += coachMarks + makeItYoursSteps + Discovery.allCases.map(\.label)
+        all += [CoachMarks.dismissHint] + coachMarks + makeItYoursSteps + Discovery.allCases.map(\.label)
         return all
     }
 }

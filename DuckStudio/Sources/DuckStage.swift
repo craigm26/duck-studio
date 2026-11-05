@@ -609,6 +609,8 @@ struct StageSurface: UIViewRepresentable {
                 shadow.model?.materials = [UnlitMaterial(color: Self.contactShadow(next))]
             }
             if let world { buildGround(in: world) }
+            // The pitch's lines take the scheme's colour too.
+            if let pitch = shownPitch { shownPitch = nil; drawPitch(pitch) }
             shownEnvironment = nil
             shownGraspables = []
             shownTrail = -1
@@ -649,9 +651,10 @@ struct StageSurface: UIViewRepresentable {
             pitchEntity = nil
             guard let pitch, let world else { return }
             let root = Entity()
-            let white = UnlitMaterial(color: .white)
-            // Full white: on the light playmat a translucent line vanishes.
-            let line = UnlitMaterial(color: .white)
+            // THE PALETTE'S LINE, NOT WHITE (build 93): white is 1.51:1 on the light playmat and
+            // the goal all but vanished. Teal ink by day, cream at night (PaletteTests).
+            let white = UnlitMaterial(color: tone(.stageLine))
+            let line = UnlitMaterial(color: tone(.stageLine))
             let gx = Float(pitch.goalX), hw = Float(pitch.goalHalfWidth)
             let h = Float(pitch.goalHeight), depth = Float(pitch.goalDepth)
             let post: Float = 0.012
@@ -665,7 +668,7 @@ struct StageSurface: UIViewRepresentable {
             bar.position = SIMD3(gx, h, 0)
             root.addChild(bar)
             let net = ModelEntity(mesh: .generateBox(size: SIMD3(0.002, h, hw * 2)),
-                                  materials: [UnlitMaterial(color: UIColor(white: 1, alpha: 0.25))])
+                                  materials: [UnlitMaterial(color: tone(.stageLine).withAlphaComponent(0.35))])
             net.position = SIMD3(gx + depth, h / 2, 0)
             root.addChild(net)
             // Lines on the floor: the goal line, the halfway line, the room's edge.
@@ -872,7 +875,8 @@ struct StageSurface: UIViewRepresentable {
                 let lip = ModelEntity(
                     mesh: .generateBox(width: 0.004, height: 0.0025,
                                        depth: Float(step.halfWidth * 2)),
-                    materials: [UnlitMaterial(color: tone(.actionYellow))])
+                    // ORANGE INK ON THE CREAM STEP (build 93): yellow was 1.35:1 on it.
+                    materials: [UnlitMaterial(color: tone(.stageStepEdge))])
                 lip.position = SIMD3(Float(step.x - step.halfDepth),
                                      Float(step.top) + 0.0014,
                                      Float(-step.y))
@@ -940,8 +944,8 @@ struct StageSurface: UIViewRepresentable {
             markers.removeAll()
             guard trail.count > 1 else { return }
 
-            // Teal at ink weight, so the path reads on the teal playmat.
-            let material = UnlitMaterial(color: tone(.brandPrimary))
+            // Its own token, checked against the playmat in both schemes (PaletteTests).
+            let material = UnlitMaterial(color: tone(.stageTrail))
             for index in 1..<trail.count {
                 let a = trail[index - 1], b = trail[index]
                 let dx = Float(b.x - a.x), dz = Float(-(b.y - a.y))

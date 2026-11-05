@@ -387,6 +387,8 @@ public enum DuckDecider {
         public static let title = "Ask the duck"
         public static let provenance = "Apple Intelligence, on this device. Nothing you say leaves it."
         public static let readyLine = "Say or type a goal. It plans a few steps from your words, shows them, then runs them."
+        /// What tapping a "Try saying" chip does.
+        public static let exampleHint = "Shows the plan for a moment, then runs it."
         public static let placeholder = "Walk forward, turn left, then sit"
         public static let go = "Plan"
         public static let thinking = "Planning."
@@ -400,9 +402,44 @@ public enum DuckDecider {
         /// The Siri line under the field. Must match a phrase in DuckShortcuts (the app's AppShortcutsProvider).
         public static let siriLine = "Or ask Siri: \"Sit the duck down in Microduck Studio\""
 
+        /// The hint row under the field (build 93): a few sentences to tap, so a first try works.
+        public static let trySaying = "Try saying"
+
+        /// What to try on this duck. WITHOUT APPLE INTELLIGENCE every sentence is one the matcher
+        /// reads exactly, so a tap works on any phone; with it, a two-step sentence shows what
+        /// planning adds, and each step is still one the matcher reads on its own.
+        public static func examples(on duck: DuckIdentity.Kind?, modelReady: Bool) -> [String] {
+            switch (duck, modelReady) {
+            case (.sim?, false): return ["walk forward", "turn left"]
+            case (.sim?, true): return ["walk forward, then turn left", "turn right"]
+            case (_, false): return ["stand up", "quack"]
+            case (_, true): return ["stand up, then quack", "walk forward, then sit down"]
+            }
+        }
+
+        /// The steps of an example, as the matcher reads them one at a time.
+        public static func exampleSteps(_ example: String) -> [String] {
+            example.components(separatedBy: ", then ").map { $0.trimmingCharacters(in: .whitespaces) }
+        }
+
+        /// A tapped example as a plan, read with no model, or nil if any step does not run on this
+        /// duck. A tap therefore works the same with Apple Intelligence on or off.
+        public static func examplePlan(_ example: String, on duck: DuckIdentity.Kind,
+                                       skills: [String]) -> [DuckOrder]? {
+            var orders: [DuckOrder] = []
+            for step in exampleSteps(example) {
+                guard let order = DuckOrderMatcher.match(step, skills: skills), order.notOn(duck) == nil
+                else { return nil }
+                orders.append(order)
+            }
+            return orders.isEmpty ? nil : orders
+        }
+
         public static var all: [String] {
-            [title, provenance, readyLine, placeholder, go, thinking, startingSoon, cancel, cancelled, cantSee,
-             step(1, of: 3), done, modelFailed, siriLine]
+            [title, provenance, readyLine, exampleHint, placeholder, go, thinking, startingSoon, cancel, cancelled, cantSee,
+             step(1, of: 3), done, modelFailed, siriLine, trySaying]
+                + [DuckIdentity.Kind.sim, .real].flatMap { d in
+                    [false, true].flatMap { examples(on: d, modelReady: $0) } }
                 + [Availability.deviceNotEligible, .notEnabled, .modelNotReady, .needsNewerSystem, .unavailable]
                     .flatMap { [$0.says, $0.instead ?? ""] }
         }

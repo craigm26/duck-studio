@@ -168,7 +168,7 @@ struct TellPanel: View {
                     .submitLabel(.go)
                     .onSubmit(submit)
                 Button(ControllerWords.tellSend, action: submit)
-                    .buttonStyle(.primaryAction)
+                    .buttonStyle(.primaryActionInline)
                     .disabled(busy || text.trimmingCharacters(in: .whitespaces).isEmpty)
             }
             if let line = listener.listening ? MicWords.listening : (listener.problem ?? caption) {
@@ -208,9 +208,14 @@ struct AutoPanel: View {
     /// The status line while something runs, or nil.
     let running: String?
     let plan: (String) -> Void
+    /// A "Try saying" sentence tapped: planned with no model and run.
+    let example: (String) -> Void
     let go: (AutoGoal) -> Void
     let takeOver: () -> Void
     let stop: () -> Void
+    /// The tallest the idle panel may be on a short screen.
+    let shortScreenHeight: CGFloat
+    @Environment(\.verticalSizeClass) private var verticalSize
 
     var body: some View {
         if let running {
@@ -231,9 +236,20 @@ struct AutoPanel: View {
             .background(Theme.surfacePrimary, in: Capsule())
             .overlay(Capsule().strokeBorder(Theme.outline, lineWidth: DesignMetric.outlineStroke))
             .shadow(color: PondShadow.colour, radius: PondShadow.blur, y: PondShadow.y)
+        } else if verticalSize == .compact {
+            // A LANDSCAPE PHONE IS ABOUT 390 PT TALL. The cards scroll under the drawer's own height
+            // limit, so the panel cannot climb over the top strip and the red disc.
+            ScrollView { idle }.frame(maxHeight: shortScreenHeight)
         } else {
+            idle
+        }
+    }
+
+    /// The cards, with nothing running.
+    private var idle: some View {
             HStack(alignment: .top, spacing: Theme.spacing(.tight)) {
-                AskCard(duck: duck, ask: ask, listener: listener, caption: caption, plan: plan, stop: stop)
+                AskCard(duck: duck, ask: ask, listener: listener, caption: caption, plan: plan, example: example,
+                        stop: stop)
                     .frame(maxWidth: .infinity)
                 VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
                     Text(ControllerWords.otherHelpers)
@@ -243,7 +259,6 @@ struct AutoPanel: View {
                 }
                 .frame(width: ControllerMetric.helperColumn, alignment: .leading)
             }
-        }
     }
 
     private func helper(_ goal: AutoGoal) -> some View {
@@ -284,6 +299,7 @@ struct AskCard: View {
     @ObservedObject var listener: DuckListener
     let caption: String?
     let plan: (String) -> Void
+    let example: (String) -> Void
     let stop: () -> Void
     @State private var text = ""
     @FocusState private var focused: Bool
@@ -343,10 +359,11 @@ struct AskCard: View {
                         .submitLabel(.go)
                         .onSubmit(submit)
                     Button(DuckDecider.Words.go, action: submit)
-                        .buttonStyle(.primaryAction)
+                        .buttonStyle(.primaryActionInline)
                         .disabled(ask.phase == .thinking || duck == nil
                                   || text.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
+                if duck != nil { trySaying }
             }
             if let line = listener.listening ? MicWords.listening
                 : (ask.phase == .thinking ? DuckDecider.Words.thinking : (listener.problem ?? caption)) {
@@ -363,6 +380,29 @@ struct AskCard: View {
         .padding(Theme.spacing(.snug))
         .frame(maxWidth: .infinity, alignment: .leading)
         .pondPanel()
+    }
+
+    /// "Try saying": two sentences that work on this duck, one tap each (build 93). A first-time
+    /// owner sees what to say, and the tap works with Apple Intelligence on or off.
+    private var trySaying: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 6) { trySayingParts }
+            VStack(alignment: .leading, spacing: 6) { trySayingParts }
+        }
+    }
+
+    @ViewBuilder private var trySayingParts: some View {
+        Text(DuckDecider.Words.trySaying)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(Theme.textSecondary)
+        ForEach(DuckDecider.Words.examples(on: duck, modelReady: ask.availability.isReady), id: \.self) { said in
+            Button { example(said) } label: {
+                Label(said, systemImage: "quote.bubble").lineLimit(2)
+            }
+            .buttonStyle(.pondChip)
+            .disabled(ask.phase == .thinking)
+            .accessibilityHint(Text(DuckDecider.Words.exampleHint))
+        }
     }
 
     private func submit() {
@@ -405,7 +445,7 @@ struct DuckPictureStage: View {
                         .padding(.horizontal, Theme.spacing(.loose))
                     if !connected {
                         Button(ControllerWords.connectYourDuck, action: connect)
-                            .buttonStyle(.borderedProminent)
+                            .buttonStyle(.primaryAction)
                     } else if let problem = feed.problem {
                         Text(problem)
                             .font(.caption)

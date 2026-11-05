@@ -100,6 +100,17 @@ struct DuckSoccerView: View {
 
     // MARK: - during play
 
+    /// A team's name as a badge in its own colour: ink on the team's fill, so it reads on the
+    /// surface pill in both schemes (yellow or teal words on a pale pill did not).
+    private func teamBadge(_ name: String, fill: Color) -> some View {
+        Text(name)
+            .font(.caption.weight(.heavy))
+            .foregroundStyle(Theme.onFill)
+            .padding(.horizontal, 6).padding(.vertical, 2)
+            .background(fill, in: Capsule())
+            .overlay(Capsule().strokeBorder(Theme.outline, lineWidth: 1))
+    }
+
     /// One pill: the score and the clock, and a pause button beside it.
     private var hud: some View {
         HStack(spacing: Theme.spacing(.snug)) {
@@ -110,21 +121,21 @@ struct DuckSoccerView: View {
                     Divider().frame(height: 18)
                     Text(referee.practiceLine).font(.subheadline.monospacedDigit())
                 }
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.textPrimary)
                 .padding(.horizontal, 14).padding(.vertical, 8)
-                .background(.black.opacity(0.55), in: Capsule())
+                .modifier(SoccerHUDPill())
             } else {
             HStack(spacing: 10) {
-                Text("YOU").font(.caption.weight(.heavy)).foregroundStyle(Color(uiColor: PondTeams.home))
+                teamBadge("YOU", fill: Theme.actionYellow)
                 Text("\(referee.homeGoals)  –  \(referee.awayGoals)")
                     .font(.title3.weight(.bold).monospacedDigit())
-                Text("CPU").font(.caption.weight(.heavy)).foregroundStyle(Color(uiColor: PondTeams.away))
+                teamBadge("CPU", fill: Theme.actionTeal)
                 Divider().frame(height: 18)
                 Text(referee.clockText).font(.subheadline.monospacedDigit())
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(Theme.textPrimary)
             .padding(.horizontal, 14).padding(.vertical, 8)
-            .background(.black.opacity(0.55), in: Capsule())
+            .modifier(SoccerHUDPill())
             .accessibilityElement(children: .combine)
             .accessibilityLabel(Text("Score: you \(referee.homeGoals), CPU \(referee.awayGoals). "
                                      + referee.clockText))
@@ -133,9 +144,10 @@ struct DuckSoccerView: View {
                 referee.isPaused = true
             } label: {
                 Image(systemName: "pause.fill")
-                    .font(.headline).foregroundStyle(.white)
+                    .font(.headline).foregroundStyle(Theme.textPrimary)
                     .frame(width: 44, height: 44)
-                    .background(.black.opacity(0.55), in: Circle())
+                    .background(Theme.surfacePrimary, in: Circle())
+                    .overlay(Circle().strokeBorder(Theme.outline, lineWidth: DesignMetric.outlineStroke))
             }
             .accessibilityLabel(Text("Pause"))
         }
@@ -147,12 +159,12 @@ struct DuckSoccerView: View {
             Spacer()
             Text(referee.status)
                 .font(.footnote)
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.textPrimary)
                 .multilineTextAlignment(.center)
                 .padding(Theme.spacing(.snug))
-                .background(.black.opacity(0.6), in: Capsule())
+                .modifier(SoccerHUDPill())
             Button("Back to the lobby") { backToLobby() }
-                .buttonStyle(.bordered).tint(.white)
+                .buttonStyle(.raisedAction)
                 .padding(.bottom, Theme.spacing(.loose))
         }
         .accessibilityLabel(Text("Pitch placement"))
@@ -2365,3 +2377,13 @@ private enum SoccerMetric {
     static let pressDelta = DesignMetric.pressDelta
 }
 
+/// The soccer HUD's pill: the surface colour (cream by day, deep teal at night) with an ink outline and the soft shadow, in both
+/// schemes (build 93). It used to be black at 55% with white words, a dark blot in light mode.
+private struct SoccerHUDPill: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .background(Theme.surfacePrimary, in: Capsule())
+            .overlay(Capsule().strokeBorder(Theme.outline, lineWidth: DesignMetric.outlineStroke))
+            .shadow(color: PondShadow.colour, radius: PondShadow.blur, y: PondShadow.y)
+    }
+}

@@ -19,6 +19,8 @@ struct MeasureDuckView: View {
     @State private var marks: [String: [String]] = [:]       // run id -> forward, left, heading as typed
     @State private var running: String?
     @State private var task: Task<Void, Never>?
+    /// The run's place with the one Stop, while it runs.
+    @State private var token: StopPath.Token?
     @State private var line: String?
     @State private var outgoing: URL?
     @State private var still: DuckMeasure.StillRecord?
@@ -55,7 +57,7 @@ struct MeasureDuckView: View {
                 HStack {
                     Spacer()
                     if running == Self.stillID {
-                        Button(DuckMeasure.Words.stop) { task?.cancel() }
+                        Button(DuckMeasure.Words.stop) { DuckRuns.shared.stop() }
                             .buttonStyle(.primaryAction)
                     } else if running == nil, let robot, robot.isConnected {
                         Button(DuckMeasure.Words.run) { startStill(robot) }
@@ -113,7 +115,8 @@ struct MeasureDuckView: View {
         .background(Theme.backgroundSecondary)
         .navigationTitle(DuckMeasure.Words.title)
         .navigationBarTitleDisplayMode(.inline)
-        .onDisappear { task?.cancel() }
+        // LEAVING THE SCREEN STOPS THE DUCK THE WAY THE STOP BUTTON DOES, wire first.
+        .onDisappear { if task != nil { DuckRuns.shared.stop() } }
         .onChange(of: records) { _, _ in writeReport() }
         .onChange(of: marks) { _, _ in writeReport() }
         .onChange(of: still) { _, _ in writeReport() }
@@ -197,9 +200,12 @@ struct MeasureDuckView: View {
         guard running == nil, let peer = robot.peer else { return }
         running = Self.stillID
         line = nil
-        task = Task { @MainActor in
-            defer { running = nil; task = nil }
+        let runs = DuckRuns.shared
+        runs.makeWay()
+        let work = Task { @MainActor in
+            defer { ended(runs) }
             await stopDriving?()
+            if Task.isCancelled { return }
             _ = try? await robot.subscribeToState()
             do {
                 let record = try await DuckMeasure.standStill(
@@ -217,6 +223,16 @@ struct MeasureDuckView: View {
                 line = error.localizedDescription
             }
         }
+        task = work
+        token = runs.track(.walk, on: peer) { work.cancel() }
+    }
+
+    /// A run is over: it leaves the one Stop, and the screen offers Run again.
+    @MainActor private func ended(_ runs: DuckRuns) {
+        running = nil
+        task = nil
+        if let token { runs.finished(token) }
+        token = nil
     }
 
     @MainActor private func start(_ run: DuckMeasure.Run, _ robot: BridgeLink) {
@@ -224,9 +240,15 @@ struct MeasureDuckView: View {
         let interval = robot.interval
         running = run.id
         line = nil
-        task = Task { @MainActor in
-            defer { running = nil; task = nil }
+        // A PERSON'S TAP, BEFORE ANYTHING IS AWAITED: the run is under the one Stop from its first
+        // moment (Siri, the pill, leaving the foreground). A row sends `robot.move` at the control
+        // rate, and its cards close on odometry with a time limit, so it ends by itself.
+        let runs = DuckRuns.shared
+        runs.makeWay()
+        let work = Task { @MainActor in
+            defer { ended(runs) }
             await stopDriving?()
+            if Task.isCancelled { return }
             _ = try? await robot.subscribeToState()
             do {
                 let record = try await DuckMeasure.run(
@@ -246,5 +268,7 @@ struct MeasureDuckView: View {
                 line = error.localizedDescription
             }
         }
+        task = work
+        token = runs.track(.walk, on: peer) { work.cancel() }
     }
 }

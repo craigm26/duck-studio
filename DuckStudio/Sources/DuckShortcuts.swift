@@ -34,9 +34,9 @@ enum DuckIntentRunner {
         if runs.peer == nil { await waitForDuck() }
         guard runs.peer != nil else { return ShortcutWords.noDuck }
         // PLAY'S STICK LOOP STEPS ASIDE through the shared Stop, so an order and the stick never
-        // write the duck at once. The order below re-opens the latch for itself.
-        if runs.playIsDriving { runs.stop() }
-        switch await runs.run(order) {
+        // write the duck at once. The order re-opens the latch for itself, and Play books it as a
+        // run (build 93), so the duck's time cap, the Stop pill and Take over all cover it.
+        switch await runs.runOrder(order, owner: .intent) {
         case .finished: return runs.caption ?? ControllerWords.tellDone
         case .stopped: return runs.caption ?? StopPath.Words.stopped
         case .refused(let why): return why

@@ -88,15 +88,28 @@ final class ScreenHierarchyTests: XCTestCase {
     /// `-tab duck` opens Play with the Duck sheet up.
     func testTheOldTabNamesStillLand() {
         XCTAssertEqual(ScreenHierarchy.launch("control"), .init(tab: "play", duckSheet: false))
-        XCTAssertEqual(ScreenHierarchy.launch("learn"), .init(tab: "studio", duckSheet: false))
-        XCTAssertEqual(ScreenHierarchy.launch("behaviours"), .init(tab: "studio", duckSheet: false))
+        XCTAssertEqual(ScreenHierarchy.launch("learn"),
+                       .init(tab: "studio", duckSheet: false, section: "studio.learn"))
+        XCTAssertEqual(ScreenHierarchy.launch("behaviours"),
+                       .init(tab: "studio", duckSheet: false, section: "studio.behaviours"))
+        XCTAssertNil(ScreenHierarchy.launch("studio").section)
         XCTAssertEqual(ScreenHierarchy.launch("duck"), .init(tab: "play", duckSheet: true))
     }
 
-    /// Anything else opens the first tab rather than failing: an index past the end (the old
-    /// `-tab 3` and `-tab 4`), a negative one, a word that is no tab, and blank.
+    /// The five-tab layout was control, learn, behaviours, studio, duck, so `-tab 3` is still
+    /// Studio and `-tab 4` is My Microduck, now the Duck sheet on Play (build 93).
+    func testTheOldIndicesPastTheEndLandSomewhereReal() {
+        XCTAssertEqual(ScreenHierarchy.launch("3"), .init(tab: "studio", duckSheet: false))
+        XCTAssertEqual(ScreenHierarchy.launch("4"), .init(tab: "play", duckSheet: true))
+        for (_, id) in ScreenHierarchy.legacySections {
+            XCTAssertTrue(ScreenHierarchy.shipped.allNodes.contains { $0.id == id }, id)
+        }
+    }
+
+    /// Anything else opens the first tab rather than failing: an index past the end, a negative
+    /// one, a word that is no tab, and blank.
     func testAnUnknownLaunchOpensPlay() {
-        for asked in ["3", "4", "-1", "robot", "", "  "] {
+        for asked in ["5", "9", "-1", "robot", "", "  "] {
             XCTAssertEqual(ScreenHierarchy.launch(asked), .init(tab: "play", duckSheet: false), asked)
         }
     }
@@ -208,7 +221,8 @@ final class ScreenHierarchyTests: XCTestCase {
         XCTAssertTrue(text.contains("| Task | Today | Target |"))
         let ids = Set(ScreenHierarchy.target.allNodes.map(\.id))
         XCTAssertEqual(ScreenHierarchy.tapCounts.map(\.task),
-                       ["Drive the real duck", "A game", "Say it on the real duck", "A skill on the real duck"])
+                       ["Drive the real duck", "A game", "Say it on the real duck", "A skill on the real duck",
+                        "Fresh install to a standing duck"])
         for row in ScreenHierarchy.tapCounts {
             XCTAssertTrue(text.contains(row.markdownRow), row.markdownRow)
             for step in row.path { XCTAssertTrue(ids.contains(step), "\(row.task): \(step)") }
@@ -218,6 +232,8 @@ final class ScreenHierarchyTests: XCTestCase {
         XCTAssertEqual(ScreenHierarchy.tapCounts[0].path, [])
         XCTAssertEqual(ScreenHierarchy.tapCounts[1].path, ["moves.games"])
         XCTAssertEqual(ScreenHierarchy.tapCounts[3].path, ["moves.skills"])
+        // The row's number is the walk OnboardingTests walks, so the table cannot drift from it.
+        XCTAssertEqual(ScreenHierarchy.tapCounts[4].target, "\(Onboarding.tapsToStand.count) taps plus the bridge code")
     }
 
     /// The Duck sheet the app draws is the target's Duck sheet, section for section.

@@ -66,9 +66,10 @@ final class DreamRunModel: ObservableObject {
         checked = true
     }
 
-    func run(_ peer: any DuckPeer, source: DreamFrameSource, prompt: String,
+    func run(_ peer: any DuckPeer, on duck: DuckIdentity.Kind, source: DreamFrameSource, prompt: String,
              stopDriving: (() async -> Void)?) {
         guard !running, let chosen else { return }
+        DuckRuns.shared.makeWay()
         running = true
         line = nil
         driving = peer
@@ -77,12 +78,18 @@ final class DreamRunModel: ObservableObject {
         let rows: any DreamRows = direct ?? BridgeDreamRows(peer)
         task = Task { [weak self] in
             await stopDriving?()
-            // A first window of pictures before the first ask: the model reads motion, not one frame.
-            try? await Task.sleep(nanoseconds: 1_200_000_000)
-            await pilot.run(on: peer, rows: rows,
-                            frames: { await source.dreamWindow() },
-                            events: { event in await self?.apply(event) })
+            // THE CAP LIVES WITH THE RUN, not only with Play's arbiter, whose tick ends when Play
+            // leaves the screen. Close the sheet, tap Moves, and the duck is still capped.
+            let caps = ControlArbiter.Caps.standard
+            let capped = await caps.enforce(on: duck, stop: { DuckRuns.shared.stop() }) {
+                // A first window of pictures before the first ask: the model reads motion, not one frame.
+                try? await Task.sleep(nanoseconds: 1_200_000_000)
+                await pilot.run(on: peer, rows: rows,
+                                frames: { await source.dreamWindow() },
+                                events: { event in await self?.apply(event) })
+            }.capped
             await MainActor.run {
+                if capped { self?.line = ControlArbiter.Words.capped(caps.seconds(on: duck)) }
                 source.keepsDreamFrames = false
                 self?.running = false
                 if let token = self?.stopToken { DuckRuns.shared.finished(token); self?.stopToken = nil }
@@ -117,6 +124,8 @@ struct DreamPanel: View {
     let peer: (any DuckPeer)?
     let source: DreamFrameSource
     var bridgeAnswersDream = false
+    /// The duck this drives, for its time cap.
+    var duck: DuckIdentity.Kind = .real
     var stopDriving: (() async -> Void)?
     @ObservedObject var model: DreamRunModel
     @ObservedObject var recorder: DreamRecorder
@@ -137,7 +146,7 @@ struct DreamPanel: View {
         .confirmationDialog(DuckDream.Words.run, isPresented: $confirming, titleVisibility: .visible) {
             Button(DuckDream.Words.run, role: .destructive) {
                 guard let peer else { return }
-                model.run(peer, source: source, prompt: prompt.trimmingCharacters(in: .whitespacesAndNewlines),
+                model.run(peer, on: duck, source: source, prompt: prompt.trimmingCharacters(in: .whitespacesAndNewlines),
                           stopDriving: stopDriving)
             }
             Button("Cancel", role: .cancel) {}
@@ -158,7 +167,7 @@ struct DreamPanel: View {
                     .font(.callout)
                     .frame(minHeight: DesignMetric.minimumTarget)
                 if model.running {
-                    Button(DuckDream.Words.stop) { model.stop() }
+                    Button(DuckDream.Words.stop) { DuckRuns.shared.stop() }
                         .buttonStyle(.primaryAction)
                 } else {
                     Button(DuckDream.Words.run) { confirming = true }

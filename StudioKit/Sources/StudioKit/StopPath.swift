@@ -5,7 +5,8 @@ import Foundation
 /// EVERY SURFACE CALLS THIS AND NOTHING ELSE: the red disc and the Stop pill, magic tap, Space
 /// or Escape on the Mac, the pad's B-hold, a heard "stop", Siri, the Control, the Lock Screen,
 /// the Live Activity and the Action button (docs/plans/native-first-redesign.md, "Rules across
-/// all modes"). A surface that grew its own stop would be the one that forgot a step.
+/// all modes"). A surface that grew its own stop would be the one that forgot a step. A run
+/// that writes to the duck registers here, or the Stop this file promises does not reach it.
 ///
 /// THE ORDER IS THE BRAINS-LAYER ONE (docs/plans/brains-layer.md 6.1), not the older list in the
 /// redesign plan, because nothing may be awaited before the stop goes out:

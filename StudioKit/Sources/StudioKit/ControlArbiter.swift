@@ -14,15 +14,23 @@ import Foundation
 /// - HAND-BACK IS STOP ONLY. Stop, a heard "stop", the Live Activity's Stop, a cap, a lost
 ///   connection and leaving the foreground answer `.stopPath` and nothing that moves: no stand,
 ///   no re-arm, no input passed.
-/// - CAPS: 30 s on the real duck, 60 s on the practice duck, for Auto goals. Studio may lengthen
-///   them; nothing may switch them off.
+/// - CAPS: 30 s on the real duck, 60 s on the practice duck, for Auto goals and for single orders
+///   from Siri or a real duck's face button (build 93: those used to run with no cap). Studio may
+///   lengthen them; nothing may switch them off. A person's own plan or measuring row has no time
+///   cap: each beat has a duration and each card a time limit, so it ends by itself, and it is
+///   under the one Stop and the foreground rule.
+/// - A STICK IN AUTO WITH NOTHING RUNNING DOES NOTHING (build 93). A resting or drifting game
+///   controller used to flip Auto to Drive on its own; now the switch stays, the duck stays still,
+///   and the line says how to steer. While a goal runs, the stick still takes over.
 /// - A STOPPED GOAL NEVER RE-ARMS ITSELF. No event but a person's `.start` begins a run, so a
 ///   reconnect, a return to the foreground or a tick after a stop starts nothing.
 /// - LEAVING THE FOREGROUND ENDS EVERY RUN, except one an intent started that holds a Live
 ///   Activity. That one keeps going while the app process runs and still ends the moment the
-///   connection drops. A start that arrives while the app is already off screen (Siri, a
-///   Control) is REFUSED unless it holds a Live Activity: the `.background` that would have
-///   ended it has already passed, so nothing else would.
+///   connection drops. A start that arrives while the app is already off screen is REFUSED
+///   unless it holds a Live Activity: the `.background` that would have ended it has already
+///   passed, so nothing else would. The caller must honour `passInput == false`. The one that
+///   does not is an order from Siri or a Control, which is already running when Play hears of it
+///   and whose intent opens the app; it keeps the time cap `DuckRuns.runOrder` gives it.
 public struct ControlArbiter: Equatable, Sendable {
 
     /// The top switch.
@@ -36,6 +44,12 @@ public struct ControlArbiter: Equatable, Sendable {
         case tell
         /// An Auto goal: the phone driver, Dream-1.
         case goal
+        /// One order from outside the panels: Siri, a Shortcut, a real duck's face button, a
+        /// Moves tile. Capped like a goal; it never moves the switch.
+        case order
+
+        /// Whether a run of this kind is stopped at the duck's cap.
+        public var isCapped: Bool { self != .tell }
     }
 
     /// Who started a run.
@@ -75,6 +89,27 @@ public struct ControlArbiter: Equatable, Sendable {
 
         public func seconds(on duck: DuckIdentity.Kind) -> Double {
             duck == .real ? realDuck : practiceDuck
+        }
+
+        /// Run `work`, pressing `stop` once if it outlasts this duck's cap.
+        ///
+        /// FOR A RUN THAT MUST BE CAPPED WITH PLAY OFF SCREEN (build 93). Play's arbiter is ticked
+        /// from a `.task` that ends when Play's tab goes away, so a Moves tile or a Siri order
+        /// run from another tab would have no cap at all. This one lives with the run.
+        @MainActor
+        public func enforce<T: Sendable>(on duck: DuckIdentity.Kind,
+                                         stop: @escaping @MainActor () -> Void,
+                                         work: @MainActor () async -> T) async -> (result: T, capped: Bool) {
+            let limit = seconds(on: duck)
+            let watch = Task { @MainActor () -> Bool in
+                try? await Task.sleep(nanoseconds: UInt64(limit * 1_000_000_000))
+                guard !Task.isCancelled else { return false }
+                stop()
+                return true
+            }
+            let result = await work()
+            watch.cancel()
+            return (result, await watch.value)
         }
     }
 
@@ -131,9 +166,10 @@ public struct ControlArbiter: Equatable, Sendable {
         public static let connectionLost = "Stopped. The connection to the duck dropped."
         public static let leftForeground = "Stopped when the app left the screen."
         public static let notOnScreen = "Nothing started, because the app is not on screen. Open it to start this."
+        public static let sticksRestInAuto = "The sticks rest in Auto. Tap Drive to steer."
 
         public static let all: [String] = [tookOver, capped(30), capped(60), connectionLost, leftForeground,
-                                           notOnScreen]
+                                           notOnScreen, sticksRestInAuto]
     }
 
     public private(set) var mode: Mode
@@ -141,6 +177,14 @@ public struct ControlArbiter: Equatable, Sendable {
     public private(set) var lastEnding: Ending?
     public private(set) var inForeground = true
     public let caps: Caps
+
+    /// A stick does nothing now: Auto, with nothing running to take over from. This is the same
+    /// rule `.stickTouch` answers, for a drive loop that is already going.
+    public var sticksRest: Bool { mode == .auto && running == nil }
+
+    /// The last run ended on a line of the arbiter's own ("You took over.", the cap), which a
+    /// run's own "Stopped." must not replace.
+    public var saidItsOwnEnding: Bool { lastEnding == .tookOver || lastEnding == .capped }
 
     public init(mode: Mode = .drive, caps: Caps = .standard) {
         self.mode = mode
@@ -161,7 +205,7 @@ public struct ControlArbiter: Equatable, Sendable {
             // reopens. Whatever ran before is stopped first; two runs never share the duck.
             var effects: [Effect] = []
             if running != nil { effects.append(contentsOf: end(.stopped)) }
-            let endsBy = kind == .goal ? now.addingTimeInterval(caps.seconds(on: duck)) : nil
+            let endsBy = kind.isCapped ? now.addingTimeInterval(caps.seconds(on: duck)) : nil
             running = Run(kind: kind, duck: duck, owner: owner, startedAt: now, endsBy: endsBy)
             lastEnding = nil
             if kind == .goal, mode != .auto { mode = .auto; effects.append(.setMode(.auto)) }
@@ -183,9 +227,9 @@ public struct ControlArbiter: Equatable, Sendable {
                 return Decision(effects: effects, passInput: true)
             }
             if mode == .auto, event == .stickTouch {
-                // "Touching the stick in Auto drops to Drive."
-                mode = .drive
-                return Decision(effects: [.setMode(.drive)], passInput: true)
+                // NOTHING RUNS, SO THERE IS NOTHING TO TAKE OVER. A controller lying on the sofa
+                // must not change the mode or walk the duck; the person taps Drive to steer.
+                return Decision(effects: [.caption(Words.sticksRestInAuto)], passInput: false)
             }
             return Decision(effects: [], passInput: true)
 

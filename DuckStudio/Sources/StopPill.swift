@@ -38,6 +38,45 @@ final class DuckRuns: ObservableObject {
     /// Whether the pill shows: any registered run, or Play's loop.
     var showsStop: Bool { isRunning || playIsDriving }
 
+    /// One order started outside Play's panels (Siri, a Shortcut, a Moves tile), while it runs.
+    /// Play watches this and books it with its `ControlArbiter`, so Take over covers it as it
+    /// covers a Tell order; the cap is `runOrder`'s own, so it holds with Play off screen (build 93).
+    struct OutsideOrder: Equatable {
+        let id: UUID
+        let duck: DuckIdentity.Kind
+        let owner: ControlArbiter.Owner
+        /// The order's name, for Auto's status line.
+        let what: String
+    }
+    @Published private(set) var outsideOrder: OutsideOrder?
+
+    /// Run one order from Siri, a Moves tile or a real duck's face button: whatever was moving the
+    /// duck is stopped first, Play is told so its arbiter books the run, and the order runs like
+    /// any other, under the duck's time cap.
+    func runOrder(_ order: DuckOrder, owner: ControlArbiter.Owner) async -> DuckOrderRunner.Ended {
+        makeWay()
+        guard let duck else { return await run(order) }
+        let mine = OutsideOrder(id: UUID(), duck: duck, owner: owner,
+                                what: DuckDecider.chip(for: order).title)
+        outsideOrder = mine
+        defer { if outsideOrder == mine { outsideOrder = nil } }
+        let caps = ControlArbiter.Caps.standard
+        let ended = await caps.enforce(on: duck, stop: { [weak self] in self?.stop() }) { await run(order) }
+        if ended.capped { caption = ControlArbiter.Words.capped(caps.seconds(on: duck)) }
+        return ended.result
+    }
+
+    /// A person's own tap starts something new: whatever was moving the duck stops first, so two
+    /// runs never share it, and the latch opens for the person who asked.
+    func makeWay() {
+        if playIsDriving || isRunning {
+            stop()
+            // That stop made way for the new run. Its "Stopped." is not what the new run ended with.
+            caption = nil
+        }
+        path.rearm()
+    }
+
     /// The duck Stop and the Moves tiles go to.
     func attach(_ peer: (any DuckPeer)?, kind: DuckIdentity.Kind?) {
         self.peer = peer
@@ -51,6 +90,22 @@ final class DuckRuns: ObservableObject {
         let token = path.register(kind, cancel: cancel)
         refresh()
         return token
+    }
+
+    /// Register a run on a named duck.
+    ///
+    /// A NAMED DUCK THAT IS NOT PLAY'S GETS ITS OWN robot.stop. StopPath writes robot.stop to the
+    /// attached peer only, which may be another duck (the practice one, during the welcome, or
+    /// while a plan runs on the robot), so the duck actually moving would never be told. The stop
+    /// goes on its way before the run is cancelled, and nothing waits for it.
+    @discardableResult
+    func track(_ kind: StopPath.RunKind, on duck: any DuckPeer,
+               cancel: @escaping @Sendable () -> Void) -> StopPath.Token {
+        let separate = duck !== peer
+        return track(kind) {
+            if separate { Task.detached(priority: .high) { _ = try? await duck.call(.stop) } }
+            cancel()
+        }
     }
 
     func finished(_ token: StopPath.Token) {
@@ -95,7 +150,16 @@ final class DuckRuns: ObservableObject {
             caption = why
             return .refused(why)
         }
-        return await run(order, on: peer, ready: await readiness(of: peer))
+        // THE WAIT FOR THE ANSWER IS PART OF THE RUN (build 93). The latch opens before it, not
+        // after, and the wait is registered, so a Stop pressed while the duck answers ends the run
+        // instead of being undone by a re-arm that comes later.
+        path.rearm()
+        let asking = Task { @MainActor in await self.readiness(of: peer) }
+        let token = track(.command, on: peer) { asking.cancel() }
+        let ready = await asking.value
+        finished(token)
+        guard path.admits, !asking.isCancelled else { return .stopped }
+        return await play(order, on: peer, ready: ready)
     }
 
     /// How the attached duck stands, as it says so.
@@ -152,20 +216,18 @@ final class DuckRuns: ObservableObject {
     func run(_ order: DuckOrder, on peer: any DuckPeer,
              ready: DuckOrder.Readiness = .unknown) async -> DuckOrderRunner.Ended {
         path.rearm()
+        return await play(order, on: peer, ready: ready)
+    }
+
+    /// Run one order with the latch already open.
+    private func play(_ order: DuckOrder, on peer: any DuckPeer,
+                      ready: DuckOrder.Readiness) async -> DuckOrderRunner.Ended {
         let path = self.path
         let work = Task { () -> DuckOrderRunner.Ended in
             await DuckOrderRunner.run(order, ready: ready, on: peer, stopPath: path,
                                       said: { line in await MainActor.run { DuckRuns.shared.say(line) } })
         }
-        // A NAMED DUCK THAT IS NOT PLAY'S GETS ITS OWN robot.stop. StopPath writes robot.stop to
-        // the attached peer only, which during the welcome is still Play's duck (often the
-        // practice one), so the duck actually standing up would never be told. The stop goes on
-        // its way before the run is cancelled, and nothing waits for it.
-        let separate = peer !== self.peer
-        let token = track(.command) {
-            if separate { Task.detached(priority: .high) { _ = try? await peer.call(.stop) } }
-            work.cancel()
-        }
+        let token = track(.command, on: peer) { work.cancel() }
         let ended = await work.value
         finished(token)
         switch ended {

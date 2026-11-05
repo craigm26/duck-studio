@@ -89,7 +89,21 @@ public enum ScreenHierarchy {
         public let tab: String
         /// `-tab duck` opens Play with the Duck sheet up.
         public let duckSheet: Bool
+        /// A node id inside the tab to open on, or nil for the tab's top: `-tab learn` opens
+        /// Studio on Learn, `-tab behaviours` on Behaviours (build 93).
+        public var section: String? = nil
     }
+
+    /// The old tab names that now live as a section of another tab, and the section's node id.
+    public static let legacySections: [String: String] = [
+        "learn": "studio.learn",
+        "behaviours": "studio.behaviours",
+    ]
+
+    /// The five-tab layout's indices past the end of today's three, and where each screen went.
+    /// That layout was control, learn, behaviours, studio, duck: 3 is still Studio, and 4 (My
+    /// Microduck) is the Duck sheet on Play, so an old screenshot script shoots the same screen.
+    public static let legacyIndices: [Int: String] = [3: "studio", 4: "duck"]
 
     /// `-tab N` by index into the tree's tabs, or `-tab name` by id or old name, so
     /// `-tab control` and `-tab learn` keep working. Anything else opens the tab the app opens
@@ -98,10 +112,15 @@ public enum ScreenHierarchy {
         let home = Launch(tab: tree.opensOn, duckSheet: false)
         guard let asked = asked?.trimmingCharacters(in: .whitespaces), !asked.isEmpty else { return home }
         if let n = Int(asked) {
-            return tree.tabs.indices.contains(n) ? Launch(tab: tree.tabs[n].id, duckSheet: false) : home
+            if tree.tabs.indices.contains(n) { return Launch(tab: tree.tabs[n].id, duckSheet: false) }
+            if let name = legacyIndices[n] { return launch(name, in: tree) }
+            return home
         }
         guard let tab = tree.tab(asked) else { return home }
-        return Launch(tab: tab.id, duckSheet: asked == "duck" && tab.id != "duck")
+        let section = legacySections[asked].flatMap { id in
+            tab.sections.flatMap(\.flattened).contains { $0.id == id } ? id : nil
+        }
+        return Launch(tab: tab.id, duckSheet: asked == "duck" && tab.id != "duck", section: section)
     }
 
     // MARK: Inventory
@@ -213,7 +232,7 @@ public enum ScreenHierarchy {
         public let today: String
         public let target: String
         /// The tree path the target is measured on, as node ids, first tap first. Empty for
-        /// "0 taps".
+        /// "0 taps", and for a row measured off the tree (onboarding is pages, not tabs).
         public let path: [String]
 
         public init(_ task: String, today: String, target: String, path: [String]) {
@@ -235,6 +254,9 @@ public enum ScreenHierarchy {
                  path: ["play.buttons"]),
         TapCount("A skill on the real duck", today: "not offered", target: "1 tap",
                  path: ["moves.skills"]),
+        // Measured by `Onboarding.tapsToStand`, which a test walks page by page (build 93).
+        TapCount("Fresh install to a standing duck", today: "5 taps", target: "4 taps plus the bridge code",
+                 path: []),
     ]
 
     // MARK: Today (main dfdf49a)
