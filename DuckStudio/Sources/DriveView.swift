@@ -1245,7 +1245,13 @@ struct DriveView: View {
             if phase == .background {
                 _ = arbiter.handle(.background, at: Date())
                 if dreamModel.running { dreamModel.stop() }
-                if running { running = false; touchSticks = .centred; flight?.cancel() }
+                // A STICK DRIVE IS NOT A REGISTERED RUN, so the root's leftForeground() does not
+                // stop it, and cancelling the loop sends nothing: the duck would keep the last
+                // twist. The shared stop puts robot.stop on its way first.
+                if running {
+                    runs.stop()
+                    running = false; touchSticks = .centred; flight?.cancel()
+                }
             } else if phase == .active {
                 _ = arbiter.handle(.foreground, at: Date())
             }

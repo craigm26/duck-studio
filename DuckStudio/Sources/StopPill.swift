@@ -92,7 +92,15 @@ final class DuckRuns: ObservableObject {
             await DuckOrderRunner.run(order, ready: ready, on: peer, stopPath: path,
                                       said: { line in await MainActor.run { DuckRuns.shared.say(line) } })
         }
-        let token = track(.command) { work.cancel() }
+        // A NAMED DUCK THAT IS NOT PLAY'S GETS ITS OWN robot.stop. StopPath writes robot.stop to
+        // the attached peer only, which during the welcome is still Play's duck (often the
+        // practice one), so the duck actually standing up would never be told. The stop goes on
+        // its way before the run is cancelled, and nothing waits for it.
+        let separate = peer !== self.peer
+        let token = track(.command) {
+            if separate { Task.detached(priority: .high) { _ = try? await peer.call(.stop) } }
+            work.cancel()
+        }
         let ended = await work.value
         finished(token)
         switch ended {
