@@ -399,13 +399,16 @@ public enum DuckDrive {
         /// fixture still compiles — there are a lot of them, and a required
         /// parameter would have meant touching each one to write `nil`.
         public let ball: DuckWorld.Point?
+        /// The ball's radius in metres, as the bench reports it beside `ball`; nil when it says
+        /// nothing. The head camera draws the ball this size (`DreamPracticeWorld.ball(in:)`).
+        public let ballRadius: Double?
 
         public init(t: Double, stance: DuckStance, height: Double, upright: Bool,
                     policy: String?, command: Twist,
-                    ball: DuckWorld.Point? = nil) {
+                    ball: DuckWorld.Point? = nil, ballRadius: Double? = nil) {
             self.t = t; self.stance = stance; self.height = height
             self.upright = upright; self.policy = policy; self.command = command
-            self.ball = ball
+            self.ball = ball; self.ballRadius = ballRadius
         }
     }
 
@@ -448,7 +451,8 @@ public enum DuckDrive {
             // and reads as nil — the same discipline `readHost` uses, and the
             // reason a screen can tell "no ball in this world" apart from "a
             // ball at the origin".
-            ball: DuckBench.readPoint(top["ball"]))
+            ball: DuckBench.readPoint(top["ball"]),
+            ballRadius: top["ballRadius"] as? Double)
     }
 
     /// What the screen has to admit about what it is driving.

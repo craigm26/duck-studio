@@ -10,6 +10,11 @@ import StudioKit
 ///
 /// WHAT IT DRAWS: `DreamPracticeWorld` (the taped mat and three things to walk to) and the duck
 /// itself, posed from the bench's state, seen from `SimHeadCamera.pose`, at Dream-1's picture size.
+/// The ball is drawn where the bench says it is (`DreamPracticeWorld.ball(in:)`), every frame.
+///
+/// ONE RENDERER FOR THE PHONE AND FOR TRAINING. The sim duck's live feed and the headless
+/// `-render-takes` job (`RenderTakes`) both draw through `render(_:)`, so a driver's training
+/// pictures are the pictures this draws at run time.
 /// It is a drawing for practice, not a camera: StudioKit's comment on `SimHeadCamera` says what a
 /// model trained on it does and does not learn.
 ///
@@ -21,12 +26,15 @@ final class SimHeadCameraRenderer {
     private let renderer: RealityRenderer
     private let duck = DuckGhostEntity()
     private let camera = PerspectiveCamera()
+    /// A unit sphere, scaled to the ball's radius and moved to where the bench has it each frame.
+    private let ball: ModelEntity
     private let texture: MTLTexture
     private let width = DreamDataset.width, height = DreamDataset.height
 
     init?() {
         guard let device = MTLCreateSystemDefaultDevice(), let made = try? RealityRenderer() else { return nil }
         renderer = made
+        ball = ModelEntity(mesh: .generateSphere(radius: 1), materials: [Self.material(DreamPracticeWorld.ball(in: nil).rgb)])
         let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .bgra8Unorm_srgb, width: width,
                                                                   height: height, mipmapped: false)
         descriptor.usage = [.renderTarget, .shaderRead]
@@ -36,6 +44,7 @@ final class SimHeadCameraRenderer {
         camera.camera.fieldOfViewInDegrees = Float(SimHeadCamera.fovyDegrees)  // camera-ok: StudioKit decides it (Pollen's head camera); this only hands it to RealityKit
         camera.camera.near = 0.01
         renderer.entities.append(Self.world())
+        renderer.entities.append(ball)
         renderer.entities.append(duck)
         renderer.entities.append(camera)
         let sun = DirectionalLight()
@@ -52,6 +61,9 @@ final class SimHeadCameraRenderer {
     /// One picture of what the duck in `live` sees.
     func render(_ live: DuckDrive.Live) async -> CGImage? {
         duck.place(root: live.stance.root, jointAngles: live.stance.jointAngles)
+        let placed = DreamPracticeWorld.ball(in: live)
+        ball.scale = SIMD3<Float>(repeating: Float(placed.radius))
+        ball.position = DuckGhostEntity.rk(DuckVector(placed.x, placed.y, placed.z))
         let pose = SimHeadCamera.pose(live)
         let eye = DuckGhostEntity.rk(pose.position)
         camera.look(at: eye + DuckGhostEntity.rk(pose.forward), from: eye,
@@ -89,11 +101,13 @@ final class SimHeadCameraRenderer {
     }
 
     /// The practice world, in RealityKit's frame. Unlit, so its colours are its colours under any light.
+    private static func material(_ rgb: (Double, Double, Double)) -> UnlitMaterial {
+        UnlitMaterial(color: .init(red: CGFloat(rgb.0), green: CGFloat(rgb.1), blue: CGFloat(rgb.2), alpha: 1))
+    }
+
+    /// Everything that never moves. The ball is not here: it is `ball`, placed each frame.
     private static func world() -> Entity {
         let root = Entity()
-        func material(_ rgb: (Double, Double, Double)) -> UnlitMaterial {
-            UnlitMaterial(color: .init(red: CGFloat(rgb.0), green: CGFloat(rgb.1), blue: CGFloat(rgb.2), alpha: 1))
-        }
         func tile(_ x: Double, _ y: Double, _ along: Double, _ across: Double, _ lift: Double,
                   _ rgb: (Double, Double, Double)) -> ModelEntity {
             let e = ModelEntity(mesh: .generatePlane(width: Float(along), depth: Float(across)),
@@ -105,14 +119,9 @@ final class SimHeadCameraRenderer {
         for (x, y, along, across) in DreamPracticeWorld.tape {
             root.addChild(tile(x, y, along, across, 0.0008, DreamPracticeWorld.tapeRGB))
         }
-        for thing in DreamPracticeWorld.things {
-            switch thing.shape {
-            case .tile(let w, let d):
+        for thing in DreamPracticeWorld.fixedThings {
+            if case .tile(let w, let d) = thing.shape {
                 root.addChild(tile(thing.x, thing.y, w, d, 0.0015, thing.rgb))
-            case .ball(let r):
-                let e = ModelEntity(mesh: .generateSphere(radius: Float(r)), materials: [material(thing.rgb)])
-                e.position = DuckGhostEntity.rk(DuckVector(thing.x, thing.y, r))
-                root.addChild(e)
             }
         }
         return root

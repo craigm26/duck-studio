@@ -107,6 +107,36 @@ public enum DreamPracticeWorld {
     }
 
     public static let tasks = ["walk to the red mat", "walk to the blue mat", "walk to the ball", "turn to face the ball"]
+
+    /// The ball as the head camera draws it: a sphere's centre (metres, z up), radius and colour.
+    public struct Ball: Equatable, Sendable {
+        public let x: Double, y: Double, z: Double, radius: Double
+        public let rgb: (Double, Double, Double)
+        public static func == (a: Ball, b: Ball) -> Bool {
+            a.x == b.x && a.y == b.y && a.z == b.z && a.radius == b.radius
+                && a.rgb.0 == b.rgb.0 && a.rgb.1 == b.rgb.1 && a.rgb.2 == b.rgb.2
+        }
+    }
+
+    /// Everything drawn once and never moved: the things that are not the ball.
+    public static var fixedThings: [Thing] {
+        things.filter { if case .ball = $0.shape { return false } else { return true } }
+    }
+
+    /// THE BALL WHERE THE PHYSICS PUTS IT. A bench with a ball (`/ball`, as the scripted expert's
+    /// takes use) reports where it is every step, and a picture showing it anywhere else would teach
+    /// a driver to walk to a ball that is not there. So the bench's ball is drawn when it reports one,
+    /// at its own radius, and the practice world's fixed ball only when the bench has none.
+    public static func ball(in live: DuckDrive.Live?) -> Ball {
+        let (home, homeRadius) = things.lazy.compactMap { t -> (Thing, Double)? in
+            if case .ball(let r) = t.shape { return (t, r) } else { return nil }
+        }.first!
+        guard let at = live?.ball else {
+            return Ball(x: home.x, y: home.y, z: homeRadius, radius: homeRadius, rgb: home.rgb)
+        }
+        let radius = live?.ballRadius ?? homeRadius
+        return Ball(x: at.x, y: at.y, z: at.z > 0 ? at.z : radius, radius: radius, rgb: home.rgb)
+    }
 }
 
 fileprivate extension DuckVector {
