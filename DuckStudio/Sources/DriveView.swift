@@ -1327,7 +1327,11 @@ struct DriveView: View {
         // A GOAL RUNNING IS AN ARBITER RUN, so a stick touch takes over and the cap applies.
         .onChange(of: dreamModel.running) { _, now in
             let duck: DuckIdentity.Kind = venue == .real ? .real : .sim
-            apply(arbiter.handle(now ? .start(.goal, duck: duck, owner: .app) : .finished, at: Date()))
+            if now {
+                apply(arbiter.handle(.start(.goal, duck: duck, owner: .app), at: Date()))
+            } else {
+                finishRun(.goal)
+            }
         }
         // THE CAP IS CHECKED WHILE ANY GOAL RUNS: Dream-1 or an Ask the duck plan.
         .task(id: arbiter.running != nil) {
@@ -1507,7 +1511,7 @@ struct DriveView: View {
             watcher.cancel()
             telling = false
             say(runs.caption)
-            apply(arbiter.handle(.finished, at: Date()))
+            finishRun(.tell)
         }
     }
 
@@ -1561,14 +1565,24 @@ struct DriveView: View {
             autoWhat = nil
             autoStarted = nil
             say(runs.caption)
-            apply(arbiter.handle(.finished, at: Date()))
+            finishRun(.goal)
         }
     }
 
-    /// The one status line while an Auto run goes.
+    /// A run of this kind ended on its own. WHAT IS BOOKED NOW MAY BE NEWER: a Siri order stops a
+    /// Tell run and books itself before the Tell task gets here, and that finish must not end the
+    /// order's booking, or Take over would stop covering it.
+    @MainActor private func finishRun(_ kind: ControlArbiter.RunKind) {
+        guard arbiter.running?.kind == kind else { return }
+        apply(arbiter.handle(.finished, at: Date()))
+    }
+
+    /// The one status line while an Auto run or an outside order goes, so Auto's Take over shows
+    /// for a Siri order as it does for a goal.
     private var autoStatus: String? {
-        guard arbiter.running?.kind == .goal else { return nil }
-        let what = autoWhat ?? (dreamModel.running ? AutoGoal.dream.title : AutoGoal.Words.running)
+        guard let kind = arbiter.running?.kind, kind == .goal || kind == .order else { return nil }
+        let what = (kind == .order ? runs.outsideOrder?.what : nil) ?? autoWhat
+            ?? (dreamModel.running ? AutoGoal.dream.title : AutoGoal.Words.running)
         let started = autoStarted ?? arbiter.running?.startedAt ?? Date()
         let cap = arbiter.caps.seconds(on: venue == .real ? .real : .sim)
         let stepLine = ask.phase.activeStep.map { i -> String in
@@ -1582,7 +1596,7 @@ struct DriveView: View {
 
     @MainActor private func outsideOrderChanged(_ now: DuckRuns.OutsideOrder?) {
         guard let now else {
-            if arbiter.running?.kind == .order { apply(arbiter.handle(.finished, at: Date())) }
+            finishRun(.order)
             return
         }
         // WHATEVER THIS SCREEN HAD RUNNING WAS ALREADY STOPPED by `DuckRuns`; forget it quietly so
@@ -3263,13 +3277,9 @@ struct DriveView: View {
             lastAction = named
             say(named)
             // A FACE BUTTON'S SKILL IS A RUN (build 93): the cap, Take over and the Stop pill cover
-            // it, as they cover a Tell order and an Auto goal.
-            let started = arbiter.handle(.start(.order, duck: .real, owner: .app), at: Date())
-            guard started.passInput else { apply(started); return }
-            apply(started)
-            _ = await runs.run(order)
+            // it, by the same door as a Siri order, so leaving Play does not lose the cap.
+            _ = await runs.runOrder(order, owner: .app)
             say(runs.caption)
-            if arbiter.running?.kind == .order { apply(arbiter.handle(.finished, at: Date())) }
             return
         }
         // THE PRESS'S RESULT GOES ON THE CONTROLLER'S LINE TOO, not only the readout's.

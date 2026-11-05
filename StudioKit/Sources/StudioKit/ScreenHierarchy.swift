@@ -231,7 +231,7 @@ public enum ScreenHierarchy {
         public let today: String
         public let target: String
         /// The tree path the target is measured on, as node ids, first tap first. Empty for
-        /// "0 taps".
+        /// "0 taps", and for a row measured off the tree (onboarding is pages, not tabs).
         public let path: [String]
 
         public init(_ task: String, today: String, target: String, path: [String]) {
@@ -253,6 +253,9 @@ public enum ScreenHierarchy {
                  path: ["play.buttons"]),
         TapCount("A skill on the real duck", today: "not offered", target: "1 tap",
                  path: ["moves.skills"]),
+        // Measured by `Onboarding.tapsToStand`, which a test walks page by page (build 93).
+        TapCount("Fresh install to a standing duck", today: "5 taps", target: "4 taps",
+                 path: []),
     ]
 
     // MARK: Today (main dfdf49a)

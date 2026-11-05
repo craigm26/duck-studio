@@ -388,6 +388,7 @@ struct AskCard: View {
                 Label(said, systemImage: "quote.bubble").lineLimit(1)
             }
             .buttonStyle(.pondChip)
+            .disabled(ask.phase == .thinking)
             .accessibilityHint(Text(DuckDecider.Words.readyLine))
         }
     }

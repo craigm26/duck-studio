@@ -86,6 +86,27 @@ public struct ControlArbiter: Equatable, Sendable {
         public func seconds(on duck: DuckIdentity.Kind) -> Double {
             duck == .real ? realDuck : practiceDuck
         }
+
+        /// Run `work`, pressing `stop` once if it outlasts this duck's cap.
+        ///
+        /// FOR A RUN THAT MUST BE CAPPED WITH PLAY OFF SCREEN (build 93). Play's arbiter is ticked
+        /// from a `.task` that ends when Play's tab goes away, so a Moves tile or a Siri order
+        /// run from another tab would have no cap at all. This one lives with the run.
+        @MainActor
+        public func enforce<T: Sendable>(on duck: DuckIdentity.Kind,
+                                         stop: @escaping @MainActor () -> Void,
+                                         work: @MainActor () async -> T) async -> (result: T, capped: Bool) {
+            let limit = seconds(on: duck)
+            let watch = Task { @MainActor () -> Bool in
+                try? await Task.sleep(nanoseconds: UInt64(limit * 1_000_000_000))
+                guard !Task.isCancelled else { return false }
+                stop()
+                return true
+            }
+            let result = await work()
+            watch.cancel()
+            return (result, await watch.value)
+        }
     }
 
     public enum Event: Equatable, Sendable {

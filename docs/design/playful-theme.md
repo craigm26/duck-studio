@@ -14,6 +14,13 @@ Where the shipped values differ from the tables below, and why:
 - **Token names.** The old `actionSecondary` ("orange as text") is renamed `actionInk`. The new fills are `actionYellow`, `actionTeal` and `actionLavender` rather than `secondaryAction`/`tealAction`/`lavenderAction`, so no old call site can silently change meaning.
 - **The transport Drive/Stop/Reset bar no longer exists** (build 92 removed it). The red disc is the only Stop on Play and the pill is the Stop on sheets; Stop red is used for nothing else.
 
+## Build 93 changes
+
+- **Floor marks have their own tokens**, each 3:1 or better on what it is drawn on, in both schemes (`PaletteTests`): `stageLine` for pitch lines and the goal (teal ink by day, cream at night; white was 1.51:1 on the light playmat), `stageTrail` for the walked path, `stageStepEdge` for the strip on a step (orange ink; yellow was 1.35:1 on cream).
+- **No `.borderedProminent` in the app.** It sets a white label on the tint, 2.02:1 at night. `.primaryAction` is ink on Beak Orange in both schemes; `scripts/check_no_bordered_prominent.sh` holds the line.
+- **The lip is 2 pt in tight rows** (`.pad`, the new `.primaryActionInline`), 3 pt elsewhere.
+- **The soccer HUD is a cream pill with an ink outline** in both schemes; team names are badges in their team colour.
+
 ## Why
 
 The owner's note: the palette is "incredibly not on brand with microduck itself. Try to mimic the colors of the microduck pollen marketing pages or our own app icon (which is great). It should be a playful theme, easy to use, kid-friendly."

@@ -39,24 +39,35 @@ final class DuckRuns: ObservableObject {
     var showsStop: Bool { isRunning || playIsDriving }
 
     /// One order started outside Play's panels (Siri, a Shortcut, a Moves tile), while it runs.
-    /// Play watches this and books it with its `ControlArbiter`, so the duck's cap and Take over
-    /// cover it as they cover a Tell order (build 93).
+    /// Play watches this and books it with its `ControlArbiter`, so Take over covers it as it
+    /// covers a Tell order; the cap is `runOrder`'s own, so it holds with Play off screen (build 93).
     struct OutsideOrder: Equatable {
         let id: UUID
         let duck: DuckIdentity.Kind
         let owner: ControlArbiter.Owner
+        /// The order's name, for Auto's status line.
+        let what: String
     }
     @Published private(set) var outsideOrder: OutsideOrder?
 
-    /// Run one order from outside Play: whatever was moving the duck is stopped first, Play is
-    /// told so its arbiter books the run, and the order runs like any other.
+    /// Run one order from Siri, a Moves tile or a real duck's face button: whatever was moving the
+    /// duck is stopped first, Play is told so its arbiter books the run, and the order runs like
+    /// any other, under the duck's time cap.
     func runOrder(_ order: DuckOrder, owner: ControlArbiter.Owner) async -> DuckOrderRunner.Ended {
-        if playIsDriving || isRunning { stop() }
+        if playIsDriving || isRunning {
+            stop()
+            // That stop made way for this order. Its "Stopped." is not what the order ended with.
+            caption = nil
+        }
         guard let duck else { return await run(order) }
-        let mine = OutsideOrder(id: UUID(), duck: duck, owner: owner)
+        let mine = OutsideOrder(id: UUID(), duck: duck, owner: owner,
+                                what: DuckDecider.chip(for: order).title)
         outsideOrder = mine
         defer { if outsideOrder == mine { outsideOrder = nil } }
-        return await run(order)
+        let caps = ControlArbiter.Caps.standard
+        let ended = await caps.enforce(on: duck, stop: { [weak self] in self?.stop() }) { await run(order) }
+        if ended.capped { caption = ControlArbiter.Words.capped(caps.seconds(on: duck)) }
+        return ended.result
     }
 
     /// The duck Stop and the Moves tiles go to.

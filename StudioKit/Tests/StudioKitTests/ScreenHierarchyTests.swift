@@ -220,7 +220,8 @@ final class ScreenHierarchyTests: XCTestCase {
         XCTAssertTrue(text.contains("| Task | Today | Target |"))
         let ids = Set(ScreenHierarchy.target.allNodes.map(\.id))
         XCTAssertEqual(ScreenHierarchy.tapCounts.map(\.task),
-                       ["Drive the real duck", "A game", "Say it on the real duck", "A skill on the real duck"])
+                       ["Drive the real duck", "A game", "Say it on the real duck", "A skill on the real duck",
+                        "Fresh install to a standing duck"])
         for row in ScreenHierarchy.tapCounts {
             XCTAssertTrue(text.contains(row.markdownRow), row.markdownRow)
             for step in row.path { XCTAssertTrue(ids.contains(step), "\(row.task): \(step)") }
@@ -230,6 +231,8 @@ final class ScreenHierarchyTests: XCTestCase {
         XCTAssertEqual(ScreenHierarchy.tapCounts[0].path, [])
         XCTAssertEqual(ScreenHierarchy.tapCounts[1].path, ["moves.games"])
         XCTAssertEqual(ScreenHierarchy.tapCounts[3].path, ["moves.skills"])
+        // The row's number is the walk OnboardingTests walks, so the table cannot drift from it.
+        XCTAssertEqual(ScreenHierarchy.tapCounts[4].target, "\(Onboarding.tapsToStand.count) taps")
     }
 
     /// The Duck sheet the app draws is the target's Duck sheet, section for section.

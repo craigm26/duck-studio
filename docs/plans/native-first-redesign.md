@@ -28,12 +28,12 @@ Today the app greets a real-duck owner as someone without a duck. It opens on th
 **Minute 0: the welcome sheet.**
 - It replaces FirstRun's three cards. The sentences move to a new `StudioKit/Onboarding.swift`.
 - Page 1 asks: "Do you have a Microduck with you?"
-- Two large buttons: "Yes, it's here" and "Not yet, let me practise".
+- Three buttons (build 93, so the Wi-Fi question costs no tap of its own): "Yes, it's here and on my Wi-Fi" goes straight to finding the duck, "It's here, but not on Wi-Fi yet" goes to the Wi-Fi help, and "Not yet, let me practise".
 - Small print: "Microduck Studio is a companion app, not Pollen's official app."
 - "Not yet" goes straight to the controller in Drive mode with the Practice duck. The Duck sheet's "Add your duck" row re-enters at page 2 later.
 
 **Minute 0 to 1: Wi-Fi check.**
-- Page 2 asks: "Is your duck on your Wi-Fi?"
+- Page 2 is where "Add your duck" starts (a fresh install answers this on page 1). It asks: "Is your duck on your Wi-Fi?"
 - "Yes" continues.
 - "Not yet, or I don't know" explains that Pollen's Microduck app does Wi-Fi, updates and sign-in, and offers "Open Pollen's app" and "I've done that". Studio does not rebuild provisioning.
 
@@ -206,6 +206,7 @@ App
 | A game | 3 taps | 1 tap (Moves, then tile) |
 | Say it on the real duck | impossible | 1 press |
 | A skill on the real duck | not offered | 1 tap |
+| Fresh install to a standing duck | 5 taps | 4 taps |
 
 ## The three control modes
 

@@ -196,6 +196,26 @@ final class ControlArbiterTests: XCTestCase {
         XCTAssertFalse(d.passInput)
     }
 
+    /// Build 93: the cap that holds with Play off screen. A run past its cap is stopped once and
+    /// says so; a run that ends in time is never stopped, even after the cap would have passed.
+    @MainActor func testEnforceStopsARunPastItsCapAndLeavesAShortOneAlone() async throws {
+        var stops = 0
+        let caps = ControlArbiter.Caps(realDuck: 30, practiceDuck: 0.02)
+        let long = await caps.enforce(on: .sim, stop: { stops += 1 }) { () -> Int in
+            while stops == 0 { try? await Task.sleep(nanoseconds: 2_000_000) }
+            return 7
+        }
+        XCTAssertEqual(long.result, 7)
+        XCTAssertTrue(long.capped)
+        XCTAssertEqual(stops, 1)
+
+        let short = await caps.enforce(on: .real, stop: { stops += 1 }) { () -> Int in 8 }
+        XCTAssertEqual(short.result, 8)
+        XCTAssertFalse(short.capped)
+        try await Task.sleep(nanoseconds: 40_000_000)
+        XCTAssertEqual(stops, 1)
+    }
+
     func testWordsHaveNoEmDash() {
         for s in ControlArbiter.Words.all { XCTAssertFalse(s.contains("\u{2014}"), s) }
     }
