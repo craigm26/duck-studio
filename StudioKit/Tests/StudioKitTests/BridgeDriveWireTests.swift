@@ -9,7 +9,7 @@ import DuckKit
 /// bench: `BenchPeer` turns a twist into `POST /intent`, so a wrong sign or a
 /// misspelled key produced a duck that walked slightly oddly in a simulator and
 /// nothing anywhere said so. Over the bridge those same bytes reach `robotd`
-/// unchanged — the relay does not parse the vocabulary — and a wrong sign is a
+/// unchanged (the relay does not rewrite the vocabulary) and a wrong sign is a
 /// robot walking the wrong way in somebody's kitchen.
 ///
 /// THE CONTRACT IS NOW READABLE, WHICH IT WAS NOT WHEN THIS CODE WAS WRITTEN.

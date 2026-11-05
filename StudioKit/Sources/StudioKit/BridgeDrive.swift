@@ -15,7 +15,9 @@ import Foundation
 ///    defeating it. It is the only one still standing if everything else on the
 ///    robot's computer dies.
 /// 2. **the bridge's**, `--deadman`, default **700 ms**, which sends
-///    `robot.stop` once after that much client silence and re-arms on any byte.
+///    `robot.stop` once after that long without a non-zero `robot.move`, and
+///    re-arms only on the next one. A state poll does not feed it; a zero
+///    twist or `robot.stop` disarms it; a hang-up while steering stops at once.
 ///    It covers the case robotd's cannot see as different from a slow driver:
 ///    an app that stopped driving but left the socket open.
 /// 3. **this loop's**, which is not a timer at all — it is the obligation to
@@ -103,8 +105,8 @@ public enum BridgeDrive {
         let cadence = String(format: "%.0f", hz(bridgeDeadmanMilliseconds: bridgeDeadmanMilliseconds))
         let bridgePart: String
         if let bridgeDeadmanMilliseconds {
-            bridgePart = "the bridge sends a stop after \(bridgeDeadmanMilliseconds) ms of "
-                       + "silence from this app"
+            bridgePart = "the bridge sends a stop after \(bridgeDeadmanMilliseconds) ms "
+                       + "without a twist from this app"
         } else {
             bridgePart = "this bridge did not say what its own deadman is, so this app assumes "
                        + "the shipped 700 ms rather than assuming none"
@@ -203,8 +205,8 @@ public enum BridgeDrive {
     /// What Disconnect actually costs, said on the button's own row.
     public static let disconnectEndsDriving =
         "There is one link, so disconnecting here ends driving on the Play tab as well. The "
-      + "robot stops: the bridge sends robot.stop when this app goes quiet, and robotd zeroes a "
-      + "twist older than its own deadman."
+      + "robot stops: the bridge sends robot.stop when this app hangs up mid-stride, and robotd "
+      + "zeroes a twist older than its own deadman."
 
     // MARK: - the headings on the venue's own list
 
