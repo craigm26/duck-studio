@@ -1487,9 +1487,9 @@ struct DriveView: View {
         say(nil)
         Task {
             switch await ask.plan(text, on: duck, skills: nil) {
-            case .failure(let why):
+            case .said(let why):
                 say(why)
-            case .success(let orders):
+            case .plan(let orders):
                 ask.preview(orders) { orders in runAutoPlan(orders, said: text) }
             }
         }

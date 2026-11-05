@@ -51,14 +51,20 @@ final class AskTheDuck: ObservableObject {
         return .needsNewerSystem
     }
 
+    /// What planning answered: the plan, or the sentence to show instead.
+    enum Planned {
+        case plan([DuckOrder])
+        case said(String)
+    }
+
     /// Plan from a sentence. Answers the plan, or the sentence to show instead.
-    func plan(_ text: String, on duck: DuckIdentity.Kind, skills: [String]?) async -> Result<[DuckOrder], String> {
+    func plan(_ text: String, on duck: DuckIdentity.Kind, skills: [String]?) async -> Planned {
         // THE FAST PATH: a sentence the matcher reads exactly needs no model.
         if let order = DuckOrderMatcher.match(text, skills: skills ?? Array(RobotPlan.skillSeconds.keys)) {
-            if let why = order.notOn(duck) { return .failure(why) }
-            return .success([order])
+            if let why = order.notOn(duck) { return .said(why) }
+            return .plan([order])
         }
-        guard availability.isReady else { return .failure(ControllerWords.heard(text)) }
+        guard availability.isReady else { return .said(ControllerWords.heard(text)) }
         phase = .thinking
         defer { if phase == .thinking { phase = .idle } }
 #if canImport(FoundationModels)
@@ -73,15 +79,15 @@ final class AskTheDuck: ObservableObject {
                                      name: s.name == "none" ? nil : s.name)
                 }
                 switch DuckDecider.validate(steps, on: duck, skills: skills) {
-                case .success(let orders): return .success(orders)
-                case .failure(let refusal): return .failure(refusal.says)
+                case .success(let orders): return .plan(orders)
+                case .failure(let refusal): return .said(refusal.says)
                 }
             } catch {
-                return .failure(DuckDecider.Words.modelFailed)
+                return .said(DuckDecider.Words.modelFailed)
             }
         }
 #endif
-        return .failure(ControllerWords.heard(text))
+        return .said(ControllerWords.heard(text))
     }
 
     /// Show the plan, wait the preview beat, then hand it to `run`. Cancel in the beat sends nothing.
