@@ -69,7 +69,7 @@ final class PhoneDriverInstallTests: XCTestCase {
                        "https://huggingface.co/craigm26/duck-driver-walk-to-ball-v5/resolve/fe94d4ac5eaf88e7e2e752bf9d43bc7e3d49ca80/policy.json")
         XCTAssertEqual(r.size, "4.4 MB")
         XCTAssertEqual(r.folder, "duck-driver-walk-to-ball-v5-fe94d4a")
-        XCTAssertEqual([r.freshRuns, r.freshReached, r.freshParked], [20, 20, 14])
+        XCTAssertEqual([r.freshRuns, r.freshReached, r.freshParked], [20, 20, 12])
     }
 
     // MARK: - installing

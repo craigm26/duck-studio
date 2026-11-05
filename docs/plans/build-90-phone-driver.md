@@ -409,16 +409,16 @@ The Auto card is live on the practice duck: Get (4.4 MB), then Go, then the one 
 
 **The ball.** The head camera draws `live.ball` at the bench's radius. The stage draws its ball prop (100 mm across) and moves it to the same `live.ball` each frame. `DreamPracticeWorld`'s fixed ball is only for a bench with none, so the app never shows it. A world with stairs is refused in words: the head camera does not draw them.
 
-**Is it reachable from where the app starts?** Yes, measured. M1 with `--app-start` (`scripts/m1_trial.py`) lays each start with the same calls as `layOut`, seeds 8001-8020:
+**Is it reachable from where the app starts?** Yes for reaching, and it stops less often. `--app-start` was parsed and never read until the round 1 review, so the first table written here was a rerun of the M1 start, not the app's. Fixed and rerun on seeds 8001-8020 (`~/scratch/ball-takes/m1-app2`):
 
 | Arm | Reached | Parked | Stopped | Reach s | First sight s | Ball push m |
 |---|---|---|---|---|---|---|
-| expert | 20 | 20 | 20 | 8.5 | 2.3 | 0 |
-| v5 snap+latch | 20 | 14 | 14 | 12.7 | 2.7 | 0.21 |
+| expert | 20 | 20 | 20 | 8.5 | 2.4 | 0 |
+| v5 snap+latch | 20 | 12 | 12 | 13.1 | 2.7 | 0.29 |
 
-The same numbers as the table above, so the card's number stands: reached 20 of 20, stopped at 14.
+The start is the same calls as `layOut`, with the 1.2 s pre-roll as one `/stop`. The driver arm then also stands through `DriverTrial`'s own pre-roll, because the lockstep trial needs those ticks to draw its window, so its first ask is near t=2.9 where the app's comes just after 1.2. That is the closest this harness comes, and it is not the wall-clock path. The card takes the lower number: reached 20 of 20, stopped there 12 of 20. The root came within 0.2 m of the ball in 15 of 20, and 8 of 20 were still walking when the 60 s ended.
 
-**A run ends when the duck parks.** `BallRunWatch` reads the bench's ground truth for the sentence afterwards and to end the run; it never steers. The rule is M1's parked (within 0.40 m, root moved at most 0.02 m in a second), checked at every moment rather than at the end. Replaying the 20 logs through it: every run parks at some moment, 19 of them reached by then, and 14 had not moved the ball. Ending there changes nothing before that moment, so this is what the rule would have done, though the app has not run it. The card keeps the lower M1 number.
+**A run ends when the duck parks.** `BallRunWatch` reads the bench's ground truth for the sentence afterwards and to end the run; it never steers. The rule is M1's parked (within 0.40 m, root moved at most 0.02 m in a second), checked at every moment rather than at the end. Replaying the 20 `m1-app2` logs through it: 16 runs park at some moment, all 16 had reached the ball by then, and 12 had not moved it. The other 4 never park, and go to the time limit. That is a replay, and the app has not run it.
 
 **The real duck stays out.** `mediad`'s `/frame` is wired for Dream-1, but this driver has only seen the drawn stage. The card says "Practice duck only for now" and has no Go there (risk 7 above).
 
