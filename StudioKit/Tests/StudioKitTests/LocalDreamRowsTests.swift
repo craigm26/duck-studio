@@ -182,6 +182,21 @@ final class LocalDreamRowsTests: XCTestCase {
         XCTAssertEqual(duck.sent, ["robot.stop"])
     }
 
+    /// A Stop that lands while the watch waits: the row it was looking at is not sent.
+    func testAStopDuringTheWatchSendsNoRow() async {
+        let net = FakeNet(), clock = Clock(), duck = Link()
+        net.output = (0..<144).map { $0 % 3 == 0 ? 1 : 0 }
+        await DreamPilot(checkpoint: "driver@abc", prompt: "walk to the ball")
+            .run(on: duck, rows: rows(net, clock: clock), frames: { ["J", "J", "J"] }, events: { _ in },
+                 sleep: { clock.advance($0) }, now: { clock.date() },
+                 watch: { row in
+                     if row != nil { withUnsafeCurrentTask { $0?.cancel() } }
+                     return nil
+                 })
+        XCTAssertFalse(duck.sent.contains("robot.move"), "\(duck.sent)")
+        XCTAssertEqual(duck.sent.last, "robot.stop")
+    }
+
     // MARK: - which source, which models
 
     private let cloud = DuckDream.Model(id: "dream-1-ft:x-duck", owner: "mine", servable: true, fits: true)

@@ -219,9 +219,9 @@ public struct DriverCard: Equatable, Sendable {
     /// - Parameters:
     ///   - cameraMissing: this device cannot draw the practice camera. Nothing on a real duck
     ///     needs that camera, so it counts only off one.
-    ///   - lastRun: the line from the last run, kept until the next.
+    ///   - lastRun: the last run, kept until the next. Its line shows only on the duck that ran it.
     public init(phase: DriverInstall.Phase, duck: DuckIdentity.Kind?, release: DriverRelease = .walkToBall,
-                cameraMissing: Bool = false, lastRun: String? = nil) {
+                cameraMissing: Bool = false, lastRun: BallWalk.LastRun? = nil) {
         var lines: [String] = []
         var actions: [Action] = []
         progress = phase.fraction
@@ -245,8 +245,8 @@ public struct DriverCard: Equatable, Sendable {
             lines.append(why)
             actions = [.tryAgain]
         case .installed:
-            if let lastRun {
-                lines.append(lastRun)
+            if let lastRun, lastRun.duck == duck {
+                lines.append(lastRun.line)
             } else {
                 lines.append(Words.honest(release))
                 if duck == .real { lines.append(BallWalk.Words.simulatorNumbersOnly) }

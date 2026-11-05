@@ -483,6 +483,8 @@ public struct DreamPilot: Sendable {
                     try Task.checkCancellation()
                     if driven() >= limit { break }
                     if let watch, let end = await watch(DreamPilot.clamped(row)) { said = end; break driving }
+                    // THE WATCH WAITS ON OTHER ACTORS, and a Stop can land during it: no row after a Stop.
+                    try Task.checkCancellation()
                     last = DreamPilot.clamped(row)
                     try await peer.notify(.move(last))
                     played += 1

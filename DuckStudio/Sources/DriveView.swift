@@ -1345,7 +1345,7 @@ struct DriveView: View {
             } else {
                 finishRun(arbiter.running?.kind == .walk ? .walk : .goal)
                 // "You took over." and the cap's line stay; the card keeps the run's own line.
-                if !arbiter.saidItsOwnEnding, let walked = dreamModel.lastWalk { say(walked) }
+                if !arbiter.saidItsOwnEnding, let walked = dreamModel.lastWalk { say(walked.line) }
             }
         }
         // THE CAP IS CHECKED WHILE ANY GOAL RUNS: Dream-1 or an Ask the duck plan.
@@ -1471,6 +1471,7 @@ struct DriveView: View {
         case .duckSheet: router.duckSheet = true; return
         case .venue(let next, let cause): choose(next, cause: cause); return
         case .sequence(let id):
+            if aRunHoldsTheDuck() { return }
             desk.reloadShelf()
             lastAction = desk.play(id, thenLoading: nil, among: health?.policies ?? [], face: "")
             if desk.pilot.isPlaying { engageLoop() }
@@ -1687,12 +1688,19 @@ struct DriveView: View {
 
     /// Tell: Walk to the ball, from its Go or a sentence. Every refusal is said, in Tell's caption.
     @MainActor private func walkToBall() {
-        guard !dreamModel.running, !telling else { return }
+        guard !dreamModel.running, !telling else { say(BallWalk.Words.busy); return }
         // NOTHING STARTS OFF SCREEN: the `.background` that would end it has already gone by.
         if scenePhase == .background { say(ControlArbiter.Words.notOnScreen); return }
         let available = BallWalk.availability(on: duckKind, driverInstalled: drivers.phase.isInstalled)
         if let why = available.reason { say(why); return }
         if duckKind == .real { walkRealDuck() } else { walkPracticeDuck() }
+    }
+
+    /// A walk or Dream-1 is writing the duck, so a sequence or a take must not start the stick loop
+    /// beside it. Said in the stage note, because Tell's caption is folded while a run goes.
+    @MainActor private func aRunHoldsTheDuck() -> Bool {
+        if dreamModel.running { lastAction = BallWalk.Words.busy }
+        return dreamModel.running
     }
 
     /// M1's run, on the bench this screen is driving.
@@ -1714,7 +1722,7 @@ struct DriveView: View {
 
     /// NO BLIND DRIVING: with no picture coming in, it says so and nothing is sent to the duck.
     @MainActor private func walkRealDuck() {
-        guard !dreamRecorder.recording else { return }
+        guard !dreamRecorder.recording else { say(BallWalk.Words.recording); return }
         guard realFeed.running, realFeed.picture != nil, realFeed.problem == nil else {
             say(realFeed.problem ?? BallWalk.Words.noPicture)
             return
@@ -1816,10 +1824,13 @@ struct DriveView: View {
                                                            lastRun: dreamModel.lastWalk),
                                       walkAct: { drivers.act($0) { walkToBall() } },
                                       running: runStatus,
+                                      runningSymbol: dreamModel.walking ? BallWalk.symbol : "sparkles",
                                       takeOver: takeOver,
                                       send: tell, stop: { stopNow() },
-                                      shortScreenHeight: CGFloat(StageViewport.drawerHeight(
-                                          available: Double(glass.height))))
+                                      // The drawer's limit holds the panel and the chip row under it.
+                                      tallest: max(DesignMetric.minimumTarget,
+                                                   CGFloat(StageViewport.drawerHeight(available: Double(glass.height)))
+                                                       - DesignMetric.minimumTarget - Theme.spacing(.tight)))
                         }
                         sheetsRow
                     case .auto:
@@ -2098,6 +2109,7 @@ struct DriveView: View {
                     ForEach(desk.sequences) { sequence in
                         Button {
                             shelf = nil
+                            if aRunHoldsTheDuck() { return }
                             lastAction = desk.play(sequence.id, thenLoading: nil,
                                                    among: health?.policies ?? [], face: "")
                             if desk.pilot.isPlaying { engageLoop() }
@@ -2193,6 +2205,7 @@ struct DriveView: View {
                             }
                             playChip(ControllerWords.moreRecord, symbol: "record.circle") {
                                 shelf = nil
+                                if aRunHoldsTheDuck() { return }
                                 desk.beginTake(venue: venue)
                                 lastAction = PadPilot.recordStartsDriving
                                 engageLoop()

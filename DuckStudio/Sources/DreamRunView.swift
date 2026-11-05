@@ -107,7 +107,7 @@ final class DreamRunModel: ObservableObject {
     /// Walk to the ball is running, on either duck (its status line says so, not Dream-1's).
     @Published private(set) var walking = false
     /// The line after the last walk, kept on the card until the next one.
-    @Published private(set) var lastWalk: String?
+    @Published private(set) var lastWalk: BallWalk.LastRun?
 
     /// Walk to the ball on the practice duck: M1's run, on this device.
     ///
@@ -190,8 +190,9 @@ final class DreamRunModel: ObservableObject {
             }
             if !feedWasRunning { feed.stop() }
             guard let self else { return }
-            self.lastWalk = watched.line(pilotSaid: said, p50: p50)
-            self.line = self.lastWalk
+            let walked = watched.line(pilotSaid: said, p50: p50)
+            self.lastWalk = BallWalk.LastRun(duck: .sim, line: walked)
+            self.line = walked
             self.walking = false
             self.running = false
             if let token = self.stopToken { DuckRuns.shared.finished(token); self.stopToken = nil }
@@ -208,10 +209,9 @@ final class DreamRunModel: ObservableObject {
     /// `BallWalk.Framing`), and its rows go through `DreamPilot` as ordinary moves. The run is under
     /// the real cap, the one Stop and the foreground rule, and `stepAside` runs first, as for Dream-1.
     ///
-    /// READY THE WAY TELL IS. `robot.policies` gives only sitting and homed: a duck that is sitting
-    /// or still homing is told what to do, and any other gets `robot.init` and `robot.enable` as a
-    /// Tell walk does. That cannot be skipped, because nothing says whether a duck is driving, and
-    /// a limp duck ignores every move without a word.
+    /// READY THE WAY TELL IS. A sitting duck is told what to do, and any other, limp ones included,
+    /// gets `robot.init` and `robot.enable` as a Tell walk does. That cannot be skipped, because
+    /// nothing says whether a duck is driving, and a limp duck ignores every move without a word.
     ///
     /// THE END IS THE DRIVER'S OWN, OR THE CLOCK'S (`BallWalk.Watch`). Nothing measures the ball, so
     /// the line after a run claims nothing about it.
@@ -237,7 +237,8 @@ final class DreamRunModel: ObservableObject {
                         try DriverTrial.load(folder: folder, decode: { DriverPicture.rgb($0) },
                                              tooHot: { ProcessInfo.processInfo.thermalState == .critical })
                     }.value
-                    try Task.checkCancellation()
+                    // A DUCK STILL IN STRIDE COMES TO REST FIRST: `robot.init` takes its balance away.
+                    try await Task.sleep(nanoseconds: UInt64(BallWalk.restAfterStop * 1e9))
                     let ready = await DuckOrder.Readiness.ask(peer)
                     if let why = BallWalk.notReady(ready) { throw DuckDream.ReadError.refused(why) }
                     try Task.checkCancellation()
@@ -278,9 +279,10 @@ final class DreamRunModel: ObservableObject {
                 return (said, p50)
             }
             guard let self else { return }
-            self.lastWalk = BallWalk.line(pilotSaid: run.result.said, capped: run.capped,
-                                          capSeconds: caps.seconds(on: .real), p50: run.result.p50)
-            self.line = self.lastWalk
+            let walked = BallWalk.line(pilotSaid: run.result.said, capped: run.capped,
+                                       capSeconds: caps.seconds(on: .real), p50: run.result.p50)
+            self.lastWalk = BallWalk.LastRun(duck: .real, line: walked)
+            self.line = walked
             self.walking = false
             self.running = false
             if let token = self.stopToken { DuckRuns.shared.finished(token); self.stopToken = nil }

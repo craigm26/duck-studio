@@ -38,11 +38,13 @@ public enum BallWalk {
 
         // Why it will not start.
         public static let sitting = "Your duck is sitting. Tap Stand Up, then try again."
-        public static let homing = "Your duck is still getting to its feet. Try again in a moment."
         public static let noPicture =
             "Walk to the ball steers by your duck's camera, and no picture is coming in. It did not start."
         public static let cameraTooSlow = "Your duck's camera is not sending pictures fast enough to steer by. "
             + "The walk did not start."
+        /// Something else is moving the duck, or a run is still going.
+        public static let busy = "Your duck is busy. Try again when it has finished."
+        public static let recording = "A recording is running. Stop it, then try the walk again."
 
         // Why it ended. NOTHING MEASURES THE BALL ON A REAL DUCK, so no line here may say it got there.
         public static let stoppedItself =
@@ -52,11 +54,12 @@ public enum BallWalk {
                    seconds)
         }
         public static let cameraLost =
-            "Stopped, because your duck's pictures stopped coming. It never steers by an old picture."
+            "Stopped, because your duck's pictures stopped coming. It does not keep going without pictures."
 
         public static let all: [String] = [
             getFirst("4.4 MB"), ownDriversLater, simulatorNumbersOnly, confirmTitle, confirmStart,
-            confirmLine(30), sitting, homing, noPicture, cameraTooSlow, stoppedItself, timeLimit(30), cameraLost,
+            confirmLine(30), sitting, noPicture, cameraTooSlow, busy, recording, stoppedItself, timeLimit(30),
+            cameraLost,
         ]
     }
 
@@ -74,14 +77,17 @@ public enum BallWalk {
 
     /// Why a real duck cannot start this walk yet, in what the person should do, or nil.
     ///
-    /// ONLY `sitting` AND `homed` ARE READ. `robot.policies` says nothing about whether the walking
-    /// policy is driving (`Readiness.read(policies:)`), so a duck that gets past this is stood up
-    /// the way a Tell walk is: `robot.init` and `robot.enable`, which are always safe. A field the
-    /// duck did not send is no reason to refuse.
+    /// ONLY `sitting` IS READ. `robot.policies` says nothing about whether the walking policy is
+    /// driving (`Readiness.read(policies:)`), so a duck that gets past this is stood up the way a
+    /// Tell walk is: `robot.init` and `robot.enable`, then the settle. A field the duck did not
+    /// send is no reason to refuse.
+    ///
+    /// `homed == false` IS NOT A REFUSAL. robotd sets it to `bringup == Ready`, so it is false on
+    /// every limp duck, not only during the 2 s ramp, and refusing it would refuse every freshly
+    /// booted duck for ever: nothing else on this path stands one up. During a ramp `robot.init`
+    /// does nothing, and the settle waits the ramp out.
     public static func notReady(_ ready: DuckOrder.Readiness) -> String? {
-        if ready.sitting == true { return Words.sitting }
-        if ready.homed == false { return Words.homing }
-        return nil
+        ready.sitting == true ? Words.sitting : nil
     }
 
     /// The first run on a real duck asks first, and a new driver asks again: `confirmed` is the
@@ -92,18 +98,40 @@ public enum BallWalk {
 
     /// Whether a typed or spoken Tell sentence asks for this walk.
     ///
-    /// AS NARROW AS `DuckOrderMatcher`: after its fillers the words must be exactly one of these
-    /// phrases. A stop word anywhere makes it not a walk, so "no, walk to the ball" stays a stop
-    /// and "don't walk to the ball" is not read as an order to go.
+    /// NARROWER THAN `DuckOrderMatcher`, BECAUSE THIS STARTS A LONG WALK WITH NO FURTHER QUESTION.
+    /// After `fillers` the words must be exactly one of these phrases. A stop word anywhere makes
+    /// it not a walk, so "no, walk to the ball" stays a stop and "don't walk to the ball" is not
+    /// read as an order to go.
     public static func heard(_ text: String) -> Bool {
         let all = StopWords.tokens(text)
         guard !all.contains(where: StopWords.words.contains), !all.contains("halt") else { return false }
-        let words = all.filter { !DuckOrderMatcher.fillers.contains($0) }
+        let words = all.filter { !fillers.contains($0) }
         return phrases.contains(words)
     }
 
+    /// The matcher's fillers, less the words that make a sentence about the person: "let me get the
+    /// ball" is a child saying what they will do. "Let's go to the ball" is lost with it.
+    static let fillers = DuckOrderMatcher.fillers.subtracting(["let", "lets", "me", "us", "do"])
+
     /// "Go" and "the" are fillers: "go to the ball" reads as `to ball`, "go get the ball" as `get ball`.
-    static let phrases: Set<[String]> = [["walk", "to", "ball"], ["to", "ball"], ["get", "ball"], ["find", "ball"]]
+    static let phrases: Set<[String]> = [
+        ["walk", "to", "ball"], ["to", "ball"], ["get", "ball"], ["find", "ball"], ["get", "to", "ball"],
+        ["walk", "toward", "ball"], ["walk", "towards", "ball"], ["toward", "ball"], ["towards", "ball"],
+        ["walk", "over", "to", "ball"], ["walk", "up", "to", "ball"], ["over", "to", "ball"], ["up", "to", "ball"],
+    ]
+
+    /// The line after a run, and the duck it ran on.
+    ///
+    /// A LINE BELONGS TO ITS DUCK. A practice run's "Reached the ball in 9.5 s" beside a real duck's
+    /// Go reads as a measured reach, so `DriverCard` shows a line only on the duck that ran it.
+    public struct LastRun: Equatable, Sendable {
+        public let duck: DuckIdentity.Kind
+        public let line: String
+        public init(duck: DuckIdentity.Kind, line: String) {
+            self.duck = duck
+            self.line = line
+        }
+    }
 
     /// The line after a run on a real duck. The pilot's last word is kept, unless the time limit
     /// ended it: then this says so, in words that claim nothing about the ball.
@@ -165,6 +193,11 @@ public enum BallWalk {
 
     // MARK: - a real picture on the drawn stage's terms
 
+    /// How long a duck gets to come to rest after the stop, before `robot.init` re-homes it open
+    /// loop: a duck in mid-stride would lose its balance with a foot in the air. Tip risk read from
+    /// robotd's source, not seen on a duck.
+    public static let restAfterStop: TimeInterval = 1.0
+
     /// How `DreamPilot` sees a real camera: pictures at the driver's own rate, and no blind start.
     public enum Pictures {
         /// In the window before the first ask, as on the practice duck.
@@ -194,9 +227,10 @@ public enum BallWalk {
     /// turn error 0.083 and 89% of stands (whole picture 0.035, 87%), where a plain crop and zoom
     /// gives 0.357 and never stands. That ranks the framings. It says nothing about a real floor.
     ///
-    /// A LANDSCAPE PICTURE IS FITTED WHOLE. That is a beta duck's upright GC2093, whose field of
-    /// view nobody has published, so there is no angle to match; `mediad` publishes no geometry for
-    /// it either.
+    /// A LANDSCAPE PICTURE IS A BETA DUCK'S upright GC2093, about 85 by 55 degrees, wider than the
+    /// drawn view both ways. The same cut applies and no bars are needed: about 1048 by 576 of its
+    /// 1280 by 720, around its own axis. The check above did not cover this cut. Neither cut undoes
+    /// its lens's distortion.
     public struct Framing: Equatable, Sendable {
         public struct Box: Equatable, Sendable {
             public let x, y, width, height: Double
@@ -207,32 +241,36 @@ public enum BallWalk {
         /// Where to draw that in the 320 by 176 picture, from its BOTTOM left, as Core Graphics does.
         public let target: Box
 
-        /// The alpha's family calibration on the 1280 by 720 frame as `mediad` sends it, unrotated
-        /// (robotd-params `[media.intrinsics]`, 0.79 px RMS on real frames).
-        static let sensorWidth = 720.0
-        static let focal = (1061.806 + 1062.194) / 2
-        static let sensorCx = 596.778, sensorCy = 474.523
+        /// A family's camera as its upright picture sees it, from robotd-params' `CameraIntrinsics`.
+        struct Lens: Equatable, Sendable {
+            /// The width of the upright picture these numbers are for.
+            let width: Double
+            let focal: Double
+            /// The real optical axis in the upright picture.
+            let axisX, axisY: Double
+
+            /// The alpha on the 1280 by 720 frame as `mediad` sends it, unrotated (0.79 px RMS on
+            /// real frames). `mediad` turns a quarter turn clockwise, which takes source (x, y) to
+            /// upright (h - 1 - y, x).
+            static let alpha = Lens(width: 720, focal: (1061.806 + 1062.194) / 2,
+                                    axisX: 720 - 1 - 474.523, axisY: 596.778)
+            /// The beta on the 1280 by 720 frame, mounted upright (1.28 px RMS, solved 2026-10-28).
+            static let beta = Lens(width: 1280, focal: (695.622 + 696.021) / 2, axisX: 627.474, axisY: 363.606)
+        }
 
         /// Pixels per radian-ish of the drawn camera at 320 by 176: `f = (h / 2) / tan(fovy / 2)`.
         static let drawnFocal = Double(DriverPrep.pictureHeight) / 2
             / tan(SimHeadCamera.fovyDegrees / 2 * .pi / 180)
 
-        /// The real optical axis in the upright picture. `mediad` turns a quarter turn clockwise,
-        /// which takes source (x, y) to upright (h - 1 - y, x).
-        static let axisX = sensorWidth - 1 - sensorCy, axisY = sensorCx
-
         /// The cut for an upright picture this size.
         public static func real(width: Int, height: Int) -> Framing {
             let w = Double(width), h = Double(height)
             let (outW, outH) = (Double(DriverPrep.pictureWidth), Double(DriverPrep.pictureHeight))
-            guard height > width else {
-                return Framing(source: Box(x: 0, y: 0, width: w, height: h),
-                               target: Box(x: 0, y: 0, width: outW, height: outH))
-            }
+            let lens = height > width ? Lens.alpha : Lens.beta
             // Picture pixels to drawn pixels. Any other `mediad` quality is the same frame scaled.
-            let unit = w / sensorWidth
-            let scale = drawnFocal / (focal * unit)
-            let (cx, cy) = (axisX * unit, axisY * unit)
+            let unit = w / lens.width
+            let scale = drawnFocal / (lens.focal * unit)
+            let (cx, cy) = (lens.axisX * unit, lens.axisY * unit)
             // The whole drawn view around the axis, kept to the picture that is really there.
             let left = max(cx - outW / 2 / scale, 0), right = min(cx + outW / 2 / scale, w)
             let top = max(cy - outH / 2 / scale, 0), bottom = min(cy + outH / 2 / scale, h)

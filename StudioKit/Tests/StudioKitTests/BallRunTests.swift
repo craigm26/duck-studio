@@ -247,7 +247,8 @@ final class BallRunTests: XCTestCase {
     }
 
     func testTheLastRunTakesTheHonestLinesPlace() {
-        let card = DriverCard(phase: .installed, duck: .sim, lastRun: "Reached the ball in 9.5 s and stopped.")
+        let card = DriverCard(phase: .installed, duck: .sim,
+                              lastRun: .init(duck: .sim, line: "Reached the ball in 9.5 s and stopped."))
         XCTAssertEqual(card.lines.first, "Reached the ball in 9.5 s and stopped.")
     }
 

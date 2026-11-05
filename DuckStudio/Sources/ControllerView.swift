@@ -146,26 +146,30 @@ struct TellPanel: View {
     let walkAct: (DriverCard.Action) -> Void
     /// The status line while something runs, or nil.
     let running: String?
+    /// Its symbol: a ball only for the walk. An order from Moves, Siri or a pad shows here too.
+    let runningSymbol: String
     let takeOver: () -> Void
     let send: (String) -> Void
     let stop: () -> Void
-    /// The tallest the idle panel may be on a short screen.
-    let shortScreenHeight: CGFloat
+    /// The tallest the idle panel may be, in either orientation.
+    let tallest: CGFloat
     @State private var text = ""
+    @State private var idleHeight: CGFloat = 0
     @FocusState private var focused: Bool
-    @Environment(\.verticalSizeClass) private var verticalSize
 
     private let columns = [GridItem(.adaptive(minimum: ControllerMetric.tileMinimum), spacing: 8)]
 
     var body: some View {
         if let running {
-            RunStatusLine(symbol: BallWalk.symbol, line: running, takeOver: takeOver)
-        } else if verticalSize == .compact {
-            // THE SAME RULE AS AUTO: with the walk's card on it this panel would climb over the top
-            // strip and the red disc on a landscape phone, so it scrolls under the drawer's limit.
-            ScrollView { idle }.frame(maxHeight: shortScreenHeight)
+            RunStatusLine(symbol: runningSymbol, line: running, takeOver: takeOver)
         } else {
-            idle
+            // WITH THE WALK'S CARD ON IT THIS PANEL WOULD CLIMB OVER THE TOP STRIP AND THE RED DISC, on a
+            // small phone in portrait or with large type as well as in landscape, so it scrolls under
+            // `tallest`. Measured, because a ScrollView under `maxHeight` fills it, and a panel that
+            // fits must stay its own height. Go is at the top, so it is what the scroll keeps in view.
+            ScrollView { idle.measuringChromeHeight { idleHeight = $0 } }
+                .frame(height: idleHeight > 0 ? min(idleHeight, tallest) : tallest)
+                .scrollBounceBehavior(.basedOnSize)
         }
     }
 
@@ -225,14 +229,13 @@ struct WalkBallCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
+            Label(BallWalk.title, systemImage: BallWalk.symbol)
+                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                .foregroundStyle(Theme.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+            // GO MOVES A DUCK AND GETS THE BUTTON THAT SAYS SO. Delete sits at the far end, no red:
+            // red is Stop and nothing else, and an instant delete is not beside the thing you press.
             HStack(spacing: Theme.spacing(.tight)) {
-                Label(BallWalk.title, systemImage: BallWalk.symbol)
-                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
-                    .foregroundStyle(Theme.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 0)
-                // GO MOVES A DUCK AND GETS THE BUTTON THAT SAYS SO. Delete sits at the far end, no red:
-                // red is Stop and nothing else, and an instant delete is not beside the thing you press.
                 ForEach(card.actions, id: \.self) { action in
                     let title = card.title(action, release: .walkToBall)
                     if action == .go {
@@ -240,6 +243,7 @@ struct WalkBallCard: View {
                             .buttonStyle(.primaryActionInline)
                             .disabled(busy)
                             .accessibilityLabel(Text("\(title), \(BallWalk.title)"))
+                        Spacer(minLength: 0)
                     } else {
                         Button(title) { act(action) }
                             .buttonStyle(.bordered)

@@ -424,7 +424,7 @@ These fixes come from code read this session:
 | StopPath and the stop latch | all modes | `StopDuckIntent` (also a `LiveActivityIntent`); a Linux import test proves it imports no brain code | red Stop on Play, the second Stop in the thumb zone during Auto, the floating Stop pill over every sheet, the Live Activity |
 | DuckTalk + DuckCommandMatcher | Tell | `TellTheDuckIntent` (deterministic path only in the background) | Tell field on Play; preview strip for compound sentences |
 | Apple FM planner (closed set) | Tell (91), Auto goal pick later | `TellTheDuckIntent` asks to continue in the foreground when a model is needed. Intents never call a planner in the background. | Tell preview card with countdown and Cancel |
-| Phone driver ducknet-s1 | Auto | `WalkToBallIntent` (practice duck only, foreground) | Auto goal card "Walk to the ball, on this phone" with its number |
+| Phone driver ducknet-s1 | Tell (moved from Auto after build 94) | none yet (`WalkToBallIntent` was planned and has not been built) | Tell's Walk to the ball card with its number, on the practice duck and a real one |
 | Dream-1 (plain) via DreamDirect | Auto | none in v1 | Auto goal card with a prompt field, provenance and its number; Studio > Settings > Models for the key |
 | Gate counts and run summary | Tell, Auto | none | run summary chip; Studio > Measure for the export |
 | Provider settings, consent, Forget key | n/a | none | Studio > Settings > Models, one level down |
