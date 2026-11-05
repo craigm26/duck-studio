@@ -32,8 +32,8 @@ public enum ControllerWords {
     public static func line(_ mode: ControlArbiter.Mode) -> String {
         switch mode {
         case .drive: return "Your thumbs move the duck."
-        case .tell: return "Type what the duck should do, or tap a tile."
-        case .auto: return "The duck works toward a goal while you watch. Touch the stick to take over."
+        case .tell: return "Say or type what the duck should do, or tap a tile."
+        case .auto: return "Ask Apple Intelligence for a plan, or pick another helper on the right. Take over any time."
         }
     }
 
@@ -83,6 +83,39 @@ public enum ControllerWords {
         ("turn right", "arrow.clockwise"),
         ("quack", "speaker.wave.2"),
     ]
+    /// The practice duck's tiles: only what it can do. It walks and turns; it has no sitting
+    /// latch, no voice and is always on its feet unless it fell (then Put it back on its feet).
+    public static let practiceTiles: [(said: String, symbol: String)] = [
+        ("walk forward", "arrow.up"),
+        ("walk back", "arrow.down"),
+        ("turn left", "arrow.counterclockwise"),
+        ("turn right", "arrow.clockwise"),
+    ]
+
+    /// The tiles for this duck: every tile reads as an order this duck can run.
+    public static func tiles(for duck: DuckIdentity.Kind?) -> [(said: String, symbol: String)] {
+        duck == .sim ? practiceTiles : tiles
+    }
+
+    // MARK: - putting the practice duck back
+
+    /// Reset, renamed for what it does, in More and the duck pill menu, and on the stage after a fall.
+    public static let putBack = "Put it back on its feet"
+    public static let putBackHint = "Lifts the practice duck upright where it is."
+    public static let fellOver = "The duck fell over."
+    /// The camera rail's own reset: a different job, so a different name and glyph.
+    public static let recentreCamera = "Recentre the camera"
+
+    // MARK: - an Auto run
+
+    public static let takeOver = "Take over"
+    public static let takeOverHint = "Stops the goal and gives you the sticks."
+    /// The one status line while a goal runs, in place of the cards.
+    public static func autoRunning(_ what: String, elapsed: Double, cap: Double) -> String {
+        String(format: "%@ · %.0f s of %.0f s", what, max(0, elapsed), cap)
+    }
+    /// The other helpers, beside Apple Intelligence.
+    public static let otherHelpers = "Other helpers"
 
     // MARK: - Drive
 
@@ -108,16 +141,17 @@ public enum ControllerWords {
 
     public static var sheetWords: [String] {
         [movesSheet, movesSheetHint, motions, more, moreHint, moreScene, moreRecord, moreRecordLine,
-         moreCamera, moreCameraLine, moreSettings, moreRealDuck]
+         moreCamera, moreCameraLine, moreSettings, moreRealDuck, putBack, putBackHint, fellOver,
+         recentreCamera, takeOver, takeOverHint, otherHelpers, autoRunning("Walk", elapsed: 4, cap: 60)]
     }
 }
 
 /// An Auto goal card: what it is, where it runs, and whether it can run here.
 public enum AutoGoal: String, CaseIterable, Sendable, Identifiable {
-    /// The phone driver (ducknet-s1), Practice duck only.
-    case walkToBall
-    /// Dream-1 with the person's own key.
+    /// Dream-1 with the person's own key. First of the helpers beside Apple Intelligence.
     case dream
+    /// The phone driver (ducknet-s1), Practice duck only. Last, until it ships.
+    case walkToBall
 
     public var id: String { rawValue }
 
@@ -157,7 +191,10 @@ public enum AutoGoal: String, CaseIterable, Sendable, Identifiable {
     public enum Words {
         public static let practiceOnly = "Practice duck only for now. Runs on this phone, no key needed."
         /// The phone driver is not in the app yet. Said plainly rather than faked.
-        public static let notOnThisPhone = "Not on this phone yet. This driver ships in a later build."
+        public static let notOnThisPhone = "Coming in a later build."
+        public static let opensDream = "Opens Dream-1 with your goal."
+        public static let needsKey = "Needs your Dream Labs key, in Studio, Settings."
+        public static let addKey = "Add your key"
         public static let trainedOnSim = "This driver was trained on the simulated duck."
         public static let noDuck = "Connect a duck, or use the practice duck, to start a goal."
         public static let go = "Go"
@@ -171,7 +208,10 @@ public enum AutoGoal: String, CaseIterable, Sendable, Identifiable {
     /// - Parameters:
     ///   - duck: the duck the controller is on, or nil when there is none to drive.
     ///   - driverInstalled: whether a phone driver is on this device (walkToBall only).
-    public func availability(on duck: DuckIdentity.Kind?, driverInstalled: Bool) -> Availability {
+    /// - Parameter dreamReady: whether a Dream Labs key is on this phone, or the bridge says it
+    ///   holds one. Without one the Dream row offers "Add your key" instead of Go.
+    public func availability(on duck: DuckIdentity.Kind?, driverInstalled: Bool,
+                             dreamReady: Bool = true) -> Availability {
         guard let duck else { return .unavailable(Words.noDuck) }
         switch self {
         case .walkToBall:
@@ -179,23 +219,31 @@ public enum AutoGoal: String, CaseIterable, Sendable, Identifiable {
             if duck == .real { return .unavailable(Words.trainedOnSim) }
             return .ready
         case .dream:
-            return .ready
+            return dreamReady ? .ready : .unavailable(Words.needsKey)
         }
     }
 
     /// The subtitle on the card.
-    public func subtitle(on duck: DuckIdentity.Kind?, driverInstalled: Bool) -> String {
-        if let reason = availability(on: duck, driverInstalled: driverInstalled).reason { return reason }
+    public func subtitle(on duck: DuckIdentity.Kind?, driverInstalled: Bool, dreamReady: Bool = true) -> String {
+        if let reason = availability(on: duck, driverInstalled: driverInstalled, dreamReady: dreamReady).reason {
+            return reason
+        }
         switch self {
         case .walkToBall: return Words.practiceOnly
-        case .dream: return "Type a goal on the card, then Go."
+        case .dream: return Words.opensDream
         }
+    }
+
+    /// The button on the row: Go, or Add your key when Dream-1 has none.
+    public func action(on duck: DuckIdentity.Kind?, driverInstalled: Bool, dreamReady: Bool = true) -> String {
+        if self == .dream, duck != nil, !dreamReady { return Words.addKey }
+        return Words.go
     }
 
     public static var all: [String] {
         allCases.flatMap { [$0.title, $0.provenance] }
             + [Words.practiceOnly, Words.notOnThisPhone, Words.trainedOnSim, Words.noDuck,
-               Words.go, Words.running, Words.capped(30)]
+               Words.go, Words.running, Words.capped(30), Words.opensDream, Words.needsKey, Words.addKey]
     }
 }
 

@@ -172,6 +172,10 @@ struct MoveTileSections: View {
             }
         } header: {
             SectionHeading(text: "Sounds")
+        } footer: {
+            if runs.duck == .sim {
+                Text(DuckOrder.PracticeWords.noVoice)
+            }
         }
         .listRowBackground(Theme.surfacePrimary)
     }
@@ -182,7 +186,9 @@ struct MoveTileSections: View {
         } label: {
             Label(title, systemImage: symbol)
         }
-        .disabled(runs.duck == nil || runs.isRunning)
+        // THE PRACTICE DUCK HAS NO SKILLS AND NO VOICE (build 92): these tiles were enabled there
+        // and failed with a Swift case name nobody saw. Now they are dimmed, and the footer says why.
+        .disabled(runs.duck == nil || runs.isRunning || runs.duck.flatMap(order.notOn) != nil)
         .frame(minHeight: DesignMetric.minimumTarget)
     }
 }

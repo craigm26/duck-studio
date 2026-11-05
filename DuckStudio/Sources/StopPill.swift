@@ -81,12 +81,69 @@ final class DuckRuns: ObservableObject {
 
     /// Run one order on the attached duck. Only a person's own tap or sentence calls this, so it
     /// re-opens the stop latch first: a model, a bridge or a reconnect never does.
-    func run(_ order: DuckOrder, ready: DuckOrder.Readiness = .unknown) async -> DuckOrderRunner.Ended {
+    ///
+    /// THE DUCK IS ASKED HOW IT STANDS FIRST (build 92). The practice duck's answer is fixed
+    /// (`Readiness.practiceDuck`); a real duck is asked `robot.policies`, so Sit knows whether it
+    /// is sitting and a standing duck is not re-homed before every walk. An order this duck
+    /// cannot do is refused in a sentence before anything is sent.
+    func run(_ order: DuckOrder) async -> DuckOrderRunner.Ended {
         guard let peer else {
             caption = ControllerWords.tellNoDuck
             return .refused(ControllerWords.tellNoDuck)
         }
-        return await run(order, on: peer, ready: ready)
+        if let duck, let why = order.notOn(duck) {
+            caption = why
+            return .refused(why)
+        }
+        return await run(order, on: peer, ready: await readiness(of: peer))
+    }
+
+    /// How the attached duck stands, as it says so.
+    func readiness(of peer: any DuckPeer) async -> DuckOrder.Readiness {
+        duck == .sim ? .practiceDuck : await DuckOrder.Readiness.ask(peer)
+    }
+
+    /// Run a short plan of orders, one at a time, as ONE run: one Stop ends all of it.
+    ///
+    /// THE LATCH IS RE-OPENED ONCE, at the start, for the person who asked. Every later step goes
+    /// through `DuckOrderRunner` directly, which checks the latch before each wire write, so a
+    /// Stop between steps ends the plan instead of being undone by the next step. The duck is
+    /// asked how it stands before every step, because a stand or a sit changes the answer.
+    func runPlan(_ orders: [DuckOrder], step: @escaping (Int) -> Void) async -> DuckOrderRunner.Ended {
+        guard let peer else {
+            caption = ControllerWords.tellNoDuck
+            return .refused(ControllerWords.tellNoDuck)
+        }
+        if let duck, let why = orders.lazy.compactMap({ $0.notOn(duck) }).first {
+            caption = why
+            return .refused(why)
+        }
+        path.rearm()
+        let path = self.path
+        let work = Task { @MainActor () -> DuckOrderRunner.Ended in
+            for (i, order) in orders.enumerated() {
+                guard path.admits, !Task.isCancelled else { return .stopped }
+                step(i)
+                let ready = await self.readiness(of: peer)
+                let ended = await DuckOrderRunner.run(order, ready: ready, on: peer, stopPath: path,
+                                                      said: { line in await MainActor.run { DuckRuns.shared.say(line) } })
+                switch ended {
+                case .finished: continue
+                default: return ended
+                }
+            }
+            return .finished
+        }
+        let token = track(.command) { work.cancel() }
+        let ended = await work.value
+        finished(token)
+        switch ended {
+        case .finished: caption = DuckDecider.Words.done
+        case .stopped: break
+        case .refused(let why): caption = why
+        case .handedOff: break
+        }
+        return ended
     }
 
     /// Run one order on a named duck: the welcome sheet's quack and Stand up go to the duck just

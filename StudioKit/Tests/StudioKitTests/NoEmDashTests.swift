@@ -22,6 +22,7 @@ final class NoEmDashTests: XCTestCase {
         "StopWords.swift", "DuckOrderMatcher.swift", "ControlArbiter.swift",
         "ControllerWords.swift",
         "DuckSheet.swift",
+        "DuckDecider.swift",
     ]
 
     /// Em-dashes inside string literals, per file, on 2026-11-04.

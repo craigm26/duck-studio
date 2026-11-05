@@ -1594,7 +1594,7 @@ struct StageCameraColumn: View {
                    why: StageCamera.farthestSaid) {
                 orbit.zoom(by: 1 / Float(StageCamera.zoomNotch))
             }
-            button(StageCamera.resetSaid, symbol: "arrow.counterclockwise",
+            button(StageCamera.resetSaid, symbol: "camera.metering.center.weighted",
                    can: true, why: nil) {
                 orbit.resetView()
             }

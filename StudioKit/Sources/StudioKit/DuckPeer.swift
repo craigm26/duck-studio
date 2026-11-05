@@ -72,6 +72,10 @@ public enum DuckMethod: String, CaseIterable, Sendable {
     /// daemon drives itself (`SkillsResult {skills, built_in}`). Discrete. What a plan may ask
     /// for is read from here, so a plan never names a skill this duck does not have.
     case skills = "robot.skills"
+    /// What the duck is running and how it stands: the walking mode, whether the motor bus is
+    /// on, and (robotd proto v31) whether it is `sitting` and `homed`. Discrete. Read before a
+    /// Sit or a Stand so neither has to guess (`DuckOrder.Readiness.read(policies:)`).
+    case policies = "robot.policies"
     /// Play one of the robot's voice-bank sounds by tag (`SoundParams {tag}`): the seven
     /// `DuckSound` names are Pollen's `SoundTag` names exactly. Sent as a request, because a
     /// robot with no voice refuses with a reason and the plan should hear it.
@@ -160,7 +164,7 @@ public enum DuckMethod: String, CaseIterable, Sendable {
         switch self {
         case .pairingPin, .setPairingPin, .update: return true
         case .hello, .move, .head, .look, .stop, .enable, .initPose, .relax, .state,
-             .subscribe, .doSkill, .skills, .sound: return false
+             .subscribe, .doSkill, .skills, .sound, .policies: return false
         // A NEW FILE ON THE DISK IS NOT THE RECOVERY PATH. The recovery path
         // is pairing and firmware — what gets a person back INTO a robot. An
         // installed policy does nothing until robotd is restarted and a slot
@@ -220,7 +224,7 @@ public enum DuckMethod: String, CaseIterable, Sendable {
         case .move, .head, .look, .stop, .enable, .initPose, .relax, .state,
              .subscribe: return false
         // A kick over a link that cannot carry a stop is a kick nobody can take back.
-        case .doSkill, .skills, .sound: return false
+        case .doSkill, .skills, .sound, .policies: return false
         case .installPolicy, .dream: return false
         }
     }
@@ -230,7 +234,7 @@ public enum DuckMethod: String, CaseIterable, Sendable {
     private var overWebRTC: Bool {
         switch self {
         case .hello, .move, .head, .look, .stop, .enable, .initPose, .relax,
-             .subscribe, .doSkill, .skills, .sound: return true
+             .subscribe, .doSkill, .skills, .sound, .policies: return true
         // `state` is not a method `robotd` answers, and `reach` is not the
         // place to wish that it were.
         case .state, .pairingPin, .setPairingPin, .update, .installPolicy, .dream: return false
@@ -258,7 +262,7 @@ public enum DuckMethod: String, CaseIterable, Sendable {
         // THE BENCH RUNS SKILLS THROUGH ITS OWN ENDPOINTS (`DuckQuickActions`), not robotd's
         // names, and it has no voice bank. Denied here so a plan sent to a bench says so
         // rather than a kick being posted to a URL that does not exist.
-        case .doSkill, .skills, .sound: return false
+        case .doSkill, .skills, .sound, .policies: return false
         case .pairingPin, .setPairingPin, .update, .installPolicy, .dream: return false
         }
     }
@@ -274,7 +278,7 @@ public enum DuckMethod: String, CaseIterable, Sendable {
     private var overBridge: Bool {
         switch self {
         case .hello, .move, .head, .look, .stop, .enable, .initPose, .relax, .state,
-             .subscribe, .doSkill, .skills, .sound: return true
+             .subscribe, .doSkill, .skills, .sound, .policies: return true
         case .installPolicy: return true
         // OPENCASTOR'S BRIDGE ANSWERS IT; one without the verbs says so in its
         // greeting (`Greeting.dream`), and the screen reads that first.
@@ -454,6 +458,8 @@ public enum DuckCall: Equatable, Sendable {
     case skills
     /// `robot.sound` — one voice-bank sound.
     case sound(DuckSound)
+    /// `robot.policies`: the mode, the motor bus and the sitting latch.
+    case policies
 
     /// What this is called on the wire.
     public var method: DuckMethod {
@@ -473,6 +479,7 @@ public enum DuckCall: Equatable, Sendable {
         case .doSkill: return .doSkill
         case .skills: return .skills
         case .sound: return .sound
+        case .policies: return .policies
         }
     }
 
@@ -489,7 +496,7 @@ public enum DuckCall: Equatable, Sendable {
         switch self {
         case .move, .head: return true
         case .hello, .look, .stop, .enable, .initPose, .relax, .state, .subscribe,
-             .installPolicy, .dream, .doSkill, .skills, .sound: return false
+             .installPolicy, .dream, .doSkill, .skills, .sound, .policies: return false
         }
     }
 
@@ -632,7 +639,7 @@ public enum DuckCall: Equatable, Sendable {
             // `DoParams { skill }` — the only field, Pollen's name for it.
             guard DuckCall.isSkillName(name) else { throw Misuse.notASkillName(name) }
             return ["skill": name]
-        case .skills:
+        case .skills, .policies:
             return nil
         case .sound(let tag):
             // `SoundParams { tag, hold? }`. `hold` is left out: a plan's sound is one-shot.
@@ -673,6 +680,7 @@ public enum DuckCall: Equatable, Sendable {
         case .doSkill: return .doSkill("kick_left")
         case .skills: return .skills
         case .sound: return .sound(.chirp)
+        case .policies: return .policies
         case .pairingPin, .setPairingPin, .update: return nil
         }
     }

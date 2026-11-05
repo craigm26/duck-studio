@@ -17,6 +17,9 @@
 	<!-- Mimic: a person posed onto the duck from the camera. -->
 	<key>com.apple.security.device.camera</key>
 	<true/>
+	<!-- The mic on Tell and Ask the duck (build 92), recognised on this Mac. -->
+	<key>com.apple.security.device.audio-input</key>
+	<true/>
 	<!-- Opening and exporting policies, motions and plans. -->
 	<key>com.apple.security.files.user-selected.read-write</key>
 	<true/>

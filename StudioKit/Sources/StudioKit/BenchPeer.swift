@@ -212,6 +212,7 @@ public actor BenchPeer: DuckPeer {
         case .subscribe: return .nothingToSubscribeTo
         case .doSkill: return .skillsAreTheBenchsOwn(.doSkill)
         case .skills: return .skillsAreTheBenchsOwn(.skills)
+        case .policies: return .skillsAreTheBenchsOwn(.policies)
         case .sound: return .noVoice
         case .hello, .move, .stop, .state: return nil
         }
@@ -390,7 +391,7 @@ public actor BenchPeer: DuckPeer {
             guard let live else { throw Refusal.nothingHasHappenedYet }
             return DuckReply(id: id, result: try Self.stateResult(live), failure: nil)
         case .move, .head, .look, .enable, .initPose, .relax, .installPolicy, .dream, .subscribe,
-             .doSkill, .skills, .sound:
+             .doSkill, .skills, .sound, .policies:
             // UNREACHABLE, AND A THROW RATHER THAN A CRASH. `refusal(for:)`
             // has answered for five of these six — head, look, enable,
             // initPose, relax — and `vet` for the sixth, `move`, which is a
