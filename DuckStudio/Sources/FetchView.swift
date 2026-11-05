@@ -285,7 +285,7 @@ final class FetchCoordinator: NSObject {
         guard let referee else { return }
         referee.drop(DuckSoccer.Vec2(Double(local.x), Double(-local.z)))
         let ball = ModelEntity(mesh: .generateSphere(radius: 0.05),
-                               materials: [UnlitMaterial(color: .systemOrange)])
+                               materials: [UnlitMaterial(color: Theme.stage(.actionPrimary, .light))])
         ball.position = SIMD3<Float>(local.x, 0.05, local.z)
         anchor.addChild(ball)
         balls.append(ball)

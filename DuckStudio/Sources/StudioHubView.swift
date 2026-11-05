@@ -424,7 +424,7 @@ struct HubRow: View {
         HStack(alignment: .firstTextBaseline, spacing: Theme.spacing(.snug)) {
             Image(systemName: symbol)
                 .font(.body)
-                .foregroundStyle(reason == nil ? Theme.actionSecondary : Theme.textTertiary)
+                .foregroundStyle(reason == nil ? Theme.actionInk : Theme.textTertiary)
                 .frame(width: HubRowMetric.symbolColumn)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {

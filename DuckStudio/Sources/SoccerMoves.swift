@@ -103,7 +103,7 @@ struct SoccerMovesView: View {
                     } label: {
                         HStack(spacing: Theme.spacing(.snug)) {
                             Image(systemName: slot.symbol).frame(width: 28)
-                                .foregroundStyle(Theme.actionPrimary)
+                                .foregroundStyle(Theme.actionInk)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(slot.title).font(.headline)
                                 Text(store.loadout[slot]?.name ?? slot.standard)
@@ -185,7 +185,7 @@ private struct SoccerSkillPicker: View {
             HStack {
                 Text(name).foregroundStyle(Theme.textPrimary)
                 Spacer()
-                if chosen { Image(systemName: "checkmark").foregroundStyle(Theme.actionPrimary) }
+                if chosen { Image(systemName: "checkmark").foregroundStyle(Theme.actionInk) }
             }
         }
     }

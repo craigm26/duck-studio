@@ -458,7 +458,7 @@ final class ARDriveCoordinator: NSObject {
         addTheEdge(inner: Float(world?.bank.arenaInner ?? DuckWorld.Bank.pinned.arenaInner), to: room)
         guard let world else { return }
 
-        let stepMaterial = ghostMaterial(UIColor(red: 1, green: 0.45, blue: 0.2, alpha: 1))
+        let stepMaterial = ghostMaterial(Theme.stage(.actionPrimary, .light))
         for step in world.steps {
             let mesh = MeshResource.generateBox(
                 size: SIMD3<Float>(Float(step.halfDepth * 2),
@@ -480,7 +480,7 @@ final class ARDriveCoordinator: NSObject {
             let radius = Float(world.ballRadius ?? DuckWorld.ballRadius)
             let sphere = ModelEntity(
                 mesh: .generateSphere(radius: radius),
-                materials: [ghostMaterial(UIColor(red: 0.35, green: 0.75, blue: 1, alpha: 1))])
+                materials: [ghostMaterial(Theme.stage(.actionTeal, .light))])
             sphere.position = SIMD3<Float>(Float(at.x), radius, Float(-at.y))
             room.addChild(sphere)
         }

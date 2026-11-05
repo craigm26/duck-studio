@@ -116,9 +116,10 @@ struct MovesView: View {
             if let caption = runs.caption {
                 Text(caption)
                     .font(.footnote)
+                    .foregroundStyle(Theme.textPrimary)
                     .padding(Theme.spacing(.tight))
                     .frame(maxWidth: .infinity)
-                    .background(.ultraThinMaterial)
+                    .background(Theme.surfacePrimary)
                     .padding(.bottom, runs.isRunning ? StopMetric.pillHeight + Theme.spacing(.loose) : 0)
             }
         }

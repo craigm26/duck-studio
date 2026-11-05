@@ -439,7 +439,7 @@ struct AutomationChatView: View {
                             }
                             } else {
                                 Text(DetailLevel.placeholder(for: .training))
-                                    .font(.caption2).foregroundStyle(.secondary)
+                                    .font(.caption2).foregroundStyle(Theme.textSecondary)
                             }
                         }
 

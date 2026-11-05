@@ -190,7 +190,7 @@ struct DuckPackEditorView: View {
                             .frame(maxWidth: .infinity, minHeight: DesignMetric.minimumTarget, alignment: .leading)
                     }
                     .buttonStyle(.bordered)
-                    .tint(Theme.actionSecondary)
+                    .tint(Theme.actionInk)
                 }
             }
             .padding(.vertical, Theme.spacing(.hairline))

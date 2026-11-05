@@ -18,10 +18,10 @@ import StudioKit
 /// reference line, axis numbers — is furniture in `separator` and
 /// `textTertiary`, because a chart with three emphasised things has none.
 ///
-/// `actionSecondary` AND NOT `actionPrimary`, WHICH IS A CONTRAST DECISION.
+/// `actionInk` AND NOT `actionPrimary`, WHICH IS A CONTRAST DECISION.
 /// Duck Orange is 2.30:1 on Warm Cream — below even the 3:1 SC 1.4.11 asks of a
 /// shape's edge — so a two-point rule in it is a playhead that is not there in
-/// light mode. `actionSecondary` is the same hue at ink weight in light and
+/// light mode. `actionInk` is the same hue at ink weight in light and
 /// full Duck Orange in dark, which is exactly what the token exists for. It is
 /// still orange, which matters beyond taste: `IntentListView` prints "The
 /// orange line is the playhead" above these charts, and a picture that
@@ -123,7 +123,7 @@ struct RunChart: View {
             }
             RuleMark(x: .value("now", playhead))
                 .lineStyle(StrokeStyle(lineWidth: ChartMetric.playheadStroke))
-                .foregroundStyle(Theme.actionSecondary)
+                .foregroundStyle(Theme.actionInk)
         }
         .chartYScale(domain: track.range)
         // ONE MARK TYPE PER COLOUR, SO THERE IS NOTHING FOR A LEGEND TO SAY.

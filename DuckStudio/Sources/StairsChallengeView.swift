@@ -687,7 +687,7 @@ struct StairsMoveView: View {
                     } label: {
                         Label("Watch this cell", systemImage: "play.rectangle")
                     }
-                    .tint(Theme.actionSecondary)
+                    .tint(Theme.actionInk)
                 }
             }
             if let playFailure = run.playFailure {

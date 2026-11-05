@@ -1229,9 +1229,11 @@ struct DriveView: View {
                 ?? (stickGate.waitingForLift ? ControllerWords.liftToDrive : nil) {
                 Text(line)
                     .font(.system(.footnote, design: .rounded))
+                    .foregroundStyle(Theme.textPrimary)
                     .padding(.horizontal, Theme.spacing(.snug))
                     .padding(.vertical, Theme.spacing(.hairline))
-                    .background(.ultraThinMaterial, in: Capsule())
+                    .background(Theme.surfacePrimary, in: Capsule())
+                    .shadow(color: PondShadow.colour, radius: PondShadow.blur, y: PondShadow.y)
                     .fixedSize(horizontal: false, vertical: true)
             }
             // A FALLEN PRACTICE DUCK GETS ITS WAY BACK UP RIGHT HERE, one small button.
@@ -1669,13 +1671,13 @@ struct DriveView: View {
                     ForEach(JointGroup.all) { group in Text(group.title).tag(group.title) }
                 }
                 .pickerStyle(.menu)
-                .tint(Theme.actionSecondary)
+                .tint(Theme.actionInk)
                 Spacer(minLength: 0)
                 Button(ControlShelf.doneposing) {
                     posed = nil; posedJoint = nil; poseNote = nil; poseRefusal = nil
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(Theme.actionSecondary)
+                .foregroundStyle(Theme.actionInk)
                 .frame(minHeight: DesignMetric.minimumTarget)
             }
             // THE JOINT UNDER THE FINGER, OFF THE DUCK. Its name, the angle
@@ -1703,7 +1705,7 @@ struct DriveView: View {
                     .disabled(busy || bench == nil)
                 Button(ControlShelf.keepItAsAMotion) { keepThePose() }
                     .buttonStyle(.plain)
-                    .foregroundStyle(Theme.actionSecondary)
+                    .foregroundStyle(Theme.actionInk)
                     .frame(minHeight: DesignMetric.minimumTarget)
             }
         }
@@ -1727,7 +1729,7 @@ struct DriveView: View {
                                       posed = pose
                                   }),
                    in: travel, step: DriveMetric.oneDegree)
-                .tint(Theme.actionSecondary)
+                .tint(Theme.actionInk)
                 .accessibilityLabel(Text(control.name))
                 .accessibilityValue(Text(control.spoken(at: angle)))
             HStack {
@@ -1867,10 +1869,13 @@ struct DriveView: View {
                 .font(.footnote.weight(on ? .semibold : .regular))
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
-                .foregroundStyle(Theme.textPrimary)
+                .foregroundStyle(on ? Theme.onFill : Theme.textPrimary)
                 .padding(.horizontal, Theme.spacing(.snug))
                 .frame(minHeight: DesignMetric.minimumTarget)
-                .background(.ultraThinMaterial, in: Capsule())
+                .background(on ? Theme.actionTeal : Theme.surfacePrimary, in: Capsule())
+                .overlay(Capsule().strokeBorder(Theme.outline.opacity(on ? 1 : 0.25),
+                                                lineWidth: on ? DesignMetric.outlineStroke : 1))
+                .shadow(color: PondShadow.colour, radius: PondShadow.blur, y: PondShadow.y)
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -2491,7 +2496,7 @@ struct DriveView: View {
             Text(layer.title)
                 .font(.footnote.weight(on ? .semibold : .regular))
                 .lineLimit(1)
-                .foregroundStyle(on ? Theme.textPrimary : Theme.textSecondary)
+                .foregroundStyle(on ? Theme.onFill : Theme.textSecondary)
                 // THE SPACING SCALE DID NOT REACH THE FLOOR ON ITS OWN, WHICH
                 // IS WHY THE MINIMUM IS NAMED HERE. `.snug` above and below a
                 // footnote is twelve and twelve around a line box of eighteen:
@@ -2508,9 +2513,12 @@ struct DriveView: View {
                 .padding(.vertical, Theme.spacing(.snug))
                 .frame(minWidth: DesignMetric.minimumTarget,
                        minHeight: DesignMetric.minimumTarget)
-                .background { if on { Capsule().fill(Theme.surfaceInteractive) } }
-                .overlay(Capsule().strokeBorder(Theme.separator,
-                                                lineWidth: DriveMetric.hairlineStroke))
+                // POND DAY: the selected segment is a teal fill with an ink
+                // label and outline; the others keep the hairline.
+                .background { if on { Capsule().fill(Theme.actionTeal) } }
+                .overlay(Capsule().strokeBorder(on ? Theme.outline : Theme.separator,
+                                                lineWidth: on ? DesignMetric.outlineStroke
+                                                              : DriveMetric.hairlineStroke))
                 .overlay(alignment: .bottom) {
                     if on {
                         BillIndicator().offset(y: Theme.spacing(.tight))
@@ -2571,7 +2579,7 @@ struct DriveView: View {
         let label = isSimple ? (shown.name ?? control.face) : control.face
         return Group {
             if isLive {
-                padPress(control, label: label).buttonStyle(.primaryActionPad)
+                padPress(control, label: label).buttonStyle(.faceButton(Self.faceFill(control)))
             } else {
                 padPress(control, label: label).buttonStyle(DeadControlStyle())
             }
@@ -2594,6 +2602,19 @@ struct DriveView: View {
                     .frame(width: DriveMetric.remapDot, height: DriveMetric.remapDot)
                     .accessibilityHidden(true)
             }
+        }
+    }
+
+    /// Pond Day's face buttons: A orange, B lavender, X teal, Y yellow, the
+    /// way a toy pad colours them. Every other live control is the plain raised
+    /// button, so orange still means one thing on the pad.
+    static func faceFill(_ control: DuckPad.Control) -> PrimaryActionStyle.Fill {
+        switch control {
+        case .a: return .orange
+        case .b: return .lavender
+        case .x: return .teal
+        case .y: return .yellow
+        default: return .raised
         }
     }
 
@@ -4267,6 +4288,30 @@ private struct DeadControlStyle: ButtonStyle {
 /// thing the rigid tap says and says it to somebody who cannot feel taps. The
 /// circle it travels in is the collar, drawn so the deflection the mapping
 /// treats as full is a thing you can see rather than a divisor in a gesture.
+/// The thumb knob, drawn as the duck's eye: a yellow disc with an ink outline
+/// and a white catchlight, growing with load the way `JointNode` does (from
+/// `.standard` to `.loose`), so `ThumbPad.travel` still keeps it inside the pad.
+private struct PondEyeKnob: View {
+    let load: Double
+
+    var body: some View {
+        let clamped = CGFloat(min(max(load, 0), 1))
+        let free = Theme.spacing(.standard) + Theme.spacing(.hairline)
+        let loaded = Theme.spacing(.loose)
+        let diameter = free + (loaded - free) * clamped
+        Circle()
+            .fill(Theme.actionYellow)
+            .overlay(Circle().strokeBorder(Theme.outline, lineWidth: DesignMetric.outlineStroke))
+            .overlay(alignment: .topLeading) {
+                Circle()
+                    .fill(DesignFixed.catchlight)
+                    .frame(width: diameter * 0.28, height: diameter * 0.28)
+                    .offset(x: diameter * 0.2, y: diameter * 0.18)
+            }
+            .frame(width: diameter, height: diameter)
+    }
+}
+
 struct ThumbPad: View {
     let title: String
     @Binding var stick: DuckDrive.Stick
@@ -4305,17 +4350,20 @@ struct ThumbPad: View {
     var body: some View {
         VStack(spacing: Theme.spacing(.tight)) {
             ZStack {
-                pad.fill(Theme.surfaceInteractive)
-                pad.strokeBorder(Theme.separator, lineWidth: DriveMetric.hairlineStroke)
+                // POND DAY: a pale lavender well with an ink rim (a dusk
+                // well with a lavender rim at night), not a dark hole.
+                pad.fill(Theme.stickPad)
+                pad.strokeBorder(Theme.stickPadRim, lineWidth: DesignMetric.outlineStroke)
                 Circle()
-                    .strokeBorder(Theme.separator, lineWidth: DriveMetric.hairlineStroke)
+                    .strokeBorder(Theme.stickPadRim.opacity(0.35),
+                                  lineWidth: DriveMetric.hairlineStroke)
                     .frame(width: travel * 2, height: travel * 2)
                 Image(systemName: verticalIsLive
                       ? "arrow.up.and.down.and.arrow.left.and.right"
                       : "arrow.left.and.right")
                     .font(.title3)
                     .foregroundStyle(Theme.textTertiary)
-                JointNode(load: deflection, label: title)
+                PondEyeKnob(load: deflection)
                     .offset(x: CGFloat(stick.x) * travel,
                             y: CGFloat(verticalIsLive ? -stick.y : 0) * travel)
                     // THE PAD IS THE ELEMENT, NOT THE KNOB. `JointNode` carries

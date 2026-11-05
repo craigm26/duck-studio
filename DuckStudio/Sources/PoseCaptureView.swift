@@ -194,7 +194,7 @@ struct PoseCaptureView: View {
                     .buttonStyle(.primaryAction)
                     Button(Mimic.fromFiles) { pickingFile = true }
                         .buttonStyle(.plain)
-                        .foregroundStyle(Theme.actionSecondary)
+                        .foregroundStyle(Theme.actionInk)
                         .frame(minHeight: DesignMetric.minimumTarget)
                     if let videoNote {
                         Text(videoNote)
@@ -293,7 +293,7 @@ struct PoseCaptureView: View {
                         .font(.footnote)
                         .foregroundStyle(Theme.textSecondary)
                 }
-                .tint(Theme.actionSecondary)
+                .tint(Theme.actionInk)
                 Text(Mimic.mirrorSaid)
                     .font(.caption2)
                     .foregroundStyle(Theme.textTertiary)
@@ -372,13 +372,13 @@ struct PoseCaptureView: View {
                 if !engine.isRecording, !engine.track.isEmpty, kept == nil {
                     Button(Mimic.keep) { keep() }
                         .buttonStyle(.plain)
-                        .foregroundStyle(Theme.actionSecondary)
+                        .foregroundStyle(Theme.actionInk)
                         .frame(minHeight: DesignMetric.minimumTarget)
                 }
                 if let kept {
                     Button(Mimic.openInEditor) { editing = kept }
                         .buttonStyle(.plain)
-                        .foregroundStyle(Theme.actionSecondary)
+                        .foregroundStyle(Theme.actionInk)
                         .frame(minHeight: DesignMetric.minimumTarget)
                 }
             }

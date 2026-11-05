@@ -83,7 +83,7 @@ private struct ChallengeRowLabel: View {
     var body: some View {
         HStack(alignment: .top, spacing: Theme.spacing(.tight)) {
             Image(systemName: symbol)
-                .foregroundStyle(Theme.actionSecondary)
+                .foregroundStyle(Theme.actionInk)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
                 Text(challenge.name)

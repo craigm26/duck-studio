@@ -115,28 +115,54 @@ enum Theme {
 
     /// Microduck Teal in dark, teal ink in light.
     static let brandPrimary = adaptive(.brandPrimary)
-    /// Duck Orange, in both schemes. The thing you press.
-    ///
-    /// THE ONE ACCENT THAT IS NEVER REPLACED BY ITS INK. Every other hue takes
-    /// a darkened variant on cream so it can set a word; this one keeps its
-    /// brand value because the button a person reaches for is where a brand
-    /// actually lives. On cream it is 2.30:1, which is below even the 3:1 a
-    /// control's boundary owes — so a filled orange shape on the light ground
-    /// takes `actionPrimaryEdge` as a hairline rim, and the fill stays orange.
+    /// Beak Orange. The one main action: Drive, Go, the A button.
     static let actionPrimary = adaptive(.actionPrimary)
-    /// The rim a Duck Orange fill needs so its EDGE is findable, or `nil` in
-    /// dark, where orange is 7.12:1 on the ground and needs nothing.
-    ///
-    /// Not adaptive, because it is absent rather than different in dark:
-    /// asking for it in the wrong scheme should give you nothing to draw, not
-    /// a colour you then have to remember to skip.
+    /// The 2pt ink outline every pressable fill wears (Pond Day rule 3). It
+    /// is what makes a light fill findable on Pond Mist; in dark it reads as a
+    /// crisp shadow. Kept as a function of the scheme so older callers that
+    /// drew "a rim if there is one" keep compiling.
     static func actionPrimaryEdge(_ scheme: ColorScheme) -> Color? {
         Palette.fillEdge(.actionPrimary, in: scheme == .dark ? .dark : .light)
             .map { Color(uiColor: UIColor($0)) }
     }
-    /// The quieter action — orange ink in light, orange in dark. This is the
-    /// one that sets words.
-    static let actionSecondary = adaptive(.actionSecondary)
+    /// Orange as a WORD: orange ink in light (5.10:1 on Pond Mist), a lighter
+    /// orange in dark. The tab tint, links, glyphs on cream chips.
+    static let actionInk = adaptive(.actionInk)
+
+    // MARK: - the toy-box fills (Pond Day)
+
+    /// Sunny Feet yellow. Reset, the Y button, the stick knob.
+    static let actionYellow = adaptive(.actionYellow)
+    /// Icon Sky teal. The X button, the selected mode segment.
+    static let actionTeal = adaptive(.actionTeal)
+    /// Wing lavender. The B button, training.
+    static let actionLavender = adaptive(.actionLavender)
+    /// The label and glyph on EVERY bright fill: icon ink in both schemes,
+    /// because the fills are bright in both schemes.
+    static let onFill = adaptive(.onFill)
+    /// The 2pt outline round every filled control.
+    static let outline = adaptive(.outline)
+    /// The thumb pad well: Lavender Cloud by day, dusk at night.
+    static let stickPad = adaptive(.stickPad)
+    /// The thumb pad's 2pt rim.
+    static let stickPadRim = adaptive(.stickPadRim)
+    /// Emergency Stop. The only red in the app, and it is used for Stop only.
+    static let stop = adaptive(.stop)
+
+    /// The darker shade under a pressable fill: the "toy button" lip.
+    static func lip(_ token: Palette.Token) -> Color {
+        Color(uiColor: UIColor { traits in
+            let scheme: Palette.Scheme = traits.userInterfaceStyle == .dark ? .dark : .light
+            return UIColor(Palette.lip(token, in: scheme) ?? Palette.color(token, in: scheme))
+        })
+    }
+
+    // MARK: - the 3D stage (resolved per scheme, because RealityKit materials
+    // take a plain colour, not a dynamic one)
+
+    static func stage(_ token: Palette.Token, _ scheme: ColorScheme) -> UIColor {
+        UIColor(Palette.color(token, in: scheme == .dark ? .dark : .light))
+    }
 
     // MARK: - robot state
 
@@ -200,7 +226,7 @@ enum Theme {
     /// is "what somebody asked for" — and the name is the one thing about it
     /// that is left over from a palette of sampled hex values.
     static let amber = asked
-    /// Duck Orange, under the name the brand sheet uses. `actionPrimary` is
+    /// Beak Orange, under the name the brand sheet uses. `actionPrimary` is
     /// the token; this is the colour.
     static let orange = actionPrimary
 
@@ -259,40 +285,44 @@ extension Theme {
 
     /// What the person has asked the app to look like.
     ///
-    /// TWO OPTIONS, AND `system` IS ONE OF THEM. There is no `light` case
-    /// because "light" is not a thing to choose here — a phone set to light
-    /// already produces light under `system`, and offering it separately would
-    /// only let somebody pin the app against a phone that later switches to
-    /// dark at sunset.
+    /// THREE OPTIONS, LIGHT FIRST. Pond Day is a daytime look: a bright teal
+    /// page with cream cards, like the icon. `light` is the default so the app
+    /// looks like its icon out of the box; `system` follows the phone; `dark`
+    /// is the night pond. The stored raw values `system` and `dark` are the
+    /// ones earlier builds wrote, so a person who already chose keeps their
+    /// choice.
     enum Appearance: String, CaseIterable, Identifiable {
-        /// Follow the phone. The default.
+        /// Pond Day. The default.
+        case light
+        /// Follow the phone.
         case system
-        /// Dark regardless.
+        /// Night pond regardless.
         case dark
 
         var id: String { rawValue }
 
         var title: String {
             switch self {
+            case .light: return "Pond Day (light)"
             case .system: return "Match my phone"
-            case .dark: return "Always dark"
+            case .dark: return "Night Pond (dark)"
             }
         }
 
         var detail: String {
             switch self {
+            case .light:
+                return "Bright and sunny, like the app icon. This is the default."
             case .system:
                 return "The app follows the appearance you set in Settings."
             case .dark:
-                return "The 3D stage reads better on a dark ground. This keeps it dark even "
-                     + "when your phone is light."
+                return "Deep teal and easy on the eyes at night."
             }
         }
 
-        /// `nil` means no preference — the system decides, which is what
-        /// `preferredColorScheme` does with a nil argument.
         var colorScheme: ColorScheme? {
             switch self {
+            case .light: return .light
             case .system: return nil
             case .dark: return .dark
             }
@@ -303,34 +333,12 @@ extension Theme {
     /// `@AppStorage` to the same key rather than to a second copy of it.
     static let appearanceKey = "theme.appearance"
 
-    /// The default, and the reason it is `system`.
-    ///
-    /// THE OLD COMMENT WAS WRONG ABOUT ITS OWN CODE, and the code was the
-    /// thing to fix. It said `preferredColorScheme` "asks; it does not
-    /// insist" — it does insist. `.preferredColorScheme(.dark)` on the root
-    /// view overrides the person's phone for the entire app; there is no
-    /// asking in it, and the sentence directly above it ("an app that
-    /// overrides that is an app that ignores a stated preference") described
-    /// exactly what the line below was doing.
-    ///
-    /// Two things had to be true before it could be deleted, and now both are.
-    /// The first is that light mode has to actually work: every token is
-    /// defined in both schemes and every text token is asserted at 4.5:1
-    /// against every ground it can land on, in light as well as dark. The
-    /// second is that somebody who wants dark can still have it, which is what
-    /// this setting is for. Dark remains the app's own preference — the 3D
-    /// stage genuinely reads better on a dark ground — but a preference the
-    /// app holds is an option it offers, not a setting it overwrites.
-    ///
-    /// DARK BY DEFAULT, AND THE REASON IS A COUNT, NOT A TASTE. The design
-    /// system has reached four of this app's sixty-one screens. The other
-    /// fifty-seven were built when dark was forced, on materials and literal
-    /// colours never once drawn on cream — so a default of `.system` put a
-    /// light-mode phone straight onto fifty-seven screens nobody had designed
-    /// for light. Un-forcing dark was right; defaulting AWAY from it was not,
-    /// yet. `.system` stays one tap away as a real choice, and the default
-    /// moves back to it the day the count reaches sixty-one.
-    static let defaultAppearance = Appearance.dark
+    /// LIGHT BY DEFAULT. Pond Day was designed light first and every screen
+    /// was swept for colours that only worked on a dark ground before this
+    /// flipped. A person who wants dark picks it in Settings; a person who
+    /// picked anything in an earlier build keeps it, because `@AppStorage`
+    /// only falls back to this when nothing is stored.
+    static let defaultAppearance = Appearance.light
 }
 
 /// Holds the stored choice. A `ViewModifier` rather than a plain `View`
@@ -343,13 +351,15 @@ private struct MicroduckTheme: ViewModifier {
     func body(content: Content) -> some View {
         content
             // AN INK, BECAUSE A TINT SETS WORDS. Tab-bar labels, links and
-            // `.borderless` buttons all inherit the tint as TEXT, and Duck
-            // Orange is 2.30:1 on cream — the brief's own rule is that a brand
-            // colour fills a shape and an ink sets a word. `actionSecondary` is
-            // orange-ink in light (4.52:1) and full Duck Orange in dark, so the
-            // tab bar reads in both and the capsule buttons, which fill their
-            // own shape from `actionPrimary`, are untouched.
-            .tint(Theme.actionSecondary)
+            // `.borderless` buttons all inherit the tint as TEXT, and Beak
+            // Orange is 2.33:1 on Pond Mist. `actionInk` is orange ink in
+            // light (5.10:1) and a lighter orange in dark, so the tab bar reads
+            // in both and the filled buttons, which fill their own shape, are
+            // untouched.
+            .tint(Theme.actionInk)
+            // SF ROUNDED, the playful half of Pond Day. At system text styles,
+            // so Dynamic Type still works, and no bundled font.
+            .fontDesign(.rounded)
             // EVERY BARE SECTION HEADER, LIFTED OUT OF A CONTRAST FAILURE AT
             // ONCE. A grouped list's default header is the system's secondary
             // label, about 3.18:1 on the light ground, and some sixty of them
@@ -366,11 +376,9 @@ private struct MicroduckTheme: ViewModifier {
 extension View {
     /// The app's tint and the appearance the person chose, in one place.
     ///
-    /// DARK BY PREFERENCE, NOT BY FORCE — and this time the code says so. The
-    /// tint is Duck Orange because the action colour is the one thing every
-    /// system control in the app should inherit; the scheme is whatever
-    /// `Theme.Appearance` holds, which is `nil` by default and therefore no
-    /// override at all.
+    /// The tint is orange ink, so every system control that inherits it sets
+    /// a readable word; the scheme is whatever `Theme.Appearance` holds, which
+    /// is Pond Day (light) unless the person chose otherwise.
     func microduckTheme() -> some View {
         modifier(MicroduckTheme())
     }

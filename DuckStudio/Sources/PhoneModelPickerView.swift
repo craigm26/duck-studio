@@ -131,7 +131,7 @@ struct PhoneModelPickerView: View {
                     // it to be recomputed from a font metric.
                     //
                     // `.borderless` IS THE STOCK STYLE THIS ROW HAD. It takes
-                    // the app's tint — `Theme.actionSecondary`, set once in
+                    // the app's tint, `Theme.actionInk`, set once in
                     // `MicroduckTheme` — for its word, and greys that word when
                     // the button is disabled. The hand-rolled version set the
                     // action colour itself, so a `Find` disabled mid-search

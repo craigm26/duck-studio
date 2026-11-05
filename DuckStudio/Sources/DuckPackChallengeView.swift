@@ -197,7 +197,7 @@ struct DuckPackChallengeView: View {
                     Label(DuckPacks.Words.under, systemImage: "square.stack.3d.down.right")
                         .font(.footnote)
                 }
-                .tint(Theme.actionSecondary)
+                .tint(Theme.actionInk)
                 .frame(minHeight: DesignMetric.minimumTarget)
             }
         }
@@ -218,7 +218,7 @@ struct DuckPackChallengeView: View {
                             .frame(maxWidth: .infinity, minHeight: DesignMetric.minimumTarget, alignment: .leading)
                     }
                     .buttonStyle(.bordered)
-                    .tint(Theme.actionSecondary)
+                    .tint(Theme.actionInk)
                 }
             }
             .padding(.vertical, Theme.spacing(.hairline))
@@ -245,7 +245,7 @@ struct DuckPackChallengeView: View {
                     } label: {
                         Label(DuckPacks.Words.useBuggy, systemImage: "ladybug")
                     }
-                    .tint(Theme.actionSecondary)
+                    .tint(Theme.actionInk)
                     .frame(minHeight: DesignMetric.minimumTarget)
                     Text(DuckPacks.Words.buggyFooter)
                         .font(.footnote).foregroundStyle(Theme.textSecondary)
@@ -384,7 +384,7 @@ struct DuckPackCameraRow: View {
         } label: {
             Label(DuckPacks.Words.useCamera, systemImage: "camera.viewfinder")
         }
-        .tint(Theme.actionSecondary)
+        .tint(Theme.actionInk)
         .disabled(!ready)
         .frame(minHeight: DesignMetric.minimumTarget)
         if !ready {

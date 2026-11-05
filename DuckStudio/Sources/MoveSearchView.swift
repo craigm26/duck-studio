@@ -229,7 +229,7 @@ struct MoveSearchView: View {
         } label: {
             HStack {
                 Image(systemName: unlocked ? "lock.open" : "lock")
-                    .foregroundStyle(unlocked ? Theme.actionSecondary : Theme.textTertiary)
+                    .foregroundStyle(unlocked ? Theme.actionInk : Theme.textTertiary)
                 VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
                     Text(String(format: "Keyframe %d · %.2f s", index + 1, key.time))
                         .foregroundStyle(Theme.textPrimary)
@@ -260,7 +260,7 @@ struct MoveSearchView: View {
                         .contains("joints:\(key.id.uuidString)")
                             ? "chevron.down" : "chevron.right")
                     .font(.footnote)
-                    .foregroundStyle(Theme.actionSecondary)
+                    .foregroundStyle(Theme.actionInk)
             }
             .buttonStyle(.plain)
             .padding(.leading, Theme.spacing(.standard))
@@ -836,7 +836,7 @@ struct MoveSearchView: View {
         Label {
             Text(title).foregroundStyle(Theme.textPrimary)
         } icon: {
-            Image(systemName: symbol).foregroundStyle(Theme.actionSecondary)
+            Image(systemName: symbol).foregroundStyle(Theme.actionInk)
         }
     }
 

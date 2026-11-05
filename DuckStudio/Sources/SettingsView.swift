@@ -107,9 +107,9 @@ struct SettingsView: View {
                     ForEach(DetailLevel.allCases) { Text($0.name).tag($0) }
                 }
                 .pickerStyle(.menu)
-                Text(detail.level.blurb).font(.caption).foregroundStyle(.secondary)
+                Text(detail.level.blurb).font(.caption).foregroundStyle(Theme.textSecondary)
                 if let withheld = detail.level.withheldNote {
-                    Text(withheld).font(.caption2).foregroundStyle(.secondary)
+                    Text(withheld).font(.caption2).foregroundStyle(Theme.textSecondary)
                 }
             } header: {
                 SectionHeading(text: "Detail")
@@ -126,7 +126,7 @@ struct SettingsView: View {
                     Label {
                         Text("Models").foregroundStyle(Theme.textPrimary)
                     } icon: {
-                        Image(systemName: "brain").foregroundStyle(Theme.actionSecondary)
+                        Image(systemName: "brain").foregroundStyle(Theme.actionInk)
                     }
                 }
             } footer: {
@@ -148,7 +148,7 @@ struct SettingsView: View {
                         Text("Benches").foregroundStyle(Theme.textPrimary)
                     } icon: {
                         Image(systemName: "server.rack")
-                            .foregroundStyle(Theme.actionSecondary)
+                            .foregroundStyle(Theme.actionInk)
                     }
                 }
             } footer: {

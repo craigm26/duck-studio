@@ -87,6 +87,12 @@ enum DesignMetric {
     /// pad held under a thumb and a capsule tapped in a list all darken by the
     /// same amount — a press has to feel like one press everywhere in the app.
     static let pressDelta: Double = -0.12
+    /// Pond Day's ink outline round every filled control, like the icon's.
+    static let outlineStroke: CGFloat = 2
+    /// The "toy button" lip: a solid offset under a pressable fill, in a
+    /// darker shade of it. On press the face drops by this much and the lip
+    /// disappears.
+    static let lipDepth: CGFloat = 3
 }
 
 /// The two colours in the app that must NOT follow the colour scheme.
@@ -103,11 +109,37 @@ enum DesignMetric {
 /// So these ask `Palette` for a token in ONE NAMED SCHEME. It is the only place
 /// in the app that does, and the reason is written above rather than left to be
 /// worked out from the call.
+/// Pond Day's soft shadow under cards, chips and panels: ink at 12% by day,
+/// black at 40% at night, a short drop and a wide blur. Never a hard offset.
+enum PondShadow {
+    static let colour = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(red: 0, green: 0, blue: 0, alpha: 0.40)
+            : UIColor(red: 16 / 255, green: 25 / 255, blue: 28 / 255, alpha: 0.12)
+    })
+    static let blur: CGFloat = 12
+    static let y: CGFloat = 4
+}
+
+extension View {
+    /// A Pond Day panel: cream card, thin ink outline, soft shadow. What the
+    /// Tell and Auto panels and other overlays on the picture sit on, in place
+    /// of frosted glass, which reads as grey over a bright teal floor.
+    func pondPanel(_ radius: Palette.Radius = .card) -> some View {
+        let shape = RoundedRectangle(cornerRadius: Theme.radius(radius), style: .continuous)
+        return self
+            .background(Theme.surfacePrimary, in: shape)
+            .overlay(shape.strokeBorder(Theme.outline.opacity(0.25),
+                                        lineWidth: DesignMetric.hairlineStroke))
+            .shadow(color: PondShadow.colour, radius: PondShadow.blur, y: PondShadow.y)
+    }
+}
+
 enum DesignFixed {
     /// What a label on a Duck Orange fill is set in, in both schemes.
     /// Mechanical Charcoal, 6.76:1 on the orange — the same number the palette
     /// documents for charcoal grounds, because contrast is symmetric.
-    static var onAction: Color { Color(Palette.color(.textPrimary, in: .light)) }
+    static var onAction: Color { Theme.onFill }
 
     /// The lens's catchlight. The app's only pure white, and the one place
     /// white is allowed to be a mark rather than a surface.
@@ -382,68 +414,156 @@ struct PrimaryActionStyle: ButtonStyle {
         }
     }
 
+    /// Which duck colour fills the button. Beak Orange is the main action
+    /// only (one orange per screen region); every other filled control takes
+    /// another duck colour. Every fill carries an ink label and an ink
+    /// outline; `raised` is white (cream-white at night) with the same ink.
+    enum Fill {
+        case orange, yellow, teal, lavender, raised
+
+        var token: Palette.Token? {
+            switch self {
+            case .orange: return .actionPrimary
+            case .yellow: return .actionYellow
+            case .teal: return .actionTeal
+            case .lavender: return .actionLavender
+            case .raised: return nil
+            }
+        }
+
+        var colour: Color {
+            switch self {
+            case .orange: return Theme.actionPrimary
+            case .yellow: return Theme.actionYellow
+            case .teal: return Theme.actionTeal
+            case .lavender: return Theme.actionLavender
+            case .raised: return Theme.surfaceElevated
+            }
+        }
+
+        var lip: Color {
+            if let token { return Theme.lip(token) }
+            return Theme.separator
+        }
+
+        /// Ink on every bright fill; on the raised white the ordinary type
+        /// colour, so it inverts correctly at night.
+        var label: Color {
+            self == .raised ? Theme.textPrimary : Theme.onFill
+        }
+    }
+
     var reach: Reach = .standard
+    var fill: Fill = .orange
 
     func makeBody(configuration: Configuration) -> some View {
-        Surface(configuration: configuration, reach: reach)
+        Surface(configuration: configuration, reach: reach, tone: fill)
     }
 
     /// A nested `View` rather than the style itself, because `@Environment`
-    /// only resolves inside a view. A `ButtonStyle` is not one, so a style that
-    /// needs to know whether it is enabled, or in dark mode, has to hand its
-    /// body to something that is.
-    ///
-    /// AND THAT IS EXACTLY AS FAR AS IT GOES. Being inside a view makes an
-    /// environment value readable; it does not make one meaningful. The ring
-    /// this file used to draw read `\.isFocused` here and got `false` forever,
-    /// which is the difference between "the code compiles" and "the code is
-    /// told anything".
+    /// only resolves inside a view.
     private struct Surface: View {
         let configuration: ButtonStyleConfiguration
         let reach: Reach
+        let tone: Fill
 
         @Environment(\.isEnabled) private var isEnabled
-        @Environment(\.colorScheme) private var scheme
+
+        private var pressed: Bool { configuration.isPressed && isEnabled }
+        /// How far the face sits above its lip: the full depth at rest, none
+        /// while held, so the button visibly goes down.
+        private var lift: CGFloat { pressed ? 0 : DesignMetric.lipDepth }
 
         var body: some View {
             configuration.label
-                .font(.headline)
+                .font(.headline.weight(.bold))
+                .fontDesign(.rounded)
                 .multilineTextAlignment(.center)
-                .foregroundStyle(isEnabled ? DesignFixed.onAction : Theme.textSecondary)
+                .foregroundStyle(isEnabled ? tone.label : Theme.textSecondary)
                 .padding(.horizontal, Theme.spacing(reach.horizontalPadding))
                 .padding(.vertical, Theme.spacing(reach.verticalPadding))
                 .frame(minWidth: reach.minimum, minHeight: reach.minimum)
-                .background(fill)
-                .overlay(edge)
+                .background(face)
+                .offset(y: -lift)
+                .background(lipShape)
+                .padding(.top, DesignMetric.lipDepth)
                 .contentShape(Capsule())
+                .animation(.easeOut(duration: 0.08), value: pressed)
         }
 
-        /// The capsule, darkened while held by `DesignMetric.pressDelta`, which
-        /// says why it is a delta and not a second token. It is applied to the
-        /// fill alone — the label keeps its own colour, because darkening the
-        /// pair together would move the contrast between them.
-        private var fill: some View {
-            Capsule()
-                .fill(isEnabled ? Theme.actionPrimary : Theme.surfaceInteractive)
-                .brightness(configuration.isPressed ? DesignMetric.pressDelta : 0)
+        /// The fill with its 2pt ink outline. A disabled button is a quiet
+        /// wash with a hairline: it cannot be operated, and SC 1.4.11 exempts
+        /// it.
+        @ViewBuilder private var face: some View {
+            if isEnabled {
+                Capsule()
+                    .fill(tone.colour)
+                    .overlay(Capsule().strokeBorder(Theme.outline,
+                                                    lineWidth: DesignMetric.outlineStroke))
+            } else {
+                Capsule()
+                    .fill(Theme.surfaceInteractive)
+                    .overlay(Capsule().strokeBorder(Theme.separator,
+                                                    lineWidth: DesignMetric.hairlineStroke))
+            }
         }
 
-        /// The rim a Duck Orange fill needs in light so its EDGE is findable.
-        ///
-        /// Orange is 2.30:1 on Warm Cream, below the 3:1 SC 1.4.11 asks of a
-        /// control's boundary, so the shape borrows an edge rather than the
-        /// fill being darkened out of the brand. `Theme.actionPrimaryEdge`
-        /// returns nil in dark, where orange is 7.12:1 on the ground and needs
-        /// nothing. A disabled button takes the separator instead: it is not a
-        /// control that can be operated, and 1.4.11 exempts those.
-        @ViewBuilder private var edge: some View {
-            if !isEnabled {
-                Capsule().strokeBorder(Theme.separator, lineWidth: DesignMetric.hairlineStroke)
-            } else if let rim = Theme.actionPrimaryEdge(scheme) {
-                Capsule().strokeBorder(rim, lineWidth: DesignMetric.hairlineStroke)
+        /// The lip: the same capsule in a darker shade, sitting under the
+        /// face, with the outline round it too so the button reads as one
+        /// chunky toy piece.
+        @ViewBuilder private var lipShape: some View {
+            if isEnabled {
+                Capsule()
+                    .fill(tone.lip)
+                    .overlay(Capsule().strokeBorder(Theme.outline,
+                                                    lineWidth: DesignMetric.outlineStroke))
+                    .opacity(pressed ? 0 : 1)
             }
         }
     }
+}
+
+/// A Pond Day suggestion chip: cream with an ink outline and an ink label,
+/// the glyph in orange ink. For tiles like Stand Up and Sit Down, which are
+/// suggestions rather than the main action, so they are never orange-filled.
+struct PondChipStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        PondChip(configuration: configuration)
+    }
+
+    private struct PondChip: View {
+        let configuration: ButtonStyleConfiguration
+        @Environment(\.isEnabled) private var isEnabled
+
+        var body: some View {
+            configuration.label
+                .font(.footnote.weight(.semibold))
+                .fontDesign(.rounded)
+                .foregroundStyle(isEnabled ? Theme.textPrimary : Theme.textTertiary)
+                .labelStyle(PondChipLabelStyle())
+                .padding(.horizontal, Theme.spacing(.snug))
+                .frame(minHeight: DesignMetric.minimumTarget)
+                .background(Capsule().fill(configuration.isPressed ? Theme.surfaceInteractive
+                                                                   : Theme.surfacePrimary))
+                .overlay(Capsule().strokeBorder(isEnabled ? Theme.outline : Theme.separator,
+                                                lineWidth: isEnabled ? DesignMetric.outlineStroke
+                                                                     : DesignMetric.hairlineStroke))
+                .contentShape(Capsule())
+        }
+    }
+
+    private struct PondChipLabelStyle: LabelStyle {
+        func makeBody(configuration: Configuration) -> some View {
+            HStack(spacing: Theme.spacing(.hairline)) {
+                configuration.icon.foregroundStyle(Theme.actionInk)
+                configuration.title
+            }
+        }
+    }
+}
+
+extension ButtonStyle where Self == PondChipStyle {
+    static var pondChip: PondChipStyle { PondChipStyle() }
 }
 
 extension ButtonStyle where Self == PrimaryActionStyle {
@@ -461,6 +581,26 @@ extension ButtonStyle where Self == PrimaryActionStyle {
     /// button whose label is a face rather than a sentence.
     static var primaryActionPad: PrimaryActionStyle {
         PrimaryActionStyle(reach: .pad)
+    }
+
+    /// Yellow, for a second-tier action beside an orange one (Reset).
+    static var secondaryAction: PrimaryActionStyle {
+        PrimaryActionStyle(reach: .standard, fill: .yellow)
+    }
+
+    /// Yellow at 60pt, for a second-tier control that moves the robot.
+    static var secondaryActionMoves: PrimaryActionStyle {
+        PrimaryActionStyle(reach: .moves, fill: .yellow)
+    }
+
+    /// White with an ink outline: a plain button that is still obviously one.
+    static var raisedAction: PrimaryActionStyle {
+        PrimaryActionStyle(reach: .standard, fill: .raised)
+    }
+
+    /// A Play face button: A orange, B lavender, X teal, Y yellow.
+    static func faceButton(_ fill: PrimaryActionStyle.Fill) -> PrimaryActionStyle {
+        PrimaryActionStyle(reach: .pad, fill: fill)
     }
 }
 

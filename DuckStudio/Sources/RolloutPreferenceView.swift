@@ -106,8 +106,10 @@ struct RolloutPreferenceView: View {
             .overlay(alignment: .topLeading) {
                 Text(side)
                     .font(.caption.weight(.bold))
+                    .foregroundStyle(Theme.textPrimary)
                     .padding(.horizontal, 8).padding(.vertical, 4)
-                    .background(.thinMaterial, in: Capsule())
+                    .background(Theme.surfacePrimary, in: Capsule())
+                    .overlay(Capsule().strokeBorder(Theme.outline, lineWidth: DesignMetric.outlineStroke))
                     .padding(8)
             }
             .frame(maxHeight: .infinity)
@@ -132,7 +134,7 @@ struct RolloutPreferenceView: View {
                             if on { reasons.remove(reason.rawValue) } else { reasons.insert(reason.rawValue) }
                         }
                         .buttonStyle(.bordered)
-                        .tint(on ? Theme.actionPrimary : Theme.textSecondary)
+                        .tint(on ? Theme.actionInk : Theme.textSecondary)
                         .accessibilityAddTraits(on ? .isSelected : [])
                     }
                 }

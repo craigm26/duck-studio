@@ -115,10 +115,10 @@ struct DuckSoccerView: View {
                 .background(.black.opacity(0.55), in: Capsule())
             } else {
             HStack(spacing: 10) {
-                Text("YOU").font(.caption.weight(.heavy)).foregroundStyle(.yellow)
+                Text("YOU").font(.caption.weight(.heavy)).foregroundStyle(Color(uiColor: PondTeams.home))
                 Text("\(referee.homeGoals)  –  \(referee.awayGoals)")
                     .font(.title3.weight(.bold).monospacedDigit())
-                Text("CPU").font(.caption.weight(.heavy)).foregroundStyle(.teal)
+                Text("CPU").font(.caption.weight(.heavy)).foregroundStyle(Color(uiColor: PondTeams.away))
                 Divider().frame(height: 18)
                 Text(referee.clockText).font(.subheadline.monospacedDigit())
             }
@@ -332,7 +332,7 @@ private struct EdgeArrows: View {
     var body: some View {
         GeometryReader { g in
             ZStack {
-                if let you { arrow(you, colour: .yellow, symbol: "location.north.fill", in: g.size) }
+                if let you { arrow(you, colour: Color(uiColor: PondTeams.home), symbol: "location.north.fill", in: g.size) }
                 if let ball { arrow(ball, colour: .white, symbol: "circle.fill", in: g.size) }
             }
         }
@@ -365,7 +365,7 @@ private struct StarRow: View {
             ForEach(0..<3) { i in
                 Image(systemName: i < count ? "star.fill" : "star")
                     .font(.system(size: size))
-                    .foregroundStyle(i < count ? Color.yellow : Color.secondary)
+                    .foregroundStyle(i < count ? Color(uiColor: PondTeams.home) : Color.secondary)
             }
         }
         .accessibilityElement(children: .ignore)
@@ -433,7 +433,7 @@ private struct SoccerLobby: View {
                             Button { referee.drill = d } label: {
                                 HStack(spacing: 12) {
                                     Image(systemName: d.symbol).frame(width: 28)
-                                        .foregroundStyle(Theme.actionPrimary)
+                                        .foregroundStyle(Theme.actionInk)
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(d.title).font(.headline).foregroundStyle(Theme.textPrimary)
                                         Text(d.blurb).font(.caption).foregroundStyle(Theme.textSecondary)
@@ -444,7 +444,7 @@ private struct SoccerLobby: View {
                                         StarRow(count: SoccerReferee.bestStars(d), size: 11)
                                         if referee.drill == d {
                                             Image(systemName: "checkmark.circle.fill")
-                                                .foregroundStyle(Theme.actionPrimary)
+                                                .foregroundStyle(Theme.actionInk)
                                         }
                                     }
                                 }
@@ -466,7 +466,7 @@ private struct SoccerLobby: View {
                             ForEach(SoccerLoadout.Slot.allCases) { slot in
                                 HStack(spacing: 8) {
                                     Image(systemName: slot.symbol).frame(width: 20)
-                                        .foregroundStyle(Theme.actionPrimary)
+                                        .foregroundStyle(Theme.actionInk)
                                     Text(slot.title).font(.subheadline)
                                     Spacer()
                                     Text(moves.loadout[slot]?.name ?? slot.standard)
@@ -640,7 +640,7 @@ private struct HoldButton: View {
             }
             .overlay {
                 if ready && cooldown <= 0.01 {
-                    Circle().stroke(Color.green, lineWidth: 4).padding(-3)
+                    Circle().stroke(Theme.success, lineWidth: 4).padding(-3)
                 }
             }
             // The whole square, not just the glyph: a face button's target is
@@ -692,7 +692,7 @@ private struct HoldButton: View {
         switch role {
         case .commands:
             if let rim = Theme.actionPrimaryEdge(scheme) {
-                Circle().strokeBorder(rim, lineWidth: SoccerMetric.hairlineStroke)
+                Circle().strokeBorder(rim, lineWidth: DesignMetric.outlineStroke)
             }
         case .redirects:
             Circle().strokeBorder(Theme.separator,
@@ -968,7 +968,7 @@ final class SoccerReferee: ObservableObject {
                 if let outcome = p.advance(dt: step, control: control) {
                     switch outcome {
                     case .success(let words):
-                        show(words, colour: .yellow, big: true, for: 1.6)
+                        show(words, colour: Color(uiColor: PondTeams.home), big: true, for: 1.6)
                         UINotificationFeedbackGenerator().notificationOccurred(.success)
                     case .miss(let words):
                         show(words, colour: .white, for: 1.6)
@@ -1011,10 +1011,10 @@ final class SoccerReferee: ObservableObject {
                                     judgedBy: "engine-geometry"))
                 refreshChain()
                 if team == .home {
-                    show("GOAL!", colour: .yellow, big: true, for: 2.6)
+                    show("GOAL!", colour: Color(uiColor: PondTeams.home), big: true, for: 2.6)
                     UINotificationFeedbackGenerator().notificationOccurred(.success)
                 } else {
-                    show("CPU scores", colour: .teal, for: 2.2)
+                    show("CPU scores", colour: Color(uiColor: PondTeams.away), for: 2.2)
                     UINotificationFeedbackGenerator().notificationOccurred(.warning)
                 }
             case .halfTime:
@@ -1189,11 +1189,13 @@ struct JoystickView: View {
 
     var body: some View {
         ZStack {
-            Circle().fill(Theme.surfaceInteractive)
-            Circle().strokeBorder(Theme.separator,
-                                  lineWidth: SoccerMetric.hairlineStroke)
+            // POND DAY, the same well as Play's thumb pads: pale lavender
+            // with an ink rim, and the knob drawn as the duck's yellow eye.
+            Circle().fill(Theme.stickPad)
+            Circle().strokeBorder(Theme.stickPadRim,
+                                  lineWidth: DesignMetric.outlineStroke)
             Circle()
-                .strokeBorder(Theme.separator,
+                .strokeBorder(Theme.stickPadRim.opacity(0.35),
                               lineWidth: SoccerMetric.hairlineStroke)
                 .frame(width: Stick.travel * 2, height: Stick.travel * 2)
             Image(systemName: "arrow.up.and.down.and.arrow.left.and.right")
@@ -1261,11 +1263,13 @@ struct JoystickView: View {
     /// the same pair `HoldButton` and `PrimaryActionStyle` draw.
     private var knob: some View {
         Circle()
-            .fill(Theme.actionPrimary)
-            .overlay {
-                if let rim = Theme.actionPrimaryEdge(scheme) {
-                    Circle().strokeBorder(rim, lineWidth: SoccerMetric.hairlineStroke)
-                }
+            .fill(Theme.actionYellow)
+            .overlay(Circle().strokeBorder(Theme.outline, lineWidth: DesignMetric.outlineStroke))
+            .overlay(alignment: .topLeading) {
+                Circle()
+                    .fill(DesignFixed.catchlight)
+                    .frame(width: Stick.knob * 0.28, height: Stick.knob * 0.28)
+                    .offset(x: Stick.knob * 0.2, y: Stick.knob * 0.18)
             }
             .frame(width: Stick.knob, height: Stick.knob)
     }
@@ -1344,7 +1348,7 @@ private struct SoccerContainer: UIViewRepresentable {
         // start signal and builds whichever world was chosen.
         let view = ARView(frame: .zero, cameraMode: .nonAR,
                           automaticallyConfigureSession: false)
-        view.environment.background = .color(.black)
+        view.environment.background = .color(Theme.stage(.backgroundPrimary, .light))
         context.coordinator.attach(to: view, referee: referee)
         return view
     }
@@ -1618,7 +1622,7 @@ final class SoccerCoordinator: NSObject, ARSessionDelegate {
         wheelSpin = [:]; skatePhase = [:]; crouchStart = [:]
         cameraEntity = nil
         view?.cameraMode = .nonAR
-        view?.environment.background = .color(.black)
+        view?.environment.background = .color(Theme.stage(.backgroundPrimary, .light))
         referee?.isPlaced = false
         referee?.isOver = false
     }
@@ -1808,7 +1812,7 @@ final class SoccerCoordinator: NSObject, ARSessionDelegate {
             anchor.addChild(duck)
             ducks[player.id] = duck
 
-            let tint: UIColor = player.team == .home ? .systemYellow : .systemTeal
+            let tint: UIColor = player.team == .home ? PondTeams.home : PondTeams.away
             let ring = ModelEntity(
                 mesh: .generatePlane(width: 0.16, depth: 0.16, cornerRadius: 0.08),
                 materials: [UnlitMaterial(color: tint.withAlphaComponent(0.3))])
@@ -1821,7 +1825,7 @@ final class SoccerCoordinator: NSObject, ARSessionDelegate {
         // own entity on the pitch, not a child of any duck, so a switch moves
         // it rather than leaving it behind.
         let diamond = ModelEntity(mesh: .generateBox(size: 0.045),
-                                  materials: [UnlitMaterial(color: .systemYellow)])
+                                  materials: [UnlitMaterial(color: PondTeams.home)])
         diamond.orientation = simd_quatf(angle: .pi / 4, axis: SIMD3<Float>(1, 0, 0))
             * simd_quatf(angle: .pi / 4, axis: SIMD3<Float>(0, 0, 1))
         anchor.addChild(diamond)
@@ -2019,10 +2023,10 @@ final class SoccerCoordinator: NSObject, ARSessionDelegate {
                 ringState[player.id] = state
                 let colour: UIColor
                 switch state {
-                case 1: colour = UIColor.systemYellow
-                case 2: colour = UIColor.systemGreen
-                case 3: colour = UIColor.systemYellow.withAlphaComponent(0.22)
-                default: colour = UIColor.systemTeal.withAlphaComponent(0.3)
+                case 1: colour = PondTeams.home
+                case 2: colour = PondGame.done
+                case 3: colour = PondTeams.home.withAlphaComponent(0.22)
+                default: colour = PondTeams.away.withAlphaComponent(0.3)
                 }
                 ring.model?.materials = [UnlitMaterial(color: colour)]
             }
@@ -2086,20 +2090,20 @@ final class SoccerCoordinator: NSObject, ARSessionDelegate {
                 let cone = ModelEntity(mesh: .generateBox(width: 0.022, height: 0.05, depth: 0.022,
                                                           cornerRadius: 0.006),
                                        materials: [UnlitMaterial(color: prop.done
-                                            ? UIColor.systemGreen : UIColor.systemOrange)])
+                                            ? PondGame.done : PondTeams.ball)])
                 cone.position = at + SIMD3<Float>(0, 0.025, 0)
                 layer.addChild(cone)
             case .ring:
                 let r = Float(prop.radius)
                 let disc = ModelEntity(mesh: .generatePlane(width: r * 2, depth: r * 2, cornerRadius: r),
-                                       materials: [UnlitMaterial(color: UIColor.systemYellow
+                                       materials: [UnlitMaterial(color: PondTeams.home
                                             .withAlphaComponent(0.35))])
                 disc.position = at + SIMD3<Float>(0, 0.002, 0)
                 layer.addChild(disc)
             case .finish:
                 let bar = ModelEntity(mesh: .generateBox(width: 0.012, height: 0.002,
                                                          depth: Float(prop.radius) * 2),
-                                      materials: [UnlitMaterial(color: .systemYellow)])
+                                      materials: [UnlitMaterial(color: PondTeams.home)])
                 bar.position = at + SIMD3<Float>(0, 0.002, 0)
                 layer.addChild(bar)
             }
@@ -2108,7 +2112,7 @@ final class SoccerCoordinator: NSObject, ARSessionDelegate {
             let spec = DuckSoccer.Pitch.livingRoom
             let width = Float(lit.upperBound - lit.lowerBound)
             let glow = ModelEntity(mesh: .generateBox(width: 0.004, height: 0.2, depth: width),
-                                   materials: [UnlitMaterial(color: UIColor.systemYellow
+                                   materials: [UnlitMaterial(color: PondTeams.home
                                         .withAlphaComponent(0.45))])
             glow.position = SIMD3<Float>(Float(spec.halfLength) + 0.01, 0.1,
                                          -Float(lit.lowerBound + lit.upperBound) / 2)

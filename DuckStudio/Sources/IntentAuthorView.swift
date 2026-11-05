@@ -1487,12 +1487,12 @@ private struct JointSlider: View {
                 // 2.30:1 on Warm Cream — under even the 3:1 SC 1.4.11 asks of a
                 // shape a person has to locate — and `Theme.actionPrimaryEdge`
                 // exists for shapes this app draws itself, which a system
-                // slider's track is not. `actionSecondary` is that same hue at
+                // slider's track is not. `actionInk` is that same hue at
                 // ink weight in light (4.52:1) and full Duck Orange in dark.
                 // `microduckTheme()` already puts this value on the whole app;
                 // it is said again here because a control whose colour arrives
                 // from three files away is a control somebody re-tints by hand.
-                .tint(Theme.actionSecondary)
+                .tint(Theme.actionInk)
                 // THE SLIDER IS THE ROW, AS FAR AS VOICEOVER IS CONCERNED, so
                 // the name has to be ON it rather than beside it. A `Slider` is
                 // its own element and never reads the `TelemetryRow` above:

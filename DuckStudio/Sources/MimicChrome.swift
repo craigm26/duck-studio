@@ -70,7 +70,7 @@ struct MimicBar: View {
                         Spacer(minLength: 0)
                         Button(Mimic.done, action: done)
                             .buttonStyle(.plain)
-                            .foregroundStyle(Theme.actionSecondary)
+                            .foregroundStyle(Theme.actionInk)
                             .frame(minHeight: DesignMetric.minimumTarget)
                     }
                     if let refusal = door.refusal(for: .mimic) {
@@ -132,26 +132,26 @@ struct MimicBar: View {
                     }
                     Button(ControlShelf.holdIt, action: hold)
                         .buttonStyle(.plain)
-                        .foregroundStyle(Theme.actionSecondary)
+                        .foregroundStyle(Theme.actionInk)
                         .frame(minHeight: DesignMetric.minimumTarget)
                         .disabled(busy || !benchIsHere || engine.isRecording)
                     if keptName == nil {
                         Button(ControlShelf.keepItAsAMotion, action: keep)
                             .buttonStyle(.plain)
-                            .foregroundStyle(Theme.actionSecondary)
+                            .foregroundStyle(Theme.actionInk)
                             .frame(minHeight: DesignMetric.minimumTarget)
                             .disabled(engine.isRecording || engine.duckPose == nil)
                     } else {
                         Button(ControlShelf.runItHere, action: runIt)
                             .buttonStyle(.plain)
-                            .foregroundStyle(Theme.actionSecondary)
+                            .foregroundStyle(Theme.actionInk)
                             .frame(minHeight: DesignMetric.minimumTarget)
                             .disabled(busy || !benchIsHere)
                     }
                 }
                 Button(Mimic.openStudio, action: openStudio)
                     .buttonStyle(.plain)
-                    .foregroundStyle(Theme.actionSecondary)
+                    .foregroundStyle(Theme.actionInk)
                     .frame(minHeight: DesignMetric.minimumTarget)
             }
         }

@@ -104,7 +104,7 @@ struct DuckPackBoardView: View {
 
         // The start, outlined, so it can still be seen once the duck has walked off it.
         let start = rect(contents.start.at, side).insetBy(dx: side * 0.08, dy: side * 0.08)
-        context.stroke(Path(roundedRect: start, cornerRadius: side * 0.1), with: .color(Theme.actionSecondary),
+        context.stroke(Path(roundedRect: start, cornerRadius: side * 0.1), with: .color(Theme.actionInk),
                        style: StrokeStyle(lineWidth: 2, dash: [5, 4]))
 
         // The grid.
@@ -122,7 +122,7 @@ struct DuckPackBoardView: View {
             var path = Path()
             path.move(to: centre(trail[0].at, side))
             for p in trail.dropFirst() { path.addLine(to: centre(p.at, side)) }
-            context.stroke(path, with: .color(Theme.actionSecondary.opacity(0.55)),
+            context.stroke(path, with: .color(Theme.actionInk.opacity(0.55)),
                            style: StrokeStyle(lineWidth: max(side * 0.06, 2), lineCap: .round, lineJoin: .round))
         }
 

@@ -190,7 +190,16 @@ struct StageTheme: Equatable {
         grid: UIColor(red: 0.41, green: 0.65, blue: 0.40, alpha: 1),
         accent: UIColor(red: 0.35, green: 0.60, blue: 0.85, alpha: 1))
 
-    static let choices: [StageTheme] = [.meadow, .dusk, .arcade]
+    /// Pond Day's playmat: the practice floor's teal deck under the page's
+    /// sky, with the beak orange as the accent. Values from `Palette`.
+    static let pond = StageTheme(
+        name: "Pond",
+        sky: Theme.stage(.backgroundPrimary, .light),
+        floor: Theme.stage(.stageDeck, .light),
+        grid: Theme.stage(.stageGridMajor, .light),
+        accent: Theme.stage(.actionPrimary, .light))
+
+    static let choices: [StageTheme] = [.pond, .meadow, .dusk, .arcade]
 }
 
 /// The rendered world, and the camera that looks at it.
