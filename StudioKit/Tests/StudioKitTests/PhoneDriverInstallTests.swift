@@ -62,14 +62,14 @@ final class PhoneDriverInstallTests: XCTestCase {
 
     func testTheShippedPinIsTheMeasuredDriverAtItsPublicAddress() {
         let r = DriverRelease.walkToBall
-        XCTAssertEqual(r.repo, "craigm26/duck-driver-walk-to-ball-v5")
-        XCTAssertEqual(r.revision, "fe94d4ac5eaf88e7e2e752bf9d43bc7e3d49ca80")
-        XCTAssertTrue(r.weightsSHA256.hasPrefix("9ddfdabe"))
+        XCTAssertEqual(r.repo, "craigm26/duck-driver-walk-to-ball-v6")
+        XCTAssertEqual(r.revision, "5985110aefdef3da98dfcbebe939a77da631de5a")
+        XCTAssertTrue(r.weightsSHA256.hasPrefix("d1a10157"))
         XCTAssertEqual(r.url("policy.json").absoluteString,
-                       "https://huggingface.co/craigm26/duck-driver-walk-to-ball-v5/resolve/fe94d4ac5eaf88e7e2e752bf9d43bc7e3d49ca80/policy.json")
+                       "https://huggingface.co/craigm26/duck-driver-walk-to-ball-v6/resolve/5985110aefdef3da98dfcbebe939a77da631de5a/policy.json")
         XCTAssertEqual(r.size, "4.4 MB")
-        XCTAssertEqual(r.folder, "duck-driver-walk-to-ball-v5-fe94d4a")
-        XCTAssertEqual([r.freshRuns, r.freshReached, r.freshParked], [20, 20, 12])
+        XCTAssertEqual(r.folder, "duck-driver-walk-to-ball-v6-5985110")
+        XCTAssertEqual([r.freshRuns, r.freshReached, r.freshParked], [20, 19, 17])
     }
 
     // MARK: - installing
@@ -205,6 +205,17 @@ final class PhoneDriverInstallTests: XCTestCase {
         try FileManager.default.createDirectory(at: side, withIntermediateDirectories: true)
         XCTAssertEqual(installer.status(), .absent)
         XCTAssertEqual(left(), [])
+    }
+
+    func testAnOlderPinIsRemovedAndTheCurrentOneAndAnythingElseStay() async throws {
+        let installer = DriverInstaller(release: try release(), root: root)
+        try await installer.install(fetch: try server(Log()), report: { _ in })
+        for name in ["duck-driver-walk-to-ball-v5-fe94d4a", "not-a-driver"] {
+            try FileManager.default.createDirectory(at: root.appendingPathComponent(name),
+                                                    withIntermediateDirectories: true)
+        }
+        XCTAssertEqual(installer.status(), .installed)
+        XCTAssertEqual(left().sorted(), [installer.release.folder, "not-a-driver"].sorted())
     }
 
     func testDeleteTakesItOffTheDevice() async throws {

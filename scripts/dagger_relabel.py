@@ -12,12 +12,19 @@ pictures the DRIVER visited, not the expert's. Each row's
   the driver sees it at run time;
 - `action` is the label: BallExpert's command (PLAIN style) for that bench state.
 
+A TAKE ENDS AT THE EXPERT'S FIRST STAND, as a recorded take does (2026-11-05). Until v5 a stand
+label was followed by whatever the driver did next, walking included, and the model is trained on 48
+rows from each picture, so those takes taught "stand now, walk later". BallExpert's stand is latched,
+so here too: from the first row it says stand, the next STANDING_ROWS rows are stand as well, 16 in
+all (STANDING_ROWS + 1), each on the picture the driver really saw there. When the ball leaves the
+picture before the tail is full, the last picture holds for the rest, as a standing duck's would.
+Every tick after the tail is dropped.
+
 ROWS DROPPED, ON PURPOSE:
 - the ball within PICTURE_EDGE (0.30 m) of the root: it has left the bottom of the picture, so the
   picture is bare floor, and the expert's honest answer there (back up) is not in its vocabulary;
-- rows after the expert first says stand, beyond STANDING_ROWS more: a driver that parks for 40 s
-  would otherwise flood the set with one picture;
-- a run with fewer than 17 rows left after that.
+- every tick after the standing tail;
+- a run with fewer than MIN_ROWS (17) rows left after that.
 
     python3 scripts/dagger_relabel.py ~/scratch/ball-takes/m1-dagger/driver OUT.jsonl
 """
@@ -32,14 +39,18 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from record_ball_takes import PICTURE_EDGE, STANDING_ROWS, TASK, WALKER, command, yaw_of  # noqa: E402
 
 MIN_ROWS = 17
+STAND = (0.0, 0.0, 0.0)
 
 
 def relabel(lines):
     """Rows for one run's log lines (dicts). Returns (rows, counts)."""
     rows, previous, standing = [], (0.0, 0.0, 0.0), 0
-    counts = {"ticks": 0, "under": 0, "standing_cut": 0}
+    counts = {"ticks": 0, "under": 0, "after_stand": 0, "held": 0}
     for d in lines:
         if d.get("type") not in ("start", "step"):
+            continue
+        if standing > STANDING_ROWS:
+            counts["after_stand"] += 1
             continue
         if d["type"] == "step":
             previous = tuple(float(v) for v in d["cmd"])
@@ -54,13 +65,15 @@ def relabel(lines):
         if math.hypot(bx - x, by - y) < PICTURE_EDGE:
             counts["under"] += 1
             continue
-        label = command(x, y, yaw_of(bench["quaternion"]), bx, by, 0.0)
-        if label == (0.0, 0.0, 0.0):
+        label = STAND if standing else command(x, y, yaw_of(bench["quaternion"]), bx, by, 0.0)
+        if label == STAND:
             standing += 1
-            if standing > STANDING_ROWS + 1:
-                counts["standing_cut"] += 1
-                continue
         rows.append({"state": list(previous), "action": list(label), "bench": bench})
+    if standing:
+        while standing <= STANDING_ROWS:
+            rows.append({"state": list(STAND), "action": list(STAND), "bench": rows[-1]["bench"]})
+            standing += 1
+            counts["held"] += 1
     return rows, counts
 
 
@@ -72,8 +85,8 @@ def main():
     logs = sorted(pathlib.Path(a.logs).expanduser().glob("seed-*.jsonl"))
     if not logs:
         raise SystemExit(f"no seed-*.jsonl in {a.logs}")
-    kept = rows_total = 0
-    totals = {"ticks": 0, "under": 0, "standing_cut": 0, "dropped_runs": 0}
+    kept = rows_total = stand_total = 0
+    totals = {"ticks": 0, "under": 0, "after_stand": 0, "held": 0, "dropped_runs": 0}
     with open(pathlib.Path(a.out).expanduser(), "w") as f:
         for path in logs:
             lines = [json.loads(l) for l in path.read_text().splitlines() if l.strip()]
@@ -89,7 +102,8 @@ def main():
                                 "rows": rows}) + "\n")
             kept += 1
             rows_total += len(rows)
-    print(json.dumps({"takes": kept, "rows": rows_total, **totals}))
+            stand_total += sum(tuple(r["action"]) == STAND for r in rows)
+    print(json.dumps({"takes": kept, "rows": rows_total, "stand_rows": stand_total, **totals}))
 
 
 if __name__ == "__main__":

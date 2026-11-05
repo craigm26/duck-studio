@@ -13,6 +13,7 @@ import unittest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import m1_trial  # noqa: E402
+import dagger_relabel  # noqa: E402
 from statistics import StatisticsError as statistics_error  # noqa: E402
 
 
@@ -127,6 +128,56 @@ class FullStateTests(unittest.TestCase):
     def test_stopped_line_is_past_the_reach(self):
         self.assertEqual(m1_trial.REACH, 0.35)
         self.assertAlmostEqual(m1_trial.STOPPED_M, 0.40)
+
+
+class DaggerRelabelTests(unittest.TestCase):
+    """A take ends at the expert's first stand, with the recorder's full tail."""
+
+    @staticmethod
+    def tick(x, cmd=(0.25, 0.0, 0.0), ball=1.0):
+        kind = {"type": "step", "cmd": list(cmd)} if cmd else {"type": "start"}
+        return {**kind, "bench": {"t": x, "position": [x, 0.0, 0.116], "quaternion": [1, 0, 0, 0],
+                                  "joints": [0.0] * 14, "ball": [ball, 0.0, 0.05]}}
+
+    def walk(self, *xs):
+        return [self.tick(xs[0], None)] + [self.tick(x) for x in xs[1:]]
+
+    def test_the_tail_is_stand_even_while_the_driver_walks_on_and_nothing_follows(self):
+        # Reaches 0.35 m at x = 0.65, then keeps creeping past the line and turns away out of reach.
+        xs = [0.5 + 0.03 * i for i in range(6)] + [0.65 + 0.001 * i for i in range(1, 40)]
+        rows, counts = dagger_relabel.relabel(self.walk(*xs))
+        first = next(i for i, r in enumerate(rows) if r["action"] == [0.0, 0.0, 0.0])
+        self.assertEqual(first, 5)
+        self.assertEqual(len(rows) - first, dagger_relabel.STANDING_ROWS + 1)
+        self.assertEqual(dagger_relabel.STANDING_ROWS + 1, 16)
+        self.assertTrue(all(r["action"] == [0.0, 0.0, 0.0] for r in rows[first:]))
+        self.assertTrue(all(r["action"][0] >= 0.25 for r in rows[:first]))
+        self.assertEqual(counts["after_stand"], len(xs) - len(rows))
+        self.assertEqual(counts["held"], 0)
+        # A tail row is the picture really seen there, with the driver's real last command.
+        self.assertEqual(rows[first + 3]["bench"]["position"][0], xs[first + 3])
+        self.assertEqual(rows[first + 3]["state"], [0.25, 0.0, 0.0])
+
+    def test_a_ball_leaving_the_picture_holds_the_last_picture_for_the_rest(self):
+        # 0.35 m at x = 0.65, under the 0.30 m edge from x = 0.71, and it walks on through.
+        rows, counts = dagger_relabel.relabel(self.walk(0.60, 0.65, 0.68, 0.71, 0.74, 0.77, 0.80))
+        self.assertEqual(len(rows), 1 + 16)
+        self.assertEqual(counts["under"], 4)
+        self.assertEqual(counts["held"], 14)
+        self.assertEqual(rows[-1]["bench"]["position"][0], 0.68)
+        self.assertEqual(rows[-1]["state"], [0.0, 0.0, 0.0])
+        self.assertEqual(rows[-1]["action"], [0.0, 0.0, 0.0])
+
+    def test_a_run_that_never_stands_is_kept_whole_with_no_tail(self):
+        rows, counts = dagger_relabel.relabel(self.walk(*[0.03 * i for i in range(20)]))
+        self.assertEqual(len(rows), 20)
+        self.assertEqual((counts["held"], counts["after_stand"]), (0, 0))
+        self.assertTrue(all(r["action"][0] > 0 for r in rows))
+
+    def test_the_first_row_of_a_tail_carries_no_label_from_after_it(self):
+        rows, _ = dagger_relabel.relabel(self.walk(0.66, 0.66))
+        self.assertEqual(len(rows), 16)
+        self.assertEqual(rows[0]["state"], [0.0, 0.0, 0.0])
 
 
 class AppStartTests(unittest.TestCase):
