@@ -321,6 +321,23 @@ Round 2's driver (`craigm26/duck-driver-walk-to-ball-v3`) reached 10 of 20 balls
 - **What the walk-throughs are.** 5 reached runs ended walking (5006, 5008, 5009, 6002, 6007). Most of them had the ball in view under 15% of the time: the search arc carried the duck onto a ball it never saw. The search turn is still softened (toward the hidden ball 0.2 to 0.5 of the expert's full turn).
 - **Ready for the next round:** `scripts/dagger_relabel.py` turns M1 driver logs into takes with expert labels (rows with the ball under the camera dropped, standing capped at 16 rows).
 
+### Output snap (2026-11-04)
+
+`DriverSnap` puts each row back on the expert's commands: forward under 0.12 is 0, 0.12 to 0.25 is 0.25, a turn under 0.1 is 0, sideways is 0. `DriverPrep.rows` applies it, so the phone and M1 play the same rows. v4 has no `snap` block in its policy.json, so its numbers are pinned by the SHA-256 of its weights; a later driver carries a block. `-driver-raw` (`m1_trial.py --raw`) plays the rows as answered, so one build judges both arms. `scripts/m1_table.py` prints the table from the logs.
+
+Confirmed from the run logs, not the code: every row of every snapped ask (1,200 chunks over the 40 runs) is on the expert's command set (100.0%); unsnapped 0.0%. The trial prints which snap it loaded. The pilot's 3-row blend into each new chunk still runs after the snap; those rows are not on the set, and that is the pilot's job.
+
+| who | seeds | reached | parked | reached and parked | stopped | time to reach (mean) | first seen (mean) | search turn |
+|---|---|---|---|---|---|---|---|---|
+| v4 unsnapped | fresh 7001-7020 | 9 | 17 | 7 | 0 | 15.3 s | 9.8 s | 0.33 |
+| v4 snapped | fresh 7001-7020 | 13 | 17 | 10 | 4 | 20.4 s | 13.5 s | 0.31 |
+| v4 unsnapped | standard 5001-5010, 6001-6010 | 12 | 14 | 7 | 0 | 21.3 s | 12.5 s | 0.33 |
+| v4 snapped | standard | 17 | 15 | 12 | 6 | 21.5 s | 15.4 s | 0.30 |
+| zero | fresh | 0 | 0 | 0 | 0 | | | 0 |
+| expert | fresh | 20 | 20 | 20 | 20 | 8.8 s | 2.5 s | 1 |
+
+The snap reaches more balls and stops some. It does not touch the search turn, which is a share of the expert's full turn while the ball is hidden, so a DAgger round follows.
+
 ## Risks and kill criteria
 
 **Risks**
