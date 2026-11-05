@@ -75,16 +75,20 @@ see "Run it somewhere with physics," below.
 
 ---
 
-## The five tabs
+## The three tabs
 
-The app opens on **Play**, and every tab is useful with no network, no account
-and no robot. **Play · Learn · Behaviours · Studio · My Microduck.**
+Since 2.0 (build 91) the app opens on **Play**, and there are three tabs:
+**Play · Moves · Studio.** Play is the controller: the duck full-bleed (the
+practice duck, your floor, or your real duck's camera), a duck pill top left,
+the **Drive | Tell | Auto** switch, and a solid red **Stop** that is always
+there. Moves is the toy box: skills, sounds, plans, packs, games and goals, each
+run on the duck Play is on with a floating Stop pill shown while it runs.
+Studio is the workshop: Make, Behaviours, Train, Measure, Learn and Settings,
+with a **Show expert tools** switch at the top (off for new installs; an install
+that had chosen Everything keeps it on). The Duck sheet opens from the duck pill.
+See docs/plans/native-first-redesign.md.
 
-**Simple and Everything.** A new install starts in **Simple**: drive the duck,
-play its moves, make motions, and nothing else. Training tools, network
-internals, diagnostics and the long explanations under each screen wait for
-**Everything**, which the last lesson on Learn turns on (or Settings → Detail).
-Anybody updating from an earlier build keeps Everything.
+The sections below describe the five-tab layout of 1.x and are kept for history.
 
 Five is the ceiling: iPhone folds a sixth tab into "More", where a tab is
 somewhere people do not go, so anything arriving after this lives inside one of
