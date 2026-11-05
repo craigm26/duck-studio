@@ -183,6 +183,14 @@ final class DreamTakeWriter: @unchecked Sendable {
             AVVideoCompressionPropertiesKey: [AVVideoAverageBitRateKey: 600_000,
                                               AVVideoExpectedSourceFrameRateKey: DreamDataset.fps,
                                               AVVideoMaxKeyFrameIntervalKey: DreamDataset.fps],
+            // THE COLOUR MATRIX IS SAID, NOT GUESSED. Untagged, the encoder picks a matrix and the
+            // file says nothing, so a decoder (ffmpeg, PyAV) assumes BT.601 and strong colours
+            // shift between training (this video) and run time (the phone's JPEG, decoded straight
+            // to RGB). Tagged BT.709 throughout, the encoder converts with that matrix and writes it
+            // into the stream, and bc_ducknet.py decodes with the same one.
+            AVVideoColorPropertiesKey: [AVVideoColorPrimariesKey: AVVideoColorPrimaries_ITU_R_709_2,
+                                        AVVideoTransferFunctionKey: AVVideoTransferFunction_ITU_R_709_2,
+                                        AVVideoYCbCrMatrixKey: AVVideoYCbCrMatrix_ITU_R_709_2],
         ]
         input = AVAssetWriterInput(mediaType: .video, outputSettings: settings)
         input.expectsMediaDataInRealTime = true
@@ -214,6 +222,10 @@ final class DreamTakeWriter: @unchecked Sendable {
         var buffer: CVPixelBuffer?
         CVPixelBufferPoolCreatePixelBuffer(nil, pool, &buffer)
         guard let buffer else { return false }
+        // The same BT.709 tags on every source picture as on the stream (see init).
+        CVBufferSetAttachment(buffer, kCVImageBufferColorPrimariesKey, kCVImageBufferColorPrimaries_ITU_R_709_2, .shouldPropagate)
+        CVBufferSetAttachment(buffer, kCVImageBufferTransferFunctionKey, kCVImageBufferTransferFunction_ITU_R_709_2, .shouldPropagate)
+        CVBufferSetAttachment(buffer, kCVImageBufferYCbCrMatrixKey, kCVImageBufferYCbCrMatrix_ITU_R_709_2, .shouldPropagate)
         CVPixelBufferLockBaseAddress(buffer, [])
         if let context = CGContext(data: CVPixelBufferGetBaseAddress(buffer), width: DreamDataset.width,
                                    height: DreamDataset.height, bitsPerComponent: 8,

@@ -6,7 +6,7 @@ signatures, each judged per run on the ticks after the pilot's first ask:
 - DRIFT: while the ball is dead ahead (|off| < 0.15 rad) and further than the reach, the mean vy
   and the mean vyaw minus what the expert would command on the same states.
 - UNDER-TURNING: the heading error to the ball shrinking slower than the expert's on the same
-  seed (time until |off| < BallExpert.facing), and the mean turn toward the ball (sign(off) * vyaw)
+  seed (time until |off| < BallExpert.seen, 30 deg; round 1 used facing, 0.6 rad), and the mean turn toward the ball (sign(off) * vyaw)
   against the expert's labels on the same states.
 - OVERSHOOT: ticks inside the reach radius with vx above the dead zone (still walking).
 A signature is systematic when at least 3 failed runs share it.
@@ -25,7 +25,7 @@ import statistics
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from record_ball_takes import DEAD_ZONE, FACING, PLAIN, REACH, command  # noqa: E402
+from record_ball_takes import DEAD_ZONE, PLAIN, REACH, SEEN as FACING, command  # noqa: E402
 
 AHEAD = 0.15
 HALF_HFOV = math.atan(math.tan(math.radians(45 / 2)) * 320 / 176)

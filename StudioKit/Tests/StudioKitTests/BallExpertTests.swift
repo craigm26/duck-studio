@@ -42,9 +42,42 @@ final class BallExpertTests: XCTestCase {
         XCTAssertEqual(ahead.vx, DuckDrive.maxForward, accuracy: 1e-9)
         XCTAssertEqual(ahead.vyaw, 0, accuracy: 1e-9)
         let behind = BallExpert.command(x: 0, y: 0, yaw: 0, bx: -1, by: 0.01, t: 0)
-        XCTAssertEqual(behind.vx, BallExpert.arcForward, "turns on an arc: the sim's walker cannot turn in place")
-        XCTAssertEqual(behind.vyaw, DuckDrive.maxTurn)
-        XCTAssertGreaterThan(behind.vyaw, 0, "ball slightly to the left behind: turns left")
+        XCTAssertEqual(behind.vx, BallExpert.arcForward, "searches on an arc: the sim's walker cannot turn in place")
+        XCTAssertEqual(behind.vyaw, BallExpert.searchTurn)
+    }
+
+    /// ROUND 2: THE EXPERT ACTS ONLY ON WHAT THE PICTURE SHOWS. Round 1 turned toward a ball outside
+    /// the camera's view, left or right, using sim state no picture holds; the driver cloned the
+    /// average of the two, about no turn at all, and curved slowly forever (M1 2/10).
+    func testWithNoBallInViewItSearchesTheSameWayWhicheverSideTheBallIsOn() {
+        XCTAssertLessThan(BallExpert.seen, 36.98 * .pi / 180, "inside the head camera's half-width")
+        XCTAssertLessThan(BallExpert.searchTurn, 0, "turns right (z up, left positive)")
+        for degrees in stride(from: 31.0, through: 180.0, by: 7.0) {
+            for side in [1.0, -1.0] {
+                let a = side * degrees * .pi / 180
+                let c = BallExpert.command(x: 0, y: 0, yaw: 0, bx: cos(a), by: sin(a), t: 1.3,
+                                           style: BallExpert.Style(seed: 9))
+                XCTAssertEqual(c, DuckDrive.Twist(vx: BallExpert.arcForward, vy: 0, vyaw: BallExpert.searchTurn),
+                               "ball \(side * degrees) degrees off")
+            }
+        }
+    }
+
+    /// In view it steers toward the ball, decisively: at the cone's edge every style already asks
+    /// the stick's full turn, toward the ball's side.
+    func testInViewItSteersTowardTheBallHard() {
+        for seed in UInt64(1)...50 {
+            let style = BallExpert.Style(seed: seed)
+            XCTAssertGreaterThanOrEqual(style.turnGain * BallExpert.seen, DuckDrive.maxTurn)
+            let a = BallExpert.seen - 0.01
+            let left = BallExpert.command(x: 0, y: 0, yaw: 0, bx: cos(a), by: sin(a), t: 0, style: style)
+            let right = BallExpert.command(x: 0, y: 0, yaw: 0, bx: cos(a), by: -sin(a), t: 0, style: style)
+            XCTAssertEqual(left.vyaw, DuckDrive.maxTurn, accuracy: 1e-12)
+            XCTAssertEqual(right.vyaw, -DuckDrive.maxTurn, accuracy: 1e-12)
+            XCTAssertGreaterThan(left.vx, DuckDrive.maxForward * 0.5, "walks while it steers")
+        }
+        let small = BallExpert.command(x: 0, y: 0, yaw: 0, bx: cos(0.1), by: sin(0.1), t: 0)
+        XCTAssertEqual(small.vyaw, BallExpert.Style.plain.turnGain * 0.1, accuracy: 1e-9)
     }
 
     func testASeedIsTheSameTakeEverywhere() {
@@ -61,6 +94,16 @@ final class BallExpertTests: XCTestCase {
         let url = try XCTUnwrap(Bundle.module.url(forResource: "Fixtures/ball-expert-vectors", withExtension: "json"))
         let file = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
         let styles = try XCTUnwrap(file["styles"] as? [String: [String: Double]])
+        // The rule's numbers, including the recorder's standing tail (1.5 s after arrival, so a
+        // driver learns to stop), are the same on both sides.
+        let k = try XCTUnwrap(file["constants"] as? [String: Double])
+        XCTAssertEqual(k["reach"], BallExpert.reach)
+        XCTAssertEqual(k["seen"]!, BallExpert.seen, accuracy: 1e-15)
+        XCTAssertEqual(k["searchTurn"], BallExpert.searchTurn)
+        XCTAssertEqual(k["arcForward"], BallExpert.arcForward)
+        XCTAssertEqual(k["slowing"], BallExpert.slowing)
+        XCTAssertEqual(k["standingRows"], Double(BallExpert.standingRows))
+        XCTAssertGreaterThanOrEqual(BallExpert.standingRows, 15)
         for (key, s) in styles {
             let mine = BallExpert.Style(seed: UInt64(key)!)
             XCTAssertEqual(mine.speed, s["speed"]!, accuracy: 1e-12)
@@ -69,7 +112,7 @@ final class BallExpertTests: XCTestCase {
             XCTAssertEqual(mine.weavePeriod, s["weavePeriod"]!, accuracy: 1e-12)
         }
         let cases = try XCTUnwrap(file["cases"] as? [[String: Any]])
-        XCTAssertGreaterThan(cases.count, 60)
+        XCTAssertGreaterThan(cases.count, 90)
         for c in cases {
             func d(_ k: String) -> Double { (c[k] as? NSNumber)?.doubleValue ?? .nan }
             let seed = (c["styleSeed"] as? NSNumber)?.uint64Value ?? 0
