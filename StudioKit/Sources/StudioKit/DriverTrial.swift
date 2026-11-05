@@ -65,10 +65,11 @@ public enum DriverTrial {
 
     /// A driver folder, checked as the phone checks one before installing it: the manifest, both
     /// files' sizes and SHA-256, the weights' shapes, and the golden replay.
-    public static func load(folder: String, raw: Bool = false, decode: @escaping @Sendable (String) -> [UInt8]?) throws -> (rows: LocalDreamRows, manifest: DriverManifest, modelID: String) {
+    public static func load(folder: String, raw: Bool = false, decode: @escaping @Sendable (String) -> [UInt8]?,
+                            tooHot: @escaping @Sendable () -> Bool = { false }) throws -> (rows: LocalDreamRows, manifest: DriverManifest, modelID: String) {
         let root = URL(fileURLWithPath: folder)
         func read(_ name: String) throws -> Data { try Data(contentsOf: root.appendingPathComponent(name)) }
-        var manifest = try DriverManifest.read(try read("policy.json"))
+        var manifest = try DriverManifest.read(try read(DriverManifest.policyFile))
         manifest.playsRaw = raw
         let weights = try read(DriverManifest.weightsFile)
         let goldenData = try read(DriverManifest.goldenFile)
@@ -79,7 +80,7 @@ public enum DriverTrial {
             throw Problem.golden(problem.message)
         }
         let modelID = "\(manifest.label)@\(String(DriverHash.hex(weights).prefix(12)))"
-        return (LocalDreamRows(net: net, manifest: manifest, modelID: modelID, decode: decode), manifest, modelID)
+        return (LocalDreamRows(net: net, manifest: manifest, modelID: modelID, decode: decode, tooHot: tooHot), manifest, modelID)
     }
 
     /// The bitmap a decoded picture is drawn into before `rgb(rgba:)`: the driver's picture size, 4 bytes a pixel.

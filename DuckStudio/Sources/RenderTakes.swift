@@ -115,6 +115,10 @@ enum DuckStudioLaunch {
             Task { @MainActor in exit(await DriverTrialRun.run(job)) }
             dispatchMain()
         }
+        if CommandLine.arguments.contains(DriverGetCheck.flag) {
+            Task { @MainActor in exit(await DriverGetCheck.run()) }
+            dispatchMain()
+        }
         #endif
         DuckStudioApp.main()
     }

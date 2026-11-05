@@ -155,7 +155,7 @@ public enum ControllerWords {
 public enum AutoGoal: String, CaseIterable, Sendable, Identifiable {
     /// Dream-1 with the person's own key. First of the helpers beside Apple Intelligence.
     case dream
-    /// The phone driver (ducknet-s1), Practice duck only. Last, until it ships.
+    /// The phone driver (ducknet-s1), Practice duck only. Its card is `DriverCard`.
     case walkToBall
 
     public var id: String { rawValue }
@@ -177,7 +177,7 @@ public enum AutoGoal: String, CaseIterable, Sendable, Identifiable {
     /// Where it runs and whose it is. Neither card is Pollen's.
     public var provenance: String {
         switch self {
-        case .walkToBall: return "Runs on this iPhone. Not made by Pollen."
+        case .walkToBall: return "Runs on this phone. Not made by Pollen."
         case .dream: return "Hosted by Dream Labs, your key. Not made by Pollen."
         }
     }
@@ -195,12 +195,17 @@ public enum AutoGoal: String, CaseIterable, Sendable, Identifiable {
 
     public enum Words {
         public static let practiceOnly = "Practice duck only for now. Runs on this phone, no key needed."
-        /// The phone driver is not in the app yet. Said plainly rather than faked.
-        public static let notOnThisPhone = "Coming in a later build."
+        /// On a real duck, installed or not. THE CAMERA PATH EXISTS (mediad `/frame`), and the driver
+        /// is still kept off the robot: it has only ever seen the drawn practice stage, never a real
+        /// floor, and no run of it has been judged on one (the build 90 plan's risk 7).
+        public static let practiceOnlyForNow = "Practice duck only for now. It has only seen the practice stage."
+        /// The driver is a download, not part of the app.
+        public static func getFirst(_ size: String) -> String { "Practice duck. Get it first, \(size), in Play, Auto." }
+        /// Studio's Drivers row: training your own. The one that ships is in Play, Auto.
+        public static let ownDriversLater = "Your own drivers come in a later build. Walk to the ball is in Play, Auto."
         public static let opensDream = "Opens Dream-1 with your goal."
         public static let needsKey = "Needs your Dream Labs key, in Studio, Settings."
         public static let addKey = "Add your key"
-        public static let trainedOnSim = "This driver was trained on the simulated duck."
         public static let noDuck = "Connect a duck, or use the practice duck, to start a goal."
         public static let go = "Go"
         public static let running = "Running"
@@ -220,8 +225,8 @@ public enum AutoGoal: String, CaseIterable, Sendable, Identifiable {
         guard let duck else { return .unavailable(Words.noDuck) }
         switch self {
         case .walkToBall:
-            if !driverInstalled { return .unavailable(Words.notOnThisPhone) }
-            if duck == .real { return .unavailable(Words.trainedOnSim) }
+            if duck == .real { return .unavailable(Words.practiceOnlyForNow) }
+            if !driverInstalled { return .unavailable(Words.getFirst(DriverRelease.walkToBall.size)) }
             return .ready
         case .dream:
             return dreamReady ? .ready : .unavailable(Words.needsKey)
@@ -247,8 +252,9 @@ public enum AutoGoal: String, CaseIterable, Sendable, Identifiable {
 
     public static var all: [String] {
         allCases.flatMap { [$0.title, $0.provenance] }
-            + [Words.practiceOnly, Words.notOnThisPhone, Words.trainedOnSim, Words.noDuck,
-               Words.go, Words.running, Words.capped(30), Words.opensDream, Words.needsKey, Words.addKey]
+            + [Words.practiceOnly, Words.practiceOnlyForNow, Words.getFirst(DriverRelease.walkToBall.size),
+               Words.ownDriversLater, Words.noDuck, Words.go, Words.running, Words.capped(30), Words.opensDream, Words.needsKey,
+               Words.addKey] + DriverCard.Words.all(.walkToBall)
     }
 }
 

@@ -467,6 +467,15 @@ public actor BenchPeer: DuckPeer {
         }
     }
 
+    /// One bench call that is not a duck call, answered with the bench's bytes (`BallRunStart`).
+    func ask(_ call: DuckBench.Call) async throws -> Data { try await errand(call) }
+
+    /// Stand under no command for `seconds` and keep the answer, as `robot.stop` does.
+    func settle(_ seconds: Double) async throws {
+        let answer = try await advance(try DuckDrive.stop(address, settle: seconds), id: nil)
+        if let failure = answer.failure { throw DuckBench.ReadError.bench(failure.message) }
+    }
+
     /// Ask the bench who it is.
     ///
     /// `hello` MAPS ONTO `/health` BECAUSE THEY ASK THE SAME QUESTION — who is

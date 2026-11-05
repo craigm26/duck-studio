@@ -174,7 +174,7 @@ struct StudioHubView: View {
                         HubRow("Search a move's keyframes", StudioHubWords.moveSearch, "magnifyingglass")
                     }
                     HubRow("Drivers", StudioHubWords.drivers, "steeringwheel",
-                           reason: AutoGoal.Words.notOnThisPhone)
+                           reason: AutoGoal.Words.ownDriversLater)
                         .accessibilityElement(children: .combine)
                 }
             } header: {

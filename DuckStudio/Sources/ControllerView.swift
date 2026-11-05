@@ -195,12 +195,14 @@ struct TellPanel: View {
 ///
 /// ONE PANEL DOCKED WHERE THE PAD WAS, NOTHING SCROLLING SIDEWAYS. Leading: the Ask the duck card,
 /// where on-device Apple Intelligence plans a few steps from a sentence. Trailing: a narrow column
-/// of the other helpers (Dream-1, then the phone driver once it ships). Every card is fully on
+/// of the other helpers (Dream-1, then the phone driver, whose card is the kit's `DriverCard`). Every card is fully on
 /// screen. While a goal runs, the panel collapses to one status line with Take over; the red disc
 /// top right is the Stop.
 struct AutoPanel: View {
     let duck: DuckIdentity.Kind?
     let driverInstalled: Bool
+    let driverCard: DriverCard
+    let driverAct: (DriverCard.Action) -> Void
     let dreamReady: Bool
     @ObservedObject var ask: AskTheDuck
     @ObservedObject var listener: DuckListener
@@ -255,16 +257,52 @@ struct AutoPanel: View {
                     Text(ControllerWords.otherHelpers)
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(Theme.textSecondary)
-                    ForEach(AutoGoal.allCases) { helper($0) }
+                    ForEach(AutoGoal.allCases) { goal in
+                        if goal == .walkToBall { driverHelper } else { helper(goal) }
+                    }
                 }
                 .frame(width: ControllerMetric.helperColumn, alignment: .leading)
             }
     }
 
+    /// The phone driver's card: Get with its size, progress with Cancel, then Go and Delete.
+    private var driverHelper: some View {
+        let goal = AutoGoal.walkToBall
+        return VStack(alignment: .leading, spacing: 4) {
+            Label(goal.title, systemImage: goal.symbol)
+                .font(.system(.caption, design: .rounded).weight(.semibold))
+                .foregroundStyle(Theme.textPrimary)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+            if let progress = driverCard.progress {
+                ProgressView(value: progress)
+            }
+            ForEach(driverCard.lines, id: \.self) { line in
+                Text(line)
+                    .font(.caption2)
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            HStack(spacing: 4) {
+                ForEach(driverCard.actions, id: \.self) { action in
+                    Button(driverCard.title(action, release: .walkToBall), role: action == .delete ? .destructive : nil) {
+                        driverAct(action)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            }
+        }
+        .padding(Theme.spacing(.tight))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .pondPanel(.control)
+        .accessibilityElement(children: .contain)
+    }
+
     private func helper(_ goal: AutoGoal) -> some View {
         let availability = goal.availability(on: duck, driverInstalled: driverInstalled, dreamReady: dreamReady)
         let action = goal.action(on: duck, driverInstalled: driverInstalled, dreamReady: dreamReady)
-        // "Add your key" is a way forward, so it stays pressable; a helper that has not shipped is not.
+        // "Add your key" is a way forward, so it stays pressable.
         let pressable = availability == .ready || action == AutoGoal.Words.addKey
         return VStack(alignment: .leading, spacing: 4) {
             Label(goal.title, systemImage: goal.symbol)

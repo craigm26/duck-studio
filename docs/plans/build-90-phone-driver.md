@@ -395,3 +395,31 @@ The snap reaches more balls and stops some. It does not touch the search turn, w
 7. **The real duck.** Confirm that phone drivers stay sim-only until a separate, gated decision, in line with `enabled_on_robot = false`.
 
 Files read: `/home/craigm26/projects/duck-studio/StudioKit/Sources/StudioKit/DreamDataset.swift`, `/home/craigm26/projects/duck-studio/StudioKit/Sources/StudioKit/HubTraining.swift`, `/home/craigm26/projects/duck-studio/StudioKit/Sources/StudioKit/HuggingFacePublish.swift`, `/home/craigm26/projects/duck-studio/DuckStudio/Sources/DreamRecorder.swift`, `/home/craigm26/projects/duck-studio/DuckStudio/project.yml` (location only).
+
+## In the app (2026-11-05)
+
+The Auto card is live on the practice duck: Get (4.4 MB), then Go, then the one Stop and the 60 s Auto cap.
+
+**Install.** `DriverRelease.walkToBall` pins `craigm26/duck-driver-walk-to-ball-v5` at `fe94d4a`, plus the SHA-256 of `policy.json` and of the weights. `DriverInstaller` fetches the three files over plain URLSession from public resolve URLs, with no token and no lock. It checks sizes and hashes, writes a side folder, runs `DriverTrial.load` on it (the golden replay included) and only then renames it into Application Support. `status()` re-reads the disk at launch and removes a damaged driver. Mac, real download with `DuckStudio -driver-get-check`: installed in 1.2 s, Cancel left nothing, delete left nothing.
+
+**Three things found while wiring it.**
+1. `/ball` was not in `DuckBench.routes`, so the phone's bench would have answered 404. It is now, with a factory (`DuckDrive.placeBall`) and the factory test.
+2. Nothing put the walker on the servos. `/reset` leaves the standing policy, and the driver's commands would have moved nothing. `BenchPeer.layOut` is now M1's start: reset, `alpha_walking.onnx`, the ball, and the 1.2 s pre-roll as one `/stop`, whose answer the peer keeps, so the head camera has the placed ball from its first picture.
+3. `DreamRunModel.run` called the Stop (`halt()`) as `stopDriving`, and `halt()` stops a running Dream run, so a goal started from Play cancelled itself. Both Play panels now use `stepAside()`.
+
+**The ball.** The head camera draws `live.ball` at the bench's radius. The stage draws its ball prop (100 mm across) and moves it to the same `live.ball` each frame. `DreamPracticeWorld`'s fixed ball is only for a bench with none, so the app never shows it. A world with stairs is refused in words: the head camera does not draw them.
+
+**Is it reachable from where the app starts?** Yes, measured. M1 with `--app-start` (`scripts/m1_trial.py`) lays each start with the same calls as `layOut`, seeds 8001-8020:
+
+| Arm | Reached | Parked | Stopped | Reach s | First sight s | Ball push m |
+|---|---|---|---|---|---|---|
+| expert | 20 | 20 | 20 | 8.5 | 2.3 | 0 |
+| v5 snap+latch | 20 | 14 | 14 | 12.7 | 2.7 | 0.21 |
+
+The same numbers as the table above, so the card's number stands: reached 20 of 20, stopped at 14.
+
+**A run ends when the duck parks.** `BallRunWatch` reads the bench's ground truth for the sentence afterwards and to end the run; it never steers. The rule is M1's parked (within 0.40 m, root moved at most 0.02 m in a second), checked at every moment rather than at the end. Replaying the 20 logs through it: every run parks at some moment, 19 of them reached by then, and 14 had not moved the ball. Ending there changes nothing before that moment, so this is what the rule would have done, though the app has not run it. The card keeps the lower M1 number.
+
+**The real duck stays out.** `mediad`'s `/frame` is wired for Dream-1, but this driver has only seen the drawn stage. The card says "Practice duck only for now" and has no Go there (risk 7 above).
+
+**Not run:** any of this on a phone. The Mac runs are the shipped pilot, driver and renderer in lockstep with the bench; the wall-clock path (`SimHeadCameraFeed` at 5 fps with the phone's own bench) has compiled and has not been driven.

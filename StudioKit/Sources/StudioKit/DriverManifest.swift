@@ -54,6 +54,7 @@ public struct DriverManifest: Decodable, Equatable, Sendable {
     }
 
     public static let knownArchs: Set<String> = ["ducknet-s1"]
+    public static let policyFile = "policy.json"
     public static let weightsFile = "model.safetensors"
     public static let goldenFile = "golden.json"
     /// No driver file this app takes is larger: S1's weights are about 4.4 MB.

@@ -72,6 +72,7 @@ final class DreamRunModel: ObservableObject {
         DuckRuns.shared.makeWay()
         running = true
         line = nil
+        lastWalk = nil
         driving = peer
         source.keepsDreamFrames = true
         let pilot = DreamPilot(checkpoint: chosen, prompt: prompt)
@@ -102,6 +103,98 @@ final class DreamRunModel: ObservableObject {
     }
 
     private var stopToken: StopPath.Token?
+
+    /// Walk to the ball is running (its status line says so, not Dream-1's).
+    @Published private(set) var walking = false
+    /// The line after the last walk, kept on the card until the next one.
+    @Published private(set) var lastWalk: String?
+
+    /// Walk to the ball on the practice duck: M1's run, on this device.
+    ///
+    /// THE SAME PIECES AS M1. `DriverTrial.load` loads the driver, `BallRunStart` lays the start,
+    /// `SimHeadCameraFeed` draws, `DreamPilot` plays `LocalDreamRows`, and the one Stop, the Auto cap
+    /// and a stick touch all end it through the arbiter and `DuckRuns`, as they end Dream-1.
+    /// `stepAside` runs first, so the stick loop and this never write the duck at once.
+    /// `seen` gives the screen each state: the stage draws what the driver is doing.
+    func walkToBall(_ peer: BenchPeer, feed: SimHeadCameraFeed, folder: String,
+                    stepAside: @escaping @MainActor () async -> Void,
+                    seen: @escaping @MainActor (DuckDrive.Live) -> Void) {
+        guard !running else { return }
+        running = true
+        walking = true
+        line = nil
+        lastWalk = nil
+        ended = nil
+        driving = peer
+        let start = BallRunStart(seed: UInt64.random(in: 1...(UInt64.max >> 16)))
+        let feedWasRunning = feed.running
+        task = Task { [weak self] in
+            await stepAside()
+            var said: String?
+            var watched = BallRunWatch()
+            var p50: Int?
+            do {
+                let loaded = try await Task.detached {
+                    try DriverTrial.load(folder: folder, decode: { DriverPicture.rgb($0) },
+                                         tooHot: { ProcessInfo.processInfo.thermalState == .critical })
+                }.value
+                try await peer.layOut(start)
+                try Task.checkCancellation()
+                feed.stop()
+                feed.start(peer)
+                feed.keepsDreamFrames = true
+                defer { feed.keepsDreamFrames = false }
+                var waited = 0.0
+                while feed.dreamWindow().count < BallRunStart.picturesFirst {
+                    try await Task.sleep(nanoseconds: UInt64(DriverTrial.cameraPeriod * 1e9))
+                    waited += DriverTrial.cameraPeriod
+                    if waited > BallRunStart.picturesWithin { throw DuckDream.ReadError.refused(BallRunStart.Words.cameraTooSlow) }
+                }
+                let watcher = Task { @MainActor [weak self] in
+                    var watch = BallRunWatch()
+                    while !Task.isCancelled {
+                        if let now = await peer.live {
+                            seen(now)
+                            if watch.see(now) { self?.stop(); break }
+                        }
+                        try? await Task.sleep(nanoseconds: 100_000_000)
+                    }
+                    return watch
+                }
+                await DreamPilot(checkpoint: loaded.modelID, prompt: loaded.manifest.task)
+                    .run(on: peer, rows: loaded.rows, frames: { await feed.dreamWindow() },
+                         events: { event in
+                             await self?.apply(event)
+                             if case .ended(let last) = event { await self?.noteEnd(last) }
+                         })
+                watcher.cancel()
+                watched = await watcher.value
+                said = self?.ended
+                p50 = await loaded.rows.timings()?.p50
+            } catch is CancellationError {
+                said = DuckDream.Words.stopped
+            } catch let refusal as DuckDream.ReadError {
+                said = refusal.message
+            } catch let problem as DriverTrial.Problem {
+                said = problem.message
+            } catch {
+                said = Task.isCancelled ? DuckDream.Words.stopped : error.localizedDescription
+            }
+            if !feedWasRunning { feed.stop() }
+            guard let self else { return }
+            self.lastWalk = watched.line(pilotSaid: said, p50: p50)
+            self.line = self.lastWalk
+            self.walking = false
+            self.running = false
+            if let token = self.stopToken { DuckRuns.shared.finished(token); self.stopToken = nil }
+        }
+        // THE SAME STOP AS A DREAM-1 RUN: StopPath has already sent robot.stop by the time this runs.
+        let running = task
+        stopToken = DuckRuns.shared.track(.goal) { running?.cancel() }
+    }
+
+    private var ended: String?
+    private func noteEnd(_ said: String) { ended = said }
 
     /// Stop on the wire first, then cancel: the duck stops even if the model is mid-answer.
     func stop() {

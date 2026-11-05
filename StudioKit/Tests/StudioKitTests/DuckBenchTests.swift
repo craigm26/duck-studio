@@ -534,6 +534,7 @@ final class DuckBenchTests: XCTestCase {
                                 cell: BallChallenge.Grid.fallback[0]),
             DuckBench.chaseGrid(address),
             DuckBench.world(address),
+            try DuckDrive.placeBall(address, bearing: 10, range: 0.8),
             try Shoot.call(address, cell: Shoot.coreCells[0], params: .defaults),
             try DuckBench.setWorld(address,
                                    DuckWorld.plan(for: DuckScene.staircase(count: 4, rise: 0.060,
@@ -556,7 +557,8 @@ final class DuckBenchTests: XCTestCase {
         XCTAssertTrue(DuckBench.routes.contains("/world"))
         XCTAssertTrue(DuckBench.routes.contains("/shoot"))
         XCTAssertTrue(DuckBench.routes.contains("/shoot/grid"))
-        XCTAssertEqual(DuckBench.routes.count, 18)
+        XCTAssertTrue(DuckBench.routes.contains("/ball"))
+        XCTAssertEqual(DuckBench.routes.count, 19)
     }
 
     // MARK: - a run that carries the world it ran in

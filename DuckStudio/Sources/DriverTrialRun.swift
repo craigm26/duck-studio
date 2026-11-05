@@ -1,6 +1,4 @@
 import Foundation
-import CoreGraphics
-import ImageIO
 import StudioKit
 
 #if os(macOS)
@@ -21,7 +19,7 @@ enum DriverTrialRun {
             return 1
         }
         renderer = made
-        return await DriverTrial.main(job, wire: DriverTrial.stdioWire(), decode: { decode($0) },
+        return await DriverTrial.main(job, wire: DriverTrial.stdioWire(), decode: { DriverPicture.rgb($0) },
                                       render: { live in await picture(live) })
     }
 
@@ -30,21 +28,6 @@ enum DriverTrialRun {
         guard #available(macOS 15.0, *), let renderer = renderer as? SimHeadCameraRenderer,
               let drawn = await renderer.render(live) else { return nil }
         return DuckCameraFeed.dreamJPEG(drawn)
-    }
-
-    /// A base64 JPEG back to RGB bytes at the driver's picture size, as a phone driver's `decode` does.
-    nonisolated static func decode(_ jpeg: String) -> [UInt8]? {
-        guard let data = Data(base64Encoded: jpeg), let image = DuckCameraFeed.decode(data) else { return nil }
-        var rgba = [UInt8](repeating: 0, count: DriverTrial.rgbaCount)
-        let drew = rgba.withUnsafeMutableBytes { buffer -> Bool in
-            guard let context = CGContext(data: buffer.baseAddress, width: DriverPrep.pictureWidth,
-                                          height: DriverPrep.pictureHeight, bitsPerComponent: 8,
-                                          bytesPerRow: DriverTrial.rgbaRowBytes, space: CGColorSpaceCreateDeviceRGB(),
-                                          bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return false }
-            context.draw(image, in: CGRect(x: 0, y: 0, width: DriverPrep.pictureWidth, height: DriverPrep.pictureHeight))
-            return true
-        }
-        return drew ? DriverTrial.rgb(rgba: rgba) : nil
     }
 }
 #endif
