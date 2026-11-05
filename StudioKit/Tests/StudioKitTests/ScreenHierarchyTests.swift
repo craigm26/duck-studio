@@ -63,12 +63,68 @@ final class ScreenHierarchyTests: XCTestCase {
         for reason in ScreenHierarchy.retired.values { XCTAssertFalse(reason.contains("\u{2014}")) }
     }
 
-    /// BUILD 91 FLIPS THIS. The app ships today's tree until then; when it
-    /// ships the target, change `shipped` and the first assertion below.
-    func testTheAppShipsTodaysTree() {
-        XCTAssertEqual(ScreenHierarchy.shipped, ScreenHierarchy.today)
-        XCTAssertNotEqual(ScreenHierarchy.differences(from: ScreenHierarchy.shipped,
-                                                       to: ScreenHierarchy.target), [])
+    /// BUILD 91 FLIPPED THIS: the app draws the target tree.
+    func testTheAppShipsTheTarget() {
+        XCTAssertEqual(ScreenHierarchy.shipped, ScreenHierarchy.target)
+        XCTAssertEqual(ScreenHierarchy.differences(from: ScreenHierarchy.shipped,
+                                                    to: ScreenHierarchy.target), [])
+        XCTAssertNotEqual(ScreenHierarchy.differences(from: ScreenHierarchy.today,
+                                                       to: ScreenHierarchy.shipped), [])
+    }
+
+    /// The `-tab` contract: by index, by name, and by the old names.
+    func testLaunchByIndexAndByName() {
+        let L = ScreenHierarchy.launch
+        XCTAssertEqual(L(nil, ScreenHierarchy.shipped).tab, "play")
+        XCTAssertEqual(L("0", ScreenHierarchy.shipped).tab, "play")
+        XCTAssertEqual(L("1", ScreenHierarchy.shipped).tab, "moves")
+        XCTAssertEqual(L("2", ScreenHierarchy.shipped).tab, "studio")
+        XCTAssertEqual(L("play", ScreenHierarchy.shipped).tab, "play")
+        XCTAssertEqual(L("moves", ScreenHierarchy.shipped).tab, "moves")
+        XCTAssertEqual(L("studio", ScreenHierarchy.shipped).tab, "studio")
+    }
+
+    /// `-tab control` is an alias of Play; the old Learn and Behaviours names reach Studio;
+    /// `-tab duck` opens Play with the Duck sheet up.
+    func testTheOldTabNamesStillLand() {
+        XCTAssertEqual(ScreenHierarchy.launch("control"), .init(tab: "play", duckSheet: false))
+        XCTAssertEqual(ScreenHierarchy.launch("learn"), .init(tab: "studio", duckSheet: false))
+        XCTAssertEqual(ScreenHierarchy.launch("behaviours"), .init(tab: "studio", duckSheet: false))
+        XCTAssertEqual(ScreenHierarchy.launch("duck"), .init(tab: "play", duckSheet: true))
+    }
+
+    /// Anything else opens the first tab rather than failing: an index past the end (the old
+    /// `-tab 3` and `-tab 4`), a negative one, a word that is no tab, and blank.
+    func testAnUnknownLaunchOpensPlay() {
+        for asked in ["3", "4", "-1", "robot", "", "  "] {
+            XCTAssertEqual(ScreenHierarchy.launch(asked), .init(tab: "play", duckSheet: false), asked)
+        }
+    }
+
+    /// Every feature of the inventory has a home that exists in the target, and Bench's only
+    /// home is Measure.
+    func testEveryFeatureHasAHomeInTheTarget() {
+        let ids = Set(ScreenHierarchy.target.allNodes.map(\.id))
+        for (feature, home) in ScreenHierarchy.inventory {
+            XCTAssertTrue(ids.contains(home), "\(feature) -> \(home) is not a node")
+            XCTAssertFalse(feature.contains("\u{2014}"))
+        }
+        XCTAssertEqual(ScreenHierarchy.inventory["Bench"], "studio.measure.benches")
+        XCTAssertEqual(ScreenHierarchy.inventory.filter { $0.value.hasPrefix("studio.measure.benches") }.keys.sorted(),
+                       ["Bench"])
+        for named in ["Link lens", "Imports", "Head mode", "Dream key"] {
+            XCTAssertNotNil(ScreenHierarchy.inventory[named], named)
+        }
+    }
+
+    /// The tap-count table of the plan, at its targets: a game is one tap from Moves, and the
+    /// real duck drives from Play with no taps after onboarding.
+    func testGamesAreOneTapFromMoves() {
+        let moves = ScreenHierarchy.target.tab("moves")!
+        let games = moves.sections.first { $0.id == "moves.games" }
+        XCTAssertNotNil(games)
+        XCTAssertEqual(ScreenHierarchy.target.opensOn, "play")
+        XCTAssertTrue(ScreenHierarchy.target.tab("play")!.sections.contains { $0.id == "play.stage" })
     }
 
     /// Every difference between today and the target, so a reviewer sees the

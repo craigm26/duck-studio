@@ -228,4 +228,15 @@ public enum LabCatalogue {
     ) -> [Mode] {
         showingUnfinished ? modes : usable
     }
+
+    /// Where each row of the catalogue lives since build 91: a node id of
+    /// `ScreenHierarchy.target`. The Studio section that listed them is gone; a row with no home
+    /// here would be a mode nobody can open.
+    public static let homes: [String: String] = [
+        "bench": "studio.measure.benches",
+        "ghost": "studio.measure.ghost",
+        "soccer": "moves.games",
+        "room": "duckSheet.room",
+        "sounds": "moves.sounds",
+    ]
 }
