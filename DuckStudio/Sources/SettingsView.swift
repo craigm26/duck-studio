@@ -222,7 +222,10 @@ struct SettingsView: View {
             .listRowBackground(Theme.surfacePrimary)
             .sheet(isPresented: Binding(get: { exporting != nil },
                                         set: { if !$0 { exporting = nil } })) {
+                Group {
                 if let exporting { ShareSheet(items: [exporting]) { self.exporting = nil } }
+                }
+                .stopPill()
             }
 
             // WHOSE APP THIS IS NOT, AT THE FOOT, WHERE "ABOUT" LIVES. Pollen

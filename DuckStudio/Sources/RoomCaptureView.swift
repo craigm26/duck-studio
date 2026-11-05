@@ -61,6 +61,7 @@ struct RoomCaptureView: View {
         .navigationTitle("Room capture")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $capture.showingScene) {
+            Group {
             NavigationStack {
                 ScrollView {
                     // MONOSPACE IS EARNED HERE. The design system's rule is that
@@ -86,6 +87,8 @@ struct RoomCaptureView: View {
                     }
                 }
             }
+            }
+            .stopPill()
         }
     }
 

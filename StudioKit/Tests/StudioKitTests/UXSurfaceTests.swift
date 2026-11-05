@@ -61,4 +61,51 @@ final class UXSurfaceTests: XCTestCase {
             }
         }
     }
+
+    // MARK: - build 91, the controller
+
+    /// Every controller sentence: no em-dash, and none of the engineering words the front door
+    /// may not say (docs/plans/native-first-redesign.md, "Copy").
+    static var controllerSentences: [String] {
+        ControlArbiter.Mode.allCases.flatMap { [ControllerWords.title($0), ControllerWords.line($0)] }
+            + [ControllerWords.stop, ControllerWords.stopHint, ControllerWords.stopPill,
+               ControllerWords.stopPillLine, ControllerWords.practiceDuck, ControllerWords.yourFloor,
+               ControllerWords.yourDuck, ControllerWords.driveOn, ControllerWords.duckDetails,
+               ControllerWords.connectYourDuck, ControllerWords.noDuckYet,
+               ControllerWords.waitingForPicture, ControllerWords.noCameraAddress,
+               ControllerWords.nowDriving("Puddle"), ControllerWords.liftToDrive,
+               ControllerWords.tellPlaceholder, ControllerWords.tellNoDuck, ControllerWords.tellRunning,
+               ControllerWords.heard("dance"), ControllerWords.tellDone, ControllerWords.headMode,
+               ControllerWords.headModeHint]
+            + ControllerWords.tiles.map(\.said)
+            + AutoGoal.all
+            + [StudioHubWords.expertTools, StudioHubWords.expertToolsLine, StudioHubWords.drivers]
+    }
+
+    func testTheControllerSaysNoEmDashAndNoEngineeringWord() {
+        for line in Self.controllerSentences {
+            XCTAssertFalse(line.contains("\u{2014}"), line)
+            for word in ["MuJoCo", "robot.move", "deadman", "bench", "policy", "intent", "repo"] {
+                XCTAssertFalse(line.lowercased().contains(word.lowercased()), "\(word): \(line)")
+            }
+        }
+    }
+
+    /// No Stop sentence says a started move is cancelled, and the hint says it finishes.
+    func testStopIsHonestAboutAStartedMove() {
+        for line in [ControllerWords.stop, ControllerWords.stopHint, ControllerWords.stopPill,
+                     ControllerWords.stopPillLine] {
+            XCTAssertFalse(line.lowercased().contains("cancel"), line)
+            XCTAssertFalse(line.lowercased().contains("instant"), line)
+        }
+        XCTAssertTrue(ControllerWords.stopHint.contains("already started finishes"), ControllerWords.stopHint)
+    }
+
+    /// The tiles under Tell are sentences the matcher reads exactly, so a tap never falls through
+    /// to "I heard".
+    func testEveryTellTileIsUnderstood() {
+        for tile in ControllerWords.tiles {
+            XCTAssertNotNil(DuckOrderMatcher.match(tile.said), tile.said)
+        }
+    }
 }

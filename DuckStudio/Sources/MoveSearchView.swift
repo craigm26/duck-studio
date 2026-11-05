@@ -101,7 +101,10 @@ struct MoveSearchView: View {
         }
         .onDisappear { specs.flush() }
         .sheet(item: $outgoing) { file in
+            Group {
             ShareSheet(items: [file.url]) { outgoing = nil }
+            }
+            .stopPill()
         }
     }
 

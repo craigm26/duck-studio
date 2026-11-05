@@ -26,7 +26,14 @@ public enum StudioHubWords {
     public static let toolsRow = "Training and measuring tools"
     public static let toolsLine = "Learn explains them one at a time, then turns them on."
 
-    public static let all: [String] = [shoot, motions, scenes, draft, plan, mimic, compare,
+    /// The switch at the top of Studio (build 91), which replaces Simple and Everything.
+    public static let expertTools = "Show expert tools"
+    public static let expertToolsLine = "Train, Measure and duck diagnostics. Off keeps it simple."
+    public static let behaviours = "Networks on this phone, and where to find more."
+    public static let learn = "Ten short lessons, one tool at a time."
+    public static let drivers = "Drivers that run on this phone. None is installed yet."
+
+    public static let all: [String] = [expertToolsLine, behaviours, learn, drivers, shoot, motions, scenes, draft, plan, mimic, compare,
                                        measure, tune, weights, hub, moveSearch, challenges,
                                        evaluations, multiDuck, toolsLine]
 }

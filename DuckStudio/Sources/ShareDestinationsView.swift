@@ -132,7 +132,10 @@ struct ShareDestinationsView: View {
         // under the sheet. What it still needs is the completion handler: a
         // share that ends leaves this sheet up and empty without it.
         .sheet(isPresented: $sharing) {
+            Group {
             if let file { ShareSheet(items: [file, message]) { sharing = false } }
+            }
+            .stopPill()
         }
     }
 }

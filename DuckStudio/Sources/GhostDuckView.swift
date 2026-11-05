@@ -157,6 +157,7 @@ struct GhostDuckView: View {
         // leaves it draggable, so a run can be watched and orbited while its
         // own controls are on screen.
         .sheet(item: $driving) { which in
+            Group {
             NavigationStack {
                 Group {
                     switch which {
@@ -174,6 +175,8 @@ struct GhostDuckView: View {
             }
             .presentationDetents([.medium, .large])
             .presentationBackgroundInteraction(.enabled(upThrough: .medium))
+            }
+            .stopPill()
         }
         .safeAreaInset(edge: .bottom) {
             if ghost.isPlaced {

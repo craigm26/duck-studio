@@ -85,9 +85,16 @@ final class DreamRunModel: ObservableObject {
             await MainActor.run {
                 source.keepsDreamFrames = false
                 self?.running = false
+                if let token = self?.stopToken { DuckRuns.shared.finished(token); self?.stopToken = nil }
             }
         }
+        // A GOAL IS A RUN THE ONE STOP CANCELS: the red disc, the pill on any sheet, Siri later.
+        // StopPath has already sent robot.stop by the time this is called.
+        let running = task
+        stopToken = DuckRuns.shared.track(.goal) { running?.cancel() }
     }
+
+    private var stopToken: StopPath.Token?
 
     /// Stop on the wire first, then cancel: the duck stops even if the model is mid-answer.
     func stop() {

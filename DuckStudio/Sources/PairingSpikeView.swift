@@ -151,7 +151,10 @@ struct PairingSpikeView: View {
             Text(Self.promptQuestion)
         }
         .sheet(item: $outgoing) { out in
+            Group {
             ShareSheet(items: [out.url]) { outgoing = nil }
+            }
+            .stopPill()
         }
         .alert("That did not save",
                isPresented: .constant(failure != nil),

@@ -134,8 +134,8 @@ struct LearnView: View {
 
     private func open(_ go: Learn.Go) {
         switch go {
-        case .play: router.go(to: .control)
-        case .behaviours: router.go(to: .behaviours)
+        case .play: router.go(to: .play)
+        case .behaviours: router.go(to: .studio, then: .behaviours)
         case .preference: router.go(to: .studio, then: .preference)
         case .motions: router.go(to: .studio, then: .motions)
         case .challenges: router.go(to: .studio, then: .challenges)

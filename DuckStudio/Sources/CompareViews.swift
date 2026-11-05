@@ -578,6 +578,7 @@ struct ImproveView: View {
         .navigationTitle(CompareWords.improve)
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $searching) { draft in
+            Group {
             NavigationStack {
                 PreferenceSearchView(draft: draft, scene: nil) { chosen in
                     var kept = draft
@@ -586,6 +587,8 @@ struct ImproveView: View {
                     store.counted()
                 }
             }
+            }
+            .stopPill()
         }
     }
 

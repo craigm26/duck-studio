@@ -108,6 +108,7 @@ struct PoseCaptureView: View {
             }
         }
         .sheet(item: $editing) { wrapper in
+            Group {
             NavigationStack {
                 if let current = drafts.drafts.first(where: { $0.id == wrapper.id }) {
                     IntentAuthorView(draft: current, scenes: scenes, models: models,
@@ -133,6 +134,8 @@ struct PoseCaptureView: View {
                         }
                 }
             }
+            }
+            .stopPill()
         }
     }
 

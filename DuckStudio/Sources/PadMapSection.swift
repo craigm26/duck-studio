@@ -64,9 +64,12 @@ struct PadMapSection: View {
             // attached to a row that can disappear is a presentation that
             // dismisses itself when the list changes underneath it.
             .sheet(item: $editing) { which in
+                Group {
                 if case .map(let control) = which, let control {
                     PadBindSheet(desk: desk, control: control, policies: policies)
                 }
+                }
+                .stopPill()
             }
 
         if let refusal = desk.map.locomotionRefusal(among: policies) {

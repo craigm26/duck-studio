@@ -247,6 +247,14 @@ struct DriveView: View {
 
     private enum Shelf: String, Identifiable {
         case scene, motions, dream
+        /// The pull-up Moves sheet: the Moves tab's tiles, kept sequences, motions and Plan.
+        case moves
+        /// More: scene, record a sequence, the pad map, the camera, and the drive settings.
+        case more
+        /// A recorded take, offered to keep. Never auto-saved.
+        case keep
+        /// The Plan editor, from the Moves sheet, with this desk so a plan drives this duck.
+        case plan
         var id: String { rawValue }
     }
     /// Round trips completed since Drive was pressed, and the sim seconds they
@@ -379,12 +387,36 @@ struct DriveView: View {
     /// Studio for the two sources this screen does not draw.
     @EnvironmentObject private var router: AppRouter
 
+    // MARK: - the controller (build 91)
+
+    /// What runs on the duck and the one Stop every screen presses.
+    @ObservedObject private var runs = DuckRuns.shared
+    /// Who is driving: the person's thumbs, a Tell order or an Auto goal. The kit's rules.
+    @State private var arbiter = ControlArbiter()
+    /// The stick after a venue switch, deaf until the finger lifts.
+    @State private var stickGate = StickGate()
+    /// The real duck's picture, the stage on that venue.
+    @StateObject private var realFeed = DuckCameraFeed()
+    /// The one line under the controller.
+    @State private var controllerCaption: String?
+    /// A Tell order is running.
+    @State private var telling = false
+    /// Dream-1 on the real duck, as a sheet over its picture.
+    @State private var realDream = false
+    @Environment(\.scenePhase) private var scenePhase
+
     /// A REAL PAD WINS WHILE IT IS BEING HELD. Both inputs are live at once —
     /// a tester can put a thumb on the glass without unpairing anything — and
     /// the physical sticks only take over once they leave centre, so a resting
     /// controller does not pin the on-screen pads to zero.
-    private var sticks: DuckDrive.Sticks {
+    private var rawSticks: DuckDrive.Sticks {
         pad.sticks == .centred ? touchSticks : pad.sticks
+    }
+
+    /// The sticks that drive: centred while the gate waits for the finger to lift after a
+    /// venue switch, so a thumb held on the practice duck is not the real duck's first command.
+    private var sticks: DuckDrive.Sticks {
+        stickGate.waitingForLift ? .centred : rawSticks
     }
 
     private var twist: DuckDrive.Twist { DuckDrive.twist(for: sticks) }
@@ -440,16 +472,9 @@ struct DriveView: View {
         // THE ROBOT VENUE IS THE ONE THAT STAYS STACKED, because it draws no
         // picture at all — `venueStage` is `EmptyView()` there — so a ZStack
         // would be floating chrome over nothing.
-        Group {
-            if venue == .real {
-                VStack(spacing: 0) {
-                    venueSwitch
-                    robotControls
-                }
-            } else {
-                controlStage
-            }
-        }
+        // ONE CONTROLLER ON EVERY VENUE (build 91). The real duck is drawn full-bleed from its
+        // camera like the other two; the Robot venue's list is gone.
+        stageWithController
         .background(Theme.backgroundPrimary)
         // THE COERCION IS THE KIT'S AND IT RUNS THREE TIMES — on appear,
         // whenever the door changes underneath (somebody walks to Settings and
@@ -457,12 +482,22 @@ struct DriveView: View {
         // It hangs on the ROOT rather than on the switch because two layouts
         // draw that switch now, and a rule attached to one of them would be a
         // rule that stops running when the other is on screen.
-        .onAppear { venue = DriveVenue.coerce(venue, camera: cameraDoor) }
+        .onAppear {
+            venue = DriveVenue.coerce(venue, camera: cameraDoor)
+            // THE DRAWER WENT INTO MORE (build 91); one left up by an older build comes down.
+            drawerIsUp = false
+        }
         .refreshingCameraDoor($cameraDoor)
         .onChange(of: cameraDoor) { _, _ in
             venue = DriveVenue.coerce(venue, camera: cameraDoor)
         }
-        .onChange(of: venue) { was, now in entered(from: was, to: now) }
+        .onChange(of: venue) { was, now in
+            entered(from: was, to: now)
+            router.playVenue = now
+        }
+        // THE TAKE IS OFFERED, NEVER AUTO-SAVED (was PadChrome's): a ceiling, a Stop, a Pause and
+        // the chip all land here.
+        .onChange(of: desk.pilot.pending) { _, take in if take != nil { shelf = .keep } }
         // ARRIVING AT THE ROBOT ASKS IT TO TALK, and so does a link that opens
         // while this tab is already showing — somebody can connect on the Robot
         // tab and walk back here, which is the ordinary way round. Both land on
@@ -485,26 +520,11 @@ struct DriveView: View {
         // your thumb continuously it would be an animation running beside a
         // live viewport. Inline costs the duck nothing and never moves.
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                // THE LENS IS THE LINK, AND IT BELONGS WHERE NOTHING SCROLLS.
-                // The iris opens when the bench answers `/health`, which is the
-                // moment the screen becomes able to do anything at all.
-                LensIndicator(state: linkState)
-            }
-            // THE ONE GEAR ON THIS TAB, AND IT IS RIGHTMOST. Every tab root in
-            // this app carries exactly one Settings gear in the same corner —
-            // `PolicyListView` puts it last among its trailing items, so this
-            // one does too, and the two tabs' bars do not swap places under a
-            // thumb. The lens keeps the position it has had since it was the
-            // only thing up here, because it is the state and the gear is the
-            // door.
-            ToolbarItem(placement: .topBarTrailing) {
-                NavigationLink { SettingsView(detail: settingsDetail, models: settingsModels, benches: benches) } label: {
-                    Image(systemName: "gear").accessibilityLabel(Text("Settings"))
-                }
-            }
-        }
+        // NO BAR OVER THE DUCK. The lens is the live dot on the duck pill and Settings lives in
+        // Studio, so the picture runs to the top edge.
+#if os(iOS)
+        .toolbar(.hidden, for: .navigationBar)
+#endif
         .safeAreaInset(edge: .bottom, spacing: 0) { transport }
         // THE WORLD IS RE-READ WHEN THE BENCH CHANGES, for the same reason the
         // peer is rebuilt: the answer belongs to one machine. A picker still
@@ -598,6 +618,7 @@ struct DriveView: View {
             flight?.cancel()
         }
         .sheet(item: $shelf) { which in
+            Group {
             switch which {
             case .scene:
                 ControlSceneSheet(entries: sceneRows, standing: world?.name,
@@ -615,12 +636,26 @@ struct DriveView: View {
                 ControlMotionsSheet(motions: motionRows, running: runningMotion,
                                     outcome: motionOutcome,
                                     run: { id in Task { await runMotion(id) } })
+            case .moves:
+                movesSheet
+            case .more:
+                moreSheet
+            case .keep:
+                SequenceKeepSheet(desk: desk, bench: bench, token: token,
+                                  engage: { engageLoop() }, library: model)
+            case .plan:
+                NavigationStack {
+                    PlanEditorView(desk: desk, venue: venue, engage: { engageLoop() }, bench: bench,
+                                   models: settingsModels, robot: robot, stopDriving: { await halt() })
+                }
             case .dream:
                 // THE BENCH'S OWN PEER, made if driving has not made it yet: the camera draws its duck.
                 DreamSimSheet(peer: (try? requirePeer()) as? BenchPeer, feed: simHeadCamera,
                               model: dreamModel, recorder: dreamRecorder,
                               stopDriving: { await halt() })
             }
+            }
+            .stopPill()
         }
         .alert(failureTitle, isPresented: Binding(
             get: { failure != nil }, set: { if !$0 { failure = nil } })) {
@@ -629,72 +664,6 @@ struct DriveView: View {
     }
 
     // MARK: - where you are driving it
-
-    /// Sim, your own floor, or a robot — above the picture, because it decides
-    /// what the picture IS.
-    ///
-    /// THREE SEGMENTS AND ONLY TWO OF THEM DRIVE, which is the whole reason
-    /// this is a switch and not two screens. "Robot" is on the same control as
-    /// the two that work so that the thing this app cannot do is in the place
-    /// somebody looks for it, said in `DriveVenue.robotIsNotDrivenYet` rather
-    /// than left to be discovered as an absence. `DriveVenue.notYet` is what
-    /// makes that a sentence a test can read.
-    ///
-    /// THE COERCION IS THE KIT'S AND IT RUNS THREE TIMES. `DriveVenue.coerce`
-    /// decides where a screen may be given what the camera says; it is asked on
-    /// appear, whenever the door changes underneath (somebody walks to Settings
-    /// and switches the camera off while this is on screen), and on every pick.
-    /// A view writing `if !door.canOfferAR { venue = .sim }` inline would be
-    /// the same rule with nothing asserting it.
-    /// THE SWITCH ITSELF. Split out from the caption and the refusal because
-    /// the two layouts that draw it need those in different shapes: the Robot
-    /// venue stacks them under it in a column, and the full-bleed stage puts the
-    /// caption behind a disclosure so a three-line sentence does not eat the top
-    /// of the picture. The COERCION and the camera door moved to the root, so
-    /// they are asked once whichever branch is on screen.
-    private var venuePicker: some View {
-        Picker("Where", selection: $venue) {
-            ForEach(DriveVenue.allCases.filter { $0.canBeEntered(camera: cameraDoor) }) {
-                one in Text(one.label).tag(one)
-            }
-        }
-        .pickerStyle(.segmented)
-        // THE CAP LIFTS AT ACCESSIBILITY SIZES, which is `VenuePicker`'s
-        // argument about its own two-segment switch and applies harder to
-        // three: a segmented control truncates rather than wrapping, so a
-        // width that keeps "Sim | Your floor | Robot" off the edges of an
-        // iPad is the width that hides them at AX5.
-        .frame(maxWidth: typeSize.isAccessibilitySize ? nil : DriveMetric.venueSwitchWidth)
-    }
-
-    /// The switch with its caption under it, as the Robot venue draws it — that
-    /// screen has no picture, so nothing is competing for the room.
-    private var venueSwitch: some View {
-        VStack(spacing: Theme.spacing(.hairline)) {
-            venuePicker
-            Text(venue.oneLine)
-                .font(.caption2)
-                .foregroundStyle(Theme.textSecondary)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity)
-            // THE REFUSAL IS DRAWN WHERE THE CONTROL IS, whether or not "Your
-            // floor" is the segment in force. It is `CameraAvailability`'s
-            // sentence and not this file's, and not `DriveVenue`'s either —
-            // one place decides whether a camera can be opened, and a second
-            // copy of that reasoning would be a second answer.
-            if let refusal = cameraDoor.refusal(for: .venue) {
-                Text(refusal)
-                    .font(.caption2)
-                    .foregroundStyle(Theme.textSecondary)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity)
-            }
-        }
-        .padding(.horizontal, Theme.spacing(.snug))
-        .padding(.top, Theme.spacing(.tight))
-    }
 
     /// What a change of venue does to the drive that is already running.
     ///
@@ -759,11 +728,12 @@ struct DriveView: View {
         switch venue {
         case .sim: stage
         case .ar: arStage
-        // NOTHING, AND NOT A PLACEHOLDER. There is no link to a robot, so
-        // there is no pose to draw; a rendered duck under the word "Robot"
-        // would be the simulator wearing the hardware's name, which is the one
-        // confusion this whole venue exists to prevent.
-        case .real: EmptyView()
+        // THE REAL DUCK'S OWN PICTURE, full-bleed, or a calm poster with its state sentence. Never
+        // a rendered duck under the real duck's name, and never a list.
+        case .real:
+            DuckPictureStage(feed: realFeed, connected: robot.isConnected,
+                             hasAddress: DuckCamera.Address(cameraAddress.isEmpty ? robot.host : cameraAddress) != nil,
+                             connect: { router.duckSheet = true })
         }
     }
 
@@ -849,6 +819,11 @@ struct DriveView: View {
             // `engageLoop` is the same door the face buttons use, so a load
             // in flight is handled the way it already is.
             .onChange(of: sticks) { _, now in
+                // YOUR THUMBS WIN: a stick touch ends a Tell order or an Auto goal and snaps to Drive.
+                if !DuckDrive.twist(for: now).standsStill,
+                   arbiter.running != nil || arbiter.mode == .auto {
+                    apply(arbiter.handle(.stickTouch, at: Date()))
+                }
                 guard venue != .real, !running, somethingToDrive,
                       posed == nil, !mimicking, playback == nil,
                       !DuckDrive.twist(for: now).standsStill else { return }
@@ -1170,60 +1145,56 @@ struct DriveView: View {
     /// refusal from the camera door is NOT collapsed: a venue that cannot be
     /// entered has to say so where the control is.
     private var topChrome: some View {
-        VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
-            // ONE ROW. The switch, the two Studio doors and the three pad chips
-            // scroll together, so the strip is a switch tall instead of three
-            // rows plus a caption — about a hundred and thirty points of
-            // picture handed back to the duck, on the one screen that exists
-            // to watch it. The venue's own sentence moved into the drawer,
-            // where a thing you read once and close belongs.
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: Theme.spacing(.tight)) {
-                    venuePicker
-                    ControlShelfChips(standing: world?.name,
-                                      posing: posed != nil && !mimicking,
-                                      mimicking: mimicking,
-                                      openScene: { shelf = .scene },
-                                      openMotions: { shelf = .motions },
-                                      pose: {
-                                          // THE POSE STARTS WHERE THE DUCK IS.
-                                          // Anything else would be a pose about
-                                          // a duck that is not on the picture.
-                                          if mimicking { stopMimic() }
-                                          if posed == nil {
-                                              posed = pose.jointAngles
-                                              poseNote = nil
-                                          } else {
-                                              posed = nil
-                                              posedJoint = nil
-                                          }
-                                      },
-                                      mimic: { mimicking ? stopMimic() : startMimic() },
-                                      simple: isSimple)
-                    if venue == .sim {
-                        Button { shelf = .dream } label: {
-                            Label(DuckDream.Words.simChip, systemImage: "sparkles")
+        VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
+            // THE CONTROLLER'S TOP: the duck pill, Drive | Tell | Auto, and the solid red Stop.
+            ControllerTopBar(mode: modeBinding, pill: duckPill, stop: { Task { await halt() } })
+            // DRIVE'S OWN ROW: pose, scene, record, sequences and plans from the pad, and the head
+            // on a real duck. Simple no longer hides any of it: these are part of the toy.
+            if arbiter.mode == .drive {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: Theme.spacing(.tight)) {
+                        if venue == .real {
+                            Toggle(isOn: $posingHead) {
+                                Label(ControllerWords.headMode, systemImage: "eyes")
+                            }
+                            .toggleStyle(.button)
+                            .font(.footnote)
+                            .accessibilityHint(Text(ControllerWords.headModeHint))
                         }
-                        .buttonStyle(.bordered)
-                        .font(.footnote)
+                        // POSE ON THE PRACTICE DUCK, and the take being recorded. Scene,
+                        // Record, the pad map and the camera went down into More; sequences,
+                        // motions and Plan into the pull-up Moves sheet.
+                        if venue != .real {
+                            playChip(ControlShelf.poseChip, symbol: "hand.draw",
+                                     on: posed != nil && !mimicking) {
+                                if mimicking { stopMimic() }
+                                if posed == nil {
+                                    posed = pose.jointAngles
+                                    poseNote = nil
+                                } else {
+                                    posed = nil
+                                    posedJoint = nil
+                                }
+                            }
+                        }
+                        if desk.pilot.isRecording || desk.pilot.pending != nil {
+                            playChip(PadPilot.nameItChip, symbol: "record.circle", on: true) {
+                                if desk.pilot.isRecording { desk.pilot.cutOff(.tapped) } else { shelf = .keep }
+                            }
+                        }
                     }
-                    // RECORD, SAY IT, PLAN IT, SEQUENCES: authoring from the pad.
-                    // Everything only; Simple is for driving and playing.
-                    if !isSimple {
-                        PadChrome(desk: desk, venue: venue, bench: bench, token: token,
-                                  lastAction: $lastAction,
-                                  engage: { engageLoop() },
-                                  library: model, models: settingsModels,
-                                  robot: robot, stopDriving: { await halt() })
-                    }
+                    .padding(.horizontal, Theme.spacing(.hairline))
                 }
-                .padding(.horizontal, Theme.spacing(.hairline))
             }
-            // A VENUE THAT CANNOT BE ENTERED STAYS ON THE PICTURE. It is a
-            // refusal about the switch immediately above it — the camera is
-            // off, so "Your floor" is not there — and a person who cannot see
-            // why a venue is missing is looking at a bug rather than a rule.
-            if let refusal = cameraDoor.refusal(for: .venue) {
+            if let line = controllerCaption ?? (stickGate.waitingForLift ? ControllerWords.liftToDrive : nil) {
+                Text(line)
+                    .font(.system(.footnote, design: .rounded))
+                    .padding(.horizontal, Theme.spacing(.snug))
+                    .padding(.vertical, Theme.spacing(.hairline))
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if let refusal = cameraDoor.refusal(for: .venue), venue != .real {
                 Text(refusal)
                     .font(.caption2)
                     .foregroundStyle(Theme.textSecondary)
@@ -1232,11 +1203,209 @@ struct DriveView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .padding(.horizontal, Theme.spacing(.snug))
         .padding(.vertical, Theme.spacing(.tight))
-        .onStageChrome(DriveMetric.viewport.inner)
-        .padding(Theme.spacing(.snug))
         .measuringChromeHeight { topChromeHeight = $0 }
+    }
+
+    /// A Stop pressed somewhere other than Play (a sheet's pill, Moves): put Play's loop down
+    /// too, so the next intent does not undo the robot.stop the pill already wrote.
+    @MainActor private func stoppedElsewhere() {
+        guard running else { return }
+        _ = arbiter.handle(.stop, at: Date())
+        desk.pilot.cutOff(.stop)
+        running = false
+        touchSticks = .centred
+        if let flight, !flight.isCancelled { cutOffByStop = true }
+        flight?.cancel()
+    }
+
+    /// The stage with the controller's lifecycle on it: the duck Stop goes to, the real duck's
+    /// picture, the stick gate, goals as arbiter runs, the foreground rule and routes into Play.
+    /// Split out of `body` so the type checker can see it in one piece.
+    private var stageWithController: some View {
+        controlStage
+        // A STOP PRESSED ON A SHEET OVER PLAY reaches this loop too, and the pill shows while it runs.
+        .onChange(of: running) { _, now in runs.playIsDriving = now }
+        .onChange(of: runs.stops) { _, _ in stoppedElsewhere() }
+        // THE DUCK STOP GOES TO, AND THE ONE THE MOVES TILES RUN ON: whichever Play is on.
+        .task(id: "\(venue.rawValue)|\(robotLinkKey)|\(peerKey)|\(benchPeer == nil)") {
+            runs.attach(peer, kind: venue == .real ? .real : .sim)
+        }
+        // THE REAL DUCK'S PICTURE, from the address the connection gives. Started only on that
+        // venue, so the camera is not polled for a screen nobody is looking at.
+        .task(id: "\(venue.rawValue)|\(robot.isConnected)|\(robot.host)|\(cameraAddress)") {
+            let typed = cameraAddress.isEmpty ? robot.host : cameraAddress
+            if venue == .real, robot.isConnected, let address = DuckCamera.Address(typed) {
+                realFeed.start(address)
+            } else {
+                realFeed.stop()
+            }
+        }
+        // AFTER A VENUE SWITCH THE STICK WAITS FOR THE FINGER TO LIFT.
+        .onChange(of: rawSticks) { _, now in _ = stickGate.admits(centred: now == .centred) }
+        // A GOAL RUNNING IS AN ARBITER RUN, so a stick touch takes over and the cap applies.
+        .onChange(of: dreamModel.running) { _, now in
+            let duck: DuckIdentity.Kind = venue == .real ? .real : .sim
+            apply(arbiter.handle(now ? .start(.goal, duck: duck, owner: .app) : .finished, at: Date()))
+        }
+        .task(id: dreamModel.running) {
+            while dreamModel.running, !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                apply(arbiter.handle(.tick, at: Date()))
+            }
+        }
+        // LEAVING THE FOREGROUND ENDS RUNS. The app's root stops every registered run; here the
+        // stick loop is put down too, and the arbiter remembers that nothing re-arms itself.
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background {
+                _ = arbiter.handle(.background, at: Date())
+                if dreamModel.running { dreamModel.stop() }
+                // A STICK DRIVE IS NOT A REGISTERED RUN, so the root's leftForeground() does not
+                // stop it, and cancelling the loop sends nothing: the duck would keep the last
+                // twist. The shared stop puts robot.stop on its way first.
+                if running {
+                    runs.stop()
+                    running = false; touchSticks = .centred; flight?.cancel()
+                }
+            } else if phase == .active {
+                _ = arbiter.handle(.foreground, at: Date())
+            }
+        }
+        // A ROUTE INTO PLAY: a mode another screen asked for (Moves' goal rows).
+        .onChange(of: router.pendingPlay) { _, asked in takePendingPlay(asked) }
+        .onAppear { takePendingPlay(router.pendingPlay) }
+        .sheet(isPresented: $realDream) {
+            NavigationStack {
+                ScrollView {
+                    DreamPanel(peer: robot.peer, source: realFeed,
+                               bridgeAnswersDream: robot.greeting?.answersDream == true,
+                               stopDriving: { await halt() }, model: dreamModel, recorder: dreamRecorder,
+                               hasPicture: realFeed.picture != nil)
+                        .padding()
+                }
+                .navigationTitle(AutoGoal.dream.title)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) { Button(ControllerWords.done) { realDream = false } }
+                }
+            }
+            .stopPill()
+        }
+    }
+
+    // MARK: - the controller's pieces
+
+    /// The switch, through the arbiter: leaving a mode with something running in it stops it.
+    private var modeBinding: Binding<ControlArbiter.Mode> {
+        Binding(get: { arbiter.mode },
+                set: { apply(arbiter.handle(.selectMode($0), at: Date())) })
+    }
+
+    private var duckPill: DuckPill {
+        DuckPill(name: venue == .real ? (robot.isConnected ? ControllerWords.yourDuck : ControllerWords.connectYourDuck)
+                                      : DuckPill.name(of: venue),
+                 live: pillLive,
+                 venues: DriveVenue.allCases.filter { $0.canBeEntered(camera: cameraDoor) },
+                 current: venue,
+                 pick: choose,
+                 details: { router.duckSheet = true })
+    }
+
+    /// The live dot: the last thing asked was answered, is being waited on, or nothing is there.
+    private var pillLive: LensIndicator.Connection {
+        if venue == .real { return robot.isConnected ? .connected : .asleep }
+        return linkState
+    }
+
+    /// THE EXPLICIT VENUE SWITCH, from the duck pill. The stick zeroes and ignores input until
+    /// the finger lifts, and a chip says which duck is now being driven.
+    @MainActor private func choose(_ next: DriveVenue) { choose(next, cause: .duckPill) }
+
+    /// THE ONE PLACE THE VENUE IS SWITCHED BY A PERSON. `VenueRule` says whether the cause may
+    /// switch it (only the pill, the Duck sheet and onboarding can) and closes the stick gate when
+    /// it does; the stick is zeroed and a chip names the duck now being driven.
+    @MainActor private func choose(_ next: DriveVenue, cause: VenueRule.Cause) {
+        let allowed = next.canBeEntered(camera: cameraDoor) ? next : venue
+        let outcome = VenueRule.request(allowed, from: venue, cause: cause, gate: &stickGate)
+        guard outcome.switched else { return }
+        touchSticks = .centred
+        venue = outcome.venue
+        controllerCaption = ControllerWords.nowDriving(DuckPill.name(of: outcome.venue))
+    }
+
+    @MainActor private func takePendingPlay(_ asked: PlayRoute?) {
+        guard let asked else { return }
+        router.pendingPlay = nil
+        let mode: ControlArbiter.Mode
+        switch asked {
+        case .drive: mode = .drive
+        case .tell: mode = .tell
+        case .auto: mode = .auto
+        case .duckSheet: router.duckSheet = true; return
+        case .venue(let next, let cause): choose(next, cause: cause); return
+        case .sequence(let id):
+            desk.reloadShelf()
+            lastAction = desk.play(id, thenLoading: nil, among: health?.policies ?? [], face: "")
+            if desk.pilot.isPlaying { engageLoop() }
+            return
+        }
+        apply(arbiter.handle(.selectMode(mode), at: Date()))
+    }
+
+    /// Carry out what the arbiter decided, in order.
+    @MainActor private func apply(_ decision: ControlArbiter.Decision) {
+        for effect in decision.effects {
+            switch effect {
+            case .stopPath:
+                runs.stop()
+                if dreamModel.running { dreamModel.stop() }
+            case .rearm: runs.path.rearm()
+            case .setMode: break
+            case .caption(let line): controllerCaption = line
+            case .endLiveActivity: break
+            }
+        }
+    }
+
+    /// Tell: a sentence or a tile, read with no model, run by the kit's runner on this duck.
+    @MainActor private func tell(_ text: String) {
+        guard let order = DuckOrderMatcher.match(text, skills: Array(RobotPlan.skillSeconds.keys)) else {
+            controllerCaption = ControllerWords.heard(text)
+            return
+        }
+        if order == .stop { Task { await halt() }; return }
+        guard peer != nil else { controllerCaption = ControllerWords.tellNoDuck; return }
+        // THE STICK LOOP STEPS ASIDE: a Tell order and the stick never write the duck at once.
+        if running { running = false; flight?.cancel() }
+        let duck: DuckIdentity.Kind = venue == .real ? .real : .sim
+        apply(arbiter.handle(.start(.tell, duck: duck, owner: .app), at: Date()))
+        controllerCaption = ControllerWords.tellRunning
+        telling = true
+        // The practice duck is always walking-ready; a real duck says for itself.
+        let ready: DuckOrder.Readiness = duck == .sim ? DuckOrder.Readiness(driving: true) : .unknown
+        Task {
+            let watcher = Task { @MainActor in
+                while !Task.isCancelled {
+                    if let bench = benchPeer, venue != .real { live = await bench.live }
+                    try? await Task.sleep(nanoseconds: 100_000_000)
+                }
+            }
+            _ = await runs.run(order, ready: ready)
+            watcher.cancel()
+            telling = false
+            controllerCaption = runs.caption
+            apply(arbiter.handle(.finished, at: Date()))
+        }
+    }
+
+    /// Auto: a goal card's Go.
+    @MainActor private func go(_ goal: AutoGoal) {
+        switch goal {
+        case .walkToBall:
+            // Not installed in the app yet: the card cannot be pressed. Nothing to fake here.
+            controllerCaption = AutoGoal.Words.notOnThisPhone
+        case .dream:
+            if venue == .real { realDream = true } else { shelf = .dream }
+        }
     }
 
     /// The readout and the floor note, under the top strip at the leading edge.
@@ -1310,12 +1479,23 @@ struct DriveView: View {
                 // so the value simply stays while the drawer is up — no zero is
                 // written, and the drawer's own height never reaches the camera.
                 VStack(spacing: Theme.spacing(.tight)) {
+                    // TELL AND AUTO SIT ABOVE THE STICKS, which stay live: the thumbs win.
+                    if arbiter.mode == .tell {
+                        TellPanel(caption: nil, busy: telling, send: tell)
+                    } else if arbiter.mode == .auto {
+                        AutoPanel(duck: peer == nil ? nil : (venue == .real ? .real : .sim),
+                                  driverInstalled: PhoneDrivers.installed,
+                                  running: dreamModel.running,
+                                  caption: nil,
+                                  go: go,
+                                  stop: { Task { await halt() } })
+                    }
                     padDeck(compact: true)
-                    drawerHandle
+                    sheetsRow
                 }
                 .measuringChromeHeight { padChromeHeight = $0 }
             }
-            if drawerIsUp { drawerHandle }
+            if drawerIsUp { sheetsRow }
         }
         .padding(.horizontal, Theme.spacing(.snug))
         .padding(.bottom, Theme.spacing(.tight))
@@ -1517,6 +1697,172 @@ struct DriveView: View {
         drafts.save(draft)
         poseNote = ControlShelf.keptAsAMotion(draft.name)
         Haptic.behaviourStarted()
+    }
+
+    // MARK: - the two sheets on Play (build 91)
+
+    /// One collapsed chip on the picture. A capsule at the minimum target, never taller.
+    private func playChip(_ title: String, symbol: String, on: Bool = false,
+                          act: @escaping () -> Void) -> some View {
+        Button(action: act) {
+            Label(title, systemImage: symbol)
+                .font(.footnote.weight(on ? .semibold : .regular))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .foregroundStyle(Theme.textPrimary)
+                .padding(.horizontal, Theme.spacing(.snug))
+                .frame(minHeight: DesignMetric.minimumTarget)
+                .background(.ultraThinMaterial, in: Capsule())
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityValue(Text(on ? "on" : ""))
+    }
+
+    /// Where the drawer handle was: the pull-up Moves sheet and More.
+    private var sheetsRow: some View {
+        HStack(spacing: Theme.spacing(.tight)) {
+            playChip(ControllerWords.movesSheet, symbol: "chevron.up") { shelf = .moves }
+                .accessibilityHint(Text(ControllerWords.movesSheetHint))
+            playChip(ControllerWords.more, symbol: "ellipsis.circle") { shelf = .more }
+                .accessibilityHint(Text(ControllerWords.moreHint))
+        }
+    }
+
+    /// THE PULL-UP MOVES SHEET: the Moves tab's tiles over the picture, so most runs happen with
+    /// the duck in view. Sequences play on this stick loop; motions run on the bench; Plan opens
+    /// the editor with this desk.
+    private var movesSheet: some View {
+        NavigationStack {
+            List {
+                MoveTileSections()
+                Section {
+                    if desk.sequences.isEmpty {
+                        Text(MoveTileSections.noSequences)
+                            .font(.footnote).foregroundStyle(Theme.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    ForEach(desk.sequences) { sequence in
+                        Button {
+                            shelf = nil
+                            lastAction = desk.play(sequence.id, thenLoading: nil,
+                                                   among: health?.policies ?? [], face: "")
+                            if desk.pilot.isPlaying { engageLoop() }
+                        } label: {
+                            Label(sequence.name, systemImage: "list.bullet.rectangle")
+                                .frame(minHeight: DesignMetric.minimumTarget)
+                        }
+                        .foregroundStyle(Theme.textPrimary)
+                    }
+                } header: {
+                    SectionHeading(text: MoveTileSections.mySequences)
+                }
+                .listRowBackground(Theme.surfacePrimary)
+                if venue != .real {
+                    Section {
+                        if motionRows.isEmpty {
+                            Text(ControlShelf.noMotionsYet)
+                                .font(.footnote).foregroundStyle(Theme.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        ForEach(motionRows) { row in
+                            Button {
+                                Task { await runMotion(row.id) }
+                            } label: {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(row.name).foregroundStyle(Theme.textPrimary)
+                                    Text(row.room).font(.caption).foregroundStyle(Theme.textSecondary)
+                                }
+                                .frame(minHeight: DesignMetric.minimumTarget, alignment: .leading)
+                            }
+                            .disabled(runningMotion != nil)
+                        }
+                        if let motionOutcome {
+                            Text(motionOutcome).font(.footnote)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    } header: {
+                        SectionHeading(text: ControllerWords.motions)
+                    }
+                    .listRowBackground(Theme.surfacePrimary)
+                }
+                Section {
+                    Button { shelf = .plan } label: {
+                        HubRow(PlanEditorWords.studioRow, StudioHubWords.plan, PlanEditorWords.studioRowSymbol)
+                    }
+                    .foregroundStyle(Theme.textPrimary)
+                }
+                .listRowBackground(Theme.surfacePrimary)
+            }
+            .scrollContentBackground(.hidden)
+            .background(Theme.backgroundSecondary)
+            .navigationTitle(ControllerWords.movesSheet)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(ControllerWords.done) { shelf = nil }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .onAppear { desk.reloadShelf() }
+    }
+
+    /// MORE: what used to be chips and a drawer over the picture, one level down.
+    private var moreSheet: some View {
+        NavigationStack {
+            Group {
+                if venue == .real {
+                    List {
+                        Text(ControllerWords.moreRealDuck)
+                            .font(.footnote).foregroundStyle(Theme.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .listRowBackground(Theme.surfacePrimary)
+                    }
+                    .scrollContentBackground(.hidden)
+                } else {
+                    controls
+                }
+            }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if venue != .real {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: Theme.spacing(.tight)) {
+                            if venue == .sim {
+                                playChip(ControllerWords.moreScene, symbol: "square.stack.3d.up") {
+                                    shelf = .scene
+                                }
+                            }
+                            playChip(ControllerWords.moreRecord, symbol: "record.circle") {
+                                shelf = nil
+                                desk.beginTake(venue: venue)
+                                lastAction = PadPilot.recordStartsDriving
+                                engageLoop()
+                            }
+                            .accessibilityHint(Text(ControllerWords.moreRecordLine))
+                            if venue == .sim {
+                                playChip(ControllerWords.moreCamera, symbol: "scope") {
+                                    orbit = .following
+                                    shelf = nil
+                                }
+                                .accessibilityHint(Text(ControllerWords.moreCameraLine))
+                            }
+                        }
+                        .padding(.horizontal, Theme.spacing(.snug))
+                        .padding(.vertical, Theme.spacing(.tight))
+                    }
+                }
+            }
+            .background(Theme.backgroundSecondary)
+            .navigationTitle(ControllerWords.more)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(ControllerWords.done) { shelf = nil }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
     }
 
     /// The handle that brings the settings up over the picture.
@@ -2357,281 +2703,9 @@ struct DriveView: View {
 
     // MARK: - the robot venue
 
-    /// What the Robot segment draws: a door that works, a card that is honest
-    /// about a link nobody has, and NO DRIVE CONTROL.
-    ///
-    /// THE ABSENCE IS THE FEATURE. `DuckMethod.reach(for: .ble)` denies
-    /// `robot.move`, `robot.stop` and `studio.state` — Pollen's own split puts
-    /// provisioning, status and firmware on Bluetooth and says payloads never
-    /// traverse it — so a stick drawn here would produce calls a duck refuses
-    /// by name, and a refusal by name is indistinguishable from a robot that
-    /// does not have the feature. What is offered instead is everything that
-    /// DOES work over that link: find one, pair with it, ask who it is.
-    ///
-    /// EVERY SENTENCE ON IT IS THE KIT'S. The three reach lines are
-    /// `DeviceCard.Control`'s, which reads them off the routing table rather
-    /// than listing them a second time; the charge line is
-    /// `DeviceCard.Charge.linkCarriesNoCharge`; the presence line is
-    /// `DeviceCard.Presence`'s; and the four paragraphs about what does not
-    /// exist yet are `DriveVenue`'s, where a test reads them letter by letter.
-    /// The sticks, and everything a person driving a machine in a room is owed.
-    ///
-    /// THE ORDER IS THE ORDER OF WHAT MATTERS. What this is (a robot, and these
-    /// sticks move it), what stops it (three timers, with this bridge's own
-    /// number in the sentence), what it is running (the subscribe answer, which
-    /// is the robot's list and not a bench's), what it last said, and only then
-    /// the sticks — because somebody scrolling to the sticks has read the rest
-    /// on the way past, and somebody who already knows scrolls in one gesture.
-    ///
-    /// THE PADS ARE THE SAME `ThumbPad`s THE OTHER VENUES DRAW, bound to the
-    /// same `touchSticks`, feeding the same `twist`. Nothing about the stick
-    /// mapping is re-decided here: `DuckDrive.twist(for:)` transcribes `padd`'s
-    /// signs and speeds, and it is what the bench has always been driven with.
-    /// What a person learnt driving the simulator IS knowledge about driving
-    /// the robot, which was the whole premise of the vocabulary and is true for
-    /// the first time on this screen.
-    @ViewBuilder private var drivingSection: some View {
-        Section {
-            Label(BridgeDrive.realRobotShort, systemImage: "exclamationmark.triangle")
-                .font(.footnote)
-                .foregroundStyle(Theme.warning)
-                .fixedSize(horizontal: false, vertical: true)
-            if !robot.host.isEmpty {
-                TelemetryRow(label: "Bridge", value: robot.host, unit: "")
-            }
-            if !isSimple {
-                Text(DriveVenue.robotIsDrivenOverTheBridge)
-                    .font(.footnote)
-                    .foregroundStyle(Theme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text(robot.deadmanSaid)
-                    .font(.caption)
-                    .foregroundStyle(Theme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        } header: {
-            SectionHeading(text: BridgeDrive.drivingHeading)
-        }
-        .listRowBackground(Theme.surfacePrimary)
-
-        Section {
-            // WHAT THE ROBOT SAID ABOUT ITSELF, IN ITS OWN WORDS. This is the
-            // replacement for the bench's `/health` policy list, and it is a
-            // different answer rather than the same one wearing a robot's name:
-            // a bench lists files it could load, and this names the networks
-            // already running. See `DuckSubscription`.
-            Text(robot.subscription?.says ?? DuckSubscription.notAskedYet)
-                .font(.footnote)
-                .foregroundStyle(Theme.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-            if let said = robotStateSaid {
-                TelemetryRow(label: "Last said", value: said, unit: "")
-            } else {
-                // NOT A BLANK ROW, AND NOT THE LINE ABOVE REPEATED. "Nothing
-                // has been asked" and "it was asked and has said nothing" are
-                // two different faults with two different places to look, and
-                // the row above already covers the first.
-                Text(robot.subscription == nil ? DuckSubscription.notAskedYet
-                                               : BridgeDrive.subscribedButSilent)
-                    .font(.caption)
-                    .foregroundStyle(Theme.textTertiary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        } header: {
-            SectionHeading(text: BridgeDrive.runningHeading)
-        }
-        .listRowBackground(Theme.surfacePrimary)
-
-        Section {
-            padDeck(compact: true)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, Theme.spacing(.tight))
-            // THE HEAD IS `padd`'s MODE, OFFERED WHERE IT IS CARRIED. It is on
-            // the robot venue alone because `robot.head` is denied on a bench
-            // by name, and a toggle that produced a refusal would look exactly
-            // like a robot without a head.
-            Toggle(BridgeDrive.headModeLabel, isOn: $posingHead)
-                .tint(Theme.actionPrimary)
-            Text(DuckDrive.stillWhilePosingTheHead)
-                .font(.caption)
-                .foregroundStyle(Theme.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-        } header: {
-            SectionHeading(text: BridgeDrive.sticksHeading)
-        } footer: {
-            Text(posingHead ? DuckDrive.headSays(DuckDrive.head(for: sticks))
-                            : DuckDrive.says(twist))
-                .foregroundStyle(Theme.textSecondary)
-        }
-        .listRowBackground(Theme.surfacePrimary)
-
-        // THE THREE ABSENCES, EXPLAINED WHERE THEY ARE MISSING RATHER THAN
-        // LEFT TO BE DISCOVERED. A person who has driven the other venues
-        // arrives here looking for a picture, a world picker and a Reset, and
-        // finds none of the three.
-        Section {
-            Label(BridgeDrive.oneWriterShort, systemImage: "person.2.slash")
-                .font(.caption).foregroundStyle(Theme.warning)
-                .fixedSize(horizontal: false, vertical: true)
-            // THE THREE ABSENCES, ONE TAP AWAY rather than three paragraphs on the screen
-            // somebody is driving from.
-            DisclosureGroup(BridgeDrive.absencesHeading) {
-                VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
-                    Text(BridgeDrive.noWorldNoScene)
-                    Text(BridgeDrive.noPolicySwapHere)
-                    Text(BridgeDrive.oneWriterOnly)
-                }
-                .font(.footnote).foregroundStyle(Theme.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .listRowBackground(Theme.surfacePrimary)
-    }
-
-    /// The venue with no link open: what it is, and where to open one.
-    @ViewBuilder private var notDrivingSection: some View {
-        Section {
-            Text(BridgeDrive.connectShort)
-                .font(.footnote)
-                .foregroundStyle(Theme.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-            // THE WAY IN, ON THE SCREEN THAT NEEDS IT. The bridge screen used to be reachable
-            // only from My Microduck's diagnostics, which Simple hides.
-            NavigationLink { RobotBridgeView(library: model, robot: robot) } label: {
-                HubRow(BridgeDrive.connectRow, BridgeDrive.connectRowLine, "cable.connector")
-            }
-            NavigationLink { FindDuckView() } label: {
-                HubRow("Find a duck nearby", "Scan over Bluetooth to see which ducks are around.",
-                       "dot.radiowaves.left.and.right")
-            }
-            if !isSimple {
-                DisclosureGroup("Why a bridge") {
-                    Text(DriveVenue.robotNeedsABridge)
-                        .font(.footnote)
-                        .foregroundStyle(Theme.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-        } header: {
-            SectionHeading(text: "Robot")
-        }
-        .listRowBackground(Theme.surfacePrimary)
-    }
-
-    private var robotControls: some View {
-        List {
-            Section {
-                // A row of Duck Cards read here opens in the plan editor with this screen's duck,
-                // and the sticks hand it over first, as they do for a plan opened from the pad.
-                DuckCameraCard(address: $cameraAddress, robot: robot, models: settingsModels,
-                               stopDriving: { await halt() })
-            } header: {
-                SectionHeading(text: DuckCamera.Words.heading)
-            } footer: {
-                if !isSimple { Text(DuckCamera.Words.footer).foregroundStyle(Theme.textSecondary) }
-            }
-            .listRowBackground(Theme.surfacePrimary)
-            .onAppear {
-                if cameraAddress.isEmpty, !robot.host.isEmpty { cameraAddress = robot.host }
-            }
-            .onChange(of: robot.host) { _, host in
-                if cameraAddress.isEmpty, !host.isEmpty { cameraAddress = host }
-            }
-            if robot.isConnected { drivingSection } else { notDrivingSection }
-            // THE ROBOT'S OWN CONSOLE (full-rate video in Safari) is now the camera card's link,
-            // beside the picture it is the faster version of. The gate warning goes with it.
-            if !isSimple {
-                Section {
-                    Label(DriveVenue.consoleHasNoGate, systemImage: "exclamationmark.triangle")
-                        .font(.caption)
-                        .foregroundStyle(Theme.warning)
-                        .fixedSize(horizontal: false, vertical: true)
-                } header: {
-                    SectionHeading(text: DriveVenue.consoleHeading)
-                }
-                .listRowBackground(Theme.surfacePrimary)
-            }
-
-            if !isSimple && !robot.isConnected {
-            Section {
-                // A CARD FOR A DUCK NOBODY HAS ANSWERED FROM, WHICH IS WHY
-                // BOTH LINES SAY SO. `lastReplyAt` is nil because this app has
-                // never had a reply over Bluetooth — pairing is a spike on its
-                // own screen and it does not leave a peer behind — and
-                // `Presence` turns that nil into a sentence rather than into a
-                // green dot. The charge line is the other absence, and it is a
-                // different one: there IS a cell, and nothing in this
-                // vocabulary asks it anything.
-                Text(robotPresence.says(now: Date()))
-                    .font(.footnote)
-                    .foregroundStyle(Theme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityLabel(Text("Connection"))
-                    .accessibilityValue(Text(robotPresence.says(now: Date())))
-                Text(DeviceCard.Charge.notReported(DeviceCard.Charge.linkCarriesNoCharge).says)
-                    .font(.footnote)
-                    .foregroundStyle(Theme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityLabel(Text("Battery"))
-                ForEach(robotReach, id: \.self) { line in
-                    Text(line)
-                        .font(.footnote)
-                        .foregroundStyle(Theme.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            } header: {
-                SectionHeading(text: "This link")
-            }
-            .listRowBackground(Theme.surfacePrimary)
-
-            Section {
-                Text(DriveVenue.whatTheKitHasTowardIt)
-                    .font(.footnote)
-                    .foregroundStyle(Theme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                DisclosureGroup("What a Pi bridge would take") {
-                    Text(DriveVenue.whatABridgeWouldTake)
-                        .font(.footnote)
-                        .foregroundStyle(Theme.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                DisclosureGroup("Why there is no WebRTC client") {
-                    VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
-                        Text(DuckWebRTC.whyThereIsNoClient)
-                        Text(DuckWebRTC.whatIsKnownNow)
-                        Text(DuckWebRTC.twoThingsStillOpen)
-                    }
-                    .font(.footnote)
-                    .foregroundStyle(Theme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                }
-            } header: {
-                SectionHeading(text: "What it would take")
-            }
-            .listRowBackground(Theme.surfacePrimary)
-            }
-        }
-        .scrollContentBackground(.hidden)
-        .background(Theme.backgroundSecondary)
-    }
-
-    /// What Bluetooth has said lately, which is nothing.
-    private var robotPresence: DeviceCard.Presence {
-        DeviceCard.Presence(lastReplyAt: nil, transport: .ble)
-    }
-
-    /// The three driving methods, each answered by the routing table.
-    ///
-    /// READ OFF `DuckMethod.reach(for:)` AND NEVER LISTED HERE. A screen that
-    /// wrote "Bluetooth does not carry move" in a string would keep saying it
-    /// after the table changed its mind, and would keep saying it in words
-    /// nothing tests.
-    private var robotReach: [String] {
-        let carried = DuckMethod.reach(for: .ble)
-        return [DuckMethod.move, .stop, .state].compactMap { method in
-            DeviceCard.Control.of(method, over: .ble, reach: carried).reason
-        }
-    }
+    // THE ROBOT VENUE'S LIST IS GONE (build 91). The real duck is driven from the same controller
+    // as the other venues, with its camera as the stage; its connection, camera address, details
+    // and the honest notes about what the link carries live in the Duck sheet.
 
     // MARK: - the world the bench is standing in
 
@@ -3077,6 +3151,8 @@ struct DriveView: View {
     /// back from the world, in `swap`, `drive` and `halt`. `Haptic`'s own
     /// preamble makes the argument at length.
     @MainActor private func press(_ control: DuckPad.Control) async {
+        // A PRESS IS THE PERSON'S OWN: it ends a Tell order or a goal first.
+        if arbiter.running != nil { apply(arbiter.handle(.movePress, at: Date())) }
         // THE STICKS DRIVE A ROBOT AND THE FACE BUTTONS STILL DO NOT, which
         // is a narrower not-yet than the one that used to be here and is worth
         // the distinction. Every face binding in this app ends in a bench call
@@ -3892,6 +3968,12 @@ struct DriveView: View {
     /// not `notify`, and a bench that refuses gets its own sentence rather than
     /// a thrown error that would read like a broken network.
     @MainActor private func halt() async {
+        // THE KIT'S STOP FIRST: robot.stop on its way, the latch shut, every run cancelled, nothing
+        // awaited. What follows is this screen putting its own loop and stick down.
+        runs.stop()
+        controllerCaption = runs.caption
+        _ = arbiter.handle(.stop, at: Date())
+        if dreamModel.running { dreamModel.stop() }
         running = false
         touchSticks = .centred
         // STOP ENDS A TAKE AND A REPLAY TOO, and what was driven up to the stop

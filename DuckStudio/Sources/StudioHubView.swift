@@ -67,63 +67,23 @@ struct StudioHubView: View {
     /// here — no screen in this app reads one out of the environment.
     @ObservedObject var detail: DetailStore
 
+    /// "Show expert tools", which replaces Simple and Everything (build 91). Off for new installs;
+    /// an install that had chosen Everything is on. It is the same stored level, read as a switch.
+    private var expert: Binding<Bool> {
+        Binding(get: { detail.level == .full },
+                set: { detail.level = $0 ? .full : .simple })
+    }
+
     var body: some View {
+        // THE HUB, ONE LEVEL DOWN FROM THE CONTROLLER (docs/plans/native-first-redesign.md, Tab 3).
+        // Make, Behaviours, Train, Measure, Learn, Settings. Train (but Compare) and Measure show
+        // only with expert tools on. Games moved to Moves; the Learn and Behaviours tabs folded in.
         List {
             Section {
-                // THE BENCH MODE IS SKIPPED HERE BECAUSE MEASURE HOLDS IT. Its
-                // row and the Measure row open the same `RemoteRunView`, and
-                // two doors into one room, on one screen, is how a person ends
-                // up wondering which of them is the real one. The catalogue is
-                // NOT filtered in the kit: `LabCatalogueTests` pins
-                // `LabCatalogue.usable` to exactly ["bench", "ghost", "soccer",
-                // "room", "sounds"] against `destination(_:)` below, which
-                // still answers all five — so the mapping stays provable and
-                // only the drawing skips one.
-                //
-                // `listed()` RATHER THAN `modes`, WHICH IS THE RELEASE GATE.
-                // The catalogue still holds Trials, Bobsled, Deck and Diary
-                // with their reasons; `ReleaseGates.showUnfinishedModes` is
-                // false in a shipped build, so this list is the rows a person
-                // can open. A row nobody can open is placeholder content to App
-                // Review however honestly it explains itself, and the honest
-                // sentence is worth more to a developer reading the source than
-                // to a person holding the phone. Flip the gate to see them.
-                // TRAIN A DUCK TO SHOOT, FIRST IN PLAY: it is the one mode here
-                // that runs real physics end to end, from walking to a goal.
-                NavigationLink {
-                    place(.shoot)
-                } label: {
-                    HubRow(ShootWords.studioRow, StudioHubWords.shoot, ShootWords.studioRowSymbol)
+                Toggle(isOn: expert) {
+                    HubRow(StudioHubWords.expertTools, StudioHubWords.expertToolsLine, "hammer")
                 }
-                ForEach(LabCatalogue.listed().filter { $0.id != "bench" && !Self.hiddenHere($0) }) { mode in
-                    row(mode)
-                }
-            } header: {
-                SectionHeading(text: "Play")
-            } footer: {
-                // THE HONESTY SENTENCE IS SET IN A TOKEN AND COMES FROM THE
-                // KIT. It is the sentence that says nothing here is talking to
-                // a robot, which makes it the most load-bearing text on the
-                // tab; `.secondary` resolved it against whatever UIKit felt was
-                // behind it, while `Theme.textSecondary` is a value
-                // `PaletteTests` proves at 4.5:1 on every ground this app sets
-                // words on.
-                //
-                // `modesPreamble` RATHER THAN `preamble`, because the sentence
-                // used to name "the Lab" and there is no Lab any more. A screen
-                // naming the wrong container is a screen making a claim it
-                // cannot support.
-                // BOTH SENTENCES, because `rationale` — why three apps became
-                // these rows — is product copy a test guards, and the screen
-                // that folded here was the only one that drew it.
-                // SIMPLE STOPS AT THE CARDS: they say what each mode is.
-                // ONE SENTENCE, NOT TWO. `rationale` (why three apps became these rows) is about
-                // how the app was built, not about what a person can do here; it stays in the kit.
-                if detail.shows(.notes) {
-                    Text(LabCatalogue.modesPreamble)
-                        .foregroundStyle(Theme.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                .tint(Theme.actionPrimary)
             }
             .listRowBackground(Theme.surfacePrimary)
 
@@ -133,108 +93,59 @@ struct StudioHubView: View {
                 } label: {
                     HubRow("Motions", StudioHubWords.motions, "figure.walk.motion")
                 }
-                // A THIRD KIND OF THING, and it earned its own row the moment
-                // the stage started drawing one. A policy is a network, a
-                // motion is what one did, and a scene is a PLACE — the floor,
-                // the steps, the wall a motion is judged against. Folding
-                // places into the motion that happened to be recorded in one is
-                // what made every clip play in a void.
-                NavigationLink {
-                    place(.scenes)
-                } label: {
-                    HubRow("Scenes", StudioHubWords.scenes, "square.3.layers.3d")
-                }
-                // NOT `wand.and.stars`, WHICH IS NOW THE TAB'S OWN SYMBOL. A
-                // row wearing the same glyph as the tab it sits in reads as the
-                // way back out rather than as a way further in.
-                NavigationLink {
-                    place(.draft)
-                } label: {
-                    HubRow("Draft with words", StudioHubWords.draft, "text.bubble")
-                }
-                // A PLAN, NOT A MOTION: steps a router proposed from a sentence,
-                // edited here and kept as a sequence. It runs from Control, where
-                // the drive desk is; here it can only be kept.
                 NavigationLink {
                     PlanEditorView(desk: nil, venue: .sim, engage: {}, models: models)
                 } label: {
                     HubRow(PlanEditorWords.studioRow, StudioHubWords.plan, PlanEditorWords.studioRowSymbol)
                 }
-                // A FOURTH WAY TO WRITE A MOTION: stand in front of the
-                // camera, or play a video, and let a body-pose model read
-                // the keyframes off a person. Under Author because what
-                // comes out is a draft on the same shelf as the other three.
+                NavigationLink {
+                    place(.draft)
+                } label: {
+                    HubRow("Draft with words", StudioHubWords.draft, "text.bubble")
+                }
+                NavigationLink {
+                    place(.scenes)
+                } label: {
+                    HubRow("Scenes", StudioHubWords.scenes, "square.3.layers.3d")
+                }
+                NavigationLink {
+                    DuckSoundsView()
+                } label: {
+                    HubRow("Duck sounds", "Hear and edit the duck's sounds.", "waveform")
+                }
+#if os(macOS)
+                // MIMIC IS MAC ONLY: never on a phone.
                 NavigationLink {
                     place(.mimic)
                 } label: {
                     HubRow(Mimic.studioRow, StudioHubWords.mimic, Mimic.studioRowSymbol)
                 }
-                // THE ONE MEASURING SCREEN THAT NEEDS NO BENCH AND NO VOCABULARY:
-                // two walks, pick the better one. It is Learn's "Judge two walks".
-                NavigationLink {
-                    place(.preference)
-                } label: {
-                    HubRow(CompareWords.studioRow, StudioHubWords.compare, CompareWords.studioRowSymbol)
-                }
+#endif
+                // YOUR ROOM LIVES IN THE DUCK SHEET (build 91): it is about where the duck stands.
             } header: {
                 SectionHeading(text: "Make")
             }
             .listRowBackground(Theme.surfacePrimary)
 
-            // TRAINING TOOLS WAIT FOR EVERYTHING. In Simple the section is one
-            // row pointing at the Learn path, which explains them in order and
-            // ends by turning them on.
-            if detail.shows(.training) {
-                Section {
-                    // THE SAME SCREEN THE "bench" MODE USED TO OPEN, which is why
-                    // that mode is skipped below rather than drawn twice. It is up
-                    // here because measuring is not a mode you play with: it is the
-                    // one thing on this tab that runs a real solver, and burying it
-                    // among the ghost duck and the soccer stage put the only honest
-                    // physics in the app behind the two screens that look most like
-                    // capability and are not.
-                    NavigationLink {
-                        place(.measure)
-                    } label: {
-                        HubRow("Run on your network", StudioHubWords.measure, "wifi")
-                    }
-                    // THE ONLY ROW IN THE APP THAT TRIES TO MAKE A NETWORK BETTER,
-                    // and it is under Measure rather than under Author because
-                    // what it actually does is measure — twenty-eight numbers, a
-                    // few hundred times, against a reward read out of Pollen's own
-                    // training config. Nothing is authored and nothing is trained.
-                    //
-                    // NOT A `StudioDestination`. The cases there are the
-                    // places another tab can send somebody to by name, and nothing
-                    // routes here: this is a door off Measure and not a fifth room
-                    // with an address. Adding a case for a screen no router names
-                    // would be widening a type to describe a wish.
-                    NavigationLink {
-                        place(.tune)
-                    } label: {
-                        HubRow("Tune it on \(DeviceWords.current.this)", StudioHubWords.tune, "slider.horizontal.3")
-                    }
-                    // THE SAME BENCH, THE WHOLE NETWORK. Tune folds twenty-eight
-                    // numbers onto what the network already says; this moves the
-                    // 197,774 numbers the network is made of, which is the
-                    // difference between trimming a policy and training one.
-                    // Measured on the desk bench before this row existed: 16.9%
-                    // further under the command it searched, with 99% of what it
-                    // could do under commands it never saw still intact.
-                    //
-                    // NOT A `StudioDestination`, for the reason the two rows around
-                    // it give: nothing routes here by name.
-                    NavigationLink {
-                        WeightSearchView(library: model, benches: benches)
-                    } label: {
-                        HubRow("Search its weights on \(DeviceWords.current.this)", StudioHubWords.weights, "brain")
-                    }
-                    // PPO, NOT A SEARCH. The two rows above move numbers on a bench
-                    // and keep what scores; this runs Pollen's own trainer
-                    // (rsl_rl PPO in mjlab, through duckbatch) on a Hugging Face GPU
-                    // with a reward written here, and brings the network back. On the
-                    // phone as well as the Mac: an iPhone renting the RL steps is the
-                    // goal. NOT A `StudioDestination`: nothing routes here.
+            Section {
+                NavigationLink {
+                    place(.behaviours)
+                } label: {
+                    HubRow("Behaviours", StudioHubWords.behaviours, "brain.head.profile")
+                }
+            } header: {
+                SectionHeading(text: "Behaviours")
+            }
+            .listRowBackground(Theme.surfacePrimary)
+
+            Section {
+                // COMPARE IS SHOWN EVEN WITH EXPERT TOOLS OFF: human feedback is for everyone.
+                NavigationLink {
+                    place(.preference)
+                } label: {
+                    HubRow(CompareWords.studioRow, StudioHubWords.compare, CompareWords.studioRowSymbol)
+                }
+                if detail.shows(.training) {
                     NavigationLink {
                         HubTrainingView { url in
                             Imports.open(url, model: model, drafts: drafts, plans: plans)
@@ -242,99 +153,87 @@ struct StudioHubView: View {
                     } label: {
                         HubRow(HubTraining.rowTitle, StudioHubWords.hub, "cpu")
                     }
-                    // THE OTHER SEARCH, AND THE ONE MOST PEOPLE MEAN. Tune searches
-                    // a NETWORK — twenty-eight numbers folded into a last layer.
-                    // This searches a MOVE: the poses and times of an authored
-                    // keyframe track, scored on the challenge's own grid. They
-                    // cannot share a screen, because one needs a base policy in
-                    // front of it and the other needs a move, so the second is its
-                    // own door here and a pointer on the first.
-                    //
-                    // NOT A `StudioDestination`, for the same reason Tune is not:
-                    // nothing routes here by name. A case for a screen no router
-                    // names would be widening a type to describe a wish.
+                    NavigationLink {
+                        place(.shoot)
+                    } label: {
+                        HubRow(ShootWords.studioRow, StudioHubWords.shoot, ShootWords.studioRowSymbol)
+                    }
+                    NavigationLink {
+                        place(.tune)
+                    } label: {
+                        HubRow("Tune it on \(DeviceWords.current.this)", StudioHubWords.tune, "slider.horizontal.3")
+                    }
+                    NavigationLink {
+                        WeightSearchView(library: model, benches: benches)
+                    } label: {
+                        HubRow("Search its weights on \(DeviceWords.current.this)", StudioHubWords.weights, "brain")
+                    }
                     NavigationLink {
                         MoveSearchView(benches: benches, models: models)
                     } label: {
                         HubRow("Search a move's keyframes", StudioHubWords.moveSearch, "magnifyingglass")
                     }
-                    // THE ONE PLACE IN THE APP WHERE A NUMBER THIS PHONE PRODUCES
-                    // CAN BE THE SAME NUMBER SOMEBODY ELSE PUBLISHED. It is under
-                    // Measure and not under Author because nothing here is
-                    // authored: the entrants are a published corpus and what these
-                    // screens do is score one of them, on the audit's own grid,
-                    // through the audit's own episode function.
-                    //
-                    // ONE ROW FOR BOTH CHALLENGES, since build 46. The stairs and
-                    // the ball are the same habit — open a published entrant, edit
-                    // it, score it, keep what helps — and two rows here would have
-                    // made them two habits. The row opens the list; the list opens
-                    // either one.
-                    //
-                    // A `StudioDestination`, unlike Tune, because a second door
-                    // names it: the Behaviours root's discover section routes here
-                    // by name. See `AppRouter.pendingStudio`.
+                    HubRow("Drivers", StudioHubWords.drivers, "steeringwheel",
+                           reason: AutoGoal.Words.notOnThisPhone)
+                        .accessibilityElement(children: .combine)
+                }
+            } header: {
+                SectionHeading(text: "Train")
+            }
+            .listRowBackground(Theme.surfacePrimary)
+
+            if detail.shows(.training) {
+                Section {
                     NavigationLink {
                         place(.challenges)
                     } label: {
                         HubRow(Challenge.listTitle, StudioHubWords.challenges, "trophy")
                     }
-                    // THE SIXTH DOOR UNDER MEASURE, AND THE ONLY ONE THAT ENDS IN A
-                    // FILE SOMEBODY ELSE'S TOOL READS. Tune, the weight search and
-                    // the move search all end on this phone; a challenge ends in a
-                    // submission this project's own harness re-scores. This ends in
-                    // an EvalLog v1, which is inspect-robots' format, so a number
-                    // measured here can be read by a program that has never heard
-                    // of this app.
-                    //
-                    // NOT A SIXTH TAB, AND THE ANSWER IS ALREADY WRITTEN DOWN. The
-                    // comment on the fifth tab in `DuckStudioApp` says five is a
-                    // HARD CEILING, because iPhone folds anything past it into
-                    // "More", where a tab is somewhere people do not go. Anything
-                    // that arrives after that has to live inside one of the five,
-                    // and measuring is what this section is.
-                    //
-                    // A `StudioDestination`, like the challenges and unlike Tune,
-                    // because a second door names it: the Behaviours root's
-                    // discover section routes here by name. See
-                    // `AppRouter.pendingStudio`.
                     NavigationLink {
                         place(.evaluations)
                     } label: {
                         HubRow(EvalTask.rowTitle, StudioHubWords.evaluations, "checklist")
                     }
-                    // A PERSON AS THE MEASURE. Two recorded walkers, one choice;
-                    // under Measure because nothing is authored or trained here.
-                    // THE SAME QUESTION ON TWO DUCKS AT ONCE, crossed so the duck
-                    // cannot be what is preferred. A two-duck bench today; two
-                    // robots when there are two robots (docs/MULTI-DUCK.md).
+                    NavigationLink {
+                        BenchSettingsView(store: benches)
+                    } label: {
+                        HubRow("Benches", "The physics benches this phone knows.", "server.rack")
+                    }
+                    NavigationLink {
+                        place(.measure)
+                    } label: {
+                        HubRow("Run on your network", StudioHubWords.measure, "wifi")
+                    }
                     NavigationLink {
                         MultiDuckView(model: model, benches: benches)
                     } label: {
                         HubRow(MultiDuck.studioRow, StudioHubWords.multiDuck, MultiDuck.studioRowSymbol)
                     }
-                } header: {
-                    SectionHeading(text: "Train and measure")
-                }
-                .listRowBackground(Theme.surfacePrimary)
-            } else {
-                Section {
-                    Button {
-                        router.go(to: .learn)
+                    NavigationLink {
+                        GhostDuckView()
                     } label: {
-                        HubRow(StudioHubWords.toolsRow, StudioHubWords.toolsLine, "graduationcap")
+                        HubRow("Ghost duck", "Replays and the ghost duck's own modes.", "figure.walk.motion")
                     }
-                    .foregroundStyle(Theme.textPrimary)
+                } header: {
+                    SectionHeading(text: "Measure")
                 }
                 .listRowBackground(Theme.surfacePrimary)
             }
 
+            Section {
+                NavigationLink {
+                    place(.learn)
+                } label: {
+                    HubRow("Learn", StudioHubWords.learn, "graduationcap")
+                }
+                NavigationLink {
+                    SettingsView(detail: detail, models: models, benches: benches)
+                } label: {
+                    HubRow("Settings", "Appearance, models, speech and feedback.", "gear")
+                }
+            }
+            .listRowBackground(Theme.surfacePrimary)
         }
-        // THE LIST SITS ON THE PALETTE'S RECESSED GROUND, NOT THE SYSTEM'S
-        // GREY, and every card on it keeps a real `surfacePrimary` under its
-        // words — which is the arrangement `Theme.backgroundSecondary`
-        // documents as the only correct one, since the inks fall short of
-        // 4.5:1 against that ground and clear it on a card.
         .scrollContentBackground(.hidden)
         .background(Theme.backgroundSecondary)
         .refreshingCameraDoor($door)
@@ -403,6 +302,11 @@ struct StudioHubView: View {
             CompareHubView(library: model, drafts: drafts, benches: benches)
         case .shoot:
             ShootLabView(benches: benches)
+        case .behaviours:
+            PolicyListView(model: model, scenes: scenes, drafts: drafts,
+                           models: models, benches: benches, detail: detail)
+        case .learn:
+            LearnView(detail: detail)
         }
     }
 

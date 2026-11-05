@@ -78,8 +78,164 @@ public enum ScreenHierarchy {
         }
     }
 
-    /// The tree the app draws. Build 91 changes this to `target`.
-    public static var shipped: Tree { today }
+    /// The tree the app draws. Build 91 flipped this from `today` to `target`.
+    public static var shipped: Tree { target }
+
+    // MARK: Launching on a tab
+
+    /// What a `-tab` launch argument opens.
+    public struct Launch: Equatable, Sendable {
+        /// A tab id of the tree.
+        public let tab: String
+        /// `-tab duck` opens Play with the Duck sheet up.
+        public let duckSheet: Bool
+    }
+
+    /// `-tab N` by index into the tree's tabs, or `-tab name` by id or old name, so
+    /// `-tab control` and `-tab learn` keep working. Anything else opens the tab the app opens
+    /// on: a screenshot run that shoots the first tab is better than one that fails.
+    public static func launch(_ asked: String?, in tree: Tree = shipped) -> Launch {
+        let home = Launch(tab: tree.opensOn, duckSheet: false)
+        guard let asked = asked?.trimmingCharacters(in: .whitespaces), !asked.isEmpty else { return home }
+        if let n = Int(asked) {
+            return tree.tabs.indices.contains(n) ? Launch(tab: tree.tabs[n].id, duckSheet: false) : home
+        }
+        guard let tab = tree.tab(asked) else { return home }
+        return Launch(tab: tab.id, duckSheet: asked == "duck" && tab.id != "duck")
+    }
+
+    // MARK: Inventory
+
+    /// Every feature the app has, and its one home in `target` (a node id). Bench's only home is
+    /// Measure. A Swift dictionary cannot hold a feature twice, so "exactly one home" is the
+    /// type's; the test checks each home exists.
+    public static let inventory: [String: String] = [
+        "Stop": "play.stop",
+        "Link lens": "play.pill",
+        "Venue choice": "duckSheet.yourDuck",
+        "Sticks": "play.stick",
+        "Face buttons": "play.buttons",
+        "Head mode": "play.head",
+        "Pose": "play.pose",
+        "Talk to the duck": "play.tell.typed",
+        "Plan from the controller": "play.tell.plan",
+        "Watch for cards": "play.tell.cards",
+        "Dream-1": "play.auto",
+        "Phone driver": "play.auto",
+        "Scene picker": "play.more.scene",
+        "Record a sequence": "play.more.record",
+        "Pad map": "play.more.padMap",
+        "Stage camera": "play.more.camera",
+        "Readout": "play.readout",
+        "Imports": "moves.sequences",
+        "Robot skills": "moves.skills",
+        "Sound playback": "moves.sounds",
+        "Saved sequences": "moves.sequences",
+        "Saved plans": "moves.plans",
+        "Cards and Packs": "moves.cards",
+        "Games": "moves.games",
+        "Goals": "moves.goals",
+        "Expert tools switch": "studio.expert",
+        "Motions": "studio.make.motions",
+        "Plan editor": "studio.make.plan",
+        "Draft with words": "studio.make.draft",
+        "Scenes": "studio.make.scenes",
+        "Sequence management": "studio.make.sequences",
+        "Sound editor": "studio.make.sounds",
+        "Mimic": "studio.make.mimic",
+        "Behaviours library": "studio.behaviours.library",
+        "Retrain": "studio.behaviours.library",
+        "Catalogue": "studio.behaviours.catalogue",
+        "Community": "studio.behaviours.community",
+        "Blend": "studio.behaviours.blend",
+        "Publish": "studio.behaviours.publish",
+        "Hugging Face training": "studio.train.hub",
+        "Compare": "studio.train.compare",
+        "Train a duck to shoot": "studio.train.shoot",
+        "Tune": "studio.train.tune",
+        "Weight search": "studio.train.weights",
+        "Move search": "studio.train.moves",
+        "Drivers": "studio.train.drivers",
+        "Challenges": "studio.measure.challenges",
+        "Evaluations": "studio.measure.evaluations",
+        "Bench": "studio.measure.benches",
+        "Run on your network": "studio.measure.network",
+        "Quick actions": "studio.measure.load",
+        "Multi-duck": "studio.measure.multi",
+        "Ghost duck": "studio.measure.ghost",
+        "Lessons": "studio.learn",
+        "Settings": "studio.settings",
+        "Dream key": "studio.settings",
+        "Model endpoints": "studio.settings",
+        "Welcome": "welcome",
+        "Find a duck": "welcome.find",
+        "Camera": "duckSheet.camera",
+        "Pollen's app": "duckSheet.pollen",
+        "Bridge": "duckSheet.connection",
+        "Robot details": "duckSheet.details",
+        "Room capture": "duckSheet.room",
+        "Siri and Shortcuts": "duckSheet.siri",
+        "Machines": "duckSheet.expert",
+        "Remote": "duckSheet.expert",
+        "Diagnostics": "duckSheet.expert",
+        "Moves sheet": "play.movesSheet",
+        "More sheet": "play.more",
+        "Second Stop": "play.secondStop",
+        "Mode switch": "play.modes",
+        "Local Network prompt": "welcome.find",
+        "Say hi": "welcome.sayHi",
+        "Stand up": "welcome.standUp",
+        "Add your duck": "duckSheet.add",
+        "Behaviour links out": "studio.behaviours.links",
+    ]
+
+    /// Why the inventory is not one home per feature; empty when it is. Each home must be a
+    /// node of `tree`, and no feature may be listed twice under names that differ only in case
+    /// or spacing (a dictionary only stops exact repeats).
+    public static func inventoryProblems(in tree: Tree = target) -> [String] {
+        let ids = Set(tree.allNodes.map(\.id))
+        var out: [String] = []
+        var seen: [String: String] = [:]
+        for (feature, home) in inventory.sorted(by: { $0.key < $1.key }) {
+            if !ids.contains(home) { out.append("\(feature) -> \(home) is not a node") }
+            let folded = feature.lowercased().filter { !$0.isWhitespace }
+            if let other = seen[folded] { out.append("\(feature) and \(other) are one feature twice") }
+            seen[folded] = feature
+        }
+        return out
+    }
+
+    // MARK: Tap counts
+
+    /// One row of the plan's tap-count table, re-measured against the inventory.
+    public struct TapCount: Equatable, Sendable {
+        public let task: String
+        public let today: String
+        public let target: String
+        /// The tree path the target is measured on, as node ids, first tap first. Empty for
+        /// "0 taps".
+        public let path: [String]
+
+        public init(_ task: String, today: String, target: String, path: [String]) {
+            self.task = task; self.today = today; self.target = target; self.path = path
+        }
+
+        /// The row as the plan writes it, so a test can find it in the checked-in document.
+        public var markdownRow: String { "| \(task) | \(today) | \(target) |" }
+    }
+
+    /// The plan's table, checked in with it (docs/plans/native-first-redesign.md, "The screen
+    /// hierarchy", exit check). The path is what a tap lands on in `target`.
+    public static let tapCounts: [TapCount] = [
+        TapCount("Drive the real duck", today: "4+ taps plus typing", target: "0 taps after onboarding",
+                 path: []),
+        TapCount("A game", today: "3 taps", target: "1 tap (Moves, then tile)",
+                 path: ["moves.games"]),
+        TapCount("Say it on the real duck", today: "impossible", target: "1 press",
+                 path: ["play.buttons"]),
+        TapCount("A skill on the real duck", today: "not offered", target: "1 tap",
+                 path: ["moves.skills"]),
+    ]
 
     // MARK: Today (main dfdf49a)
 
@@ -179,9 +335,9 @@ public enum ScreenHierarchy {
                     Node("play.stage.real", "Real duck picture", .merge, source: "DuckCameraView.swift"),
                     Node("play.stage.poster", "No picture yet", .new),
                 ]),
-                Node("play.pill", "Duck pill", .new),
-                Node("play.modes", "Mode switch: Drive, Tell, Auto", .new),
-                Node("play.stop", "Stop", .new),
+                Node("play.pill", "Duck pill", .new, source: "ControllerView.swift"),
+                Node("play.modes", "Mode switch: Drive, Tell, Auto", .new, source: "ControllerView.swift"),
+                Node("play.stop", "Stop", .new, source: "StopPill.swift"),
                 Node("play.stick", "Stick", .keep, source: "PadChrome.swift"),
                 Node("play.buttons", "Move buttons and mic", .new),
                 Node("play.head", "Head drag", .merge),
@@ -194,7 +350,7 @@ public enum ScreenHierarchy {
                     Node("play.tell.plan", "Plan", .keep, source: "PlanEditorView.swift"),
                     Node("play.tell.cards", "Watch for cards", .merge, source: "DuckCardsViews.swift"),
                 ]),
-                Node("play.auto", "Auto goals", .merge),
+                Node("play.auto", "Auto goals", .merge, source: "ControllerView.swift"),
                 Node("play.more", "More", .new, [
                     Node("play.more.scene", "Scene", .down),
                     Node("play.more.record", "Record a sequence", .down, source: "SequenceKeepSheet.swift"),
@@ -202,7 +358,7 @@ public enum ScreenHierarchy {
                     Node("play.more.camera", "Camera view", .down),
                 ]),
             ]),
-            Tab("moves", "Moves", [
+            Tab("moves", "Moves", source: "MovesView.swift", [
                 Node("moves.skills", "Skills", .new),
                 Node("moves.sounds", "Sounds", .merge, source: "DuckSoundsView.swift"),
                 Node("moves.sequences", "My sequences", .merge, source: "SequenceListView.swift"),

@@ -210,6 +210,7 @@ struct TrainingRequestView: View {
         .navigationTitle(request.name)
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showingConfig) {
+            Group {
             NavigationStack {
                 ScrollView {
                     // MONO BECAUSE IT IS CODE. A config file is read as source
@@ -236,9 +237,14 @@ struct TrainingRequestView: View {
                     }
                 }
             }
+            }
+            .stopPill()
         }
         .sheet(item: $outgoing) { out in
+            Group {
             ShareSheet(items: [out.url]) { outgoing = nil }
+            }
+            .stopPill()
         }
         .alert("That did not save",
                isPresented: .constant(failure != nil),

@@ -554,6 +554,7 @@ struct AutomationChatView: View {
             }
         }
         .sheet(item: $previewing) { wrapper in
+            Group {
             NavigationStack {
                 if let current = drafts.drafts.first(where: { $0.id == wrapper.id }) {
                     IntentAuthorView(
@@ -581,6 +582,8 @@ struct AutomationChatView: View {
                     }
                 }
             }
+            }
+            .stopPill()
         }
         .onAppear { clips = (try? DuckIntentClip.bundled()) ?? [:] }
     }

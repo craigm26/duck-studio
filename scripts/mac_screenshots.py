@@ -54,7 +54,7 @@ ISSUER_ID = "0803ec59-b64d-4014-9519-d5e8c7079f0c"
 # `DuckStudioApp`. Names, not numbers, in the filenames: "tab-4.png" told
 # nobody which screen it was, and the numbers moved under the app when the
 # five tabs were rebuilt around the robot.
-TABS = {0: "My Microduck", 1: "Control", 2: "Behaviours", 3: "Studio", 4: "Robot"}
+TABS = {0: "Play", 1: "Moves", 2: "Studio"}
 
 
 def slug(tab: int) -> str:

@@ -163,4 +163,17 @@ final class LabCatalogueTests: XCTestCase {
             XCTAssertTrue(r.contains(app), "\(app) missing from: \(r)")
         }
     }
+
+    /// BUILD 91: the Studio section that listed these rows is gone, so every row a person can
+    /// open has a home in the target tree, and the home exists.
+    func testEveryListedModeHasAHomeInTheTarget() {
+        let ids = Set(ScreenHierarchy.target.allNodes.map(\.id))
+        for mode in LabCatalogue.listed() {
+            let home = LabCatalogue.homes[mode.id]
+            XCTAssertNotNil(home, "\(mode.name) has no home since the Studio section went")
+            if let home { XCTAssertTrue(ids.contains(home), "\(mode.id) -> \(home)") }
+        }
+        XCTAssertEqual(LabCatalogue.homes["soccer"], "moves.games")
+        XCTAssertEqual(LabCatalogue.homes["bench"], "studio.measure.benches")
+    }
 }

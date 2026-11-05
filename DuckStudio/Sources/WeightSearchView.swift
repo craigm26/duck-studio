@@ -86,7 +86,11 @@ struct WeightSearchView: View {
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) { transport }
         .task { if baseID == nil { baseID = candidates.first?.id } }
-        .sheet(item: $outgoing) { ShareSheet(items: [$0.url]) }
+        .sheet(item: $outgoing) { item in
+            Group { ShareSheet(items: [item.url])
+            }
+            .stopPill()
+        }
         .alert("That did not send", isPresented: .constant(failure != nil)) {
             Button("OK") { failure = nil }
         } message: { Text(failure ?? "") }
