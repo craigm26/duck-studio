@@ -18,11 +18,21 @@ THREE DRIVERS ON THE SAME SEEDS:
   recorded, and stopped at the ball: the ceiling.
 
 REACHED means the duck's root came within BallExpert.reach (0.20 m) of the ball's centre at any tick
-of the run. Each run's every tick, every chunk the driver answered and the stop/end order is saved as
-JSON lines in OUT/WHO/seed-N.jsonl, with OUT/WHO/summary.json beside them.
+of the run. Round 1's two successes walked through the ball, so reaching is not enough on its own:
+STOPPED AT THE BALL means the run ended within STOPPED_M (0.35 m, BallExpert's slowing distance) and
+standing, every command of the last STANDING_S (1 s) inside the walker's dead zone. Each run also
+reports the time to reach and to first see the ball (the root's heading within the head camera's
+half-width, from the first ask), how far the ball was pushed, and how far the root moved in the last
+second. PARKED AT THE BALL is the physical twin of stopped: the same 0.35 m, but the root still
+(moved at most STILL_M in the last second) whatever the commands were, because alpha_walking does
+not step for every command above the dead zone (measured 2026-11-04: the v3 driver's 0.1 to 0.2 m/s
+moved the duck 0.02 to 0.03 m/s). Each run's every tick, every chunk the driver answered and the stop/end order is saved as
+JSON lines in OUT/WHO/seed-N.jsonl, with OUT/WHO/summary.json beside them; every number is scored
+from that log (`score`), so `--rescore` rebuilds a summary from old logs without the bench.
 
     python3 scripts/m1_trial.py --who expert --out ~/scratch/ball-takes/m1-v1
     python3 scripts/m1_trial.py --who driver --mac-driver '~/m1-driver' --out ~/scratch/ball-takes/m1-v1
+    python3 scripts/m1_trial.py --who driver --rescore --out ~/scratch/ball-takes/m1-v1
 """
 
 import argparse
@@ -35,10 +45,15 @@ import sys
 import time
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from record_ball_takes import REACH, WALKER, SplitMix64, call, command, style, yaw_of  # noqa: E402
+from record_ball_takes import (DEAD_ZONE, REACH, SLOWING, STANDING_ROWS, WALKER, SplitMix64,  # noqa: E402
+                               call, command, style, yaw_of)
 
 PREFIX = "TRIAL>"
 MAC_APP = "~/m1-app/DuckStudio.app/Contents/MacOS/DuckStudio"
+STOPPED_M = SLOWING        # stopped at the ball: ended this close (BallExpert.slowing, 0.35 m)
+STANDING_S = 1.0           # and every command of the last second inside the dead zone
+STILL_M = 0.02             # parked: the root moved at most this far in that last second, whatever was asked
+HALF_HFOV = math.atan(math.tan(math.radians(45 / 2)) * 320 / 176)   # the head camera's half-width, 36.98 deg
 
 
 def start_of(seed):
@@ -67,10 +82,6 @@ class Run:
         self.path = out_dir / f"seed-{seed}.jsonl"
         self.f = open(self.path, "w")
         self.seed, self.who = seed, who
-        self.t0 = state["t"]
-        self.first_ask_t = None
-        self.reached_t = None
-        self.closest = math.inf
         self.fell = False
         self.asks, self.ask_ms, self.refusals, self.tail = 0, [], [], []
         self.last = None
@@ -84,9 +95,6 @@ class Run:
     def see(self, state, cmd):
         g = geometry(state)
         self.last = g
-        self.closest = min(self.closest, g["dist"])
-        if g["dist"] <= REACH and self.reached_t is None:
-            self.reached_t = g["t"]
         if not g["upright"]:
             self.fell = True
         if cmd is not None:
@@ -100,21 +108,68 @@ class Run:
             else:
                 self.asks += 1
                 self.ask_ms.append(req.get("ms", 0))
-                if self.first_ask_t is None:
-                    self.first_ask_t = req.get("t")
         self.write({"type": kind, **req})
 
-    def close(self, limit_ok=True):
+    def close(self):
         self.f.close()
-        start = self.first_ask_t if self.first_ask_t is not None else self.t0
-        tail = [k for k in self.tail if k in ("stop", "end", "ended")]
-        return {"seed": self.seed, "reached": self.reached_t is not None,
-                "time_s": None if self.reached_t is None else round(self.reached_t - start, 2),
-                "closest_m": round(self.closest, 3), "final_m": round(self.last["dist"], 3),
-                "fell": self.fell, "asks": self.asks, "refusals": self.refusals,
+        return {**score(self.path), "fell": self.fell, "asks": self.asks, "refusals": self.refusals,
                 "ask_ms_p50": round(statistics.median(self.ask_ms), 1) if self.ask_ms else None,
-                "ended_stop_then_end": tail[-3:] == ["stop", "end", "ended"] if self.who != "expert" else None,
-                "sim_s": round(self.last["t"] - self.t0, 2), "log": str(self.path)}
+                "log": str(self.path)}
+
+
+def score(path):
+    """One run's numbers, from its log alone. The clock starts at the first ask (the driver's first
+    look; the expert has none, so its start). Seeing is judged from the root's heading, so a ball
+    under the camera (closer than about 0.29 m) still counts as seen."""
+    with open(path) as f:
+        lines = [json.loads(l) for l in f]
+    start = lines[0]
+    steps = [l for l in lines if l["type"] == "step"]
+    first_ask = next((l["t"] for l in lines if l["type"] == "ask" and "rows" in l), None)
+    t0 = first_ask if first_ask is not None else start["t"]
+    last = steps[-1] if steps else start
+    reached = next((s["t"] for s in steps if s["dist"] <= REACH), None)
+    seen = start["t"] if abs(start["off"]) < HALF_HFOV else next(
+        (s["t"] for s in steps if abs(s["off"]) < HALF_HFOV), None)
+    tail = [s for s in steps if s["t"] > last["t"] - STANDING_S + 1e-6]
+    standing = bool(tail) and all(abs(c) <= DEAD_ZONE for s in tail for c in s["cmd"])
+    before = next((s for s in steps if s["t"] >= last["t"] - STANDING_S - 1e-6), start)
+    final_m = last["dist"]
+    moved = math.hypot(last["x"] - before["x"], last["y"] - before["y"])
+    kinds = [l["type"] for l in lines if l["type"] in ("stop", "end", "ended")]
+    return {"seed": start["seed"], "reached": reached is not None,
+            "stopped_at_ball": final_m <= STOPPED_M and standing,
+            "parked_at_ball": final_m <= STOPPED_M and moved <= STILL_M,
+            "time_s": None if reached is None else round(max(reached - t0, 0.0), 2),
+            "first_seen_s": None if seen is None else round(max(seen - t0, 0.0), 2),
+            "starts_in_view": abs(start["off"]) < HALF_HFOV,
+            "closest_m": round(min([start["dist"]] + [s["dist"] for s in steps]), 3),
+            "final_m": round(final_m, 3), "standing_at_end": standing,
+            "moved_last_s_m": round(moved, 3),
+            "ball_push_m": round(math.hypot(last["bx"] - start["bx"], last["by"] - start["by"]), 3),
+            "ended_stop_then_end": kinds[-3:] == ["stop", "end", "ended"] if start["who"] != "expert" else None,
+            "sim_s": round(last["t"] - start["t"], 2)}
+
+
+def summarize(who, seeds, results):
+    def mean(key, rows):
+        xs = [r[key] for r in rows if r[key] is not None]
+        return round(statistics.fmean(xs), 3) if xs else None
+    reached = [r for r in results if r["reached"]]
+    return {"who": who, "seeds": seeds, "runs": len(results), "reached": len(reached),
+            "stopped_at_ball": sum(r["stopped_at_ball"] for r in results),
+            "reached_and_stopped": sum(r["stopped_at_ball"] for r in reached),
+            "parked_at_ball": sum(r["parked_at_ball"] for r in results),
+            "reached_and_parked": sum(r["parked_at_ball"] for r in reached),
+            "reach_m": REACH, "stopped_m": STOPPED_M, "standing_s": STANDING_S,
+            "mean_time_to_reach_s": mean("time_s", reached),
+            "median_time_to_reach_s": round(statistics.median([r["time_s"] for r in reached]), 2) if reached else None,
+            "mean_first_seen_s": mean("first_seen_s", results),
+            "never_saw": sum(r["first_seen_s"] is None for r in results),
+            "mean_ball_push_m": mean("ball_push_m", results),
+            "mean_final_m": mean("final_m", results),
+            "fell": sum(bool(r.get("fell")) for r in results),
+            "results": results}
 
 
 def run_expert(bench, seeds, out_dir, limit):
@@ -122,12 +177,16 @@ def run_expert(bench, seeds, out_dir, limit):
     for seed in seeds:
         bearing, rng_range, state = setup(bench, seed)
         run = Run(out_dir, "expert", seed, bearing, rng_range, state)
-        s, t0 = style(seed), state["t"]
-        while state["t"] - t0 < limit:
+        s, t0, standing = style(seed), state["t"], 0
+        # Once it says stand it stands, latched, for the recorder's STANDING_ROWS more ticks, so the
+        # ceiling is scored on the same stop rule as the driver.
+        while standing or state["t"] - t0 < limit:
             g = geometry(state)
-            c = command(g["x"], g["y"], g["yaw"], g["bx"], g["by"], state["t"] - t0, s)
+            c = (0.0, 0.0, 0.0) if standing else command(g["x"], g["y"], g["yaw"], g["bx"], g["by"], state["t"] - t0, s)
             if c == (0.0, 0.0, 0.0):
-                break
+                standing += 1
+                if standing > STANDING_ROWS:
+                    break
             state = call(bench, "/intent", {"vx": c[0], "vy": c[1], "vyaw": c[2], "hold": 0.1})
             run.see(state, list(c))
             if not state.get("upright", True):
@@ -203,8 +262,12 @@ def run_mac(bench, seeds, out_dir, who, mac_driver):
 
 
 def parse_seeds(text):
-    a, _, b = text.partition("-")
-    return list(range(int(a), int(b or a) + 1))
+    """'5001-5010' or '5001-5010,6001-6010'."""
+    seeds = []
+    for part in text.split(","):
+        a, _, b = part.strip().partition("-")
+        seeds += range(int(a), int(b or a) + 1)
+    return seeds
 
 
 def main():
@@ -215,19 +278,27 @@ def main():
     p.add_argument("--out", required=True)
     p.add_argument("--mac-driver", default="~/m1-driver")
     p.add_argument("--limit", type=float, default=60.0, help="expert only: seconds of sim time")
+    p.add_argument("--rescore", action="store_true", help="no bench: score OUT/WHO's logs again")
     a = p.parse_args()
     seeds = parse_seeds(a.seeds)
     out_dir = pathlib.Path(a.out).expanduser() / a.who
     out_dir.mkdir(parents=True, exist_ok=True)
-    if a.who == "expert":
+    if a.rescore:
+        old = {}
+        if (out_dir / "summary.json").exists():
+            old = {r["seed"]: r for r in json.loads((out_dir / "summary.json").read_text())["results"]}
+        paths = sorted(out_dir.glob("seed-*.jsonl"), key=lambda q: int(q.stem.split("-")[1]))
+        results = [{**{k: v for k, v in old.get(score(q)["seed"], {}).items()}, **score(q), "log": str(q)}
+                   for q in paths if int(q.stem.split("-")[1]) in seeds]
+    elif a.who == "expert":
         results = run_expert(a.bench, seeds, out_dir, a.limit)
     else:
         results = run_mac(a.bench, seeds, out_dir, a.who, a.mac_driver)
-    reached = sum(r["reached"] for r in results)
-    summary = {"who": a.who, "seeds": a.seeds, "runs": len(results), "reached": reached, "reach_m": REACH,
-               "results": results}
+    summary = summarize(a.who, a.seeds, results)
     (out_dir / "summary.json").write_text(json.dumps(summary, indent=1))
-    print(f"{a.who}: reached {reached} of {len(results)}")
+    print(json.dumps({k: v for k, v in summary.items() if k != "results"}))
+    print(f"{a.who}: reached {summary['reached']} of {len(results)}, stopped at the ball {summary['stopped_at_ball']}, "
+          f"parked at the ball {summary['parked_at_ball']}")
 
 
 if __name__ == "__main__":
