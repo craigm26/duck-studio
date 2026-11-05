@@ -1207,11 +1207,26 @@ struct DriveView: View {
         .measuringChromeHeight { topChromeHeight = $0 }
     }
 
+    /// A Stop pressed somewhere other than Play (a sheet's pill, Moves): put Play's loop down
+    /// too, so the next intent does not undo the robot.stop the pill already wrote.
+    @MainActor private func stoppedElsewhere() {
+        guard running else { return }
+        _ = arbiter.handle(.stop, at: Date())
+        desk.pilot.cutOff(.stop)
+        running = false
+        touchSticks = .centred
+        if let flight, !flight.isCancelled { cutOffByStop = true }
+        flight?.cancel()
+    }
+
     /// The stage with the controller's lifecycle on it: the duck Stop goes to, the real duck's
     /// picture, the stick gate, goals as arbiter runs, the foreground rule and routes into Play.
     /// Split out of `body` so the type checker can see it in one piece.
     private var stageWithController: some View {
         controlStage
+        // A STOP PRESSED ON A SHEET OVER PLAY reaches this loop too, and the pill shows while it runs.
+        .onChange(of: running) { _, now in runs.playIsDriving = now }
+        .onChange(of: runs.stops) { _, _ in stoppedElsewhere() }
         // THE DUCK STOP GOES TO, AND THE ONE THE MOVES TILES RUN ON: whichever Play is on.
         .task(id: "\(venue.rawValue)|\(robotLinkKey)|\(peerKey)|\(benchPeer == nil)") {
             runs.attach(peer, kind: venue == .real ? .real : .sim)

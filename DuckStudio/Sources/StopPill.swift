@@ -30,6 +30,14 @@ final class DuckRuns: ObservableObject {
 
     var isRunning: Bool { !running.isEmpty }
 
+    /// Play's own drive loop (the sticks, a sequence replay) is moving the duck. It is not a
+    /// registered run, so without this a sheet opened over Play while the duck walks shows no
+    /// Stop at all. Play stops its loop when `stops` moves.
+    @Published var playIsDriving = false
+
+    /// Whether the pill shows: any registered run, or Play's loop.
+    var showsStop: Bool { isRunning || playIsDriving }
+
     /// The duck Stop and the Moves tiles go to.
     func attach(_ peer: (any DuckPeer)?, kind: DuckIdentity.Kind?) {
         self.peer = peer
@@ -124,7 +132,7 @@ struct StopPillModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content.overlay(alignment: .bottom) {
-            if runs.isRunning {
+            if runs.showsStop {
                 Button { runs.stop() } label: {
                     Label(ControllerWords.stopPill, systemImage: "stop.fill")
                         .font(.headline)
