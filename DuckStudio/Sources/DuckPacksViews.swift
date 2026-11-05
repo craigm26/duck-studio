@@ -304,7 +304,7 @@ struct DuckPackView: View {
             } label: {
                 Label(DuckPacks.Words.lend, systemImage: "rectangle.stack.badge.plus")
             }
-            .tint(Theme.actionSecondary)
+            .tint(Theme.actionInk)
             .frame(minHeight: DesignMetric.minimumTarget)
             if let line = store.lastOpened {
                 Text(line)
@@ -339,7 +339,7 @@ struct DuckPackView: View {
                 ShareLink(item: outgoing) {
                     Label(DuckPacks.Words.share, systemImage: "square.and.arrow.up")
                 }
-                .tint(Theme.actionSecondary)
+                .tint(Theme.actionInk)
                 .frame(minHeight: DesignMetric.minimumTarget)
             }
             if store.isOpened(pack) && !isClass {

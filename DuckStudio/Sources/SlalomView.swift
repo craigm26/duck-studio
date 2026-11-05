@@ -364,7 +364,7 @@ final class SlalomCoordinator: NSObject {
                     * (gate.halfWidth * side)
                 let post = ModelEntity(
                     mesh: .generateBox(size: SIMD3<Float>(0.02, 0.14, 0.02)),
-                    materials: [UnlitMaterial(color: .systemYellow)])
+                    materials: [UnlitMaterial(color: Theme.stage(.actionYellow, .light))])
                 post.position = SIMD3<Float>(Float(offset.x), 0.07, Float(-offset.y))
                 root.addChild(post)
                 pair.append(post)
@@ -381,12 +381,14 @@ final class SlalomCoordinator: NSObject {
         model.advance(dt: dt)
         let run = model.run
 
-        // The gate you are on is yellow; the ones behind you go green, or red
-        // if you went round the outside of a post.
+        // The gate you are on is yellow; the ones behind you go green, or
+        // berry if you went round the outside of a post. Never red: red is
+        // Stop.
         for (index, pair) in posts {
             let colour: UIColor = index < run.next
-                ? (index < run.next - run.missed ? .systemGreen : .systemRed)
-                : (index == run.next ? .systemYellow : .white)
+                ? (index < run.next - run.missed ? Theme.stage(.success, .dark)
+                                                 : Theme.stage(.critical, .light))
+                : (index == run.next ? Theme.stage(.actionYellow, .light) : .white)
             for post in pair {
                 post.model?.materials = [UnlitMaterial(color: colour)]
             }

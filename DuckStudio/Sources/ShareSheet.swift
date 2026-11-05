@@ -29,7 +29,7 @@ import UIKit
 /// look like one that is — a person tapping "Messages" in there is handing a
 /// file to iOS, not to this app, and the sheet looking like iOS is the honest
 /// signal. The one thing the app does contribute is the tint, and it arrives on
-/// its own: `microduckTheme()` sets `Theme.actionSecondary` at the root and the
+/// its own: `microduckTheme()` sets `Theme.actionInk` at the root and the
 /// presented controller inherits it through the trait collection.
 ///
 /// THE SHEET'S LANDING IS NOT OURS TO SET EITHER, and this is worth writing

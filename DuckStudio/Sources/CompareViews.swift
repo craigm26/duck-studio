@@ -92,7 +92,7 @@ struct CompareHubView: View {
         HStack(spacing: Theme.spacing(.snug)) {
             Image(systemName: symbol)
                 .font(.title3)
-                .foregroundStyle(Theme.actionPrimary)
+                .foregroundStyle(Theme.actionInk)
                 .frame(width: 32)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
@@ -212,7 +212,7 @@ struct ContenderPickView: View {
         } label: {
             HStack {
                 Image(systemName: on ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(on ? Theme.actionPrimary : Theme.textTertiary)
+                    .foregroundStyle(on ? Theme.actionInk : Theme.textTertiary)
                 Text(item.name).foregroundStyle(Theme.textPrimary)
                 Spacer()
                 if item.kind == .draft {
@@ -265,7 +265,7 @@ struct DuelStage: View {
                                 if on { reasons.remove(reason) } else { reasons.insert(reason) }
                             }
                             .buttonStyle(.bordered)
-                            .tint(on ? Theme.actionPrimary : Theme.textSecondary)
+                            .tint(on ? Theme.actionInk : Theme.textSecondary)
                         }
                     }
                 }
@@ -297,8 +297,10 @@ struct DuelStage: View {
             .overlay(alignment: .topLeading) {
                 Text(label)
                     .font(.caption.weight(.bold))
+                    .foregroundStyle(Theme.textPrimary)
                     .padding(.horizontal, 8).padding(.vertical, 4)
-                    .background(.thinMaterial, in: Capsule())
+                    .background(Theme.surfacePrimary, in: Capsule())
+                    .overlay(Capsule().strokeBorder(Theme.outline, lineWidth: DesignMetric.outlineStroke))
                     .padding(8)
             }
             .accessibilityLabel(Text(label))

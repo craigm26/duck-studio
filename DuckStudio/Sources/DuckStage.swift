@@ -436,9 +436,15 @@ struct StageSurface: UIViewRepresentable {
     /// once, never collided with; the bench scores the goal as a line.
     var pitch: Shoot.Pitch?
 
+    /// POND DAY: the stage follows the scheme. Sky is the page colour, the
+    /// floor a teal playmat; RealityKit takes plain colours, so they are
+    /// resolved here and re-applied when the scheme flips.
+    @Environment(\.colorScheme) private var colorScheme
+
     func makeUIView(context: Context) -> ARView {
         let view = ARView(frame: .zero, cameraMode: .nonAR, automaticallyConfigureSession: false)
-        view.environment.background = .color(.init(white: 0.11, alpha: 1))
+        context.coordinator.scheme = colorScheme
+        view.environment.background = .color(Theme.stage(.backgroundPrimary, colorScheme))
 
         let world = AnchorEntity(world: .zero)
         view.scene.addAnchor(world)
@@ -460,9 +466,10 @@ struct StageSurface: UIViewRepresentable {
 
         let fill = DirectionalLight()
         fill.light.intensity = 1200
-        fill.light.color = .init(red: 0.8, green: 0.86, blue: 1, alpha: 1)
+        fill.light.color = Theme.stage(.stageLight, colorScheme)
         fill.look(at: .zero, from: SIMD3(-0.9, 0.6, -0.7), relativeTo: nil)
         world.addChild(fill)
+        context.coordinator.fill = fill
 
         let duck = DuckGhostEntity()
         world.addChild(duck)
@@ -470,7 +477,7 @@ struct StageSurface: UIViewRepresentable {
 
         let shadow = ModelEntity(
             mesh: .generatePlane(width: 0.16, depth: 0.16, cornerRadius: 0.08),
-            materials: [UnlitMaterial(color: UIColor(white: 0.02, alpha: 0.55))])
+            materials: [UnlitMaterial(color: Coordinator.contactShadow(colorScheme))])
         world.addChild(shadow)
         context.coordinator.shadow = shadow
 
@@ -531,6 +538,7 @@ struct StageSurface: UIViewRepresentable {
 
     func updateUIView(_ view: ARView, context: Context) {
         let c = context.coordinator
+        if c.scheme != colorScheme { c.apply(colorScheme, to: view) }
         // PLACED BY DUCKKIT, not by arithmetic here. `bodyPoses` works in the
         // model's world frame with the trunk already 120 mm up, and a recorded
         // root IS the trunk — setting position straight from it added the
@@ -575,6 +583,37 @@ struct StageSurface: UIViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     @MainActor final class Coordinator {
+        /// The scheme the stage was last painted for.
+        var scheme: ColorScheme = .light
+        var fill: DirectionalLight?
+        /// The floor, grid and origin marker, kept so a scheme flip can
+        /// repaint them.
+        private var ground: Entity?
+
+        /// The scheme's colour for a stage token, as RealityKit wants it.
+        func tone(_ token: Palette.Token) -> UIColor { Theme.stage(token, scheme) }
+
+        /// Ink at 35% by day, black at 55% at night: a contact patch, not a hole.
+        static func contactShadow(_ scheme: ColorScheme) -> UIColor {
+            scheme == .dark ? UIColor(white: 0, alpha: 0.55)
+                            : Theme.stage(.outline, scheme).withAlphaComponent(0.35)
+        }
+
+        /// Repaint everything scheme-dependent: sky, fill light, floor, the
+        /// contact shadow, and (by forgetting what was shown) props and path.
+        func apply(_ next: ColorScheme, to view: ARView) {
+            scheme = next
+            view.environment.background = .color(tone(.backgroundPrimary))
+            fill?.light.color = tone(.stageLight)
+            if let shadow = shadow as? ModelEntity {
+                shadow.model?.materials = [UnlitMaterial(color: Self.contactShadow(next))]
+            }
+            if let world { buildGround(in: world) }
+            shownEnvironment = nil
+            shownGraspables = []
+            shownTrail = -1
+        }
+
         var duck: DuckGhostEntity?
         var camera: PerspectiveCamera?
         var world: AnchorEntity?
@@ -611,7 +650,8 @@ struct StageSurface: UIViewRepresentable {
             guard let pitch, let world else { return }
             let root = Entity()
             let white = UnlitMaterial(color: .white)
-            let line = UnlitMaterial(color: UIColor(white: 0.92, alpha: 0.9))
+            // Full white: on the light playmat a translucent line vanishes.
+            let line = UnlitMaterial(color: .white)
             let gx = Float(pitch.goalX), hw = Float(pitch.goalHalfWidth)
             let h = Float(pitch.goalHeight), depth = Float(pitch.goalDepth)
             let post: Float = 0.012
@@ -668,17 +708,21 @@ struct StageSurface: UIViewRepresentable {
         /// one 300 mm further away look identical. Lines every 100 mm with a
         /// heavier one every 500 mm turn the floor into a ruler, and the robot
         /// is 250 mm tall, so a square is a recognisable fraction of it.
-        func buildGround(in world: Entity) {
+        func buildGround(in parent: Entity) {
+            ground?.removeFromParent()
+            let world = Entity()
+            parent.addChild(world)
+            ground = world
             let extent: Float = 1.6
             let deck = ModelEntity(
                 mesh: .generateBox(width: extent * 2, height: 0.002, depth: extent * 2),
-                materials: [SimpleMaterial(color: UIColor(white: 0.30, alpha: 1),
+                materials: [SimpleMaterial(color: tone(.stageDeck),
                                            roughness: 1.0, isMetallic: false)])
             deck.position = SIMD3(0, -0.001, 0)
             world.addChild(deck)
 
-            let minor = UnlitMaterial(color: UIColor(white: 0.42, alpha: 1))
-            let major = UnlitMaterial(color: UIColor(white: 0.62, alpha: 1))
+            let minor = UnlitMaterial(color: tone(.stageGridMinor))
+            let major = UnlitMaterial(color: tone(.stageGridMajor))
             var line = -extent
             while line <= extent + 1e-4 {
                 let isMajor = abs(line.truncatingRemainder(dividingBy: 0.5)) < 1e-3
@@ -706,12 +750,12 @@ struct StageSurface: UIViewRepresentable {
             // fixed point every distance on screen is measured from.
             let axis = ModelEntity(
                 mesh: .generateBox(width: 0.16, height: 0.0016, depth: 0.006),
-                materials: [UnlitMaterial(color: UIColor(red: 1, green: 0.45, blue: 0.2, alpha: 1))])
+                materials: [UnlitMaterial(color: tone(.actionPrimary))])
             axis.position = SIMD3(0.08, 0.0012, 0)
             world.addChild(axis)
             let origin = ModelEntity(
                 mesh: .generatePlane(width: 0.04, depth: 0.04, cornerRadius: 0.02),
-                materials: [UnlitMaterial(color: UIColor(red: 1, green: 0.45, blue: 0.2, alpha: 1))])
+                materials: [UnlitMaterial(color: tone(.actionPrimary))])
             origin.position = SIMD3(0, 0.0014, 0)
             world.addChild(origin)
         }
@@ -735,8 +779,11 @@ struct StageSurface: UIViewRepresentable {
         /// visible rather than a number in a footer.
         func addGraspables(_ graspables: [DuckScene.Prop], to world: Entity) {
             for prop in graspables {
-                let colour: UIColor = prop.shape == .ball ? .systemOrange
-                    : (prop.graspHeightMillimetres == nil ? UIColor(white: 0.55, alpha: 1)
+                // The ball is the same Beak Orange everywhere; a block is
+                // shell cream; a leaning rod stays wooden brown (a prop's own
+                // colour, not a theme colour).
+                let colour: UIColor = prop.shape == .ball ? tone(.actionPrimary)
+                    : (prop.graspHeightMillimetres == nil ? tone(.stageProp)
                                                           : .systemBrown)
                 let thickness = Float(prop.thicknessMillimetres / 1000)
                 let mesh: MeshResource
@@ -782,11 +829,11 @@ struct StageSurface: UIViewRepresentable {
             addGraspables(graspables, to: props)
 
             var block = PhysicallyBasedMaterial()
-            block.baseColor = .init(tint: UIColor(red: 0.62, green: 0.56, blue: 0.48, alpha: 1))
-            block.roughness = 0.85
+            block.baseColor = .init(tint: tone(.stageProp))
+            block.roughness = 0.9
             block.metallic = 0.0
             var wallMaterial = PhysicallyBasedMaterial()
-            wallMaterial.baseColor = .init(tint: UIColor(red: 0.44, green: 0.48, blue: 0.56, alpha: 1))
+            wallMaterial.baseColor = .init(tint: tone(.stageWall))
             wallMaterial.roughness = 0.9
             wallMaterial.metallic = 0.0
 
@@ -825,8 +872,7 @@ struct StageSurface: UIViewRepresentable {
                 let lip = ModelEntity(
                     mesh: .generateBox(width: 0.004, height: 0.0025,
                                        depth: Float(step.halfWidth * 2)),
-                    materials: [UnlitMaterial(color: UIColor(red: 1, green: 0.78,
-                                                             blue: 0.25, alpha: 1))])
+                    materials: [UnlitMaterial(color: tone(.actionYellow))])
                 lip.position = SIMD3(Float(step.x - step.halfDepth),
                                      Float(step.top) + 0.0014,
                                      Float(-step.y))
@@ -894,8 +940,8 @@ struct StageSurface: UIViewRepresentable {
             markers.removeAll()
             guard trail.count > 1 else { return }
 
-            let material = UnlitMaterial(color: UIColor(red: 0.35, green: 0.75,
-                                                        blue: 1, alpha: 1))
+            // Teal at ink weight, so the path reads on the teal playmat.
+            let material = UnlitMaterial(color: tone(.brandPrimary))
             for index in 1..<trail.count {
                 let a = trail[index - 1], b = trail[index]
                 let dx = Float(b.x - a.x), dz = Float(-(b.y - a.y))

@@ -466,7 +466,7 @@ struct IntentListView: View {
             // APP IS TINTED IN. A `Button` in a list paints its label from the
             // tint, and the app's tint is Duck Orange — 2.30:1 on Warm Cream,
             // which is unreadable as text and is exactly why `Palette` carries
-            // an ink for it. `actionSecondary` is that ink in light (4.52:1)
+            // an ink for it. `actionInk` is that ink in light (4.52:1)
             // and stays Duck Orange in dark, where the brand value clears
             // 6.76:1 on the dark ground on its own. The rule the palette states
             // is the whole of it: a brand colour fills a shape, an ink colour
@@ -475,7 +475,7 @@ struct IntentListView: View {
             // `.tint` RATHER THAN `.foregroundStyle`, because the automatic
             // button style reads the tint explicitly and an inherited
             // foreground style never reaches the label.
-            .tint(Theme.actionSecondary)
+            .tint(Theme.actionInk)
             .cardRow(first: drafts.drafts.isEmpty, last: false)
             NavigationLink {
                 RetrieveView(plans: plans)
@@ -1025,7 +1025,7 @@ struct IntentPlayerView: View {
                     // and this section keeps the way back.
                     Section {
                         Button("Back to the recorded world") { elsewhereID = nil }
-                            .tint(Theme.actionSecondary)
+                            .tint(Theme.actionInk)
                     }
                     .listRowBackground(Theme.surfacePrimary)
                 } else if elsewhereID != nil {
@@ -1041,7 +1041,7 @@ struct IntentPlayerView: View {
                             .font(.footnote)
                             .foregroundStyle(Theme.warning)
                         Button("Fine, keep the recorded world") { elsewhereID = nil }
-                            .tint(Theme.actionSecondary)
+                            .tint(Theme.actionInk)
                     }
                     .listRowBackground(Theme.surfacePrimary)
                 }
@@ -1235,7 +1235,7 @@ struct IntentPlayerView: View {
             Button { share() } label: {
                 Label("Share this motion", systemImage: "square.and.arrow.up")
             }
-            .tint(Theme.actionSecondary)
+            .tint(Theme.actionInk)
         } footer: {
             Explainer("Sends a .duckintent file — the frames, the postures, and the digest of the policy it was recorded from. The digest lets whoever receives it check they hold the same network; it does not say who made the motion, because a signature nobody can anchor would not tell them that either.")
         }
@@ -1713,7 +1713,7 @@ struct TransportBar: View {
         // rather than Duck Orange, which is 2.30:1 there. In dark this IS Duck
         // Orange — the token is the same colour in both schemes on the one
         // ground where the brand value works.
-        .tint(Theme.actionSecondary)
+        .tint(Theme.actionInk)
     }
 }
 

@@ -89,7 +89,7 @@ struct LearnView: View {
     private func heading(_ lesson: Learn.Lesson, number: Int, done: Bool, open: Bool) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: Theme.spacing(.tight)) {
             Image(systemName: done ? "checkmark.circle.fill" : lesson.symbol)
-                .foregroundStyle(done ? Theme.measured : Theme.actionSecondary)
+                .foregroundStyle(done ? Theme.measured : Theme.actionInk)
                 .frame(width: 24)
                 .accessibilityHidden(true)
             Text("\(number). \(lesson.title)")

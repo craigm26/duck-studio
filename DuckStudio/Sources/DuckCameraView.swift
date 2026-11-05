@@ -178,8 +178,9 @@ struct DuckCameraCard: View {
                     .overlay(alignment: .bottomTrailing) {
                         Text(DuckCamera.Words.rate(feed.fps))
                             .font(.caption2.monospacedDigit())
+                            .foregroundStyle(Theme.textPrimary)
                             .padding(.horizontal, 6).padding(.vertical, 3)
-                            .background(.thinMaterial, in: Capsule())
+                            .background(Theme.surfacePrimary, in: Capsule())
                             .padding(6)
                     }
                     .accessibilityLabel(Text(DuckCamera.Words.pictureLabel))
@@ -187,7 +188,7 @@ struct DuckCameraCard: View {
             if feed.running {
                 Toggle(DuckCards.Words.toggle, isOn: $feed.readCards)
                     .font(.footnote)
-                    .tint(Theme.actionSecondary)
+                    .tint(Theme.actionInk)
                 if feed.readCards, let line = feed.cards {
                     Text(line)
                         .font(.callout)
@@ -221,7 +222,7 @@ struct DuckCameraCard: View {
                         Label(DuckCamera.Words.liveVideo, systemImage: "safari")
                             .font(.footnote)
                     }
-                    .tint(Theme.actionSecondary)
+                    .tint(Theme.actionInk)
                 }
             }
             if !address.isEmpty, parsed == nil {
@@ -250,7 +251,7 @@ struct DuckCameraCard: View {
             }
             .buttonStyle(.borderless)
             .font(.footnote)
-            .tint(Theme.actionSecondary)
+            .tint(Theme.actionInk)
             .frame(minHeight: DesignMetric.minimumTarget)
         }
         .onDisappear {
@@ -286,7 +287,7 @@ struct DuckCameraCard: View {
             }
             .buttonStyle(.borderless)
             .font(.footnote)
-            .tint(Theme.actionSecondary)
+            .tint(Theme.actionInk)
             .frame(minHeight: DesignMetric.minimumTarget)
         }
     }

@@ -372,7 +372,7 @@ final class GolfCoordinator: NSObject {
         let ballEntity = ModelEntity(mesh: .generateSphere(radius: 0.04),
                                      materials: [UnlitMaterial(color: .white)])
         let cupEntity = ModelEntity(mesh: .generateBox(size: SIMD3<Float>(0.16, 0.004, 0.16)),
-                                    materials: [UnlitMaterial(color: .systemGreen)])
+                                    materials: [UnlitMaterial(color: Theme.stage(.success, .dark))])
         root.addChild(ballEntity); root.addChild(cupEntity)
         duck = ghost; ball = ballEntity; cup = cupEntity
     }

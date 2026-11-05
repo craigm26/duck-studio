@@ -379,7 +379,7 @@ struct PolicyListView: View {
                         .foregroundStyle(Theme.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
                 } icon: {
-                    Image(systemName: "text.bubble").foregroundStyle(Theme.actionSecondary)
+                    Image(systemName: "text.bubble").foregroundStyle(Theme.actionInk)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -467,7 +467,7 @@ struct PolicyListView: View {
                                     .foregroundStyle(Theme.textPrimary)
                             } icon: {
                                 Image(systemName: "trophy")
-                                    .foregroundStyle(Theme.actionSecondary)
+                                    .foregroundStyle(Theme.actionInk)
                             }
                             // ONE LINE, NOT ONE PER CHALLENGE: the screen it
                             // opens lists them, each with its own sentence.
@@ -503,7 +503,7 @@ struct PolicyListView: View {
                                     .foregroundStyle(Theme.textPrimary)
                             } icon: {
                                 Image(systemName: "checklist")
-                                    .foregroundStyle(Theme.actionSecondary)
+                                    .foregroundStyle(Theme.actionInk)
                             }
                             // ONE LINE HERE; the screen it opens leads with
                             // the full `whatAnEvaluationIs`.
@@ -588,7 +588,7 @@ struct PolicyListView: View {
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(Theme.textPrimary)
             } icon: {
-                Image(systemName: symbol).foregroundStyle(Theme.actionSecondary)
+                Image(systemName: symbol).foregroundStyle(Theme.actionInk)
             }
             Text(detail)
                 .font(.caption)
@@ -899,7 +899,7 @@ struct PolicyListView: View {
                     .font(.subheadline)
                     .foregroundStyle(Theme.textPrimary)
             } icon: {
-                Image(systemName: "person.2").foregroundStyle(Theme.actionSecondary)
+                Image(systemName: "person.2").foregroundStyle(Theme.actionInk)
             }
         }
         .listRowBackground(cardSegment(first: false, last: true))
@@ -1315,7 +1315,7 @@ struct PolicyDetailView: View {
             if let hidden = BehavioursWords.hiddenLine(hiddenSurfaces.map(\.name)) {
                 Section {
                     Text(hidden)
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.caption).foregroundStyle(Theme.textSecondary)
                 }
                 .listRowBackground(Theme.surfacePrimary)
             }
@@ -1385,7 +1385,7 @@ struct PolicyDetailView: View {
                         .foregroundStyle(Theme.textPrimary)
                         .multilineTextAlignment(.trailing)
                     Image(systemName: "pencil")
-                        .foregroundStyle(Theme.actionSecondary)
+                        .foregroundStyle(Theme.actionInk)
                 }
                 if let explanation = shown.titleExplanation {
                     Text(explanation)
@@ -1455,13 +1455,13 @@ struct PolicyDetailView: View {
     /// on the surface is 4.92:1 and would be perfectly legible as a label, but
     /// a row of four orange sentences reads as four buttons, which is the thing
     /// the primary action above them is supposed to be alone in being. The glyph
-    /// in `actionSecondary` says "this does something" quietly; the word stays
+    /// in `actionInk` says "this does something" quietly; the word stays
     /// the colour every other word on the screen is.
     private func secondaryAction(_ title: String, symbol: String) -> some View {
         Label {
             Text(title).foregroundStyle(Theme.textPrimary)
         } icon: {
-            Image(systemName: symbol).foregroundStyle(Theme.actionSecondary)
+            Image(systemName: symbol).foregroundStyle(Theme.actionInk)
         }
     }
 }

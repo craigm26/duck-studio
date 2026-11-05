@@ -2,6 +2,7 @@
 import UIKit
 #endif
 import RealityKit
+import StudioKit
 
 /// The non-AR stadium: a themed pitch in its own little world, no camera feed.
 ///
@@ -11,6 +12,20 @@ import RealityKit
 /// nineties. Each theme is a full palette rather than one accent swapped, and
 /// the palettes are opinionated on purpose: a mint pitch under a peach sky is
 /// a decision, not a default.
+/// The teams and the ball are the same in every stadium skin, so a child
+/// learns them once: you are yellow, the CPU is teal, and the ball is the same
+/// Beak Orange as on the practice floor. No red anywhere: red is Stop.
+enum PondTeams {
+    static let home = Theme.stage(.actionYellow, .light)
+    static let away = Theme.stage(.actionTeal, .light)
+    static let ball = Theme.stage(.actionPrimary, .light)
+}
+
+/// Game-piece colours that are not a team: a finished cone, a ready ring.
+enum PondGame {
+    static let done = Theme.stage(.success, .dark)
+}
+
 struct SoccerTheme: Identifiable, Hashable {
     let name: String
     let sky: UIColor
@@ -32,8 +47,8 @@ struct SoccerTheme: Identifiable, Hashable {
         line: UIColor.white.withAlphaComponent(0.75),
         board: UIColor.white.withAlphaComponent(0.28),
         stands: .clear,
-        homeGoal: .systemYellow, awayGoal: .systemTeal,
-        ball: .systemOrange)
+        homeGoal: PondTeams.home, awayGoal: PondTeams.away,
+        ball: PondTeams.ball)
 
     /// Sherbet mint pitch, peach sky, strawberry boards.
     static let pastel = SoccerTheme(
@@ -44,9 +59,9 @@ struct SoccerTheme: Identifiable, Hashable {
         line: UIColor(red: 1.00, green: 0.99, blue: 0.94, alpha: 1),
         board: UIColor(red: 0.98, green: 0.72, blue: 0.76, alpha: 1),
         stands: UIColor(red: 0.80, green: 0.76, blue: 0.94, alpha: 1),
-        homeGoal: UIColor(red: 0.99, green: 0.85, blue: 0.46, alpha: 1),
-        awayGoal: UIColor(red: 0.62, green: 0.83, blue: 0.95, alpha: 1),
-        ball: UIColor(red: 0.98, green: 0.55, blue: 0.45, alpha: 1))
+        homeGoal: PondTeams.home,
+        awayGoal: PondTeams.away,
+        ball: PondTeams.ball)
 
     /// Magenta dusk, cyan lines, the grid-sunset nineties.
     static let vaporwave = SoccerTheme(
@@ -57,9 +72,9 @@ struct SoccerTheme: Identifiable, Hashable {
         line: UIColor(red: 0.30, green: 0.95, blue: 0.93, alpha: 1),
         board: UIColor(red: 0.95, green: 0.35, blue: 0.75, alpha: 1),
         stands: UIColor(red: 0.35, green: 0.16, blue: 0.52, alpha: 1),
-        homeGoal: UIColor(red: 1.00, green: 0.45, blue: 0.85, alpha: 1),
-        awayGoal: UIColor(red: 0.35, green: 0.90, blue: 1.00, alpha: 1),
-        ball: UIColor(red: 1.00, green: 0.85, blue: 0.30, alpha: 1))
+        homeGoal: PondTeams.home,
+        awayGoal: PondTeams.away,
+        ball: PondTeams.ball)
 
     /// The bowling-alley carpet: deep purple, neon confetti colours.
     static let arcade = SoccerTheme(
@@ -70,9 +85,9 @@ struct SoccerTheme: Identifiable, Hashable {
         line: UIColor(red: 0.98, green: 0.93, blue: 0.35, alpha: 1),
         board: UIColor(red: 0.20, green: 0.85, blue: 0.55, alpha: 1),
         stands: UIColor(red: 0.13, green: 0.10, blue: 0.24, alpha: 1),
-        homeGoal: UIColor(red: 1.00, green: 0.35, blue: 0.35, alpha: 1),
-        awayGoal: UIColor(red: 0.35, green: 0.65, blue: 1.00, alpha: 1),
-        ball: UIColor(red: 1.00, green: 0.60, blue: 0.10, alpha: 1))
+        homeGoal: PondTeams.home,
+        awayGoal: PondTeams.away,
+        ball: PondTeams.ball)
 
     /// Saturday-morning primary colours on cream.
     static let saturday = SoccerTheme(
@@ -83,9 +98,9 @@ struct SoccerTheme: Identifiable, Hashable {
         line: .white,
         board: UIColor(red: 0.95, green: 0.30, blue: 0.25, alpha: 1),
         stands: UIColor(red: 0.30, green: 0.55, blue: 0.90, alpha: 1),
-        homeGoal: UIColor(red: 1.00, green: 0.80, blue: 0.10, alpha: 1),
-        awayGoal: UIColor(red: 0.55, green: 0.35, blue: 0.85, alpha: 1),
-        ball: .white)
+        homeGoal: PondTeams.home,
+        awayGoal: PondTeams.away,
+        ball: PondTeams.ball)
 
     /// The stadium palettes a match can be played in. Classic stays out —
     /// it is the AR look, and AR keeps it.

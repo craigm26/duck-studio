@@ -405,7 +405,7 @@ struct JointHandleOverlay: View {
             Button { snapHome(target.joint) } label: {
                 Text(JointHandles.homeActionSaid)
                     .font(.caption2.weight(.semibold))
-                    .foregroundStyle(Theme.actionSecondary)
+                    .foregroundStyle(Theme.actionInk)
                     .frame(minHeight: DesignMetric.minimumTarget, alignment: .leading)
             }
             // THE WAY BACK TO THE JOINTS THIS ONE IS SITTING ON TOP OF. Once a
@@ -418,7 +418,7 @@ struct JointHandleOverlay: View {
                 } label: {
                     Text(JointHandles.clusterSaid(target.count))
                         .font(.caption2)
-                        .foregroundStyle(Theme.actionSecondary)
+                        .foregroundStyle(Theme.actionInk)
                         .frame(minHeight: DesignMetric.minimumTarget, alignment: .leading)
                 }
             }

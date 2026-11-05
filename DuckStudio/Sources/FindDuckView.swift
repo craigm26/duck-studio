@@ -460,7 +460,7 @@ struct FindDuckView: View {
                     Label {
                         Text("Stop").foregroundStyle(Theme.textPrimary)
                     } icon: {
-                        Image(systemName: "stop.circle").foregroundStyle(Theme.actionSecondary)
+                        Image(systemName: "stop.circle").foregroundStyle(Theme.actionInk)
                     }
                 }
                 .accessibilityLabel(Text("Stop scanning"))
@@ -482,7 +482,7 @@ struct FindDuckView: View {
                 Label {
                     Text("Run the pairing spike").foregroundStyle(Theme.textPrimary)
                 } icon: {
-                    Image(systemName: "stopwatch").foregroundStyle(Theme.actionSecondary)
+                    Image(systemName: "stopwatch").foregroundStyle(Theme.actionInk)
                 }
             }
         } footer: {

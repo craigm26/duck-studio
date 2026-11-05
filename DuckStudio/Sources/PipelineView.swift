@@ -246,7 +246,7 @@ struct PipelineView: View {
                         } label: {
                             Label("See this run", systemImage: "play.rectangle")
                         }
-                        .tint(Theme.actionSecondary)
+                        .tint(Theme.actionInk)
                     } header: {
                         SectionHeading(text: "The picture")
                     }

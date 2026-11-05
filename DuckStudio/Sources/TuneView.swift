@@ -504,7 +504,7 @@ struct TuneView: View {
         Label {
             Text(title).foregroundStyle(Theme.textPrimary)
         } icon: {
-            Image(systemName: symbol).foregroundStyle(Theme.actionSecondary)
+            Image(systemName: symbol).foregroundStyle(Theme.actionInk)
         }
     }
 

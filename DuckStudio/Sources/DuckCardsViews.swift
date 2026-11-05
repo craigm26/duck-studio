@@ -317,7 +317,7 @@ struct DuckCardsDeckView: View {
                 Button { share() } label: {
                     Label(DuckCards.Words.shareDeck, systemImage: "square.and.arrow.up")
                 }
-                .tint(Theme.actionSecondary)
+                .tint(Theme.actionInk)
                 .frame(minHeight: DesignMetric.minimumTarget)
             } footer: {
                 Text(DuckCards.Words.shareFooter).foregroundStyle(Theme.textSecondary)

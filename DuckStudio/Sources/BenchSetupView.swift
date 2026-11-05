@@ -108,7 +108,7 @@ struct BenchSetupView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(Theme.actionSecondary)
+                .foregroundStyle(Theme.actionInk)
                 // THE WORD FOR WHAT IT DOES, THEN THE THING ITSELF. Unlabelled
                 // this announces the command and the trait "button", and what
                 // the button does with the command is left to be guessed.

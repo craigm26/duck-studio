@@ -41,7 +41,7 @@ struct BenchSettingsView: View {
                     Text(note).font(.footnote).foregroundStyle(Theme.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
                     Button("Got it") { store.dismissUnreadableNote() }
-                        .foregroundStyle(Theme.actionSecondary)
+                        .foregroundStyle(Theme.actionInk)
                 }
                 .listRowBackground(Theme.surfacePrimary)
             }
@@ -237,7 +237,7 @@ struct BenchSettingsView: View {
                 editing = bench
             } label: {
                 Image(systemName: "slider.horizontal.3")
-                    .foregroundStyle(Theme.actionSecondary)
+                    .foregroundStyle(Theme.actionInk)
                     .padding(.vertical, Theme.spacing(.snug))
                     .padding(.leading, Theme.spacing(.snug))
                     .frame(minWidth: DesignMetric.minimumTarget,

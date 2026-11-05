@@ -109,7 +109,7 @@ struct DreamSimStatus: View {
         if recorder.recording || model.running {
             HStack(spacing: Theme.spacing(.tight)) {
                 Image(systemName: recorder.recording ? "record.circle.fill" : "sparkles")
-                    .foregroundStyle(recorder.recording ? Theme.critical : Theme.actionSecondary)
+                    .foregroundStyle(recorder.recording ? Theme.critical : Theme.actionInk)
                 Text(recorder.recording ? DreamDataset.Words.recording(recorder.seconds)
                                         : (model.line ?? DuckDream.Words.heading))
                     .font(.footnote.monospacedDigit()).lineLimit(1)
@@ -120,7 +120,8 @@ struct DreamSimStatus: View {
                 .font(.footnote)
             }
             .padding(.horizontal, Theme.spacing(.snug)).padding(.vertical, Theme.spacing(.tight))
-            .background(.thinMaterial, in: Capsule())
+            .background(Theme.surfacePrimary, in: Capsule())
+            .shadow(color: PondShadow.colour, radius: PondShadow.blur, y: PondShadow.y)
             .frame(maxHeight: 60)
         }
     }

@@ -99,7 +99,7 @@ struct MeasureDuckView: View {
                     ShareLink(item: outgoing) {
                         Label(DuckMeasure.Words.share, systemImage: "square.and.arrow.up")
                     }
-                    .tint(Theme.actionSecondary)
+                    .tint(Theme.actionInk)
                     .frame(minHeight: DesignMetric.minimumTarget)
                 }
             } header: {

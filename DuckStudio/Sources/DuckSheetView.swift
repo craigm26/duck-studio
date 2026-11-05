@@ -110,8 +110,8 @@ struct DuckSheetView: View {
 
     /// The live dot: the last thing asked was answered, or nothing is there. Never a heartbeat.
     private var dot: Color {
-        if router.playVenue != .real { return .green }
-        return robot.isConnected ? .green : .gray
+        if router.playVenue != .real { return Theme.success }
+        return robot.isConnected ? Theme.success : Theme.textTertiary
     }
 
     private var liveWords: String {

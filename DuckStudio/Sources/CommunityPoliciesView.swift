@@ -118,7 +118,7 @@ struct CommunityPoliciesView: View {
                             .fixedSize(horizontal: false, vertical: true)
                         Link("Open it on Hugging Face", destination: URL(string: entry.webURL)!)
                             .font(.caption)
-                            .foregroundStyle(Theme.actionSecondary)
+                            .foregroundStyle(Theme.actionInk)
                     }
                 } header: {
                     HStack(spacing: Theme.spacing(.tight)) {

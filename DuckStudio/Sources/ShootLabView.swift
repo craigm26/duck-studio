@@ -112,9 +112,10 @@ struct ShootLabView: View {
             Text(ended ? shot.outcome.said : shot.phase(at: t).capitalized)
                 .font(.caption.weight(.bold))
                 .padding(.horizontal, 10).padding(.vertical, 5)
-                .background(ended && shot.goal ? Theme.measured : Color.black.opacity(0.55),
+                .background(ended && shot.goal ? Theme.actionYellow : Theme.surfacePrimary,
                             in: Capsule())
-                .foregroundStyle(.white)
+                .overlay(Capsule().strokeBorder(Theme.outline, lineWidth: DesignMetric.outlineStroke))
+                .foregroundStyle(ended && shot.goal ? Theme.onFill : Theme.textPrimary)
                 .padding(10)
         }
     }
@@ -229,7 +230,7 @@ struct ShootLabView: View {
             ForEach(Array(search.history.enumerated()), id: \.offset) { i, s in
                 VStack(spacing: 2) {
                     Rectangle()
-                        .fill(i == search.history.count - 1 ? Theme.measured : Theme.actionSecondary)
+                        .fill(i == search.history.count - 1 ? Theme.measured : Theme.actionInk)
                         .frame(width: 18, height: max(4, CGFloat(s.goals) / CGFloat(max(s.shots, 1)) * 60))
                     Text("\(s.goals)").font(.caption2).monospacedDigit()
                 }

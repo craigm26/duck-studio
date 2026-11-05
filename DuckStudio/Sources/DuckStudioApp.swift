@@ -405,22 +405,11 @@ struct DuckStudioApp: App {
             // WindowGroup they are a Scene modifier that does not exist.
             //
             // THIS IS ALSO THE TAB BAR'S TINT. `microduckTheme` sets
-            // `.tint(Theme.actionPrimary)` for the whole app, and the selected
-            // tab item is the most visible thing that inherits it — Duck Orange
-            // on the tab bar, which is where the action colour belongs. Two
-            // notes for whoever owns the tokens next. The first is that the
-            // scheme is no longer forced: the modifier now carries whatever
-            // `Theme.Appearance` the person chose, which is `system` by default
-            // and therefore no override at all. The second is a measured
-            // caveat: Duck Orange is 2.30:1 on Warm Cream, so in light mode the
-            // selected tab's LABEL is an orange word on a near-cream bar and
-            // does not clear the 4.5:1 SC 1.4.3 asks of text. The palette
-            // already holds the fix — `actionSecondary` is the same orange
-            // darkened to 4.52:1 in light and left as Duck Orange in dark — but
-            // one `.tint` serves every control in the app, and swapping it here
-            // would take the brand value out of every filled control at the
-            // same time. It belongs in `Theme`, as a tint that is the ink in
-            // light and the brand in dark, not in a per-screen override.
+            // `.tint(Theme.actionInk)` for the whole app: orange ink on Pond
+            // Day (5.10:1 on the page) and a lighter orange at night, so the
+            // selected tab's label is a readable orange word in both. The
+            // scheme is the person's `Theme.Appearance`, Pond Day (light) by
+            // default.
             .microduckTheme()
 #if os(macOS)
             // The phone layouts are written for a column; below this they

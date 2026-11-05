@@ -197,6 +197,11 @@ struct StopPillModifier: ViewModifier {
                         .padding(.horizontal, Theme.spacing(.standard))
                         .frame(minHeight: StopMetric.pillHeight)
                         .background(StopMetric.red, in: Capsule())
+                        // Pond Day: the same 2pt ink outline every filled
+                        // control wears, so the pill holds its edge on a light
+                        // sheet as well as a dark one.
+                        .overlay(Capsule().strokeBorder(Theme.outline,
+                                                        lineWidth: DesignMetric.outlineStroke))
                 }
                 .buttonStyle(.plain)
                 .accessibilityHint(Text(ControllerWords.stopHint))
@@ -224,7 +229,13 @@ struct StopDisc: View {
                 .foregroundStyle(.white)
                 .frame(width: size, height: size)
                 .background(StopMetric.red, in: Circle())
-                .overlay(Circle().strokeBorder(.white.opacity(0.85), lineWidth: 2))
+                // A 3pt white ring inside a 2pt ink outline: the ring carries
+                // the disc on the dark floor (red is 2.00:1 there), the ink
+                // carries it on the light page.
+                .overlay(Circle().strokeBorder(.white, lineWidth: 3)
+                    .padding(DesignMetric.outlineStroke))
+                .overlay(Circle().strokeBorder(Theme.outline,
+                                               lineWidth: DesignMetric.outlineStroke))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Text(ControllerWords.stop))
@@ -234,8 +245,9 @@ struct StopDisc: View {
 }
 
 enum StopMetric {
-    /// Red is Stop and nothing else.
-    static let red = Color(red: 0.86, green: 0.12, blue: 0.12)
+    /// Red is Stop and nothing else: `Palette`'s `stop` token, #D92A2A in
+    /// both schemes. The only place the app names it.
+    static let red = Theme.stop
     static let disc: CGFloat = 56
     static let pillHeight: CGFloat = 48
 }

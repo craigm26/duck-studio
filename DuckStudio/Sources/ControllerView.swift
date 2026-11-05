@@ -94,23 +94,26 @@ struct DuckPill: View {
                     .accessibilityHidden(true)
                 Text(name)
                     .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                    .foregroundStyle(Theme.textPrimary)
                     .lineLimit(1)
             }
             .padding(.horizontal, Theme.spacing(.snug))
             .frame(minHeight: DesignMetric.minimumTarget)
-            .background(.ultraThinMaterial, in: Capsule())
+            .background(Theme.surfacePrimary, in: Capsule())
+            .overlay(Capsule().strokeBorder(Theme.outline, lineWidth: DesignMetric.outlineStroke))
+            .shadow(color: PondShadow.colour, radius: PondShadow.blur, y: PondShadow.y)
         }
         .accessibilityLabel(Text(name))
         .accessibilityValue(Text(live.spoken))
     }
 
-    /// Green when the last request was answered, amber while waiting, grey otherwise. Never a
-    /// heartbeat claim.
+    /// Green when the last request was answered, yellow while waiting, grey otherwise. Never a
+    /// heartbeat claim. Not orange: on Pond Day orange means "press me".
     private var dot: Color {
         switch live {
-        case .connected: return .green
-        case .connecting: return .orange
-        case .asleep: return .gray
+        case .connected: return Theme.success
+        case .connecting: return Theme.warning
+        case .asleep: return Theme.textTertiary
         }
     }
 
@@ -153,7 +156,7 @@ struct TellPanel: View {
                             .minimumScaleFactor(0.8)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.pondChip)
                     .disabled(busy)
                 }
             }
@@ -165,17 +168,18 @@ struct TellPanel: View {
                     .submitLabel(.go)
                     .onSubmit(submit)
                 Button(ControllerWords.tellSend, action: submit)
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.primaryAction)
                     .disabled(busy || text.trimmingCharacters(in: .whitespaces).isEmpty)
             }
             if let line = listener.listening ? MicWords.listening : (listener.problem ?? caption) {
                 Text(line)
                     .font(.footnote)
+                    .foregroundStyle(Theme.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(Theme.spacing(.snug))
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .pondPanel()
     }
 
     private func submit() {
@@ -211,19 +215,22 @@ struct AutoPanel: View {
     var body: some View {
         if let running {
             HStack(spacing: Theme.spacing(.tight)) {
-                Image(systemName: "sparkles").accessibilityHidden(true)
+                Image(systemName: "sparkles").foregroundStyle(Theme.training).accessibilityHidden(true)
                 Text(running)
                     .font(.system(.footnote, design: .rounded).weight(.semibold))
+                    .foregroundStyle(Theme.textPrimary)
                     .lineLimit(2)
                     .minimumScaleFactor(0.8)
                 Spacer(minLength: 0)
                 Button(ControllerWords.takeOver, action: takeOver)
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.raisedAction)
                     .accessibilityHint(Text(ControllerWords.takeOverHint))
             }
             .padding(.horizontal, Theme.spacing(.snug))
             .frame(minHeight: ControllerMetric.statusHeight)
-            .background(.ultraThinMaterial, in: Capsule())
+            .background(Theme.surfacePrimary, in: Capsule())
+            .overlay(Capsule().strokeBorder(Theme.outline, lineWidth: DesignMetric.outlineStroke))
+            .shadow(color: PondShadow.colour, radius: PondShadow.blur, y: PondShadow.y)
         } else {
             HStack(alignment: .top, spacing: Theme.spacing(.tight)) {
                 AskCard(duck: duck, ask: ask, listener: listener, caption: caption, plan: plan, stop: stop)
@@ -231,7 +238,7 @@ struct AutoPanel: View {
                 VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
                     Text(ControllerWords.otherHelpers)
                         .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Theme.textSecondary)
                     ForEach(AutoGoal.allCases) { helper($0) }
                 }
                 .frame(width: ControllerMetric.helperColumn, alignment: .leading)
@@ -247,11 +254,12 @@ struct AutoPanel: View {
         return VStack(alignment: .leading, spacing: 4) {
             Label(goal.title, systemImage: goal.symbol)
                 .font(.system(.caption, design: .rounded).weight(.semibold))
+                .foregroundStyle(Theme.textPrimary)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
             Text(goal.subtitle(on: duck, driverInstalled: driverInstalled, dreamReady: dreamReady))
                 .font(.caption2)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
             if pressable {
                 Button(action) { go(goal) }
@@ -261,7 +269,7 @@ struct AutoPanel: View {
         }
         .padding(Theme.spacing(.tight))
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .pondPanel(.control)
         .opacity(pressable ? 1 : 0.6)
         .accessibilityElement(children: .combine)
         .accessibilityHint(Text(goal.provenance))
@@ -288,11 +296,12 @@ struct AskCard: View {
                 Image(systemName: "sparkles").accessibilityHidden(true)
                 Text(DuckDecider.Words.title)
                     .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                    .foregroundStyle(Theme.textPrimary)
             }
             Text(ask.availability.isReady ? DuckDecider.Words.provenance
                                           : [ask.availability.says, ask.availability.instead ?? ""].joined(separator: " "))
                 .font(.caption2)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
             switch ask.phase {
             case .preview(let orders), .running(_, let orders):
@@ -303,15 +312,21 @@ struct AskCard: View {
                             .font(.caption.weight(.semibold))
                             .lineLimit(1)
                             .minimumScaleFactor(0.8)
+                            .foregroundStyle(ask.phase.activeStep == i ? Theme.onFill
+                                                                       : Theme.textPrimary)
                             .padding(.horizontal, 8).padding(.vertical, 4)
-                            .background(ask.phase.activeStep == i ? Theme.actionSecondary.opacity(0.35)
-                                                                   : Color.secondary.opacity(0.15),
+                            .background(ask.phase.activeStep == i ? Theme.actionYellow
+                                                                   : Theme.surfaceInteractive,
                                         in: Capsule())
+                            .overlay(Capsule().strokeBorder(ask.phase.activeStep == i
+                                                            ? Theme.outline : Color.clear,
+                                                            lineWidth: DesignMetric.outlineStroke))
                     }
                 }
                 if case .preview = ask.phase {
                     HStack {
                         Text(DuckDecider.Words.startingSoon).font(.caption)
+                            .foregroundStyle(Theme.textPrimary)
                         Spacer(minLength: 0)
                         Button(DuckDecider.Words.cancel) { ask.cancelPreview() }
                             .buttonStyle(.bordered)
@@ -328,7 +343,7 @@ struct AskCard: View {
                         .submitLabel(.go)
                         .onSubmit(submit)
                     Button(DuckDecider.Words.go, action: submit)
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.primaryAction)
                         .disabled(ask.phase == .thinking || duck == nil
                                   || text.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
@@ -337,16 +352,17 @@ struct AskCard: View {
                 : (ask.phase == .thinking ? DuckDecider.Words.thinking : (listener.problem ?? caption)) {
                 Text(line)
                     .font(.footnote)
+                    .foregroundStyle(Theme.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Text(DuckDecider.Words.siriLine)
                 .font(.caption2)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(Theme.spacing(.snug))
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .pondPanel()
     }
 
     private func submit() {
