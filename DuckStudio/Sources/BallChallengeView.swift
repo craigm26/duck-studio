@@ -278,6 +278,7 @@ struct BallEntrantView: View {
             Task { await run.probe(benches: benches) }
         }
         .sheet(item: $editing) { opened in
+            Group {
             NavigationStack {
                 // LOOKED UP FRESH IN THE STORE, the arrangement `IntentListView`
                 // arrived at the hard way: the editor must open on what is
@@ -304,9 +305,14 @@ struct BallEntrantView: View {
                     }
                 }
             }
+            }
+            .stopPill()
         }
         .sheet(item: $submitting) { box in
+            Group {
             BallSubmitView(submission: box.submission)
+            }
+            .stopPill()
         }
     }
 
@@ -1252,7 +1258,10 @@ struct BallSubmitView: View {
             }
             .onAppear { token = TokenStore.load() ?? "" }
             .sheet(item: $outgoing) { file in
+                Group {
                 ShareSheet(items: [file.url]) { outgoing = nil }
+                }
+                .stopPill()
             }
         }
     }

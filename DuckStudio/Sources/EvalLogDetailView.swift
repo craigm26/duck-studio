@@ -107,14 +107,20 @@ struct EvalLogDetailView: View {
             if previews.isEmpty { previews = file.files() }
         }
         .sheet(item: $sharing) { pair in
+            Group {
             ShareSheet(items: pair.items) { sharing = nil }
+            }
+            .stopPill()
         }
         .sheet(item: $destination) { file in
+            Group {
             NavigationStack {
                 ShareDestinationsView(title: EvalText.foreign(log.eval.task),
                                       file: file.url,
                                       message: EvalReport.shareSentence(self.file))
             }
+            }
+            .stopPill()
         }
     }
 

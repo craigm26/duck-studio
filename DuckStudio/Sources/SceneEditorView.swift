@@ -161,6 +161,7 @@ struct SceneListView: View {
         // to the same screen, which reads as two different Settings until
         // somebody opens both to find out.
         .sheet(item: $editing) { wrapper in
+            Group {
             NavigationStack {
                 if let current = store.scenes.first(where: { $0.id == wrapper.id }) {
                     SceneEditorView(scene: current) { store.update($0) }
@@ -179,6 +180,8 @@ struct SceneListView: View {
                     }
                 }
             }
+            }
+            .stopPill()
         }
     }
 

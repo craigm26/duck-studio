@@ -259,7 +259,10 @@ struct DuckCameraCard: View {
             dreamRecorder.stop()
         }
         .sheet(item: $opened) { opening in
+            Group {
             DuckCardsSheet(opening: opening, robot: robot, models: models, stopDriving: stopDriving, camera: feed)
+            }
+            .stopPill()
         }
     }
 

@@ -346,7 +346,10 @@ struct DuckCardsDeckView: View {
         .navigationTitle(DuckCards.Words.deckTitle)
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $outgoing) { file in
+            Group {
             ShareSheet(items: [file.url]) { outgoing = nil }
+            }
+            .stopPill()
         }
         .confirmationDialog(forgetting.map(DuckCards.Words.forgetTitle) ?? DuckCards.Words.forget,
                             isPresented: Binding(get: { forgetting != nil },

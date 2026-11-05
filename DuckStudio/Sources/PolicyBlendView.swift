@@ -257,7 +257,10 @@ struct PolicyBlendView: View {
         }
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $outgoing) { file in
+            Group {
             ShareSheet(items: [file.url]) { outgoing = nil }
+            }
+            .stopPill()
         }
     }
 

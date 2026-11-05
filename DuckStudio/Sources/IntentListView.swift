@@ -343,6 +343,7 @@ struct IntentListView: View {
         // lookup then resolves to neither the store nor the stand-in — which is
         // the empty, toolbar-less editor this file has been bitten by before.
         .sheet(item: $editing, onDismiss: { if editing == nil { unwritten = nil } }) { wrapper in
+            Group {
             NavigationStack {
                 // Looked up fresh, so the editor opens on what is actually
                 // stored rather than on whatever was in hand when the row was
@@ -400,6 +401,8 @@ struct IntentListView: View {
                     }
                 }
             }
+            }
+            .stopPill()
         }
     }
 
@@ -1110,6 +1113,7 @@ struct IntentPlayerView: View {
         // `.sheet(item:)` calls on one view are not two slots, and the one that
         // wins is decided by modifier order.
         .sheet(item: $presented) { what in
+            Group {
             switch what {
             case .share(let out):
                 NavigationStack {
@@ -1137,6 +1141,8 @@ struct IntentPlayerView: View {
                     }
                 }
             }
+            }
+            .stopPill()
         }
         .alert("Could not share", isPresented: Binding(
             get: { shareFailure != nil }, set: { if !$0 { shareFailure = nil } })) {

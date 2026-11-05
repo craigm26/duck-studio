@@ -407,6 +407,7 @@ struct IntentAuthorView: View {
         // the angle where somebody put it. See `reframeForShape`.
         .onChange(of: stageAspect) { _, _ in reframeForShape() }
         .sheet(isPresented: $preferring) {
+            Group {
             NavigationStack {
                 PreferenceSearchView(draft: draft, scene: scene) { chosen in
                     // THE SEARCH RETURNS A MOTION, NOT A SETTING. Keeping the
@@ -418,14 +419,22 @@ struct IntentAuthorView: View {
                     draft.keys = chosen.keys
                 }
             }
+            }
+            .stopPill()
         }
         .sheet(item: $outgoing) { out in
+            Group {
             NavigationStack {
                 ShareDestinationsView(title: draft.name, file: out.url, message: out.message)
             }
+            }
+            .stopPill()
         }
         .sheet(isPresented: $publishing) {
+            Group {
             PublishMotionView(draft: draft)
+            }
+            .stopPill()
         }
         .alert("Could not export", isPresented: Binding(
             get: { failure != nil }, set: { if !$0 { failure = nil } })) {

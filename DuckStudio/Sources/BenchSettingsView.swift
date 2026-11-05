@@ -128,9 +128,12 @@ struct BenchSettingsView: View {
         .navigationTitle("Benches")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $editing) { bench in
+            Group {
             NavigationStack {
                 BenchEditorView(bench: store.armed(bench), store: store)
             }
+            }
+            .stopPill()
         }
     }
 

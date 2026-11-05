@@ -63,13 +63,19 @@ struct EvalRunView: View {
         // runner underneath would replay the second trial with the first one's
         // playhead still at the end and its note still typed.
         .sheet(item: judging) { judging in
+            Group {
             EvalVerdictSheet(scene: judging.scene, trial: judging.trial,
                              onAnswer: { runner.record($0) },
                              onSkipOne: { runner.skipOne() },
                              onStopWatching: { runner.skipJudging() })
+            }
+            .stopPill()
         }
         .sheet(item: $sharing) { pair in
+            Group {
             ShareSheet(items: pair.items) { sharing = nil }
+            }
+            .stopPill()
         }
     }
 

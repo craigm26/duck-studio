@@ -204,7 +204,10 @@ struct ModelSettingsView: View {
             Button("Keep it", role: .cancel) { removing = nil }
         }
         .sheet(item: $editing) { endpoint in
+            Group {
             NavigationStack { EndpointEditor(store: store, endpoint: endpoint) }
+            }
+            .stopPill()
         }
     }
 

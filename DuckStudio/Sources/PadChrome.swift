@@ -101,6 +101,7 @@ struct PadChrome: View {
             if take != nil { sheet = .keep }
         }
         .sheet(item: $sheet) { which in
+            Group {
             switch which {
             case .keep:
                 SequenceKeepSheet(desk: desk, bench: bench, token: token,
@@ -126,6 +127,8 @@ struct PadChrome: View {
                 // chrome: a fourteen-row editor does not belong on a picture.
                 EmptyView()
             }
+            }
+            .stopPill()
         }
     }
 
