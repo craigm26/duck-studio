@@ -30,7 +30,7 @@ public struct DriverRelease: Equatable, Sendable {
         self.freshRuns = freshRuns; self.freshReached = freshReached; self.freshParked = freshParked
     }
 
-    /// M1 pick of 2026-11-05: v5, weights commit 306f2a6 plus the snap block.
+    /// M1 pick of 2026-11-05: v6, weights commit 4ba66af plus the snap block.
     public static let walkToBall = DriverRelease(
         repo: "craigm26/duck-driver-walk-to-ball-v6",
         revision: "5985110aefdef3da98dfcbebe939a77da631de5a",
@@ -107,6 +107,8 @@ public struct DriverInstaller: Sendable {
     /// `policy.json` is a page of numbers; anything bigger is not one.
     public static let policyLimit = 64 * 1024
     static let partialSuffix = ".partial"
+    /// Every pinned driver's folder starts with this; `clearOtherPins` touches nothing else.
+    static let pinPrefix = "duck-driver-"
 
     public let release: DriverRelease
     /// The folder drivers live in (Application Support on a device).
@@ -124,10 +126,21 @@ public struct DriverInstaller: Sendable {
     public func status() -> DriverInstall.Phase {
         let fm = FileManager.default
         try? fm.removeItem(at: partial)
+        clearOtherPins()
         guard fm.fileExists(atPath: folder.path) else { return .absent }
         if isWhole() { return .installed }
         try? fm.removeItem(at: folder)
         return .absent
+    }
+
+    /// AN OLD PIN IS NOT KEPT. A new pin is a new folder, and nothing here would ever reach the old
+    /// one: no run loads it and Delete does not see it, so it would sit on the device for good.
+    private func clearOtherPins() {
+        let fm = FileManager.default
+        let names = (try? fm.contentsOfDirectory(atPath: root.path)) ?? []
+        for name in names where name.hasPrefix(Self.pinPrefix) && name != release.folder {
+            try? fm.removeItem(at: root.appendingPathComponent(name, isDirectory: true))
+        }
     }
 
     private func isWhole() -> Bool {

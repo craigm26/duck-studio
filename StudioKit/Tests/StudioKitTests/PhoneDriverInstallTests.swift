@@ -207,6 +207,17 @@ final class PhoneDriverInstallTests: XCTestCase {
         XCTAssertEqual(left(), [])
     }
 
+    func testAnOlderPinIsRemovedAndTheCurrentOneAndAnythingElseStay() async throws {
+        let installer = DriverInstaller(release: try release(), root: root)
+        try await installer.install(fetch: try server(Log()), report: { _ in })
+        for name in ["duck-driver-walk-to-ball-v5-fe94d4a", "not-a-driver"] {
+            try FileManager.default.createDirectory(at: root.appendingPathComponent(name),
+                                                    withIntermediateDirectories: true)
+        }
+        XCTAssertEqual(installer.status(), .installed)
+        XCTAssertEqual(left().sorted(), [installer.release.folder, "not-a-driver"].sorted())
+    }
+
     func testDeleteTakesItOffTheDevice() async throws {
         let installer = DriverInstaller(release: try release(), root: root)
         try await installer.install(fetch: try server(Log()), report: { _ in })

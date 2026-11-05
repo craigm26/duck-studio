@@ -434,7 +434,7 @@ The start is the same calls as `layOut`, with the 1.2 s pre-roll as one `/stop`.
 
 **Training.** t4-small, 30,000 steps, 990 s, about $0.11, duckbatch 2dfec0b. Public `craigm26/duck-driver-walk-to-ball-v6`: val L1 0.118 (zero 1.221, repeat 0.279). Snap block in policy.json at 5985110, the revision pinned.
 
-**Judged on seeds 9001-9020, used by nothing before, from the app's start (`--app-start`), both with snap and latch.** Same app build. Logs `~/scratch/ball-takes/m1-9001`.
+**Judged on seeds 9001-9020, in no training take (seed 9001 alone had one earlier smoke run), from the app's start (`--app-start`), both with snap and latch.** Same app build. Logs `~/scratch/ball-takes/m1-9001`.
 
 | Arm | Reached | Parked | Reached and parked | Stopped | Reach s | First sight s | Ball push m | Pushed over 5 cm | Within 0.2 m | Walking at end |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -442,10 +442,12 @@ The start is the same calls as `layOut`, with the 1.2 s pre-roll as one `/stop`.
 | v5 snap+latch | 20 | 14 | 14 | 14 | 14.4 | 2.5 | 0.23 | 8 | 14 | 6 |
 | **v6 snap+latch** | 19 | 18 | 17 | 18 | 11.7 | 2.5 | 0.17 | 9 | 10 | 2 |
 
-**Pick: v6.** The rule was parked clearly higher, ball push lower, reached at least 19. Parked 18 is above all five v5 scores with the latch (12 to 14), and it parks 6 seeds v5 does not, against 2 the other way. It reaches 2.7 s sooner and ends walking in 2 runs, not 6.
+**Pick: v6.** The rule was parked clearly higher, ball push lower, reached at least 19. Parked 18 is above all five v5 scores with the latch (12 to 14), and it parks 6 seeds v5 does not, against 2 the other way. On the 19 seeds both reached it gets there 2.6 s sooner on average (11.7 s against 14.3 s), though it is quicker on only 10 of them, slower on 7 and level on 2. It ends walking in 2 runs, not 6.
 
 **How much this proves.** Less than the means say. The lower push leans on one v5 run that shoved the ball 1.18 m; seed by seed v6 pushes less on 7 and more on 6, the median is 0 for both, and it still moves the ball over 5 cm in 9 of 20. It bumps as often as v5. It stops better and walks off less. So the hard arrival is reduced, not fixed, and the card keeps "It often bumps the ball first." Seed 9015 is the one miss on reach: it parked at 0.355 m, 5 mm short of the line.
 
 **The card** says reached 19 of 20, stopped there 17 of 20: the 17 that did both, the lower number, because the 9015 run parked without reaching.
+
+**An old pin is cleared.** A new pin is a new folder, and nothing reached the old one, Delete included, so `status()` now removes any other `duck-driver-` folder when the app starts. Unit test only; a phone upgrading from v5 has not been tried.
 
 **Not run:** `-driver-get-check` on the v6 pin. The three public files were fetched and match the hashes and sizes; the trial loaded the same policy.json and weights, golden replay included. Next for the push: DAgger on v5 or v6 runs, which arrive hard where v4's did not (no v4 tail ran out of picture).
