@@ -6,9 +6,12 @@ signatures, each judged per run on the ticks after the pilot's first ask:
 - DRIFT: while the ball is dead ahead (|off| < 0.15 rad) and further than the reach, the mean vy
   and the mean vyaw minus what the expert would command on the same states.
 - UNDER-TURNING: the heading error to the ball shrinking slower than the expert's on the same
-  seed (time until |off| < BallExpert.facing), and the mean turn toward the ball (sign(off) * vyaw)
+  seed (time until |off| < BallExpert.seen, 30 deg; round 1 used facing, 0.6 rad), and the mean turn toward the ball (sign(off) * vyaw)
   against the expert's labels on the same states.
 - OVERSHOOT: ticks inside the reach radius with vx above the dead zone (still walking).
+- NO STOP: after the run first reaches, the share of ticks still walking and the mean vx asked;
+  and the same under the camera (closer than UNDER_CAMERA, 0.29 m, where the ball has left the
+  bottom of the head picture: measured on dataset-v3 episode 0), where the picture holds no ball.
 A signature is systematic when at least 3 failed runs share it.
 
 THE HEAD CAMERA SEES ABOUT +-37 DEGREES (fovy 45 at 320 x 176), so every number is also split by
@@ -25,9 +28,10 @@ import statistics
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from record_ball_takes import DEAD_ZONE, FACING, PLAIN, REACH, command  # noqa: E402
+from record_ball_takes import DEAD_ZONE, PLAIN, REACH, SEEN as FACING, command  # noqa: E402
 
 AHEAD = 0.15
+UNDER_CAMERA = 0.29
 HALF_HFOV = math.atan(math.tan(math.radians(45 / 2)) * 320 / 176)
 
 
@@ -73,8 +77,12 @@ def run_report(path, expert_steps, std):
     for name, group in (("hidden", hidden), ("in_view", [s for s in view if abs(s["off"]) > AHEAD])):
         toward = [math.copysign(1, s["off"]) * s["cmd"][2] for s in group]
         label = [math.copysign(1, s["off"]) * expert_label(s)[2] for s in group]
+        # The round 2 expert searches RIGHT when the ball is hidden, whichever side it is on, so a
+        # hidden "toward" can be negative by design: the raw vyaw against the expert's is beside it.
         out[f"turn_toward_{name}"] = {"ticks": len(group), "driver": r(mean(toward)), "expert": r(mean(label)),
-                                      "wrong_way_share": r(mean([t < -0.05 for t in toward]), 2) if group else None}
+                                      "wrong_way_share": r(mean([t < -0.05 for t in toward]), 2) if group else None,
+                                      "vyaw": r(mean([s["cmd"][2] for s in group])),
+                                      "expert_vyaw": r(mean([expert_label(s)[2] for s in group]))}
     out["time_to_face_s"] = time_to_face(steps)
     out["expert_time_to_face_s"] = time_to_face(expert_steps)
     # Drift.
@@ -86,6 +94,13 @@ def run_report(path, expert_steps, std):
     inside = [s for s in steps if s["dist"] <= REACH]
     out["overshoot"] = {"ticks_inside": len(inside), "walking_inside": sum(s["cmd"][0] > DEAD_ZONE for s in inside),
                         "final_m": r(steps[-1]["dist"]) if steps else None}
+    # No stop.
+    first = next((i for i, s in enumerate(steps) if s["dist"] <= REACH), None)
+    after = steps[first:] if first is not None else []
+    under = [s for s in steps if s["dist"] <= UNDER_CAMERA]
+    for name, group in (("after_reach", after), ("under_camera", under)):
+        out[name] = {"ticks": len(group), "walking_share": r(mean([s["cmd"][0] > DEAD_ZONE for s in group]), 2),
+                     "vx": r(mean([s["cmd"][0] for s in group]))}
     # What the driver asked for (its own rows, before the pilot's clamp and easing).
     rows = [row for a in asks for row in a["rows"][:20]]
     out["asked_mean"] = [r(mean([row[c] for row in rows])) for c in range(3)] if rows else None
@@ -119,11 +134,16 @@ def main():
     drift = count(lambda x: x["drift_ahead"]["ticks"] >= 10 and (abs(x["drift_ahead"]["vyaw_minus_expert"]) > 0.1
                                                                  or abs(x["drift_ahead"]["vy"]) > 0.01))
     over = sum(1 for x in reports if x["overshoot"]["walking_inside"] > 0)
+    no_stop = sum(1 for x in reports if x["reached"] and x["after_reach"]["walking_share"] is not None
+                  and x["after_reach"]["walking_share"] > 0.5)
     pooled_ahead = [x["drift_ahead"]["vyaw_minus_expert"] for x in failed if x["drift_ahead"]["ticks"] >= 10]
     summary = {"runs": len(reports), "reached": len(reports) - len(failed), "failed": len(failed),
                "half_hfov_deg": round(math.degrees(HALF_HFOV), 1),
                "signatures_in_failed_runs": {"under_turning": under, "drift": drift},
                "overshoot_runs_any": over,
+               "reached_but_kept_walking": no_stop,
+               "pooled_after_reach_vx": r(mean([s for x in reports for s in [x["after_reach"]["vx"]] if s is not None])),
+               "pooled_under_camera_vx": r(mean([s for x in reports for s in [x["under_camera"]["vx"]] if s is not None])),
                "act_std": std,
                "pooled_failed_ahead_vyaw_offset": r(mean(pooled_ahead)),
                "pooled_failed_ahead_vyaw_offset_normalised": r(mean(pooled_ahead) / std[2]) if pooled_ahead else None,
@@ -138,7 +158,8 @@ def main():
               "toward(hidden)", x["turn_toward_hidden"]["driver"], "vs", x["turn_toward_hidden"]["expert"],
               "toward(view)", x["turn_toward_in_view"]["driver"], "vs", x["turn_toward_in_view"]["expert"],
               "wrong-way(view)", x["turn_toward_in_view"]["wrong_way_share"],
-              "ahead", x["drift_ahead"], "overshoot", x["overshoot"])
+              "ahead", x["drift_ahead"], "overshoot", x["overshoot"], "after reach", x["after_reach"],
+              "under camera", x["under_camera"])
 
 
 if __name__ == "__main__":

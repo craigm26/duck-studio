@@ -26,7 +26,10 @@ import sys
 import urllib.request
 
 MAX_FORWARD, MAX_TURN, DEAD_ZONE = 0.3, 1.0, 0.05      # DuckDrive.maxForward, maxTurn, deadZone
-REACH, FACING, SLOWING, ARC_FORWARD = 0.20, 0.6, 0.35, 0.25   # BallExpert
+REACH, SLOWING, ARC_FORWARD = 0.20, 0.35, 0.25               # BallExpert
+SEEN = 30.0 * math.pi / 180      # BallExpert.seen: the camera's half-width is 36.98 deg
+SEARCH_TURN = -MAX_TURN          # BallExpert.searchTurn: no ball in view, turn right
+STANDING_ROWS = 15               # BallExpert.standingRows: 1.5 s of standing kept after arrival
 TASK = "walk to the ball"
 WALKER = "alpha_walking.onnx"
 MASK64 = (1 << 64) - 1
@@ -49,11 +52,11 @@ class SplitMix64:
 
 def style(seed: int) -> dict:
     rng = SplitMix64(seed)
-    return {"speed": 0.7 + 0.3 * rng.next(), "turnGain": 1.5 + 1.0 * rng.next(),
+    return {"speed": 0.7 + 0.3 * rng.next(), "turnGain": 3.0 + 1.0 * rng.next(),
             "weave": 0.03 * rng.next(), "weavePeriod": 2 + 2 * rng.next()}
 
 
-PLAIN = {"speed": 1.0, "turnGain": 2.0, "weave": 0.0, "weavePeriod": 3.0}
+PLAIN = {"speed": 1.0, "turnGain": 3.5, "weave": 0.0, "weavePeriod": 3.0}
 
 
 def command(x, y, yaw, bx, by, t, s=PLAIN):
@@ -63,9 +66,9 @@ def command(x, y, yaw, bx, by, t, s=PLAIN):
     if distance <= REACH:
         return (0.0, 0.0, 0.0)
     off = math.remainder(math.atan2(dy, dx) - yaw, 2 * math.pi)
+    if not abs(off) < SEEN:
+        return (ARC_FORWARD, 0.0, SEARCH_TURN)
     vyaw = min(max(s["turnGain"] * off, -MAX_TURN), MAX_TURN)
-    if not abs(off) < FACING:
-        return (ARC_FORWARD, 0.0, -MAX_TURN if off < 0 else MAX_TURN)
     ease = min(1.0, (distance - REACH) / SLOWING)
     floor = 2 * DEAD_ZONE
     vx = max(MAX_FORWARD * s["speed"] * ease * math.cos(off), floor)
@@ -103,9 +106,23 @@ def vectors(path):
         s = style(seed) if seed else PLAIN
         cases.append({"x": x, "y": y, "yaw": yaw, "bx": bx, "by": by, "t": t,
                       "styleSeed": seed, "command": list(command(x, y, yaw, bx, by, t, s))})
+    # Uniform balls are mostly out of view (the search), so 32 more are placed inside the seen cone.
+    for i in range(32):
+        x, y = -1 + 2 * rng.next(), -1 + 2 * rng.next()
+        yaw = -math.pi + 2 * math.pi * rng.next()
+        a = yaw + SEEN * (-0.98 + 1.96 * rng.next())
+        r = 0.1 + 1.2 * rng.next()
+        bx, by = x + r * math.cos(a), y + r * math.sin(a)
+        t = 10 * rng.next()
+        seed = i % 7
+        s = style(seed) if seed else PLAIN
+        cases.append({"x": x, "y": y, "yaw": yaw, "bx": bx, "by": by, "t": t,
+                      "styleSeed": seed, "command": list(command(x, y, yaw, bx, by, t, s))})
     cases.append({"x": 0, "y": 0, "yaw": 0, "bx": 0.15, "by": 0, "t": 0, "styleSeed": 0, "command": [0, 0, 0]})
     with open(path, "w") as f:
         json.dump({"source": "scripts/record_ball_takes.py", "styles": {str(k): style(k) for k in range(1, 7)},
+                   "constants": {"reach": REACH, "seen": SEEN, "searchTurn": SEARCH_TURN,
+                                 "arcForward": ARC_FORWARD, "slowing": SLOWING, "standingRows": STANDING_ROWS},
                    "cases": cases}, f, indent=1)
     print(f"wrote {len(cases)} vectors to {path}")
 
@@ -113,7 +130,7 @@ def vectors(path):
 def record(bench, takes, out, first_seed, limit_s, hold):
     call(bench, "/reset", {})
     call(bench, "/policy", {"policy": WALKER})
-    kept = dropped = 0
+    kept = dropped = in_view = total_rows = 0
     with open(out, "a") as f:
         seed = first_seed
         while kept < takes:
@@ -126,32 +143,50 @@ def record(bench, takes, out, first_seed, limit_s, hold):
             call(bench, "/policy", {"policy": WALKER})
             state = call(bench, "/ball", {"bearing": bearing, "range": rng_range})
             t0 = state["t"]
-            rows, previous, arrived, fell = [], (0.0, 0.0, 0.0), False, False
-            while state["t"] - t0 < limit_s:
+            start_off = math.remainder(math.atan2(state["ball"][1] - state["position"][1],
+                                                  state["ball"][0] - state["position"][0])
+                                       - yaw_of(state["quaternion"]), 2 * math.pi)
+            # STANDING IS RECORDED, NOT ASSUMED. Once the expert first says stand (the ball is within
+            # reach), the take goes on for STANDING_ROWS more ticks of the all-zero command, each with
+            # the picture's own bench state, so a driver sees "ball at my feet means stand" 16 times
+            # per take, not once. It is latched, not re-asked: a standing duck sways a millimetre or
+            # two, and re-asking at the reach line flickers between stand and a 0.1 m/s creep that
+            # the walker does not even step for (measured on seed 10001, 2026-11-04).
+            rows, previous, standing, fell = [], (0.0, 0.0, 0.0), 0, False
+            while standing or state["t"] - t0 < limit_s:
                 bx, by = state["ball"][0], state["ball"][1]
-                c = command(state["position"][0], state["position"][1], yaw_of(state["quaternion"]),
-                            bx, by, state["t"] - t0, s)
+                c = (0.0, 0.0, 0.0) if standing else command(
+                    state["position"][0], state["position"][1], yaw_of(state["quaternion"]),
+                    bx, by, state["t"] - t0, s)
                 rows.append({"state": list(previous), "action": list(c), "bench": state})
                 if c == (0.0, 0.0, 0.0):
-                    arrived = True
-                    break
+                    standing += 1
+                    if standing > STANDING_ROWS:
+                        break
                 state = call(bench, "/intent", {"vx": c[0], "vy": c[1], "vyaw": c[2], "hold": hold})
                 previous = c
                 if not state.get("upright", True):
                     fell = True
                     break
+            arrived = standing > STANDING_ROWS
             if arrived and not fell and len(rows) >= 17:
                 f.write(json.dumps({"seed": seed, "task": TASK, "bearing": bearing, "range": rng_range,
-                                    "style": s, "walker": WALKER, "hold": hold, "rows": rows}) + "\n")
+                                    "style": s, "walker": WALKER, "hold": hold,
+                                    "startsInView": abs(start_off) < SEEN, "zeroRowsAtEnd": standing,
+                                    "rows": rows}) + "\n")
                 f.flush()
                 kept += 1
-                print(f"take {kept}/{takes}: seed {seed}, {len(rows)} rows ({len(rows) * hold:.1f} s)", flush=True)
+                in_view += abs(start_off) < SEEN
+                total_rows += len(rows)
+                print(f"take {kept}/{takes}: seed {seed}, {len(rows)} rows ({len(rows) * hold:.1f} s), "
+                      f"{'in view' if abs(start_off) < SEEN else 'searching'} at start", flush=True)
             else:
                 dropped += 1
                 why = "fell" if fell else ("too short" if arrived else "time limit")
                 print(f"seed {seed} dropped: {why}", flush=True)
     call(bench, "/stop", {})
-    print(f"kept {kept}, dropped {dropped}")
+    print(f"kept {kept}, dropped {dropped}, started in view {in_view}, started searching {kept - in_view}, "
+          f"rows {total_rows}, mean {total_rows / max(kept, 1):.1f} rows ({total_rows * hold / max(kept, 1):.1f} s)")
 
 
 def main():
