@@ -12,6 +12,10 @@ import FoundationModels
 /// plan in a sentence. The plan shows as chips for `DuckDecider.previewSeconds` with Cancel, then
 /// the host runs it through `DuckRuns.runPlan` under the arbiter's cap and the one Stop.
 ///
+/// A PLAN ON ITS WAY IS A RUN (build 93). From the sentence to the first step it is `PendingPlan`,
+/// registered with the one Stop, so Stop, Siri, the Control and leaving the screen all end it
+/// before a late answer could re-open the latch and walk the duck.
+///
 /// THE FAST PATH COMES FIRST. A sentence the deterministic matcher reads exactly ("sit down",
 /// "quack") is planned without the model. Without Apple Intelligence that is all that runs, and
 /// the card says so in the kit's words.
@@ -33,7 +37,8 @@ final class AskTheDuck: ObservableObject {
     }
 
     @Published var phase: Phase = .idle
-    private var countdown: Task<Void, Never>?
+    private lazy var pending = PendingPlan(register: { DuckRuns.shared.track(.plan, cancel: $0) },
+                                           finished: { DuckRuns.shared.finished($0) })
 
     /// Whether Apple Intelligence can plan here, in the kit's words.
     var availability: DuckDecider.Availability {
@@ -90,27 +95,31 @@ final class AskTheDuck: ObservableObject {
         return .said(ControllerWords.heard(text))
     }
 
-    /// Show the plan, wait the preview beat, then hand it to `run`. Cancel in the beat sends nothing.
-    func preview(_ orders: [DuckOrder], then run: @escaping ([DuckOrder]) -> Void) {
-        countdown?.cancel()
-        phase = .preview(orders)
-        countdown = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: UInt64(DuckDecider.previewSeconds * 1_000_000_000))
-            guard !Task.isCancelled, case .preview(let shown) = phase, shown == orders else { return }
-            run(orders)
-        }
+    /// Work out a plan, show it for the preview beat, then hand it to `run`. A nil answer ends it
+    /// here. Cancel, or any Stop, at any point before `run` sends nothing.
+    func begin(asking: @escaping @MainActor () async -> [DuckOrder]?,
+               then run: @escaping @MainActor ([DuckOrder]) -> Void) {
+        pending.begin(asking: asking, show: { [weak self] in self?.phase = .preview($0) },
+                      beat: DuckDecider.previewSeconds,
+                      gone: { [weak self] in self?.cancelPreview() }, run: run)
     }
 
+    /// Drop a plan that has not started: one still being thought about, or one on show.
     func cancelPreview() {
-        countdown?.cancel()
-        countdown = nil
-        if case .preview = phase { phase = .idle }
+        pending.cancel()
+        if phase.activeStep == nil { phase = .idle }
     }
 
     func running(step i: Int, of orders: [DuckOrder]) { phase = .running(i, orders) }
 
+    /// The running plan finished. A newer sentence already on its way is left alone.
+    func runEnded() {
+        if phase.activeStep != nil { phase = .idle }
+    }
+
+    /// Stop or Take over: nothing is planned, shown or running any more.
     func ended() {
-        countdown?.cancel()
+        pending.cancel()
         phase = .idle
     }
 

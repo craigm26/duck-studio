@@ -247,4 +247,36 @@ final class ControlArbiterTests: XCTestCase {
         XCTAssertTrue(ControlArbiter.RunKind.order.isCapped)
         XCTAssertFalse(ControlArbiter.RunKind.tell.isCapped)
     }
+
+    /// The rule the drive loop reads: a stick rests in Auto with nothing running, and only then.
+    func testSticksRestOnlyInAutoWithNothingRunning() {
+        var a = ControlArbiter()
+        let t = Date(timeIntervalSince1970: 0)
+        XCTAssertFalse(a.sticksRest)
+        _ = a.handle(.selectMode(.auto), at: t)
+        XCTAssertTrue(a.sticksRest)
+        _ = a.handle(.start(.goal, duck: .sim, owner: .app), at: t)
+        XCTAssertFalse(a.sticksRest, "a stick takes over from a running goal")
+        _ = a.handle(.finished, at: t)
+        XCTAssertTrue(a.sticksRest)
+        _ = a.handle(.selectMode(.tell), at: t)
+        XCTAssertFalse(a.sticksRest)
+    }
+
+    /// "You took over." and the cap's line are not replaced by a run's own "Stopped."
+    func testTheArbitersOwnEndingsKeepTheirLine() {
+        let t = Date(timeIntervalSince1970: 0)
+        var a = ControlArbiter()
+        _ = a.handle(.start(.goal, duck: .real, owner: .app), at: t)
+        XCTAssertFalse(a.saidItsOwnEnding)
+        _ = a.handle(.stickTouch, at: t)
+        XCTAssertTrue(a.saidItsOwnEnding)
+        _ = a.handle(.start(.goal, duck: .real, owner: .app), at: t)
+        XCTAssertFalse(a.saidItsOwnEnding)
+        _ = a.handle(.tick, at: t.addingTimeInterval(31))
+        XCTAssertTrue(a.saidItsOwnEnding)
+        _ = a.handle(.start(.goal, duck: .real, owner: .app), at: t)
+        _ = a.handle(.stop, at: t)
+        XCTAssertFalse(a.saidItsOwnEnding, "Stop has no line of its own to keep")
+    }
 }

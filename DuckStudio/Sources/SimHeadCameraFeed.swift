@@ -84,7 +84,7 @@ struct DreamSimSheet: View {
                     }
                     Text(DuckDream.Words.simCameraNote).font(.caption).foregroundStyle(Theme.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
-                    DreamPanel(peer: peer, source: feed, stopDriving: stopDriving, model: model,
+                    DreamPanel(peer: peer, source: feed, duck: .sim, stopDriving: stopDriving, model: model,
                                recorder: recorder, hasPicture: feed.picture != nil)
                 }
                 .padding()
@@ -114,12 +114,12 @@ struct DreamSimStatus: View {
                                         : (model.line ?? DuckDream.Words.heading))
                     .font(.footnote.monospacedDigit()).lineLimit(1)
                 Button(recorder.recording ? DreamDataset.Words.stop : DuckDream.Words.stop) {
-                    if recorder.recording { recorder.stop() } else { model.stop() }
+                    if recorder.recording { recorder.stop() } else { DuckRuns.shared.stop() }
                 }
                 .buttonStyle(.primaryActionInline)
                 .font(.footnote)
             }
-            .padding(.horizontal, Theme.spacing(.snug)).padding(.vertical, Theme.spacing(.tight))
+            .padding(.horizontal, Theme.spacing(.snug)).padding(.vertical, Theme.spacing(.hairline))
             .background(Theme.surfacePrimary, in: Capsule())
             .shadow(color: PondShadow.colour, radius: PondShadow.blur, y: PondShadow.y)
             .frame(maxHeight: 60)

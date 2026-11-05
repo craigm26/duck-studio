@@ -206,7 +206,7 @@ App
 | A game | 3 taps | 1 tap (Moves, then tile) |
 | Say it on the real duck | impossible | 1 press |
 | A skill on the real duck | not offered | 1 tap |
-| Fresh install to a standing duck | 5 taps | 4 taps |
+| Fresh install to a standing duck | 5 taps | 4 taps plus the bridge code |
 
 ## The three control modes
 

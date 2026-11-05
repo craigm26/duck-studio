@@ -385,11 +385,11 @@ struct AskCard: View {
             .foregroundStyle(Theme.textSecondary)
         ForEach(DuckDecider.Words.examples(on: duck, modelReady: ask.availability.isReady), id: \.self) { said in
             Button { example(said) } label: {
-                Label(said, systemImage: "quote.bubble").lineLimit(1)
+                Label(said, systemImage: "quote.bubble").lineLimit(2)
             }
             .buttonStyle(.pondChip)
             .disabled(ask.phase == .thinking)
-            .accessibilityHint(Text(DuckDecider.Words.readyLine))
+            .accessibilityHint(Text(DuckDecider.Words.exampleHint))
         }
     }
 

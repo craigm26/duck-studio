@@ -162,8 +162,11 @@ public enum Onboarding {
     /// with a duck on the Wi-Fi and found on the first look. Picking the duck
     /// from a list of more than one adds a tap the flow cannot count.
     ///
-    /// FOUR, the plan's exit check. Nothing that keeps the duck safe was cut:
-    /// the quack still asks "is this yours?" and Stand up is still its own press.
+    /// FOUR PRESSES, AND THE BRIDGE CODE IS NOT ONE OF THEM. A fresh install has no code, and
+    /// `look()` connects by itself only with one saved, so the code the bridge printed is typed
+    /// on the Find page first (the plan's "zero typing" is not met), or the found duck takes one
+    /// more tap. Nothing that keeps the duck safe was cut: the quack still asks "is this yours?"
+    /// and Stand up is still its own press.
     public static let tapsToStand: [(PageID, ChoiceID)] = [
         (.haveDuck, .yesItsHere), (.find, .lookForMyDuck),
         (.sayHi, .quacked), (.standUp, .standUp),
@@ -247,6 +250,9 @@ public enum Onboarding {
             public static let shown: [Mark] = [.stick, .stop]
         }
 
+        /// What activating a chip does, for VoiceOver.
+        public static let dismissHint = "Hides this tip."
+
         public private(set) var done: Int
 
         public init(done: Int = 0) { self.done = done }
@@ -311,7 +317,7 @@ public enum Onboarding {
             if let s = p.smallPrint { all.append(s) }
             all += p.choices.map(\.label)
         }
-        all += coachMarks + makeItYoursSteps + Discovery.allCases.map(\.label)
+        all += [CoachMarks.dismissHint] + coachMarks + makeItYoursSteps + Discovery.allCases.map(\.label)
         return all
     }
 }

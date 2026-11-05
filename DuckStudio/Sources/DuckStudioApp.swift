@@ -10,9 +10,8 @@ import StudioKit
 ///
 /// THE ORDER IS THE TAG ORDER AND THE TAG ORDER IS LOAD-BEARING: `-tab 1` is Moves. The kit's
 /// `ScreenHierarchy.launch` reads the argument, by index or by name, and keeps the old names
-/// working: `-tab control` is Play, `-tab 3` is Moves and `-tab 4` Studio, `-tab learn` and
-/// `-tab behaviours` open those sections of Studio, `-tab duck` is
-/// Play with the Duck sheet up. The raw values are the target tree's tab ids, and a Linux test
+/// working: `-tab control` is Play, `-tab 3` is Studio, `-tab learn` and `-tab behaviours` open
+/// those sections of Studio, and `-tab duck` and `-tab 4` are Play with the Duck sheet up. The raw values are the target tree's tab ids, and a Linux test
 /// pins the tree.
 enum AppTab: String, CaseIterable, Identifiable {
     case play, moves, studio

@@ -101,7 +101,7 @@ struct DuckSoccerView: View {
     // MARK: - during play
 
     /// A team's name as a badge in its own colour: ink on the team's fill, so it reads on the
-    /// cream pill in both schemes (yellow or teal words on cream did not).
+    /// surface pill in both schemes (yellow or teal words on a pale pill did not).
     private func teamBadge(_ name: String, fill: Color) -> some View {
         Text(name)
             .font(.caption.weight(.heavy))
@@ -2377,7 +2377,7 @@ private enum SoccerMetric {
     static let pressDelta = DesignMetric.pressDelta
 }
 
-/// The soccer HUD's pill: Pond Day's cream with an ink outline and the soft shadow, in both
+/// The soccer HUD's pill: the surface colour (cream by day, deep teal at night) with an ink outline and the soft shadow, in both
 /// schemes (build 93). It used to be black at 55% with white words, a dark blot in light mode.
 private struct SoccerHUDPill: ViewModifier {
     func body(content: Content) -> some View {

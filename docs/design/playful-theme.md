@@ -19,7 +19,7 @@ Where the shipped values differ from the tables below, and why:
 - **Floor marks have their own tokens**, each 3:1 or better on what it is drawn on, in both schemes (`PaletteTests`): `stageLine` for pitch lines and the goal (teal ink by day, cream at night; white was 1.51:1 on the light playmat), `stageTrail` for the walked path, `stageStepEdge` for the strip on a step (orange ink; yellow was 1.35:1 on cream).
 - **No `.borderedProminent` in the app.** It sets a white label on the tint, 2.02:1 at night. `.primaryAction` is ink on Beak Orange in both schemes; `scripts/check_no_bordered_prominent.sh` holds the line.
 - **The lip is 2 pt in tight rows** (`.pad`, the new `.primaryActionInline`), 3 pt elsewhere.
-- **The soccer HUD is a cream pill with an ink outline** in both schemes; team names are badges in their team colour.
+- **The soccer HUD is a surface-coloured pill with an ink outline** (cream by day, deep teal at night); team names are badges in their team colour.
 
 ## Why
 

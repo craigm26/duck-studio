@@ -96,10 +96,11 @@ final class ScreenHierarchyTests: XCTestCase {
         XCTAssertEqual(ScreenHierarchy.launch("duck"), .init(tab: "play", duckSheet: true))
     }
 
-    /// The five-tab layout's `-tab 3` and `-tab 4` land on Moves and Studio (build 93).
+    /// The five-tab layout was control, learn, behaviours, studio, duck, so `-tab 3` is still
+    /// Studio and `-tab 4` is My Microduck, now the Duck sheet on Play (build 93).
     func testTheOldIndicesPastTheEndLandSomewhereReal() {
-        XCTAssertEqual(ScreenHierarchy.launch("3"), .init(tab: "moves", duckSheet: false))
-        XCTAssertEqual(ScreenHierarchy.launch("4"), .init(tab: "studio", duckSheet: false))
+        XCTAssertEqual(ScreenHierarchy.launch("3"), .init(tab: "studio", duckSheet: false))
+        XCTAssertEqual(ScreenHierarchy.launch("4"), .init(tab: "play", duckSheet: true))
         for (_, id) in ScreenHierarchy.legacySections {
             XCTAssertTrue(ScreenHierarchy.shipped.allNodes.contains { $0.id == id }, id)
         }
@@ -232,7 +233,7 @@ final class ScreenHierarchyTests: XCTestCase {
         XCTAssertEqual(ScreenHierarchy.tapCounts[1].path, ["moves.games"])
         XCTAssertEqual(ScreenHierarchy.tapCounts[3].path, ["moves.skills"])
         // The row's number is the walk OnboardingTests walks, so the table cannot drift from it.
-        XCTAssertEqual(ScreenHierarchy.tapCounts[4].target, "\(Onboarding.tapsToStand.count) taps")
+        XCTAssertEqual(ScreenHierarchy.tapCounts[4].target, "\(Onboarding.tapsToStand.count) taps plus the bridge code")
     }
 
     /// The Duck sheet the app draws is the target's Duck sheet, section for section.

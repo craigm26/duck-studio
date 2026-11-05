@@ -16,7 +16,9 @@ import Foundation
 ///   no re-arm, no input passed.
 /// - CAPS: 30 s on the real duck, 60 s on the practice duck, for Auto goals and for single orders
 ///   from Siri or a real duck's face button (build 93: those used to run with no cap). Studio may
-///   lengthen them; nothing may switch them off.
+///   lengthen them; nothing may switch them off. A person's own plan or measuring row has no time
+///   cap: each beat has a duration and each card a time limit, so it ends by itself, and it is
+///   under the one Stop and the foreground rule.
 /// - A STICK IN AUTO WITH NOTHING RUNNING DOES NOTHING (build 93). A resting or drifting game
 ///   controller used to flip Auto to Drive on its own; now the switch stays, the duck stays still,
 ///   and the line says how to steer. While a goal runs, the stick still takes over.
@@ -24,9 +26,11 @@ import Foundation
 ///   reconnect, a return to the foreground or a tick after a stop starts nothing.
 /// - LEAVING THE FOREGROUND ENDS EVERY RUN, except one an intent started that holds a Live
 ///   Activity. That one keeps going while the app process runs and still ends the moment the
-///   connection drops. A start that arrives while the app is already off screen (Siri, a
-///   Control) is REFUSED unless it holds a Live Activity: the `.background` that would have
-///   ended it has already passed, so nothing else would.
+///   connection drops. A start that arrives while the app is already off screen is REFUSED
+///   unless it holds a Live Activity: the `.background` that would have ended it has already
+///   passed, so nothing else would. The caller must honour `passInput == false`. The one that
+///   does not is an order from Siri or a Control, which is already running when Play hears of it
+///   and whose intent opens the app; it keeps the time cap `DuckRuns.runOrder` gives it.
 public struct ControlArbiter: Equatable, Sendable {
 
     /// The top switch.
@@ -173,6 +177,14 @@ public struct ControlArbiter: Equatable, Sendable {
     public private(set) var lastEnding: Ending?
     public private(set) var inForeground = true
     public let caps: Caps
+
+    /// A stick does nothing now: Auto, with nothing running to take over from. This is the same
+    /// rule `.stickTouch` answers, for a drive loop that is already going.
+    public var sticksRest: Bool { mode == .auto && running == nil }
+
+    /// The last run ended on a line of the arbiter's own ("You took over.", the cap), which a
+    /// run's own "Stopped." must not replace.
+    public var saidItsOwnEnding: Bool { lastEnding == .tookOver || lastEnding == .capped }
 
     public init(mode: Mode = .drive, caps: Caps = .standard) {
         self.mode = mode

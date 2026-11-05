@@ -100,9 +100,10 @@ public enum ScreenHierarchy {
         "behaviours": "studio.behaviours",
     ]
 
-    /// The five-tab layout's indices past the end of today's three, and the tab each now opens:
-    /// 3 Moves, 4 Studio, so an old screenshot script lands somewhere real rather than on Play.
-    public static let legacyIndices: [Int: String] = [3: "moves", 4: "studio"]
+    /// The five-tab layout's indices past the end of today's three, and where each screen went.
+    /// That layout was control, learn, behaviours, studio, duck: 3 is still Studio, and 4 (My
+    /// Microduck) is the Duck sheet on Play, so an old screenshot script shoots the same screen.
+    public static let legacyIndices: [Int: String] = [3: "studio", 4: "duck"]
 
     /// `-tab N` by index into the tree's tabs, or `-tab name` by id or old name, so
     /// `-tab control` and `-tab learn` keep working. Anything else opens the tab the app opens
@@ -112,7 +113,7 @@ public enum ScreenHierarchy {
         guard let asked = asked?.trimmingCharacters(in: .whitespaces), !asked.isEmpty else { return home }
         if let n = Int(asked) {
             if tree.tabs.indices.contains(n) { return Launch(tab: tree.tabs[n].id, duckSheet: false) }
-            if let id = legacyIndices[n], tree.tab(id) != nil { return Launch(tab: id, duckSheet: false) }
+            if let name = legacyIndices[n] { return launch(name, in: tree) }
             return home
         }
         guard let tab = tree.tab(asked) else { return home }
@@ -254,7 +255,7 @@ public enum ScreenHierarchy {
         TapCount("A skill on the real duck", today: "not offered", target: "1 tap",
                  path: ["moves.skills"]),
         // Measured by `Onboarding.tapsToStand`, which a test walks page by page (build 93).
-        TapCount("Fresh install to a standing duck", today: "5 taps", target: "4 taps",
+        TapCount("Fresh install to a standing duck", today: "5 taps", target: "4 taps plus the bridge code",
                  path: []),
     ]
 

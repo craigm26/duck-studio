@@ -387,6 +387,8 @@ public enum DuckDecider {
         public static let title = "Ask the duck"
         public static let provenance = "Apple Intelligence, on this device. Nothing you say leaves it."
         public static let readyLine = "Say or type a goal. It plans a few steps from your words, shows them, then runs them."
+        /// What tapping a "Try saying" chip does.
+        public static let exampleHint = "Shows the plan for a moment, then runs it."
         public static let placeholder = "Walk forward, turn left, then sit"
         public static let go = "Plan"
         public static let thinking = "Planning."
@@ -434,7 +436,7 @@ public enum DuckDecider {
         }
 
         public static var all: [String] {
-            [title, provenance, readyLine, placeholder, go, thinking, startingSoon, cancel, cancelled, cantSee,
+            [title, provenance, readyLine, exampleHint, placeholder, go, thinking, startingSoon, cancel, cancelled, cantSee,
              step(1, of: 3), done, modelFailed, siriLine, trySaying]
                 + [DuckIdentity.Kind.sim, .real].flatMap { d in
                     [false, true].flatMap { examples(on: d, modelReady: $0) } }

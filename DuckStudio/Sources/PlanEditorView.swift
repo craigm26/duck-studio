@@ -65,6 +65,8 @@ struct PlanEditorView: View {
     @State private var checkProgress: String?
     @State private var checkResult: String?
     @State private var robotRun: Task<Void, Never>?
+    /// The run's place with the one Stop, while it runs.
+    @State private var robotToken: StopPath.Token?
     @State private var robotLine: String?
     /// A long Duck Cards row's pause for the nest (duck-card-loop/6).
     @StateObject private var nestGate = NestGate()
@@ -111,7 +113,8 @@ struct PlanEditorView: View {
                     handedNotes = handed.notes
                 }
             }
-            .onDisappear { robotRun?.cancel() }
+            // LEAVING THE SCREEN STOPS THE DUCK THE WAY THE STOP BUTTON DOES, wire first.
+            .onDisappear { if robotRun != nil { DuckRuns.shared.stop() } }
             .navigationTitle(PlanEditorWords.title)
             .navigationBarTitleDisplayMode(.inline)
     }
@@ -408,7 +411,7 @@ struct PlanEditorView: View {
                         .buttonStyle(.primaryActionMoves)
                 }
                 if robotRun != nil {
-                    Button(PlanEditorWords.stopOnDuckButton) { robotRun?.cancel() }
+                    Button(PlanEditorWords.stopOnDuckButton) { DuckRuns.shared.stop() }
                         .buttonStyle(.primaryAction)
                 } else if let robot, robot.isConnected {
                     Button(PlanEditorWords.runOnDuckButton) { runOnDuck(plan, robotPlan, robot) }
@@ -457,9 +460,18 @@ struct PlanEditorView: View {
         }
         let nest: RobotPlanRunner.Nest? = robotPlan.chapters.count > 1 ? wait : nil
         robotLine = nil
-        robotRun = Task { @MainActor in
-            defer { robotRun = nil }
+        // A PERSON'S TAP, BEFORE ANYTHING IS AWAITED: whatever was moving the duck stops, and the
+        // run is registered at once, so the one Stop (Siri, the pill, leaving the foreground) ends
+        // this row from its first moment. It sends `robot.move` at the control rate.
+        let runs = DuckRuns.shared
+        runs.makeWay()
+        let work = Task { @MainActor in
+            defer {
+                robotRun = nil
+                if let token = robotToken { runs.finished(token); robotToken = nil }
+            }
             await stopDriving?()
+            if Task.isCancelled { robotLine = PlanEditorWords.robotStopped; return }
             if cards { _ = try? await robot.subscribeToState() }
             do {
                 let outcome = try await RobotPlanRunner.run(
@@ -495,6 +507,8 @@ struct PlanEditorView: View {
                 robotLine = Task.isCancelled ? PlanEditorWords.robotStopped : error.localizedDescription
             }
         }
+        robotRun = work
+        robotToken = runs.track(.plan, on: peer) { work.cancel() }
     }
 
     /// The link's newest `robot.state`, for a card plan's Walk and Turn.
