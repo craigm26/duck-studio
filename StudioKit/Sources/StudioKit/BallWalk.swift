@@ -190,6 +190,10 @@ public enum BallWalk {
     /// width. The real view is about 144 of the 320 pixels, and the rest is `fill`, the driver's
     /// mean colour, which normalises to 0.
     ///
+    /// CHECKED ON DRAWN PICTURES ONLY. 525 of them cut to this view, v6 driver, expert's first row:
+    /// turn error 0.083 and 89% of stands (whole picture 0.035, 87%), where a plain crop and zoom
+    /// gives 0.357 and never stands. That ranks the framings. It says nothing about a real floor.
+    ///
     /// A LANDSCAPE PICTURE IS FITTED WHOLE. That is a beta duck's upright GC2093, whose field of
     /// view nobody has published, so there is no angle to match; `mediad` publishes no geometry for
     /// it either.

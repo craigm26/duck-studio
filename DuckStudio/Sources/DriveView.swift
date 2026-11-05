@@ -1688,6 +1688,8 @@ struct DriveView: View {
     /// Tell: Walk to the ball, from its Go or a sentence. Every refusal is said, in Tell's caption.
     @MainActor private func walkToBall() {
         guard !dreamModel.running, !telling else { return }
+        // NOTHING STARTS OFF SCREEN: the `.background` that would end it has already gone by.
+        if scenePhase == .background { say(ControlArbiter.Words.notOnScreen); return }
         let available = BallWalk.availability(on: duckKind, driverInstalled: drivers.phase.isInstalled)
         if let why = available.reason { say(why); return }
         if duckKind == .real { walkRealDuck() } else { walkPracticeDuck() }

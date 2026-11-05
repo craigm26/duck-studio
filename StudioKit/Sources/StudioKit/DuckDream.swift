@@ -327,7 +327,7 @@ public struct DuckDream: Equatable, Sendable, CustomStringConvertible, CustomDeb
         }
         public static let tooHot = "This phone is too hot to drive the duck. Let it cool, then try again."
         public static let simOnly =
-            "Phone drivers run on the simulated duck for now: they learned from its pictures, not a real floor."
+            "In Dream-1, phone drivers run on the practice duck. On your duck, use Walk to the ball in Tell."
         public static let noPicture = "No picture from the head camera yet."
         public static let notThisDriver = "That is not the driver this run was started with."
         public static let driverFailed = "The driver could not read this picture or gave numbers that are not commands."

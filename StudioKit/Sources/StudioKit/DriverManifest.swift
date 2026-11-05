@@ -73,7 +73,7 @@ public struct DriverManifest: Decodable, Equatable, Sendable {
             case .chunk(let n): return "This driver answers \(n) steps at a time; the pilot plays chunks of 48."
             case .usesState: return "This driver reads the duck's last command, which this app does not feed a driver."
             case .notSim(let s):
-                return "This driver was trained on \(s), and phone drivers run only on the simulated duck for now."
+                return "This driver was trained on \(s), and this app runs only drivers trained on the simulated duck."
             case .stats: return "This driver's normalising numbers are missing or not finite."
             case .path(let p): return "This driver names a file outside its own folder (\(p))."
             case .tooBig(let p): return "This driver's file \(p) is larger than any driver needs."
