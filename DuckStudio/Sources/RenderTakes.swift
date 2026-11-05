@@ -100,8 +100,8 @@ enum RenderTakes {
 }
 #endif
 
-/// The app's entry point: the headless render job when launched with `-render-takes` on a Mac,
-/// otherwise the app itself.
+/// The app's entry point: the headless render job (`-render-takes`) or the M1 driver trial
+/// (`-driver-trial`) when launched so on a Mac, otherwise the app itself.
 @main
 @MainActor
 enum DuckStudioLaunch {
@@ -109,6 +109,10 @@ enum DuckStudioLaunch {
         #if os(macOS)
         if let job = BallTakes.job(arguments: CommandLine.arguments) {
             Task { @MainActor in exit(await RenderTakes.run(job)) }
+            dispatchMain()
+        }
+        if let job = DriverTrial.job(arguments: CommandLine.arguments) {
+            Task { @MainActor in exit(await DriverTrialRun.run(job)) }
             dispatchMain()
         }
         #endif
