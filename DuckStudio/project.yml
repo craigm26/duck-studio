@@ -240,6 +240,13 @@ targets:
         # (tools/advertise_machine.py publishes it). Nothing it finds is added
         # without a tap. iOS refuses a browse for an undeclared type SILENTLY,
         # so every type browsed is in NSBonjourServices below.
+        # BUILD 92: THE MIC on Tell and Ask the duck. Speech is recognised on the device
+        # (`requiresOnDeviceRecognition`), and a device that cannot do that keeps the mic off.
+        NSMicrophoneUsageDescription: "Microduck Studio listens only after you tap the mic on Tell or Ask the duck, so you can tell your duck what to do. Nothing is recorded or sent anywhere."
+        NSSpeechRecognitionUsageDescription: "Microduck Studio turns what you say to your duck into words on this device, so it can run the command. Your voice is not sent to a server."
+        # Siri hears "Duck Studio" as well as the display name in the App Shortcut phrases.
+        INAlternativeAppNames:
+          - INAlternativeAppName: Duck Studio
         NSLocalNetworkUsageDescription: "Microduck Studio looks on your own network for computers running its physics bench or plan router, so you can use them without typing an address, and contacts the ones you save. Nothing is added until you tap Add, and nothing about your policies or motions leaves your network."
         NSBonjourServices:
           # WHAT THE BRIDGE ADVERTISES (bridge/microduck-bridge.avahi.xml), so
@@ -383,7 +390,7 @@ targets:
         DEVELOPMENT_TEAM: WYGG3JXWMG
         CODE_SIGN_STYLE: Automatic
         MARKETING_VERSION: "2.0"
-        CURRENT_PROJECT_VERSION: "91"
+        CURRENT_PROJECT_VERSION: "92"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         SWIFT_VERSION: "5.9"
         TARGETED_DEVICE_FAMILY: "1,2"

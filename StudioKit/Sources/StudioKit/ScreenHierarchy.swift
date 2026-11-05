@@ -341,7 +341,7 @@ public enum ScreenHierarchy {
                 Node("play.stick", "Stick", .keep, source: "PadChrome.swift"),
                 Node("play.buttons", "Move buttons and mic", .new),
                 Node("play.head", "Head drag", .merge),
-                Node("play.secondStop", "Second Stop while Auto runs", .new),
+                Node("play.secondStop", "Take over while Auto runs", .new),
                 Node("play.readout", "Readout chip", .new),
                 Node("play.movesSheet", "Moves sheet", .new),
                 Node("play.pose", "Pose", .keep, source: "JointHandleOverlay.swift"),
@@ -350,7 +350,7 @@ public enum ScreenHierarchy {
                     Node("play.tell.plan", "Plan", .keep, source: "PlanEditorView.swift"),
                     Node("play.tell.cards", "Watch for cards", .merge, source: "DuckCardsViews.swift"),
                 ]),
-                Node("play.auto", "Auto goals", .merge, source: "ControllerView.swift"),
+                Node("play.auto", "Auto: Ask the duck, other helpers beside it", .merge, source: "ControllerView.swift"),
                 Node("play.more", "More", .new, [
                     Node("play.more.scene", "Scene", .down),
                     Node("play.more.record", "Record a sequence", .down, source: "SequenceKeepSheet.swift"),

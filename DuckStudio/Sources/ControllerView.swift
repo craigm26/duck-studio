@@ -57,6 +57,8 @@ struct DuckPill: View {
     let current: DriveVenue
     let pick: (DriveVenue) -> Void
     let details: () -> Void
+    /// The practice duck's "Put it back on its feet", or nil on a duck it cannot reach.
+    var putBack: (() -> Void)? = nil
 
     var body: some View {
         Menu {
@@ -74,6 +76,12 @@ struct DuckPill: View {
                 }
             } header: {
                 SectionHeading(text: ControllerWords.driveOn)
+            }
+            if let putBack {
+                Button(action: putBack) {
+                    Label(ControllerWords.putBack, systemImage: "figure.stand")
+                }
+                .accessibilityHint(Text(ControllerWords.putBackHint))
             }
             Button(action: details) {
                 Label(ControllerWords.duckDetails, systemImage: "info.circle")
@@ -115,30 +123,42 @@ struct DuckPill: View {
     }
 }
 
-/// Tell: a typed sentence or a tile, read by `DuckOrderMatcher` and run by `DuckOrderRunner`.
-/// The stick stays live under it.
+/// Tell: a spoken or typed sentence, or a tile, read by `DuckOrderMatcher` and run by
+/// `DuckOrderRunner`.
+///
+/// BUILD 92: THE PANEL TAKES THE STICKS' PLACE, so the duck stays in view, and the tiles wrap
+/// instead of scrolling off the edge. Only tiles this duck can do are drawn
+/// (`ControllerWords.tiles(for:)`). Refusals and results show in the panel's own caption line,
+/// which goes away on its own.
 struct TellPanel: View {
+    let duck: DuckIdentity.Kind?
     let caption: String?
     let busy: Bool
+    @ObservedObject var listener: DuckListener
     let send: (String) -> Void
+    let stop: () -> Void
     @State private var text = ""
     @FocusState private var focused: Bool
 
+    private let columns = [GridItem(.adaptive(minimum: ControllerMetric.tileMinimum), spacing: 8)]
+
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: Theme.spacing(.tight)) {
-                    ForEach(ControllerWords.tiles, id: \.said) { tile in
-                        Button { send(tile.said) } label: {
-                            Label(tile.said.capitalized, systemImage: tile.symbol)
-                                .font(.footnote.weight(.semibold))
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(busy)
+            LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
+                ForEach(ControllerWords.tiles(for: duck), id: \.said) { tile in
+                    Button { send(tile.said) } label: {
+                        Label(tile.said.capitalized, systemImage: tile.symbol)
+                            .font(.footnote.weight(.semibold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    .buttonStyle(.bordered)
+                    .disabled(busy)
                 }
             }
             HStack(spacing: Theme.spacing(.tight)) {
+                MicButton(listener: listener, onStop: stop, onFinal: { said in send(said) })
                 TextField(ControllerWords.tellPlaceholder, text: $text)
                     .textFieldStyle(.roundedBorder)
                     .focused($focused)
@@ -148,8 +168,8 @@ struct TellPanel: View {
                     .buttonStyle(.borderedProminent)
                     .disabled(busy || text.trimmingCharacters(in: .whitespaces).isEmpty)
             }
-            if let caption {
-                Text(caption)
+            if let line = listener.listening ? MicWords.listening : (listener.problem ?? caption) {
+                Text(line)
                     .font(.footnote)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -167,56 +187,174 @@ struct TellPanel: View {
     }
 }
 
-/// Auto: one row of goal cards over the picture, and a second Stop in the thumb zone while a
-/// goal runs.
+/// Auto, Apple Intelligence first (build 92, the owner's ask after 2.0 (91)).
+///
+/// ONE PANEL DOCKED WHERE THE PAD WAS, NOTHING SCROLLING SIDEWAYS. Leading: the Ask the duck card,
+/// where on-device Apple Intelligence plans a few steps from a sentence. Trailing: a narrow column
+/// of the other helpers (Dream-1, then the phone driver once it ships). Every card is fully on
+/// screen. While a goal runs, the panel collapses to one status line with Take over; the red disc
+/// top right is the Stop.
 struct AutoPanel: View {
     let duck: DuckIdentity.Kind?
     let driverInstalled: Bool
-    let running: Bool
+    let dreamReady: Bool
+    @ObservedObject var ask: AskTheDuck
+    @ObservedObject var listener: DuckListener
     let caption: String?
+    /// The status line while something runs, or nil.
+    let running: String?
+    let plan: (String) -> Void
     let go: (AutoGoal) -> Void
+    let takeOver: () -> Void
     let stop: () -> Void
 
     var body: some View {
-        HStack(alignment: .bottom, spacing: Theme.spacing(.tight)) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: Theme.spacing(.tight)) {
-                    ForEach(AutoGoal.allCases) { card($0) }
-                }
+        if let running {
+            HStack(spacing: Theme.spacing(.tight)) {
+                Image(systemName: "sparkles").accessibilityHidden(true)
+                Text(running)
+                    .font(.system(.footnote, design: .rounded).weight(.semibold))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.8)
+                Spacer(minLength: 0)
+                Button(ControllerWords.takeOver, action: takeOver)
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityHint(Text(ControllerWords.takeOverHint))
             }
-            if running {
-                StopDisc(size: ControllerMetric.thumbStop, action: stop)
+            .padding(.horizontal, Theme.spacing(.snug))
+            .frame(minHeight: ControllerMetric.statusHeight)
+            .background(.ultraThinMaterial, in: Capsule())
+        } else {
+            HStack(alignment: .top, spacing: Theme.spacing(.tight)) {
+                AskCard(duck: duck, ask: ask, listener: listener, caption: caption, plan: plan, stop: stop)
+                    .frame(maxWidth: .infinity)
+                VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
+                    Text(ControllerWords.otherHelpers)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    ForEach(AutoGoal.allCases) { helper($0) }
+                }
+                .frame(width: ControllerMetric.helperColumn, alignment: .leading)
             }
         }
     }
 
-    private func card(_ goal: AutoGoal) -> some View {
-        let availability = goal.availability(on: duck, driverInstalled: driverInstalled)
-        return VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
+    private func helper(_ goal: AutoGoal) -> some View {
+        let availability = goal.availability(on: duck, driverInstalled: driverInstalled, dreamReady: dreamReady)
+        let action = goal.action(on: duck, driverInstalled: driverInstalled, dreamReady: dreamReady)
+        // "Add your key" is a way forward, so it stays pressable; a helper that has not shipped is not.
+        let pressable = availability == .ready || action == AutoGoal.Words.addKey
+        return VStack(alignment: .leading, spacing: 4) {
             Label(goal.title, systemImage: goal.symbol)
-                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                .font(.system(.caption, design: .rounded).weight(.semibold))
                 .lineLimit(2)
-            Text(goal.subtitle(on: duck, driverInstalled: driverInstalled))
-                .font(.caption)
-                .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            Text(goal.provenance)
+            Text(goal.subtitle(on: duck, driverInstalled: driverInstalled, dreamReady: dreamReady))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
-            HStack {
-                if running, goal == .dream, let caption {
-                    Text(caption).font(.caption2).lineLimit(1)
-                }
-                Spacer()
-                Button(running ? AutoGoal.Words.running : AutoGoal.Words.go) { go(goal) }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(availability != .ready || running)
+                .fixedSize(horizontal: false, vertical: true)
+            if pressable {
+                Button(action) { go(goal) }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
             }
         }
+        .padding(Theme.spacing(.tight))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .opacity(pressable ? 1 : 0.6)
+        .accessibilityElement(children: .combine)
+        .accessibilityHint(Text(goal.provenance))
+    }
+}
+
+/// The leading card in Auto: say or type a goal, Apple Intelligence plans a few steps from the
+/// closed set, the plan shows as chips for a moment with Cancel, then runs.
+struct AskCard: View {
+    let duck: DuckIdentity.Kind?
+    @ObservedObject var ask: AskTheDuck
+    @ObservedObject var listener: DuckListener
+    let caption: String?
+    let plan: (String) -> Void
+    let stop: () -> Void
+    @State private var text = ""
+    @FocusState private var focused: Bool
+
+    private let chipColumns = [GridItem(.adaptive(minimum: 96), spacing: 6)]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
+            HStack(spacing: 6) {
+                Image(systemName: "sparkles").accessibilityHidden(true)
+                Text(DuckDecider.Words.title)
+                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
+            }
+            Text(ask.availability.isReady ? DuckDecider.Words.provenance
+                                          : [ask.availability.says, ask.availability.instead ?? ""].joined(separator: " "))
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            switch ask.phase {
+            case .preview(let orders), .running(_, let orders):
+                LazyVGrid(columns: chipColumns, alignment: .leading, spacing: 6) {
+                    ForEach(Array(orders.enumerated()), id: \.offset) { i, order in
+                        let chip = DuckDecider.chip(for: order)
+                        Label(chip.title, systemImage: chip.symbol)
+                            .font(.caption.weight(.semibold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                            .padding(.horizontal, 8).padding(.vertical, 4)
+                            .background(ask.phase.activeStep == i ? Theme.actionSecondary.opacity(0.35)
+                                                                   : Color.secondary.opacity(0.15),
+                                        in: Capsule())
+                    }
+                }
+                if case .preview = ask.phase {
+                    HStack {
+                        Text(DuckDecider.Words.startingSoon).font(.caption)
+                        Spacer(minLength: 0)
+                        Button(DuckDecider.Words.cancel) { ask.cancelPreview() }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                    }
+                }
+            default:
+                HStack(spacing: Theme.spacing(.tight)) {
+                    MicButton(listener: listener, onStop: stop, onFinal: { said in plan(said) })
+                    TextField(DuckDecider.Words.placeholder, text: $text, axis: .vertical)
+                        .lineLimit(1...2)
+                        .textFieldStyle(.roundedBorder)
+                        .focused($focused)
+                        .submitLabel(.go)
+                        .onSubmit(submit)
+                    Button(DuckDecider.Words.go, action: submit)
+                        .buttonStyle(.borderedProminent)
+                        .disabled(ask.phase == .thinking || duck == nil
+                                  || text.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
+            if let line = listener.listening ? MicWords.listening
+                : (ask.phase == .thinking ? DuckDecider.Words.thinking : (listener.problem ?? caption)) {
+                Text(line)
+                    .font(.footnote)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Text(DuckDecider.Words.siriLine)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
         .padding(Theme.spacing(.snug))
-        .frame(width: ControllerMetric.cardWidth, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .opacity(availability == .ready ? 1 : 0.8)
+    }
+
+    private func submit() {
+        let said = text.trimmingCharacters(in: .whitespaces)
+        guard !said.isEmpty, ask.phase != .thinking else { return }
+        plan(said)
+        text = ""
+        focused = false
     }
 }
 
@@ -273,6 +411,12 @@ struct DuckPictureStage: View {
 enum ControllerMetric {
     static let switchWidth: CGFloat = 300
     static let cardWidth: CGFloat = 250
+    /// The trailing column of other helpers in Auto: narrow, so Ask the duck leads.
+    static let helperColumn: CGFloat = 132
+    /// Tell's tiles wrap at this width, two or three to a row on a phone.
+    static let tileMinimum: CGFloat = 130
+    /// Auto's one status line while a goal runs: under the 60 pt cap for chrome over the picture.
+    static let statusHeight: CGFloat = 52
     /// The second Stop, in the right-thumb zone, while Auto runs.
     static let thumbStop: CGFloat = 64
 }

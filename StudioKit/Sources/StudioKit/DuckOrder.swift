@@ -206,8 +206,8 @@ public enum DuckOrder: Equatable, Sendable {
         public var says: String {
             switch self {
             case .sittingUnknown:
-                return "This duck has not said whether it is sitting, so Sit waits rather than "
-                     + "guess. A wrong guess would stand it up instead."
+                return "Your duck didn't say whether it is sitting, so Sit waits rather than guess. "
+                     + "A wrong guess would stand it up instead."
             case .notASkillName(let name):
                 return "\"\(name)\" is not a move a duck can be asked for by name."
             case .notOnThisDuck(let name, let has):
@@ -379,6 +379,21 @@ public enum DuckOrderRunner {
     /// A sentence from the robot or the transport, made fit for the screen: robotd writes
     /// em-dashes ("the policy is not driving \u{2014} press Start on the pad") and no sentence
     /// on screen in this app has one.
+    /// An error as a sentence a person can read. NEVER THE SWIFT CASE NAME: build 91 printed
+    /// `resetIsNotTheInitialPose` and `noVoice` under the practice duck's tiles because this
+    /// formatted the error with string interpolation.
+    public static func sentence(for error: Error) -> String {
+        if let m = error as? DuckCall.Misuse { return inOurWords(m.message) }
+        if let r = error as? BenchPeer.Refusal { return inOurWords(r.message) }
+        if let r = error as? DuckOrder.Refusal { return r.says }
+        if let l = error as? LocalizedError, let d = l.errorDescription { return inOurWords(d) }
+        return Words.couldNotAsk
+    }
+
+    public enum Words {
+        public static let couldNotAsk = "The duck couldn't be asked. Check the connection and try again."
+    }
+
     public static func inOurWords(_ text: String) -> String {
         text.replacingOccurrences(of: " \u{2014} ", with: ", ")
             .replacingOccurrences(of: "\u{2014}", with: ", ")
@@ -399,7 +414,7 @@ public enum DuckOrderRunner {
         let steps: [DuckOrder.Step]
         do { steps = try command.plan(ready, whileLocked: whileLocked) } catch let r as DuckOrder.Refusal {
             return .refused(r.says)
-        } catch { return .refused(inOurWords("\(error)")) }
+        } catch { return .refused(sentence(for: error)) }
 
         if steps.isEmpty {
             if case .sit = command { await said(DuckOrder.Words.alreadySitting) }
@@ -484,7 +499,7 @@ public enum DuckOrderRunner {
         } catch {
             if !clear() { return .stopped }
             _ = try? await peer.notify(.move(.still))
-            return .refused(inOurWords((error as? DuckCall.Misuse)?.message ?? "\(error)"))
+            return .refused(sentence(for: error))
         }
         return .finished
     }
