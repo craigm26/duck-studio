@@ -71,10 +71,10 @@ change the other.
 ## Proving it
 
 ```sh
-python3 test_bridge.py          # 24 tests, stdlib only, no duck required
+python3 test_bridge.py          # 25 tests, stdlib only, no duck required
 ```
 
-Twenty-four tests against a mock robotd that records what it was sent, in two
+Twenty-five tests against a mock robotd that records what it was sent, in two
 groups.
 
 **Sixteen on the relay itself:** bytes reach robotd unchanged, answers reach the

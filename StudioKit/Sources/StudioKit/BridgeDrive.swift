@@ -205,8 +205,8 @@ public enum BridgeDrive {
     /// What Disconnect actually costs, said on the button's own row.
     public static let disconnectEndsDriving =
         "There is one link, so disconnecting here ends driving on the Play tab as well. The "
-      + "robot stops: the bridge sends robot.stop when this app hangs up mid-stride, and robotd "
-      + "zeroes a twist older than its own deadman."
+      + "robot stops: robotd zeroes a twist older than its own deadman, and an up-to-date bridge "
+      + "also sends robot.stop as soon as this app hangs up mid-stride."
 
     // MARK: - the headings on the venue's own list
 

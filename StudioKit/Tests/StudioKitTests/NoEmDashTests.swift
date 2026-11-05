@@ -35,7 +35,7 @@ final class NoEmDashTests: XCTestCase {
         "BenchPeer.swift": 8,
         "BenchSetup.swift": 12,
         "BridgeDrive.swift": 8,
-        "BridgeHandshake.swift": 5,
+        "BridgeHandshake.swift": 3,
         "CameraAvailability.swift": 3,
         "ChatDraft.swift": 6,
         "ChatWire.swift": 1,

@@ -53,7 +53,9 @@ import sys
 import threading
 import time
 
-VERSION = "microduck-bridge/1"
+# /2: only motion feeds the deadman, and a hang-up mid-stride sends robot.stop.
+# The hello is unchanged ("microduck": "v1"), so an older app still connects.
+VERSION = "microduck-bridge/2"
 DEFAULT_SOCKET = "/run/robotd.sock"
 DEFAULT_PORT = 7788
 DEFAULT_DEADMAN_MS = 700
@@ -320,7 +322,11 @@ class Relay:
         self.armed = False
         # ONE WRITER AT A TIME TO ROBOTD: the client's lines and the deadman's
         # stop come from two threads, and a stop must not land inside a line.
-        self.robotd_lock = threading.Lock()
+        # IT ALSO COVERS `armed`: the deadman's check, its clear and its write
+        # are one step, and so are a move's arming and its write. Otherwise a
+        # move arriving between the check and the clear is live and unarmed.
+        # Re-entrant, because both of them write through `to_robotd`.
+        self.robotd_lock = threading.RLock()
         self.running = True
         # WHAT THE CLIENT HAS SENT SINCE ITS LAST NEWLINE. The one verb this
         # relay answers itself has to be seen whole to be recognised, so the
@@ -378,15 +384,16 @@ class Relay:
                 self.client.sendall(self.installer.handle(line))
                 continue
             method = line_method(line)
-            if method == STOP_METHOD:
-                self.armed = False  # the client stopped it; nothing left to time out
-            elif method in MOTION_METHODS:
-                if is_zero_twist(line):
-                    self.armed = False  # standing still: nothing for the deadman to stop
-                else:
-                    self.last_motion = time.monotonic()
-                    self.armed = True
-            self.to_robotd(line + b"\n")
+            with self.robotd_lock:
+                if method == STOP_METHOD:
+                    self.armed = False  # the client stopped it; nothing left to time out
+                elif method in MOTION_METHODS:
+                    if is_zero_twist(line):
+                        self.armed = False  # standing still: nothing for the deadman to stop
+                    else:
+                        self.last_motion = time.monotonic()
+                        self.armed = True
+                self.to_robotd(line + b"\n")
 
     def to_robotd(self, data: bytes) -> None:
         with self.robotd_lock:
@@ -395,17 +402,21 @@ class Relay:
     def _watch(self) -> None:
         while self.running:
             time.sleep(0.05)
-            if self.deadman <= 0 or not self.armed:
+            if self.deadman <= 0:
                 continue
-            quiet = time.monotonic() - self.last_motion
-            if quiet < self.deadman:
-                continue
-            try:
-                self.armed = False
-                self.to_robotd(STOP_LINE)
-                self.log(f"deadman: {quiet * 1000:.0f} ms without a move, sent robot.stop")
-            except OSError:
-                self.running = False
+            with self.robotd_lock:
+                if not self.armed:
+                    continue
+                quiet = time.monotonic() - self.last_motion
+                if quiet < self.deadman:
+                    continue
+                try:
+                    self.armed = False
+                    self.to_robotd(STOP_LINE)
+                except OSError:
+                    self.running = False
+                    continue
+            self.log(f"deadman: {quiet * 1000:.0f} ms without a move, sent robot.stop")
 
 
 def serve(host: str, port: int, socket_path: str, token: str,

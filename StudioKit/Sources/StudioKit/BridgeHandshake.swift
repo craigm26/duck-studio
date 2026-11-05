@@ -123,11 +123,13 @@ public enum BridgeHandshake {
                  + "one. A robot that keeps walking when the link drops is the failure the "
                  + "simulator gives us for free and hardware does not."
         }
+        // AN OLDER BRIDGE COUNTS ANY TALK AS STEERING, and OpenCastor's says the same version
+        // before and after its fix, so the sentence cannot be picked by the greeting.
         return "If this app stops steering a moving duck for \(milliseconds) ms (a pocket, a "
-             + "dropped network, a crash), the bridge sends the robot a stop. Checking on the "
-             + "duck does not count as steering, and a duck told to stand has nothing to time "
-             + "out. It cannot act if the bridge itself dies, which is what robotd's own "
-             + "deadman is under it."
+             + "dropped network, a crash), the bridge sends the robot a stop. On an up-to-date "
+             + "bridge, checking on the duck does not count as steering. A duck told to stand "
+             + "has nothing to time out. The bridge cannot act if it dies itself, which is what "
+             + "robotd's own deadman is under it."
     }
 
     /// Every sentence, so a screen can be checked against it.

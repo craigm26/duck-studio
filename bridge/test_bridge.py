@@ -293,6 +293,47 @@ class BridgeTests(unittest.TestCase):
 
 
 
+class DeadmanRaceTests(unittest.TestCase):
+    """The deadman's check, clear and write are one step with a move's arming."""
+
+    class HeldRobotd:
+        """Records writes, and holds the deadman's stop inside `sendall` until told."""
+
+        def __init__(self):
+            self.lines = []
+            self.in_stop = threading.Event()
+            self.release = threading.Event()
+
+        def sendall(self, data):
+            self.lines.append(data)
+            if b"bridge-deadman" in data:
+                self.in_stop.set()
+                self.release.wait(2)
+
+    def testAMoveDuringTheDeadmansStopIsArmedAndWrittenAfterIt(self):
+        robotd = self.HeldRobotd()
+        relay = bridge.Relay(None, robotd, 1000, log=lambda *_: None)
+        relay.armed = True
+        relay.last_motion = time.monotonic() - 5
+        watcher = threading.Thread(target=relay._watch, daemon=True)
+        watcher.start()
+        self.assertTrue(robotd.in_stop.wait(2))
+        mover = threading.Thread(target=relay._from_client, args=(BridgeTests.MOVE,), daemon=True)
+        mover.start()
+        time.sleep(0.05)
+        # The stop is mid-write, so the move has neither armed nor been written.
+        self.assertFalse(relay.armed)
+        self.assertEqual(len(robotd.lines), 1)
+        robotd.release.set()
+        mover.join(2)
+        relay.running = False
+        watcher.join(2)
+        self.assertEqual(len(robotd.lines), 2)
+        self.assertIn(b"bridge-deadman", robotd.lines[0])
+        self.assertIn(b"robot.move", robotd.lines[1])
+        self.assertTrue(relay.armed, "the live twist the client sent last is armed")
+
+
 class InstallTests(unittest.TestCase):
     """studio.installPolicy: the one verb the bridge answers itself, proved on a disk."""
 
