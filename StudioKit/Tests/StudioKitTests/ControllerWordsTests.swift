@@ -55,6 +55,19 @@ final class ControllerWordsTests: XCTestCase {
         }
     }
 
+    /// The Moves and More sheets' words: plain, no em-dash, no engineering word.
+    func testTheSheetWordsArePlain() {
+        XCTAssertEqual(ControllerWords.movesSheet, "Moves")
+        XCTAssertEqual(ControllerWords.more, "More")
+        for line in ControllerWords.sheetWords {
+            XCTAssertFalse(line.isEmpty)
+            XCTAssertFalse(line.contains("\u{2014}"), line)
+            for shop in ["policy", "bench", "MuJoCo", "deadman"] {
+                XCTAssertFalse(line.lowercased().contains(shop.lowercased()), "\(shop) in \(line)")
+            }
+        }
+    }
+
     func testTheModesUseSymbolsNotColour() {
         XCTAssertEqual(ControlArbiter.Mode.allCases.map(ControllerWords.symbol),
                        ["gamecontroller.fill", "waveform", "sparkles"])

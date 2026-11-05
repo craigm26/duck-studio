@@ -178,6 +178,63 @@ public enum ScreenHierarchy {
         "Machines": "duckSheet.expert",
         "Remote": "duckSheet.expert",
         "Diagnostics": "duckSheet.expert",
+        "Moves sheet": "play.movesSheet",
+        "More sheet": "play.more",
+        "Second Stop": "play.secondStop",
+        "Mode switch": "play.modes",
+        "Local Network prompt": "welcome.find",
+        "Say hi": "welcome.sayHi",
+        "Stand up": "welcome.standUp",
+        "Add your duck": "duckSheet.add",
+        "Behaviour links out": "studio.behaviours.links",
+    ]
+
+    /// Why the inventory is not one home per feature; empty when it is. Each home must be a
+    /// node of `tree`, and no feature may be listed twice under names that differ only in case
+    /// or spacing (a dictionary only stops exact repeats).
+    public static func inventoryProblems(in tree: Tree = target) -> [String] {
+        let ids = Set(tree.allNodes.map(\.id))
+        var out: [String] = []
+        var seen: [String: String] = [:]
+        for (feature, home) in inventory.sorted(by: { $0.key < $1.key }) {
+            if !ids.contains(home) { out.append("\(feature) -> \(home) is not a node") }
+            let folded = feature.lowercased().filter { !$0.isWhitespace }
+            if let other = seen[folded] { out.append("\(feature) and \(other) are one feature twice") }
+            seen[folded] = feature
+        }
+        return out
+    }
+
+    // MARK: Tap counts
+
+    /// One row of the plan's tap-count table, re-measured against the inventory.
+    public struct TapCount: Equatable, Sendable {
+        public let task: String
+        public let today: String
+        public let target: String
+        /// The tree path the target is measured on, as node ids, first tap first. Empty for
+        /// "0 taps".
+        public let path: [String]
+
+        public init(_ task: String, today: String, target: String, path: [String]) {
+            self.task = task; self.today = today; self.target = target; self.path = path
+        }
+
+        /// The row as the plan writes it, so a test can find it in the checked-in document.
+        public var markdownRow: String { "| \(task) | \(today) | \(target) |" }
+    }
+
+    /// The plan's table, checked in with it (docs/plans/native-first-redesign.md, "The screen
+    /// hierarchy", exit check). The path is what a tap lands on in `target`.
+    public static let tapCounts: [TapCount] = [
+        TapCount("Drive the real duck", today: "4+ taps plus typing", target: "0 taps after onboarding",
+                 path: []),
+        TapCount("A game", today: "3 taps", target: "1 tap (Moves, then tile)",
+                 path: ["moves.games"]),
+        TapCount("Say it on the real duck", today: "impossible", target: "1 press",
+                 path: ["play.buttons"]),
+        TapCount("A skill on the real duck", today: "not offered", target: "1 tap",
+                 path: ["moves.skills"]),
     ]
 
     // MARK: Today (main dfdf49a)

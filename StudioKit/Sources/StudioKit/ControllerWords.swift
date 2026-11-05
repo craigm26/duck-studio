@@ -89,6 +89,27 @@ public enum ControllerWords {
     public static let headMode = "Head"
     public static let headModeHint = "The sticks aim the head while this is on."
     public static let tookOver = ControlArbiter.Words.tookOver
+
+    // MARK: - the two sheets on Play
+
+    /// The pull-up Moves sheet: the Moves tab's tiles, over the picture.
+    public static let movesSheet = "Moves"
+    public static let movesSheetHint = "Skills, sounds, your sequences and motions, run on this duck."
+    public static let motions = "Motions"
+    public static let more = "More"
+    public static let moreHint = "Scene, record a sequence, the pad map and the camera."
+    public static let moreScene = "Scene"
+    public static let moreRecord = "Record a sequence"
+    public static let moreRecordLine = "The next stretch of stick and buttons becomes a sequence."
+    public static let moreCamera = "Follow the duck"
+    public static let moreCameraLine = "Put the camera back behind the duck."
+    public static let moreSettings = "Driving settings"
+    public static let moreRealDuck = "Scene, recording and the camera view are for the practice duck."
+
+    public static var sheetWords: [String] {
+        [movesSheet, movesSheetHint, motions, more, moreHint, moreScene, moreRecord, moreRecordLine,
+         moreCamera, moreCameraLine, moreSettings, moreRealDuck]
+    }
 }
 
 /// An Auto goal card: what it is, where it runs, and whether it can run here.

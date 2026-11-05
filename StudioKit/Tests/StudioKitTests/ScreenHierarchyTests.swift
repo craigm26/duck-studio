@@ -179,4 +179,72 @@ final class ScreenHierarchyTests: XCTestCase {
         XCTAssertEqual(ScreenHierarchy.differences(from: ScreenHierarchy.target, to: ScreenHierarchy.target), [])
         XCTAssertEqual(ScreenHierarchy.differences(from: ScreenHierarchy.today, to: ScreenHierarchy.today), [])
     }
+
+    // MARK: build 91 acceptance
+
+    /// Every row of the inventory has exactly one home, and the home is a node of the target.
+    func testTheInventoryHasExactlyOneHomePerFeature() {
+        XCTAssertEqual(ScreenHierarchy.inventoryProblems(), [])
+        for named in ["Moves sheet", "More sheet", "Say hi", "Stand up", "Add your duck",
+                      "Local Network prompt", "Camera", "Room capture"] {
+            XCTAssertNotNil(ScreenHierarchy.inventory[named], named)
+        }
+    }
+
+    /// The check can fail: against today's tree most homes are not nodes.
+    func testTheInventoryCheckCanFail() {
+        let found = ScreenHierarchy.inventoryProblems(in: ScreenHierarchy.today)
+        XCTAssertTrue(found.contains("Moves sheet -> play.movesSheet is not a node"), "\(found)")
+    }
+
+    /// The tap-count table is checked in with the plan, at its targets, and every path it
+    /// measures is a node of the target tree.
+    func testTheTapCountTableIsCheckedInWithThePlan() throws {
+        let plan = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("docs/plans/native-first-redesign.md")
+        let text = try String(contentsOf: plan, encoding: .utf8)
+        XCTAssertTrue(text.contains("| Task | Today | Target |"))
+        let ids = Set(ScreenHierarchy.target.allNodes.map(\.id))
+        XCTAssertEqual(ScreenHierarchy.tapCounts.map(\.task),
+                       ["Drive the real duck", "A game", "Say it on the real duck", "A skill on the real duck"])
+        for row in ScreenHierarchy.tapCounts {
+            XCTAssertTrue(text.contains(row.markdownRow), row.markdownRow)
+            for step in row.path { XCTAssertTrue(ids.contains(step), "\(row.task): \(step)") }
+            XCTAssertFalse(row.markdownRow.contains("\u{2014}"))
+        }
+        // The targets: a game and a skill are one tap from Moves; driving is none.
+        XCTAssertEqual(ScreenHierarchy.tapCounts[0].path, [])
+        XCTAssertEqual(ScreenHierarchy.tapCounts[1].path, ["moves.games"])
+        XCTAssertEqual(ScreenHierarchy.tapCounts[3].path, ["moves.skills"])
+    }
+
+    /// The Duck sheet the app draws is the target's Duck sheet, section for section.
+    func testTheDuckSheetMatchesTheTarget() {
+        let sheet = ScreenHierarchy.target.sheets.first { $0.id == "duckSheet" }!
+        XCTAssertEqual(DuckSheet.Section.allCases.map(\.node), sheet.children.map(\.id))
+        XCTAssertEqual(DuckSheet.Section.allCases.map(\.title), sheet.children.map(\.title))
+    }
+
+    /// The welcome sheet's pages are the target's welcome nodes (Wi-Fi help is a page of the
+    /// Wi-Fi step, not a step of its own).
+    func testTheWelcomeMatchesTheTarget() {
+        let sheet = ScreenHierarchy.target.sheets.first { $0.id == "welcome" }!
+        let pages = Onboarding.pages.map(\.id).filter { $0 != .wifiHelp }.map { "welcome.\($0.rawValue)" }
+        XCTAssertEqual(pages, sheet.children.map(\.id))
+    }
+
+    /// Play's target sections in order, the controller the app draws.
+    func testPlayMatchesTheTarget() {
+        XCTAssertEqual(ScreenHierarchy.target.tab("play")?.sections.map(\.id), [
+            "play.stage", "play.pill", "play.modes", "play.stop", "play.stick", "play.buttons",
+            "play.head", "play.secondStop", "play.readout", "play.movesSheet", "play.pose",
+            "play.tell", "play.auto", "play.more",
+        ])
+        XCTAssertEqual(ScreenHierarchy.target.tab("moves")?.sections.map(\.id), [
+            "moves.skills", "moves.sounds", "moves.sequences", "moves.plans", "moves.cards",
+            "moves.games", "moves.goals",
+        ])
+    }
 }
