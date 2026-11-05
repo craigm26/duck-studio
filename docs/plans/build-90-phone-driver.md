@@ -338,6 +338,32 @@ Confirmed from the run logs, not the code: every row of every snapped ask (1,200
 
 The snap reaches more balls and stops some. It does not touch the search turn, which is a share of the expert's full turn while the ball is hidden, so a DAgger round follows.
 
+### DAgger round and the stand latch (2026-11-05)
+
+- **Runs.** v4 snapped on seeds 30001 to 30040 (28 reached). `dagger_relabel.py`: 40 takes, 18,329 rows (9,925 search, 8,069 approach, 335 stand).
+- **Data.** takes-v5 = takes-v4 + those, 280 episodes, 43,860 frames, Dream validator ok. Private `craigm26/duck-drive-walk-to-ball-v5`@8767a57.
+- **Training.** t4-small, 30,000 steps, 17 minutes, about $0.12. Public `craigm26/duck-driver-walk-to-ball-v5`: val L1 0.125 (zero 1.249, repeat 0.284). Weights commit 306f2a6, snap block in policy.json at fe94d4a (the revision to pin).
+- **First M1 on v5.** Search fixed: turn 0.82 of the expert's, first sight 2.8 s (v4 13.5 s), reached 20 of 20. But parked 1 of 20: at the line it said stand on row 0 and walk by row 19, and the pilot plays 20 rows of each chunk.
+- **The latch.** `DriverSnap.chunk`: from the first row whose forward snaps to 0, every row is still. BallExpert's stand is latched and never turns, so this is its command set too. The next ask looks again.
+- **Because seeds 7001-7020 showed the fault,** the latch was also judged on seeds 8001-8020, used by nothing before it.
+
+| who | seeds | reached | parked | reached and parked | stopped | time to reach (mean) | first seen (mean) | search turn |
+|---|---|---|---|---|---|---|---|---|
+| expert | 7001-7020 | 20 | 20 | 20 | 20 | 8.8 s | 2.5 s | 1 |
+| v4 snap + latch | 7001-7020 | 13 | 18 | 11 | 18 | 18.9 s | 13.5 s | 0.31 |
+| v5 snap, no latch | 7001-7020 | 20 | 1 | 1 | 0 | 10.9 s | 2.8 s | 0.82 |
+| **v5 snap + latch** | 7001-7020 | 19 | 13 | 12 | 13 | 12.6 s | 2.8 s | 0.82 |
+| v5 snap, no latch | standard | 20 | 2 | 2 | 0 | 9.9 s | 3.2 s | 0.82 |
+| **v5 snap + latch** | standard | 20 | 14 | 14 | 14 | 9.9 s | 3.2 s | 0.82 |
+| expert | 8001-8020 | 20 | 20 | 20 | 20 | 8.5 s | 2.3 s | 1 |
+| zero | 8001-8020 | 0 | 0 | 0 | 0 | | | 0 |
+| v4 snap + latch | 8001-8020 | 15 | 16 | 11 | 16 | 17.5 s | 10.1 s | 0.30 |
+| **v5 snap + latch** | 8001-8020 | 20 | 14 | 14 | 14 | 12.7 s | 2.7 s | 0.78 |
+
+**Pick: v5 with snap and latch.** On both sets it finds the ball in the expert's time and reaches nearly every one, where v4 reaches 13 to 15.
+
+**What is still wrong.** v5 arrives too hard: the root came within 0.2 m of the ball in 13 of 20 runs on 8001-8020, so it often pushes the ball (0.21 m on average) before standing, and 6 of 20 were still walking at the end. "Parked" there means parked after the push. Likely cause, not yet tested: the DAgger takes keep only 335 stand rows, and a stand label is followed by whatever the driver did next, so the chunks teach "stand now, walk later". The next relabel should end a take at each stand with a full standing tail.
+
 ## Risks and kill criteria
 
 **Risks**

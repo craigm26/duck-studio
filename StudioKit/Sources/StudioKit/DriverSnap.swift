@@ -20,8 +20,8 @@ import Foundation
 /// chunk, walked it through the ball (fresh seeds: 20 of 20 reached, 1 parked). From the first row
 /// whose forward snaps to 0, every row is still; the next ask looks again.
 ///
-/// WHERE IT COMES FROM. `policy.json` may carry a `snap` block; a driver without one gets the
-/// numbers pinned for its weights in `known` (v4, published before snapping existed), and any
+/// WHERE IT COMES FROM. `policy.json` may carry a `snap` block (v5 does); a driver without one gets
+/// the numbers pinned for its weights in `known` (v4, published before snapping existed), and any
 /// other driver is played as it answers.
 public struct DriverSnap: Decodable, Equatable, Sendable {
     public let forwardZeroBelow: Double
