@@ -56,16 +56,19 @@ final class DuckDeciderTests: XCTestCase {
     func testPoliciesIsReadForTheSittingLatchAndDriving() throws {
         let seated = DuckOrder.Readiness.read(policies: reply(
             #"{"mode":"walk","enabled":false,"sitting":true,"homed":true,"slots":[],"skills":["roulade"]}"#))
-        XCTAssertEqual(seated, DuckOrder.Readiness(sitting: true, skills: ["roulade"], driving: false, homed: true))
+        XCTAssertEqual(seated, DuckOrder.Readiness(sitting: true, skills: ["roulade"], driving: nil, homed: true))
 
+        // robotd's `enabled` is the config's [policy] enabled and `mode` is walk|roller: neither
+        // says the policy is driving, so a limp duck must still get init and enable.
         let up = try XCTUnwrap(DuckOrder.Readiness.read(policies: reply(
             #"{"mode":"walk","enabled":true,"sitting":false,"homed":true}"#)))
-        XCTAssertEqual(up.driving, true)
-        XCTAssertEqual(try DuckOrder.sit.calls(up), [.doSkill("sit_toggle")], "no re-home on a driving duck")
+        XCTAssertNil(up.driving)
+        XCTAssertEqual(try DuckOrder.stand.calls(up), [.initPose, .enable], "a limp standing duck is stood up")
+        XCTAssertEqual(Array(try DuckOrder.walk(.forward).calls(up).prefix(2)), [.initPose, .enable])
+        XCTAssertEqual(try DuckOrder.sit.calls(up).last, .doSkill("sit_toggle"))
 
-        let held = DuckOrder.Readiness.read(policies: reply(#"{"mode":"held","enabled":true}"#))
-        XCTAssertEqual(held?.driving, false)
-        XCTAssertNil(held?.sitting, "an older robotd says nothing about sitting, and nil keeps Sit honest")
+        let old = DuckOrder.Readiness.read(policies: reply(#"{"mode":"walk","enabled":true}"#))
+        XCTAssertNil(old?.sitting, "an older robotd says nothing about sitting, and nil keeps Sit honest")
 
         XCTAssertNil(DuckOrder.Readiness.read(policies: DuckReply(id: 1, result: nil,
                                                                   failure: .init(code: -32601, message: "no"))))
@@ -86,7 +89,7 @@ final class DuckDeciderTests: XCTestCase {
         let duck = PoliciesDuck(body: #"{"mode":"walk","enabled":true,"sitting":false,"homed":true}"#)
         let ready = await DuckOrder.Readiness.ask(duck, timeout: 2)
         XCTAssertEqual(ready.sitting, false)
-        XCTAssertEqual(ready.driving, true)
+        XCTAssertNil(ready.driving)
 
         let silent = PoliciesDuck(body: nil)
         let started = Date()

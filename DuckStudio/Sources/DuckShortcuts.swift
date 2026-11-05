@@ -79,6 +79,10 @@ struct SitDownIntent: AppIntent {
     static let title: LocalizedStringResource = "Sit the duck down"
     static let description = IntentDescription("Sits your duck down.")
     static let openAppWhenRun = true
+#if os(iOS)
+    // SITTING IS MOTION, so it asks for an unlock like the other moves.
+    static let authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
+#endif
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {

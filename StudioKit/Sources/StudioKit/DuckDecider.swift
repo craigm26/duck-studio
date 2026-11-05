@@ -43,8 +43,13 @@ extension DuckOrder.Readiness {
     public static let practiceDuck = DuckOrder.Readiness(sitting: false, skills: [], driving: true,
                                                          homed: true)
 
-    /// `robot.policies`, read: the sitting latch and the home ramp (proto v31), whether the
-    /// policy is driving (`enabled` with a mode that drives), and the skills list.
+    /// `robot.policies`, read: the sitting latch and the home ramp (proto v31) and the skills list.
+    ///
+    /// `driving` IS NEVER READ FROM HERE. robotd's `enabled` is the config's `[policy] enabled`
+    /// (are policies loaded at all) and `mode` is `walk` or `roller` (which slot defaults apply);
+    /// neither says whether `robot.enable` has the policy driving now. Reading them as "driving"
+    /// made a limp duck look up and walking, so Stand sent nothing and a walk skipped init and
+    /// enable. Left nil, a motion sends init and enable first, which is always safe.
     ///
     /// A FIELD THE ROBOT DID NOT SEND STAYS NIL. An older robotd has no `sitting`, and nil is
     /// what keeps Sit from guessing. Nil overall means the answer was a refusal or not an object.
@@ -55,9 +60,6 @@ extension DuckOrder.Readiness {
         var ready = DuckOrder.Readiness()
         ready.sitting = top["sitting"] as? Bool
         ready.homed = top["homed"] as? Bool
-        if let enabled = top["enabled"] as? Bool {
-            ready.driving = enabled && policyIsDriving(top["mode"] as? String ?? "")
-        }
         if let skills = top["skills"] as? [String] { ready.skills = skills }
         return ready
     }
