@@ -413,6 +413,8 @@ struct DriveView: View {
     @State private var stickStarted = false
     /// A Tell order is running.
     @State private var telling = false
+    /// Which one-time coach marks are done, as `Onboarding.CoachMarks`' bit set (build 93).
+    @AppStorage("coach.done") private var coachDone = 0
     /// Dream-1 on the real duck, as a sheet over its picture.
     @State private var realDream = false
     @Environment(\.scenePhase) private var scenePhase
@@ -575,8 +577,7 @@ struct DriveView: View {
             // it now covers the robot too: `bench != nil` alone would have made
             // the magic tap dead on the one venue where a stop is a machine in
             // a room rather than a simulation.
-            guard peer != nil else { return }
-            Task { await halt() }
+            stopNow()
         }
 #else
         // ON A MAC THE STOP THAT COSTS NOTHING TO REACH IS ESCAPE. macOS has
@@ -584,10 +585,9 @@ struct DriveView: View {
         // the same promise. A zero-size button carries it because a keyboard
         // shortcut needs a control to belong to.
         .background {
-            Button("Stop") {
-                guard peer != nil else { return }
-                Task { await halt() }
-            }
+            // ALWAYS LATCHES (build 93): it used to return early with no duck, so a run started a
+            // moment later on a sheet was not held back by the latch.
+            Button("Stop") { stopNow() }
             .keyboardShortcut(.escape, modifiers: [])
             .opacity(0)
             .frame(width: 0, height: 0)
@@ -835,12 +835,19 @@ struct DriveView: View {
             // in flight is handled the way it already is.
             .onChange(of: sticks) { _, now in
                 let still = DuckDrive.twist(for: now).standsStill
+                // YOUR THUMBS WIN: a stick touch ends a Tell order or an Auto goal and snaps to Drive.
+                // IN AUTO WITH NOTHING RUNNING THE STICK RESTS (build 93): a game controller lying
+                // on the sofa used to flip the switch to Drive. The kit says so in one line, once.
+                if !still, arbiter.running != nil || arbiter.mode == .auto {
+                    let decision = arbiter.handle(.stickTouch, at: Date())
+                    if !decision.passInput {
+                        if caption?.text != ControlArbiter.Words.sticksRestInAuto { apply(decision) }
+                        return
+                    }
+                    apply(decision)
+                }
                 // A STICK DRIVE CLEARS THE LINE: whatever it said was about something else.
                 if !still, caption != nil { say(nil) }
-                // YOUR THUMBS WIN: a stick touch ends a Tell order or an Auto goal and snaps to Drive.
-                if !still, arbiter.running != nil || arbiter.mode == .auto {
-                    apply(arbiter.handle(.stickTouch, at: Date()))
-                }
                 // ON A REAL DUCK, LETTING GO ENDS THE DRIVE: a zero twist and robot.stop, so the
                 // duck never waits on its deadman. A replay or a take keeps the loop.
                 if still, venue == .real, running, stickStarted,
@@ -853,6 +860,7 @@ struct DriveView: View {
                 guard !running, somethingToDrive,
                       posed == nil, !mimicking, playback == nil, !still else { return }
                 stickStarted = venue == .real
+                coach(.stick)
                 engageLoop()
             }
             // AND WHENEVER SOMETHING ELSE PUTS THE RANGE BACK. `readWorld` ends
@@ -1185,7 +1193,7 @@ struct DriveView: View {
     private var topChrome: some View {
         VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
             // THE CONTROLLER'S TOP: the duck pill, Drive | Tell | Auto, and the solid red Stop.
-            ControllerTopBar(mode: modeBinding, pill: duckPill, stop: { Task { await halt() } })
+            ControllerTopBar(mode: modeBinding, pill: duckPill, stop: { stopNow() })
             // DRIVE'S OWN ROW: pose, scene, record, sequences and plans from the pad, and the head
             // on a real duck. Simple no longer hides any of it: these are part of the toy.
             if arbiter.mode == .drive {
@@ -1224,6 +1232,17 @@ struct DriveView: View {
                     .padding(.horizontal, Theme.spacing(.hairline))
                 }
             }
+            // ONE ONE-TIME COACH MARK, a collapsed chip, only in Drive and only with no other line.
+            if caption == nil, !stickGate.waitingForLift,
+               let mark = Onboarding.CoachMarks(done: coachDone).showing(in: arbiter.mode) {
+                Button { coach(mark) } label: {
+                    Label(mark.says, systemImage: mark.symbol)
+                        .font(.system(.footnote, design: .rounded).weight(.semibold))
+                        .lineLimit(2)
+                }
+                .buttonStyle(.pondChip)
+                .transition(.opacity)
+            }
             // IN TELL AND AUTO THE PANEL CARRIES THE LINE, so a refusal sits beside what was asked.
             if let line = (arbiter.mode == .drive ? caption?.text : nil)
                 ?? (stickGate.waitingForLift ? ControllerWords.liftToDrive : nil) {
@@ -1242,8 +1261,7 @@ struct DriveView: View {
                     Label(ControllerWords.putBack, systemImage: "figure.stand")
                         .font(.footnote.weight(.semibold))
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
+                .buttonStyle(.pondChip)
                 .accessibilityHint(Text(ControllerWords.fellOver))
             }
             if let refusal = cameraDoor.refusal(for: .venue), venue != .real {
@@ -1278,6 +1296,10 @@ struct DriveView: View {
         controlStage
         // A STOP PRESSED ON A SHEET OVER PLAY reaches this loop too, and the pill shows while it runs.
         .onChange(of: running) { _, now in runs.playIsDriving = now }
+        // AN ORDER FROM OUTSIDE PLAY IS AN ARBITER RUN (build 93): Siri, a Shortcut and a Moves tile
+        // used to skip the cap and Take over. `DuckRuns` has already stopped whatever ran and
+        // re-opened the latch for the person who asked, so only the bookkeeping happens here.
+        .onChange(of: runs.outsideOrder) { _, now in outsideOrderChanged(now) }
         .onChange(of: runs.stops) { _, _ in stoppedElsewhere() }
         // THE DUCK STOP GOES TO, AND THE ONE THE MOVES TILES RUN ON: whichever Play is on.
         .task(id: "\(venue.rawValue)|\(robotLinkKey)|\(peerKey)|\(benchPeer == nil)") {
@@ -1434,6 +1456,14 @@ struct DriveView: View {
         }
     }
 
+    /// A coach mark is done, for good.
+    @MainActor private func coach(_ mark: Onboarding.CoachMarks.Mark) {
+        var marks = Onboarding.CoachMarks(done: coachDone)
+        guard !marks.isDone(mark) else { return }
+        marks.did(mark)
+        coachDone = marks.done
+    }
+
     /// Put one line under the controller, or clear it. The line goes away on its own.
     @MainActor private func say(_ line: String?) {
         caption = line.map { CaptionLine($0, at: Date()) }
@@ -1455,7 +1485,7 @@ struct DriveView: View {
             say(ControllerWords.heard(text))
             return
         }
-        if order == .stop { Task { await halt() }; return }
+        if order == .stop { stopNow(); return }
         guard peer != nil else { say(ControllerWords.tellNoDuck); return }
         // SAID BEFORE ANYTHING IS SENT: an order this duck cannot do is refused in a sentence.
         if let duck = duckKind, let why = order.notOn(duck) { say(why); return }
@@ -1484,7 +1514,7 @@ struct DriveView: View {
     /// Ask the duck: plan from a sentence (matcher first, then on-device Apple Intelligence), show
     /// the plan for a beat with Cancel, then run it as one Auto run.
     @MainActor private func askPlan(_ text: String) {
-        if StopWords.containsStop(text) { Task { await halt() }; return }
+        if StopWords.containsStop(text) { stopNow(); return }
         guard let duck = duckKind else { say(ControllerWords.tellNoDuck); return }
         say(nil)
         Task {
@@ -1495,6 +1525,18 @@ struct DriveView: View {
                 ask.preview(orders) { orders in runAutoPlan(orders, said: text) }
             }
         }
+    }
+
+    /// A "Try saying" sentence: read with no model, shown for a beat with Cancel, then run as one
+    /// Auto run, exactly like a planned sentence.
+    @MainActor private func tryExample(_ text: String) {
+        guard let duck = duckKind else { say(ControllerWords.tellNoDuck); return }
+        guard let orders = DuckDecider.Words.examplePlan(text, on: duck,
+                                                          skills: Array(RobotPlan.skillSeconds.keys)) else {
+            say(ControllerWords.heard(text)); return
+        }
+        say(nil)
+        ask.preview(orders) { orders in runAutoPlan(orders, said: text) }
     }
 
     /// Run a planned list of orders as an Auto goal: the arbiter's cap applies, a stick, the pad
@@ -1536,6 +1578,21 @@ struct DriveView: View {
             return ""
         } ?? ""
         return stepLine + ControllerWords.autoRunning(what, elapsed: Date().timeIntervalSince(started), cap: cap)
+    }
+
+    @MainActor private func outsideOrderChanged(_ now: DuckRuns.OutsideOrder?) {
+        guard let now else {
+            if arbiter.running?.kind == .order { apply(arbiter.handle(.finished, at: Date())) }
+            return
+        }
+        // WHATEVER THIS SCREEN HAD RUNNING WAS ALREADY STOPPED by `DuckRuns`; forget it quietly so
+        // the start below does not stop the new order too.
+        if arbiter.running != nil { _ = arbiter.handle(.stop, at: Date()) }
+        if running { running = false; stickStarted = false; touchSticks = .centred; flight?.cancel() }
+        // AN INTENT CAN ARRIVE A BEAT BEFORE THE SCENE SAYS IT IS ACTIVE AGAIN; the order is on
+        // screen by then (every motion intent opens the app), so the arbiter hears that first.
+        if scenePhase != .background { _ = arbiter.handle(.foreground, at: Date()) }
+        _ = arbiter.handle(.start(.order, duck: now.duck, owner: now.owner), at: Date())
     }
 
     /// Take over: the run stops through the arbiter and the switch goes to Drive.
@@ -1632,7 +1689,7 @@ struct DriveView: View {
                     switch arbiter.mode {
                     case .tell:
                         TellPanel(duck: duckKind, caption: caption?.text, busy: telling, listener: listener,
-                                  send: tell, stop: { Task { await halt() } })
+                                  send: tell, stop: { stopNow() })
                         sheetsRow
                     case .auto:
                         TimelineView(.periodic(from: Date(), by: 1)) { _ in
@@ -1644,9 +1701,10 @@ struct DriveView: View {
                                       caption: caption?.text,
                                       running: autoStatus,
                                       plan: askPlan,
+                                      example: tryExample,
                                       go: go,
                                       takeOver: takeOver,
-                                      stop: { Task { await halt() } })
+                                      stop: { stopNow() })
                         }
                     case .drive:
                         padDeck(compact: true)
@@ -3199,13 +3257,19 @@ struct DriveView: View {
                 say(DuckPadMap.Effect.practiceOnly)
                 return
             }
-            if order == .stop { await halt(); return }
+            if order == .stop { stopNow(); return }
             if running { stickStarted = false; running = false; flight?.cancel() }
             let named = DuckDecider.chip(for: order).title
             lastAction = named
             say(named)
+            // A FACE BUTTON'S SKILL IS A RUN (build 93): the cap, Take over and the Stop pill cover
+            // it, as they cover a Tell order and an Auto goal.
+            let started = arbiter.handle(.start(.order, duck: .real, owner: .app), at: Date())
+            guard started.passInput else { apply(started); return }
+            apply(started)
             _ = await runs.run(order)
             say(runs.caption)
+            if arbiter.running?.kind == .order { apply(arbiter.handle(.finished, at: Date())) }
             return
         }
         // THE PRESS'S RESULT GOES ON THE CONTROLLER'S LINE TOO, not only the readout's.
@@ -3993,6 +4057,15 @@ struct DriveView: View {
         wasNearALimit = near
     }
 
+    /// THE STOP A TAP MAKES (build 93). The latch shuts and robot.stop goes on its way INSIDE the
+    /// tap handler, before anything is awaited; only the read-back afterwards is a Task. The disc,
+    /// Escape, the magic tap and a heard "stop" all come here, so none of them is one main-actor
+    /// hop late.
+    @MainActor private func stopNow() {
+        latchStop()
+        Task { await finishStop() }
+    }
+
     /// Stop: zero the command and let the duck settle under it.
     ///
     /// THE ONE ERRAND THAT PRE-EMPTS. Three things happen before a byte goes
@@ -4015,9 +4088,17 @@ struct DriveView: View {
     /// not `notify`, and a bench that refuses gets its own sentence rather than
     /// a thrown error that would read like a broken network.
     @MainActor private func halt() async {
+        latchStop()
+        await finishStop()
+    }
+
+    /// Everything a Stop does that needs no answer: the kit's stop, this screen's loop and stick.
+    /// Always latches, with or without a duck attached.
+    @MainActor private func latchStop() {
         // THE KIT'S STOP FIRST: robot.stop on its way, the latch shut, every run cancelled, nothing
         // awaited. What follows is this screen putting its own loop and stick down.
         runs.stop()
+        coach(.stop)
         say(runs.caption)
         _ = arbiter.handle(.stop, at: Date())
         ask.ended()
@@ -4032,6 +4113,11 @@ struct DriveView: View {
         desk.pilot.cutOff(.stop)
         if let flight, !flight.isCancelled { cutOffByStop = true }
         flight?.cancel()
+    }
+
+    /// The part of a Stop that waits: a second robot.stop on this screen's peer and the read-back.
+    @MainActor private func finishStop() async {
+        guard peer != nil else { return }
         stopping = true
         defer { stopping = false }
         do {

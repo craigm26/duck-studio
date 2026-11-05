@@ -10,7 +10,8 @@ import StudioKit
 ///
 /// THE ORDER IS THE TAG ORDER AND THE TAG ORDER IS LOAD-BEARING: `-tab 1` is Moves. The kit's
 /// `ScreenHierarchy.launch` reads the argument, by index or by name, and keeps the old names
-/// working: `-tab control` is Play, `-tab learn` and `-tab behaviours` are Studio, `-tab duck` is
+/// working: `-tab control` is Play, `-tab 3` is Moves and `-tab 4` Studio, `-tab learn` and
+/// `-tab behaviours` open those sections of Studio, `-tab duck` is
 /// Play with the Duck sheet up. The raw values are the target tree's tab ids, and a Linux test
 /// pins the tree.
 enum AppTab: String, CaseIterable, Identifiable {
@@ -47,6 +48,15 @@ enum StudioDestination: String, Identifiable, Hashable, CaseIterable {
     case behaviours, learn
 
     var id: String { rawValue }
+
+    /// The destination for a `ScreenHierarchy` section id, or nil for one with no screen of its own.
+    static func section(_ id: String) -> StudioDestination? {
+        switch id {
+        case "studio.learn": return .learn
+        case "studio.behaviours": return .behaviours
+        default: return nil
+        }
+    }
 }
 
 /// A place inside Play that somebody asked for.
@@ -140,6 +150,10 @@ enum AppRoute: Equatable {
         let asked = launch
         let router = AppRouter(tab: AppTab(rawValue: asked.tab) ?? .play)
         router.duckSheet = asked.duckSheet
+        // `-tab learn` and `-tab behaviours` open their Studio section, not Studio's top.
+        if router.tab == .studio, let section = asked.section {
+            router.pendingStudio = StudioDestination.section(section)
+        }
         return router
     }
 }

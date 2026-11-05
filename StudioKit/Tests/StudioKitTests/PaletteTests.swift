@@ -69,6 +69,46 @@ final class PaletteTests: XCTestCase {
         XCTAssertEqual(rounded(ratio(.textPrimary, .stageDeck, .light)), 11.80, accuracy: 0.001)
     }
 
+    /// THE MARKS ON THE FLOOR ARE FINDABLE (build 93). The pitch lines, goal frame and net, the
+    /// walked path and the step's leading edge each clear SC 1.4.11's 3:1 against what they are
+    /// drawn on, in both schemes. White lines were 1.51:1 on the light playmat; the yellow step
+    /// edge was 1.35:1 on the cream step.
+    func testTheMarksOnTheFloorAreFindableInBothSchemes() {
+        for scheme in Palette.Scheme.allCases {
+            for mark in [Palette.Token.stageLine, .stageTrail] {
+                XCTAssertGreaterThanOrEqual(ratio(mark, .stageDeck, scheme), Palette.shapeContrastMinimum,
+                                            "\(mark) on the playmat in \(scheme)")
+            }
+            XCTAssertGreaterThanOrEqual(ratio(.stageStepEdge, .stageProp, scheme), Palette.shapeContrastMinimum,
+                                        "the step edge on the step in \(scheme)")
+            // A walked path is not a painted line.
+            XCTAssertNotEqual(Palette.color(.stageTrail, in: scheme), Palette.color(.stageLine, in: scheme))
+        }
+        let white = Palette.RGB(hex: "#FFFFFF")
+        XCTAssertLessThan(Palette.contrast(white, on: Palette.color(.stageDeck, in: .light)),
+                          Palette.shapeContrastMinimum, "why the lines are not white by day")
+        XCTAssertLessThan(Palette.contrast(Palette.color(.actionYellow, in: .light),
+                                           on: Palette.color(.stageProp, in: .light)),
+                          Palette.shapeContrastMinimum, "why the step edge is not yellow")
+        XCTAssertEqual(rounded(ratio(.stageLine, .stageDeck, .light)), 3.90, accuracy: 0.001)
+        XCTAssertEqual(rounded(ratio(.stageStepEdge, .stageProp, .light)), 5.02, accuracy: 0.001)
+    }
+
+    /// A SYSTEM PROMINENT BUTTON SETS A WHITE LABEL ON THE TINT, and the tint is orange ink. By
+    /// day that is 5.72:1; at night the ink is a light orange and white on it is 2.02:1. So the
+    /// app's own button style (ink on Beak Orange) is used instead, and
+    /// scripts/check_no_bordered_prominent.sh keeps `.borderedProminent` out of the app.
+    func testWhiteOnTheTintFailsAtNightSoProminentButtonsWearInk() {
+        let white = Palette.RGB(hex: "#FFFFFF")
+        XCTAssertLessThan(Palette.contrast(white, on: Palette.color(.actionInk, in: .dark)),
+                          Palette.textContrastMinimum)
+        XCTAssertEqual(rounded(Palette.contrast(white, on: Palette.color(.actionInk, in: .dark))), 2.02,
+                       accuracy: 0.001)
+        for scheme in Palette.Scheme.allCases {
+            XCTAssertGreaterThanOrEqual(ratio(.onFill, .actionPrimary, scheme), Palette.textContrastMinimum)
+        }
+    }
+
     /// EVERY FILLED SHAPE'S EDGE CLEARS 3:1 ON ITS SCHEME'S GROUND. WCAG 2.1
     /// SC 1.4.11. The fill may miss if `fillEdge` gives it an outline that
     /// clears the bar.
@@ -353,7 +393,7 @@ final class PaletteTests: XCTestCase {
                 XCTAssertTrue(token.isFill)
             }
         }
-        XCTAssertEqual(Palette.Token.allCases.count, 35)
+        XCTAssertEqual(Palette.Token.allCases.count, 38)
         XCTAssertEqual(Palette.Token.allCases.filter(\.isText).count, 13)
         XCTAssertEqual(Palette.Token.allCases.filter(\.isTextGround).count, 5)
         XCTAssertEqual(Palette.Token.allCases.filter(\.takesEveryTextToken).count, 5)

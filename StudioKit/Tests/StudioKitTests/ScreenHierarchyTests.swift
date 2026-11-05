@@ -88,15 +88,27 @@ final class ScreenHierarchyTests: XCTestCase {
     /// `-tab duck` opens Play with the Duck sheet up.
     func testTheOldTabNamesStillLand() {
         XCTAssertEqual(ScreenHierarchy.launch("control"), .init(tab: "play", duckSheet: false))
-        XCTAssertEqual(ScreenHierarchy.launch("learn"), .init(tab: "studio", duckSheet: false))
-        XCTAssertEqual(ScreenHierarchy.launch("behaviours"), .init(tab: "studio", duckSheet: false))
+        XCTAssertEqual(ScreenHierarchy.launch("learn"),
+                       .init(tab: "studio", duckSheet: false, section: "studio.learn"))
+        XCTAssertEqual(ScreenHierarchy.launch("behaviours"),
+                       .init(tab: "studio", duckSheet: false, section: "studio.behaviours"))
+        XCTAssertNil(ScreenHierarchy.launch("studio").section)
         XCTAssertEqual(ScreenHierarchy.launch("duck"), .init(tab: "play", duckSheet: true))
     }
 
-    /// Anything else opens the first tab rather than failing: an index past the end (the old
-    /// `-tab 3` and `-tab 4`), a negative one, a word that is no tab, and blank.
+    /// The five-tab layout's `-tab 3` and `-tab 4` land on Moves and Studio (build 93).
+    func testTheOldIndicesPastTheEndLandSomewhereReal() {
+        XCTAssertEqual(ScreenHierarchy.launch("3"), .init(tab: "moves", duckSheet: false))
+        XCTAssertEqual(ScreenHierarchy.launch("4"), .init(tab: "studio", duckSheet: false))
+        for (_, id) in ScreenHierarchy.legacySections {
+            XCTAssertTrue(ScreenHierarchy.shipped.allNodes.contains { $0.id == id }, id)
+        }
+    }
+
+    /// Anything else opens the first tab rather than failing: an index past the end, a negative
+    /// one, a word that is no tab, and blank.
     func testAnUnknownLaunchOpensPlay() {
-        for asked in ["3", "4", "-1", "robot", "", "  "] {
+        for asked in ["5", "9", "-1", "robot", "", "  "] {
             XCTAssertEqual(ScreenHierarchy.launch(asked), .init(tab: "play", duckSheet: false), asked)
         }
     }

@@ -38,6 +38,27 @@ final class DuckRuns: ObservableObject {
     /// Whether the pill shows: any registered run, or Play's loop.
     var showsStop: Bool { isRunning || playIsDriving }
 
+    /// One order started outside Play's panels (Siri, a Shortcut, a Moves tile), while it runs.
+    /// Play watches this and books it with its `ControlArbiter`, so the duck's cap and Take over
+    /// cover it as they cover a Tell order (build 93).
+    struct OutsideOrder: Equatable {
+        let id: UUID
+        let duck: DuckIdentity.Kind
+        let owner: ControlArbiter.Owner
+    }
+    @Published private(set) var outsideOrder: OutsideOrder?
+
+    /// Run one order from outside Play: whatever was moving the duck is stopped first, Play is
+    /// told so its arbiter books the run, and the order runs like any other.
+    func runOrder(_ order: DuckOrder, owner: ControlArbiter.Owner) async -> DuckOrderRunner.Ended {
+        if playIsDriving || isRunning { stop() }
+        guard let duck else { return await run(order) }
+        let mine = OutsideOrder(id: UUID(), duck: duck, owner: owner)
+        outsideOrder = mine
+        defer { if outsideOrder == mine { outsideOrder = nil } }
+        return await run(order)
+    }
+
     /// The duck Stop and the Moves tiles go to.
     func attach(_ peer: (any DuckPeer)?, kind: DuckIdentity.Kind?) {
         self.peer = peer

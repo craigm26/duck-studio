@@ -34,7 +34,7 @@ struct MovesView: View {
                 .listRowBackground(Theme.surfacePrimary)
             }
 
-            MoveTileSections()
+            MoveTileSections(openPlay: { router.go(to: .play()) })
 
             Section {
                 if shelf.sequences.isEmpty {
@@ -137,6 +137,8 @@ enum PhoneDrivers {
 /// showing while it runs.
 struct MoveTileSections: View {
     @ObservedObject private var runs = DuckRuns.shared
+    /// Where "Open Play" goes, or nil where the tiles already sit on Play (its Moves sheet).
+    var openPlay: (() -> Void)? = nil
 
     static let mySequences = "My sequences"
     static let noSequences = "Nothing kept yet. Record one from Play, More."
@@ -150,9 +152,23 @@ struct MoveTileSections: View {
     var body: some View {
         Section {
             if runs.duck == nil {
-                Text(ControllerWords.tellNoDuck)
-                    .font(.footnote)
-                    .foregroundStyle(Theme.textSecondary)
+                // A FRIENDLY EMPTY STATE WITH A WAY OUT (build 93), not a row of dimmed tiles under
+                // one grey sentence. Moves' own copy hands Play in; the pull-up sheet is on Play.
+                VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
+                    Label(ControllerWords.movesNoDuckTitle, systemImage: "bird")
+                        .font(.system(.headline, design: .rounded))
+                        .foregroundStyle(Theme.textPrimary)
+                    Text(ControllerWords.movesNoDuckLine)
+                        .font(.footnote)
+                        .foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let openPlay {
+                        Button(ControllerWords.movesGoPlay, action: openPlay)
+                            .buttonStyle(.primaryAction)
+                    }
+                }
+                .padding(.vertical, Theme.spacing(.hairline))
+                .accessibilityElement(children: .contain)
             }
             ForEach(skills, id: \.self) { name in
                 tile(name.replacingOccurrences(of: "_", with: " ").capitalized,
@@ -183,7 +199,7 @@ struct MoveTileSections: View {
 
     private func tile(_ title: String, symbol: String, order: DuckOrder) -> some View {
         Button {
-            Task { _ = await runs.run(order) }
+            Task { _ = await runs.runOrder(order, owner: .app) }
         } label: {
             Label(title, systemImage: symbol)
         }

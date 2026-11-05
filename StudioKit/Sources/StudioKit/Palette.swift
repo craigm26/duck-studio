@@ -250,6 +250,14 @@ public enum Palette {
         case stageWall
         /// The stage's fill light: warm by day, cool at night.
         case stageLight
+        /// Lines painted on the playmat and the goal frame and net on it. Never
+        /// white by day: white is 1.51:1 on the light playmat and vanished.
+        case stageLine
+        /// The path a clip walked, drawn on the playmat.
+        case stageTrail
+        /// The strip along a step's leading edge, drawn on the cream step top:
+        /// the one thing a climb clears or does not. Yellow on cream was 1.35:1.
+        case stageStepEdge
 
         /// Whether this token sets words on the scheme's grounds, and
         /// therefore owes 4.5:1 against every ground words are set on.
@@ -414,6 +422,16 @@ public enum Palette {
             return light ? microduckLavender : RGB(hex: "#7D6E9E")
         case .stageLight:
             return light ? RGB(hex: "#FFF6E6") : RGB(hex: "#CFE6FF")
+        // Teal ink on the light playmat (3.90:1), the icon's cream at night (9.09:1).
+        case .stageLine:
+            return light ? tealInk : RGB(hex: "#FFF6E6")
+        // Deep teal by day (5.58:1), bright teal at night (5.65:1). Not the pitch line's teal,
+        // so a walked path never reads as a painted line.
+        case .stageTrail:
+            return light ? RGB(hex: "#1E5557") : RGB(hex: "#7FD3D3")
+        // Orange ink on the cream step in both schemes: the step is cream either way (5.02:1).
+        case .stageStepEdge:
+            return orangeInk
         }
     }
 

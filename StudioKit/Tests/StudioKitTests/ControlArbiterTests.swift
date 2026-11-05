@@ -157,11 +157,17 @@ final class ControlArbiterTests: XCTestCase {
         XCTAssertEqual(Array(d.effects.prefix(2)), [.stopPath, .endLiveActivity])
     }
 
-    func testStickInAutoWithNothingRunningDropsToDrive() {
+    /// Build 93: a resting or drifting game controller in Auto with nothing running keeps Auto
+    /// and moves nothing. Only a running goal is taken over by the stick.
+    func testStickInAutoWithNothingRunningStaysInAutoAndMovesNothing() {
         var a = ControlArbiter(mode: .auto)
         let d = a.handle(.stickTouch, at: t0)
-        XCTAssertEqual(d.effects, [.setMode(.drive)])
-        XCTAssertTrue(d.passInput)
+        XCTAssertEqual(d.effects, [.caption(ControlArbiter.Words.sticksRestInAuto)])
+        XCTAssertFalse(d.passInput)
+        XCTAssertEqual(a.mode, .auto)
+        // A pad press or a move press in idle Auto is the person's own and passes.
+        XCTAssertTrue(a.handle(.padInput, at: t0).passInput)
+        XCTAssertEqual(a.mode, .auto)
         var drive = ControlArbiter(mode: .drive)
         XCTAssertEqual(drive.handle(.padInput, at: t0), .init(effects: [], passInput: true))
     }
@@ -192,5 +198,33 @@ final class ControlArbiterTests: XCTestCase {
 
     func testWordsHaveNoEmDash() {
         for s in ControlArbiter.Words.all { XCTAssertFalse(s.contains("\u{2014}"), s) }
+    }
+
+    /// Build 93: an order from Siri or a real duck's face button is a run, so the cap, Stop and a
+    /// stick take-over cover it, and it never moves the switch.
+    func testAnOrderIsCappedAndTakenOverWithoutMovingTheSwitch() {
+        var a = ControlArbiter(mode: .tell)
+        let d = a.handle(.start(.order, duck: .real, owner: .intent), at: t0)
+        XCTAssertEqual(d.effects, [.rearm])
+        XCTAssertEqual(a.mode, .tell)
+        XCTAssertEqual(a.running?.endsBy, at(ControlArbiter.Caps.realDuckDefault))
+        XCTAssertEqual(a.handle(.tick, at: at(29)), .init(effects: [], passInput: false))
+        XCTAssertEqual(a.handle(.tick, at: at(30)).effects,
+                       [.stopPath, .caption(ControlArbiter.Words.capped(30))])
+        XCTAssertEqual(a.lastEnding, .capped)
+
+        var practice = ControlArbiter(mode: .drive)
+        _ = practice.handle(.start(.order, duck: .sim, owner: .app), at: t0)
+        XCTAssertEqual(practice.running?.endsBy, at(ControlArbiter.Caps.practiceDuckDefault))
+        let took = practice.handle(.stickTouch, at: at(1))
+        XCTAssertEqual(took.effects, [.stopPath, .rearm, .caption(ControlArbiter.Words.tookOver)])
+        XCTAssertTrue(took.passInput)
+
+        // A Tell run keeps no cap: a sequence or a plan may be long, and Stop ends it.
+        var tell = ControlArbiter()
+        _ = tell.handle(.start(.tell, duck: .real, owner: .app), at: t0)
+        XCTAssertNil(tell.running?.endsBy)
+        XCTAssertTrue(ControlArbiter.RunKind.order.isCapped)
+        XCTAssertFalse(ControlArbiter.RunKind.tell.isCapped)
     }
 }

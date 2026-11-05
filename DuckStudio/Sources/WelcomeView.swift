@@ -105,10 +105,12 @@ struct WelcomeView: View {
             .frame(minHeight: DesignMetric.minimumTarget)
         }
         .disabled(busy && choice.prominent)
+        // THE APP'S OWN TOY BUTTONS, ink on Beak Orange and ink on white (build 93): the system
+        // prominent style set a white label on the orange tint, 2.02:1 at night.
         if choice.prominent {
-            button.buttonStyle(.borderedProminent)
+            button.buttonStyle(.primaryAction)
         } else {
-            button.buttonStyle(.bordered)
+            button.buttonStyle(.raisedAction)
         }
     }
 

@@ -116,7 +116,7 @@ struct DreamSimStatus: View {
                 Button(recorder.recording ? DreamDataset.Words.stop : DuckDream.Words.stop) {
                     if recorder.recording { recorder.stop() } else { model.stop() }
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.primaryActionInline)
                 .font(.footnote)
             }
             .padding(.horizontal, Theme.spacing(.snug)).padding(.vertical, Theme.spacing(.tight))

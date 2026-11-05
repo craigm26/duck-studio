@@ -280,4 +280,37 @@ final class PoliciesDuck: DuckPeer, @unchecked Sendable {
     func notify(_ c: DuckCall) async throws {}
     nonisolated func states() -> AsyncStream<DuckState> { AsyncStream { $0.finish() } }
     func lastCommand() async -> DuckDrive.Twist? { nil }
+
+    /// Build 93: every "Try saying" sentence works on the duck it is offered for. Without Apple
+    /// Intelligence each is one order the matcher reads; with it, each step of the sentence is.
+    func testEveryTrySayingExampleRunsOnItsDuck() {
+        let skills = Array(RobotPlan.skillSeconds.keys)
+        for duck in [DuckIdentity.Kind.sim, .real] {
+            for ready in [false, true] {
+                let examples = DuckDecider.Words.examples(on: duck, modelReady: ready)
+                XCTAssertFalse(examples.isEmpty)
+                for example in examples {
+                    let steps = DuckDecider.Words.exampleSteps(example)
+                    if !ready { XCTAssertEqual(steps.count, 1, example) }
+                    for step in steps {
+                        guard let order = DuckOrderMatcher.match(step, skills: skills) else {
+                            XCTFail("\(step) is not read on \(duck)"); continue
+                        }
+                        XCTAssertNil(order.notOn(duck), "\(step) cannot run on \(duck)")
+                    }
+                }
+            }
+        }
+        XCTAssertEqual(DuckDecider.Words.exampleSteps("stand up, then quack"), ["stand up", "quack"])
+        for duck in [DuckIdentity.Kind.sim, .real] {
+            for ready in [false, true] {
+                for example in DuckDecider.Words.examples(on: duck, modelReady: ready) {
+                    let plan = DuckDecider.Words.examplePlan(example, on: duck, skills: skills)
+                    XCTAssertEqual(plan?.count, DuckDecider.Words.exampleSteps(example).count, example)
+                }
+            }
+        }
+        // A real duck's sentence is refused on the practice duck rather than half-run.
+        XCTAssertNil(DuckDecider.Words.examplePlan("stand up, then quack", on: .sim, skills: skills))
+    }
 }

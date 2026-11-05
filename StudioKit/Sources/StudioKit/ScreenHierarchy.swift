@@ -89,7 +89,20 @@ public enum ScreenHierarchy {
         public let tab: String
         /// `-tab duck` opens Play with the Duck sheet up.
         public let duckSheet: Bool
+        /// A node id inside the tab to open on, or nil for the tab's top: `-tab learn` opens
+        /// Studio on Learn, `-tab behaviours` on Behaviours (build 93).
+        public var section: String? = nil
     }
+
+    /// The old tab names that now live as a section of another tab, and the section's node id.
+    public static let legacySections: [String: String] = [
+        "learn": "studio.learn",
+        "behaviours": "studio.behaviours",
+    ]
+
+    /// The five-tab layout's indices past the end of today's three, and the tab each now opens:
+    /// 3 Moves, 4 Studio, so an old screenshot script lands somewhere real rather than on Play.
+    public static let legacyIndices: [Int: String] = [3: "moves", 4: "studio"]
 
     /// `-tab N` by index into the tree's tabs, or `-tab name` by id or old name, so
     /// `-tab control` and `-tab learn` keep working. Anything else opens the tab the app opens
@@ -98,10 +111,15 @@ public enum ScreenHierarchy {
         let home = Launch(tab: tree.opensOn, duckSheet: false)
         guard let asked = asked?.trimmingCharacters(in: .whitespaces), !asked.isEmpty else { return home }
         if let n = Int(asked) {
-            return tree.tabs.indices.contains(n) ? Launch(tab: tree.tabs[n].id, duckSheet: false) : home
+            if tree.tabs.indices.contains(n) { return Launch(tab: tree.tabs[n].id, duckSheet: false) }
+            if let id = legacyIndices[n], tree.tab(id) != nil { return Launch(tab: id, duckSheet: false) }
+            return home
         }
         guard let tab = tree.tab(asked) else { return home }
-        return Launch(tab: tab.id, duckSheet: asked == "duck" && tab.id != "duck")
+        let section = legacySections[asked].flatMap { id in
+            tab.sections.flatMap(\.flattened).contains { $0.id == id } ? id : nil
+        }
+        return Launch(tab: tab.id, duckSheet: asked == "duck" && tab.id != "duck", section: section)
     }
 
     // MARK: Inventory

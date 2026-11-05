@@ -93,6 +93,10 @@ enum DesignMetric {
     /// darker shade of it. On press the face drops by this much and the lip
     /// disappears.
     static let lipDepth: CGFloat = 3
+    /// The lip in a tight row: a face button in its column, Send beside the Tell field. Three
+    /// points there pushed the button taller than the field next to it and crowded the column
+    /// (build 93); two still reads as a toy button.
+    static let lipDepthTight: CGFloat = 2
 }
 
 /// The two colours in the app that must NOT follow the colour scheme.
@@ -389,10 +393,13 @@ struct PrimaryActionStyle: ButtonStyle {
         /// then compressed the LABEL rather than the padding and the letters
         /// were clipped to slivers. Measured on a 393-point glass.
         case pad
+        /// BESIDE A FIELD IN ONE ROW: Send, Plan. The HIG floor, snug padding and the tight lip,
+        /// so the button sits level with the field instead of towering over it.
+        case inline
 
         var minimum: CGFloat {
             switch self {
-            case .standard: return DesignMetric.minimumTarget
+            case .standard, .inline: return DesignMetric.minimumTarget
             case .moves, .pad: return DesignMetric.movingTarget
             }
         }
@@ -402,6 +409,7 @@ struct PrimaryActionStyle: ButtonStyle {
             case .standard: return .loose
             case .moves: return .section
             case .pad: return .hairline
+            case .inline: return .snug
             }
         }
 
@@ -409,7 +417,15 @@ struct PrimaryActionStyle: ButtonStyle {
             switch self {
             case .standard: return .snug
             case .moves: return .standard
-            case .pad: return .hairline
+            case .pad, .inline: return .hairline
+            }
+        }
+
+        /// How tall the toy lip is.
+        var lip: CGFloat {
+            switch self {
+            case .standard, .moves: return DesignMetric.lipDepth
+            case .pad, .inline: return DesignMetric.lipDepthTight
             }
         }
     }
@@ -472,7 +488,7 @@ struct PrimaryActionStyle: ButtonStyle {
         private var pressed: Bool { configuration.isPressed && isEnabled }
         /// How far the face sits above its lip: the full depth at rest, none
         /// while held, so the button visibly goes down.
-        private var lift: CGFloat { pressed ? 0 : DesignMetric.lipDepth }
+        private var lift: CGFloat { pressed ? 0 : reach.lip }
 
         var body: some View {
             configuration.label
@@ -486,7 +502,7 @@ struct PrimaryActionStyle: ButtonStyle {
                 .background(face)
                 .offset(y: -lift)
                 .background(lipShape)
-                .padding(.top, DesignMetric.lipDepth)
+                .padding(.top, reach.lip)
                 .contentShape(Capsule())
                 .animation(.easeOut(duration: 0.08), value: pressed)
         }
@@ -570,6 +586,11 @@ extension ButtonStyle where Self == PrimaryActionStyle {
     /// The action colour, at the HIG's 44pt floor.
     static var primaryAction: PrimaryActionStyle {
         PrimaryActionStyle(reach: .standard)
+    }
+
+    /// The action colour beside a field in one row (Send, Plan): level with the field.
+    static var primaryActionInline: PrimaryActionStyle {
+        PrimaryActionStyle(reach: .inline)
     }
 
     /// The action colour at 60pt, for a control that moves the robot.

@@ -7,7 +7,11 @@ final class OnboardingTests: XCTestCase {
         let first = Onboarding.pages[0]
         XCTAssertEqual(first.id, .haveDuck)
         XCTAssertEqual(first.title, "Do you have a Microduck with you?")
-        XCTAssertEqual(first.choices.map(\.label), ["Yes, it's here", "Not yet, let me practise"])
+        XCTAssertEqual(first.choices.map(\.label), ["Yes, it's here and on my Wi-Fi",
+                                                    "It's here, but not on Wi-Fi yet",
+                                                    "Not yet, let me practise"])
+        XCTAssertEqual(Onboarding.next(from: .haveDuck, choosing: .yesItsHere), .page(.find))
+        XCTAssertEqual(Onboarding.next(from: .haveDuck, choosing: .hereNotOnWifi), .page(.wifiHelp))
         XCTAssertEqual(first.smallPrint,
                        "Microduck Studio is a companion app, not Pollen's official app.")
         XCTAssertFalse(Onboarding.companionLine.lowercased().contains("unofficial"),
@@ -58,15 +62,19 @@ final class OnboardingTests: XCTestCase {
     }
 
     /// The happy path, walked through `next`, really ends on the real duck.
-    /// It is five taps; the plan's exit check asks for at most four.
-    func testTheHappyPathIsFiveTaps() {
+    /// It is four taps, the plan's exit check, and the two safety presses are still in it: the
+    /// quack asks whether this duck is yours, and Stand up is its own press.
+    func testTheHappyPathIsFourTaps() {
         var at: Onboarding.Destination = .page(.haveDuck)
         for (page, choice) in Onboarding.tapsToStand {
             XCTAssertEqual(at, .page(page))
             at = Onboarding.next(from: page, choosing: choice)
         }
         XCTAssertEqual(at, .controller(onPracticeDuck: false))
-        XCTAssertEqual(Onboarding.tapsToStand.count, 5)
+        XCTAssertEqual(Onboarding.tapsToStand.count, 4)
+        XCTAssertLessThanOrEqual(Onboarding.tapsToStand.count, 4)
+        XCTAssertTrue(Onboarding.tapsToStand.contains { $0.0 == .sayHi && $0.1 == .quacked })
+        XCTAssertTrue(Onboarding.tapsToStand.contains { $0.0 == .standUp && $0.1 == .standUp })
     }
 
     func testDiscoveryTriesBluetoothFirstAndTypingLastAndFlagsBluetoothUnverified() {
@@ -130,5 +138,28 @@ final class OnboardingTests: XCTestCase {
             XCTAssertFalse(line.isEmpty)
             XCTAssertFalse(line.contains("\u{2014}"), line)
         }
+    }
+
+    /// Build 93: the stick mark first, then the Stop mark, each once, only in Drive.
+    func testCoachMarksShowOneAtATimeInDriveAndGoForGood() {
+        var marks = Onboarding.CoachMarks()
+        XCTAssertEqual(marks.showing(in: .drive), .stick)
+        XCTAssertNil(marks.showing(in: .tell))
+        XCTAssertNil(marks.showing(in: .auto))
+        marks.did(.stick)
+        XCTAssertEqual(marks.showing(in: .drive), .stop)
+        XCTAssertEqual(marks.showing(in: .drive)?.says, "Tap the red disc any time to stop")
+        marks.did(.stop)
+        XCTAssertNil(marks.showing(in: .drive))
+        // Kept as a bit set and read back the same.
+        XCTAssertNil(Onboarding.CoachMarks(done: marks.done).showing(in: .drive))
+        // A Stop pressed before any drive still counts.
+        var early = Onboarding.CoachMarks()
+        early.did(.stop)
+        XCTAssertEqual(early.showing(in: .drive), .stick)
+        early.did(.stick)
+        XCTAssertNil(early.showing(in: .drive))
+        XCTAssertEqual(Onboarding.CoachMarks.Mark.stick.says, "Push the stick a little")
+        XCTAssertEqual(Onboarding.CoachMarks.Mark.stop.symbol, "stop.circle")
     }
 }

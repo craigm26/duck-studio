@@ -328,7 +328,7 @@ It has no await on a model or the UI. It cannot cancel a skill the robot has alr
 
 **Mode switching.**
 - The top switch has a haptic detent.
-- Touching the stick in Auto drops to Drive.
+- Touching the stick in Auto takes over a running goal and drops to Drive. With nothing running it does nothing and says "The sticks rest in Auto. Tap Drive to steer." (build 93: a resting game controller used to flip the switch).
 - Holding the mic in Drive does a one-shot Tell without switching.
 - Saying "go get the ball" in Tell offers the Auto goal card.
 - The switch position is remembered per duck.
