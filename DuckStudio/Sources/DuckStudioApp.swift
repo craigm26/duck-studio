@@ -146,13 +146,11 @@ enum AppRoute: Equatable {
 
 /// Microduck Studio: one robot, and everything you can ask of it.
 ///
-/// FIVE TABS, AND THE FIRST ONE IS THE ROBOT. My Microduck answers seven
-/// questions in order and above the fold — which duck, is it online, how much
-/// battery, what is it doing, can I safely control it, what can I launch, is
-/// anything wrong — and the other four are what you do once you have an answer:
-/// Control moves it, Behaviours is what it knows, Studio is what you make, and
-/// Robot is what it is made of. Settings is a gear, once per tab root, which is
-/// the first word anybody looks for and now the only word.
+/// THREE TABS, AND THE FIRST ONE IS THE CONTROLLER (build 91). Play drives the
+/// duck in three modes, Drive, Tell and Auto, with Stop always on screen; Moves
+/// is everything the duck can do; Studio is the hub for making, training and the
+/// expert tools, one level down. The duck itself lives in the Duck sheet behind
+/// the duck pill. See docs/plans/native-first-redesign.md.
 ///
 /// The rule this app is built to: **StudioKit computes, DuckStudio displays.**
 /// No arithmetic here, and no sentence about a policy written here either —
