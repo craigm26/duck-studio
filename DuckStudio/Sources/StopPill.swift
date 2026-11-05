@@ -78,6 +78,14 @@ final class DuckRuns: ObservableObject {
             caption = ControllerWords.tellNoDuck
             return .refused(ControllerWords.tellNoDuck)
         }
+        return await run(order, on: peer, ready: ready)
+    }
+
+    /// Run one order on a named duck: the welcome sheet's quack and Stand up go to the duck just
+    /// connected, before Play has switched to it. Registered like any run, so the Stop pill shows
+    /// and stops it.
+    func run(_ order: DuckOrder, on peer: any DuckPeer,
+             ready: DuckOrder.Readiness = .unknown) async -> DuckOrderRunner.Ended {
         path.rearm()
         let path = self.path
         let work = Task { () -> DuckOrderRunner.Ended in

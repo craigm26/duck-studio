@@ -60,7 +60,7 @@ struct DuckPill: View {
 
     var body: some View {
         Menu {
-            Section(ControllerWords.driveOn) {
+            Section {
                 ForEach(venues) { venue in
                     Button {
                         pick(venue)
@@ -72,6 +72,8 @@ struct DuckPill: View {
                         }
                     }
                 }
+            } header: {
+                SectionHeading(text: ControllerWords.driveOn)
             }
             Button(action: details) {
                 Label(ControllerWords.duckDetails, systemImage: "info.circle")

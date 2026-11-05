@@ -120,10 +120,8 @@ struct StudioHubView: View {
                 } label: {
                     HubRow(Mimic.studioRow, StudioHubWords.mimic, Mimic.studioRowSymbol)
                 }
-#else
-                // YOUR ROOM, until the Duck sheet takes it (build 91, part 2).
-                if let room = LabCatalogue.listed().first(where: { $0.id == "room" }) { row(room) }
 #endif
+                // YOUR ROOM LIVES IN THE DUCK SHEET (build 91): it is about where the duck stands.
             } header: {
                 SectionHeading(text: "Make")
             }

@@ -126,7 +126,9 @@ struct MyMicroduckView: View {
             bannerSection
             deviceSection
             quickActionSection
-            robotSection
+            // THE ROBOT ROWS AND THE CAMERA MOVED TO THE DUCK SHEET (build 91): this screen is
+            // the sheet's Expert door now, and a second camera card here was the duplicate the
+            // plan cuts.
             if detail.shows(.notes) || machines.hasSomethingToSay {
                 machinesSection
             }
@@ -134,7 +136,6 @@ struct MyMicroduckView: View {
                 remoteSection
             }
             benchSection
-            cameraSection
             if detail.shows(.diagnostics) {
                 connectionSection
             }
@@ -142,7 +143,7 @@ struct MyMicroduckView: View {
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .background(Theme.backgroundSecondary)
-        .navigationTitle("My Microduck")
+        .navigationTitle(DuckSheet.expertMachines)
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {

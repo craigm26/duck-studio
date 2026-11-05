@@ -247,6 +247,14 @@ struct DriveView: View {
 
     private enum Shelf: String, Identifiable {
         case scene, motions, dream
+        /// The pull-up Moves sheet: the Moves tab's tiles, kept sequences, motions and Plan.
+        case moves
+        /// More: scene, record a sequence, the pad map, the camera, and the drive settings.
+        case more
+        /// A recorded take, offered to keep. Never auto-saved.
+        case keep
+        /// The Plan editor, from the Moves sheet, with this desk so a plan drives this duck.
+        case plan
         var id: String { rawValue }
     }
     /// Round trips completed since Drive was pressed, and the sim seconds they
@@ -474,12 +482,22 @@ struct DriveView: View {
         // It hangs on the ROOT rather than on the switch because two layouts
         // draw that switch now, and a rule attached to one of them would be a
         // rule that stops running when the other is on screen.
-        .onAppear { venue = DriveVenue.coerce(venue, camera: cameraDoor) }
+        .onAppear {
+            venue = DriveVenue.coerce(venue, camera: cameraDoor)
+            // THE DRAWER WENT INTO MORE (build 91); one left up by an older build comes down.
+            drawerIsUp = false
+        }
         .refreshingCameraDoor($cameraDoor)
         .onChange(of: cameraDoor) { _, _ in
             venue = DriveVenue.coerce(venue, camera: cameraDoor)
         }
-        .onChange(of: venue) { was, now in entered(from: was, to: now) }
+        .onChange(of: venue) { was, now in
+            entered(from: was, to: now)
+            router.playVenue = now
+        }
+        // THE TAKE IS OFFERED, NEVER AUTO-SAVED (was PadChrome's): a ceiling, a Stop, a Pause and
+        // the chip all land here.
+        .onChange(of: desk.pilot.pending) { _, take in if take != nil { shelf = .keep } }
         // ARRIVING AT THE ROBOT ASKS IT TO TALK, and so does a link that opens
         // while this tab is already showing — somebody can connect on the Robot
         // tab and walk back here, which is the ordinary way round. Both land on
@@ -618,6 +636,18 @@ struct DriveView: View {
                 ControlMotionsSheet(motions: motionRows, running: runningMotion,
                                     outcome: motionOutcome,
                                     run: { id in Task { await runMotion(id) } })
+            case .moves:
+                movesSheet
+            case .more:
+                moreSheet
+            case .keep:
+                SequenceKeepSheet(desk: desk, bench: bench, token: token,
+                                  engage: { engageLoop() }, library: model)
+            case .plan:
+                NavigationStack {
+                    PlanEditorView(desk: desk, venue: venue, engage: { engageLoop() }, bench: bench,
+                                   models: settingsModels, robot: robot, stopDriving: { await halt() })
+                }
             case .dream:
                 // THE BENCH'S OWN PEER, made if driving has not made it yet: the camera draws its duck.
                 DreamSimSheet(peer: (try? requirePeer()) as? BenchPeer, feed: simHeadCamera,
@@ -1131,29 +1161,27 @@ struct DriveView: View {
                             .font(.footnote)
                             .accessibilityHint(Text(ControllerWords.headModeHint))
                         }
-                        ControlShelfChips(standing: world?.name,
-                                          posing: posed != nil && !mimicking,
-                                          mimicking: mimicking,
-                                          openScene: { shelf = .scene },
-                                          openMotions: { shelf = .motions },
-                                          pose: {
-                                              // THE POSE STARTS WHERE THE DUCK IS.
-                                              if mimicking { stopMimic() }
-                                              if posed == nil {
-                                                  posed = pose.jointAngles
-                                                  poseNote = nil
-                                              } else {
-                                                  posed = nil
-                                                  posedJoint = nil
-                                              }
-                                          },
-                                          mimic: { mimicking ? stopMimic() : startMimic() },
-                                          simple: isSimple)
-                        PadChrome(desk: desk, venue: venue, bench: bench, token: token,
-                                  lastAction: $lastAction,
-                                  engage: { engageLoop() },
-                                  library: model, models: settingsModels,
-                                  robot: robot, stopDriving: { await halt() })
+                        // POSE ON THE PRACTICE DUCK, and the take being recorded. Scene,
+                        // Record, the pad map and the camera went down into More; sequences,
+                        // motions and Plan into the pull-up Moves sheet.
+                        if venue != .real {
+                            playChip(ControlShelf.poseChip, symbol: "hand.draw",
+                                     on: posed != nil && !mimicking) {
+                                if mimicking { stopMimic() }
+                                if posed == nil {
+                                    posed = pose.jointAngles
+                                    poseNote = nil
+                                } else {
+                                    posed = nil
+                                    posedJoint = nil
+                                }
+                            }
+                        }
+                        if desk.pilot.isRecording || desk.pilot.pending != nil {
+                            playChip(PadPilot.nameItChip, symbol: "record.circle", on: true) {
+                                if desk.pilot.isRecording { desk.pilot.cutOff(.tapped) } else { shelf = .keep }
+                            }
+                        }
                     }
                     .padding(.horizontal, Theme.spacing(.hairline))
                 }
@@ -1269,12 +1297,18 @@ struct DriveView: View {
 
     /// THE EXPLICIT VENUE SWITCH, from the duck pill. The stick zeroes and ignores input until
     /// the finger lifts, and a chip says which duck is now being driven.
-    @MainActor private func choose(_ next: DriveVenue) {
-        guard next != venue else { return }
-        stickGate.venueChanged()
+    @MainActor private func choose(_ next: DriveVenue) { choose(next, cause: .duckPill) }
+
+    /// THE ONE PLACE THE VENUE IS SWITCHED BY A PERSON. `VenueRule` says whether the cause may
+    /// switch it (only the pill, the Duck sheet and onboarding can) and closes the stick gate when
+    /// it does; the stick is zeroed and a chip names the duck now being driven.
+    @MainActor private func choose(_ next: DriveVenue, cause: VenueRule.Cause) {
+        let allowed = next.canBeEntered(camera: cameraDoor) ? next : venue
+        let outcome = VenueRule.request(allowed, from: venue, cause: cause, gate: &stickGate)
+        guard outcome.switched else { return }
         touchSticks = .centred
-        venue = next
-        controllerCaption = ControllerWords.nowDriving(DuckPill.name(of: next))
+        venue = outcome.venue
+        controllerCaption = ControllerWords.nowDriving(DuckPill.name(of: outcome.venue))
     }
 
     @MainActor private func takePendingPlay(_ asked: PlayRoute?) {
@@ -1286,6 +1320,12 @@ struct DriveView: View {
         case .tell: mode = .tell
         case .auto: mode = .auto
         case .duckSheet: router.duckSheet = true; return
+        case .venue(let next, let cause): choose(next, cause: cause); return
+        case .sequence(let id):
+            desk.reloadShelf()
+            lastAction = desk.play(id, thenLoading: nil, among: health?.policies ?? [], face: "")
+            if desk.pilot.isPlaying { engageLoop() }
+            return
         }
         apply(arbiter.handle(.selectMode(mode), at: Date()))
     }
@@ -1430,11 +1470,11 @@ struct DriveView: View {
                                   stop: { Task { await halt() } })
                     }
                     padDeck(compact: true)
-                    drawerHandle
+                    sheetsRow
                 }
                 .measuringChromeHeight { padChromeHeight = $0 }
             }
-            if drawerIsUp { drawerHandle }
+            if drawerIsUp { sheetsRow }
         }
         .padding(.horizontal, Theme.spacing(.snug))
         .padding(.bottom, Theme.spacing(.tight))
@@ -1636,6 +1676,172 @@ struct DriveView: View {
         drafts.save(draft)
         poseNote = ControlShelf.keptAsAMotion(draft.name)
         Haptic.behaviourStarted()
+    }
+
+    // MARK: - the two sheets on Play (build 91)
+
+    /// One collapsed chip on the picture. A capsule at the minimum target, never taller.
+    private func playChip(_ title: String, symbol: String, on: Bool = false,
+                          act: @escaping () -> Void) -> some View {
+        Button(action: act) {
+            Label(title, systemImage: symbol)
+                .font(.footnote.weight(on ? .semibold : .regular))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .foregroundStyle(Theme.textPrimary)
+                .padding(.horizontal, Theme.spacing(.snug))
+                .frame(minHeight: DesignMetric.minimumTarget)
+                .background(.ultraThinMaterial, in: Capsule())
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityValue(Text(on ? "on" : ""))
+    }
+
+    /// Where the drawer handle was: the pull-up Moves sheet and More.
+    private var sheetsRow: some View {
+        HStack(spacing: Theme.spacing(.tight)) {
+            playChip(ControllerWords.movesSheet, symbol: "chevron.up") { shelf = .moves }
+                .accessibilityHint(Text(ControllerWords.movesSheetHint))
+            playChip(ControllerWords.more, symbol: "ellipsis.circle") { shelf = .more }
+                .accessibilityHint(Text(ControllerWords.moreHint))
+        }
+    }
+
+    /// THE PULL-UP MOVES SHEET: the Moves tab's tiles over the picture, so most runs happen with
+    /// the duck in view. Sequences play on this stick loop; motions run on the bench; Plan opens
+    /// the editor with this desk.
+    private var movesSheet: some View {
+        NavigationStack {
+            List {
+                MoveTileSections()
+                Section {
+                    if desk.sequences.isEmpty {
+                        Text(MoveTileSections.noSequences)
+                            .font(.footnote).foregroundStyle(Theme.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    ForEach(desk.sequences) { sequence in
+                        Button {
+                            shelf = nil
+                            lastAction = desk.play(sequence.id, thenLoading: nil,
+                                                   among: health?.policies ?? [], face: "")
+                            if desk.pilot.isPlaying { engageLoop() }
+                        } label: {
+                            Label(sequence.name, systemImage: "list.bullet.rectangle")
+                                .frame(minHeight: DesignMetric.minimumTarget)
+                        }
+                        .foregroundStyle(Theme.textPrimary)
+                    }
+                } header: {
+                    SectionHeading(text: MoveTileSections.mySequences)
+                }
+                .listRowBackground(Theme.surfacePrimary)
+                if venue != .real {
+                    Section {
+                        if motionRows.isEmpty {
+                            Text(ControlShelf.noMotionsYet)
+                                .font(.footnote).foregroundStyle(Theme.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        ForEach(motionRows) { row in
+                            Button {
+                                Task { await runMotion(row.id) }
+                            } label: {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(row.name).foregroundStyle(Theme.textPrimary)
+                                    Text(row.room).font(.caption).foregroundStyle(Theme.textSecondary)
+                                }
+                                .frame(minHeight: DesignMetric.minimumTarget, alignment: .leading)
+                            }
+                            .disabled(runningMotion != nil)
+                        }
+                        if let motionOutcome {
+                            Text(motionOutcome).font(.footnote)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    } header: {
+                        SectionHeading(text: ControllerWords.motions)
+                    }
+                    .listRowBackground(Theme.surfacePrimary)
+                }
+                Section {
+                    Button { shelf = .plan } label: {
+                        HubRow(PlanEditorWords.studioRow, StudioHubWords.plan, PlanEditorWords.studioRowSymbol)
+                    }
+                    .foregroundStyle(Theme.textPrimary)
+                }
+                .listRowBackground(Theme.surfacePrimary)
+            }
+            .scrollContentBackground(.hidden)
+            .background(Theme.backgroundSecondary)
+            .navigationTitle(ControllerWords.movesSheet)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(ControllerWords.done) { shelf = nil }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .onAppear { desk.reloadShelf() }
+    }
+
+    /// MORE: what used to be chips and a drawer over the picture, one level down.
+    private var moreSheet: some View {
+        NavigationStack {
+            Group {
+                if venue == .real {
+                    List {
+                        Text(ControllerWords.moreRealDuck)
+                            .font(.footnote).foregroundStyle(Theme.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .listRowBackground(Theme.surfacePrimary)
+                    }
+                    .scrollContentBackground(.hidden)
+                } else {
+                    controls
+                }
+            }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if venue != .real {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: Theme.spacing(.tight)) {
+                            if venue == .sim {
+                                playChip(ControllerWords.moreScene, symbol: "square.stack.3d.up") {
+                                    shelf = .scene
+                                }
+                            }
+                            playChip(ControllerWords.moreRecord, symbol: "record.circle") {
+                                shelf = nil
+                                desk.beginTake(venue: venue)
+                                lastAction = PadPilot.recordStartsDriving
+                                engageLoop()
+                            }
+                            .accessibilityHint(Text(ControllerWords.moreRecordLine))
+                            if venue == .sim {
+                                playChip(ControllerWords.moreCamera, symbol: "scope") {
+                                    orbit = .following
+                                    shelf = nil
+                                }
+                                .accessibilityHint(Text(ControllerWords.moreCameraLine))
+                            }
+                        }
+                        .padding(.horizontal, Theme.spacing(.snug))
+                        .padding(.vertical, Theme.spacing(.tight))
+                    }
+                }
+            }
+            .background(Theme.backgroundSecondary)
+            .navigationTitle(ControllerWords.more)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(ControllerWords.done) { shelf = nil }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
     }
 
     /// The handle that brings the settings up over the picture.

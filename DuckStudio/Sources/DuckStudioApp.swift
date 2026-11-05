@@ -54,6 +54,11 @@ enum PlayRoute: Equatable {
     case drive, tell, auto
     /// Play, with the Duck sheet up.
     case duckSheet
+    /// Drive on this duck. Play asks `VenueRule` whether the cause may switch it: only the duck
+    /// pill, the Duck sheet's "Drive on" and onboarding can.
+    case venue(DriveVenue, VenueRule.Cause)
+    /// Play a kept sequence on Play's stick loop (a tap in Moves' "My sequences").
+    case sequence(UUID)
 }
 
 /// Where a screen can send somebody: a tab, and optionally a place inside it.
@@ -81,6 +86,16 @@ enum AppRoute: Equatable {
 
     /// Whether the Duck sheet is up.
     @Published var duckSheet = false
+
+    /// The welcome sheet re-entered from the Duck sheet's "Add your duck", at this page.
+    @Published var welcomeAgain: Onboarding.PageID?
+
+    /// The venue Play is on, mirrored by Play for the Duck sheet's "Drive on" checkmark. Written
+    /// only by Play: a request to change it is `go(to: .play(.venue(...)))`.
+    @Published var playVenue: DriveVenue = .sim
+
+    /// What an import just added to Moves, for the "Added" chip; Moves clears it.
+    @Published var added: String?
 
     init(tab: AppTab = .play) {
         self.tab = tab
@@ -273,21 +288,20 @@ struct DuckStudioApp: App {
                     .tabItem { Label(AppTab.studio.title, systemImage: AppTab.studio.symbol) }
                     .tag(AppTab.studio)
             }
-            // THE DUCK SHEET, from the duck pill on Play (or `-tab duck`). Until the Duck sheet of
-            // the plan lands it holds today's My Microduck screen, which was a tab.
+            // THE DUCK SHEET, from the duck pill on Play (or `-tab duck`, or ⌘D on a Mac).
             .sheet(isPresented: $router.duckSheet) {
                 NavigationStack {
-                    MyMicroduckView(model: model, scenes: scenes, drafts: drafts,
-                                    models: models, benches: benches, detail: detail,
-                                    machines: machines, remote: remote, robot: robot)
-                        .toolbar {
-                            ToolbarItem(placement: .confirmationAction) {
-                                Button("Done") { router.duckSheet = false }
-                            }
-                        }
+                    DuckSheetView(model: model, scenes: scenes, drafts: drafts,
+                                  models: models, benches: benches, detail: detail,
+                                  machines: machines, remote: remote, robot: robot)
                 }
                 .environmentObject(router)
                 .stopPill()
+            }
+            // "ADD YOUR DUCK", from the Duck sheet: the welcome again, from the Wi-Fi page.
+            .sheet(item: welcomeAgainItem) { start in
+                WelcomeView(robot: robot, start: start.page, finish: endWelcomeAgain)
+                    .stopPill()
             }
             // THE ROUTER IS INJECTED ON THE TAB VIEW, WHICH IS THE ONLY PLACE
             // EVERY TAB IS DOWNSTREAM OF. A card on My Microduck that says
@@ -364,10 +378,12 @@ struct DuckStudioApp: App {
                         detail.finishFirstRun(choosing: nil)
                     }
                 })) {
-                FirstRunView(detail: detail)
+                WelcomeView(robot: robot, finish: endWelcome)
                     .stopPill()
             }
-            .onOpenURL { Imports.open($0, model: model, drafts: drafts, plans: plans) }
+            // AN IMPORT LANDS WHERE ITS KIND LIVES: Moves for sequences, plans and packs, with an
+            // "Added" chip; Studio, Make for drafts. It never moves the venue.
+            .onOpenURL(perform: openImport)
             // THE 0.4 s SETTLE IS THE POINT AND ALSO THE HOLE. Both stores
             // batch writes so that a finger on a slider does not encode the
             // whole library sixty times a second — and a rename is a single
@@ -429,6 +445,53 @@ struct DuckStudioApp: App {
     }
 }
 
+extension DuckStudioApp {
+    /// Where the welcome sheet ended. Stand up is an explicit connect, so it is the one place
+    /// outside the duck pill and the Duck sheet that may put Play on the real duck.
+    @MainActor func land(_ ended: Onboarding.Destination) {
+        guard case .controller(let practice) = ended else { return }
+        let venue: DriveVenue = practice ? .sim : .real
+        router.go(to: .play(.venue(venue, .onboarding)))
+    }
+
+    /// The fresh-install welcome ended: seen, and land where it said.
+    @MainActor func endWelcome(_ ended: Onboarding.Destination) {
+        detail.finishFirstRun(choosing: nil)
+        land(ended)
+    }
+
+    /// "Add your duck" ended.
+    @MainActor func endWelcomeAgain(_ ended: Onboarding.Destination) {
+        router.welcomeAgain = nil
+        land(ended)
+    }
+
+    /// The "Add your duck" welcome as a sheet item.
+    var welcomeAgainItem: Binding<WelcomeStart?> {
+        Binding(get: { router.welcomeAgain.map { WelcomeStart(page: $0) } },
+                set: { router.welcomeAgain = $0?.page })
+    }
+
+    /// A file handed to the app lands where its kind lives: Moves for sequences, plans and
+    /// packs, with an "Added" chip; Studio, Make for drafts. It never moves the venue.
+    @MainActor func openImport(_ url: URL) {
+        switch Imports.open(url, model: model, drafts: drafts, plans: plans) {
+        case .moves:
+            router.added = ImportLanding.addedLine(url.deletingPathExtension().lastPathComponent)
+            router.go(to: AppTab.moves)
+        case .studioMake: router.go(to: .studio(.motions))
+        case .studioBehaviours: router.go(to: .studio(.behaviours))
+        case .stay: break
+        }
+    }
+}
+
+/// The page "Add your duck" re-enters the welcome at, as a sheet item.
+struct WelcomeStart: Identifiable {
+    let page: Onboarding.PageID
+    var id: String { page.rawValue }
+}
+
 #if os(macOS)
 /// The tabs as a Go menu, ⌘1 to ⌘3, and ⌘D for the Duck sheet, which is how a Mac app with a
 /// tab bar is driven from the keyboard.
@@ -481,29 +544,26 @@ enum Imports {
     /// Studio reads cards with, so it is counted by the decks the store has taken; a refused one
     /// takes nothing and stays quiet. A `.duckpack` is counted the same way, by the packs taken,
     /// since one opened again replaces itself.
+    @discardableResult
     static func open(_ url: URL, model: LibraryModel,
-                     drafts: DraftStore, plans: PlanStore) {
-        let before = holdings(model: model, drafts: drafts, plans: plans)
+                     drafts: DraftStore, plans: PlanStore) -> ImportLanding {
+        let policies = model.library.entries.count
+        let clips = model.importedClips.count
+        let held = (drafts: drafts.drafts.count, plans: plans.plans.count)
         let decks = DuckCardsStore.shared.taken
         let packs = DuckPacksStore.shared.taken
         model.open(url, into: drafts, plans: plans)
-        if holdings(model: model, drafts: drafts, plans: plans) != before
-            || DuckCardsStore.shared.taken != decks
-            || DuckPacksStore.shared.taken != packs {
-            Haptic.finished()
-        }
+        // WHAT GREW, COUNTED, so the kit can say where it lands.
+        let growth = ImportLanding.Growth(
+            drafts: drafts.drafts.count - held.drafts,
+            plans: plans.plans.count - held.plans,
+            sequences: model.importedClips.count - clips,
+            packs: DuckPacksStore.shared.taken != packs ? 1 : 0,
+            decks: DuckCardsStore.shared.taken != decks ? 1 : 0,
+            policies: model.library.entries.count - policies)
+        let landing = ImportLanding.landing(for: growth)
+        if landing != .stay { Haptic.finished() }
+        return landing
     }
 
-    /// How many things this app is holding that an import can add to.
-    ///
-    /// Read straight after the call rather than observed, because the stores
-    /// publish synchronously: by the time `open` returns, the arrays are the
-    /// new ones.
-    private static func holdings(model: LibraryModel,
-                                 drafts: DraftStore, plans: PlanStore) -> Int {
-        model.library.entries.count
-            + model.importedClips.count
-            + drafts.drafts.count
-            + plans.plans.count
-    }
 }

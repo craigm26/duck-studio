@@ -18,39 +18,41 @@ struct MovesView: View {
     @ObservedObject private var runs = DuckRuns.shared
     @EnvironmentObject private var router: AppRouter
 
-    /// The robot's one-shot skills, by the names robotd uses. Sit and stand are one skill on the
-    /// robot and live on Play's buttons, so the toggle is not offered here.
-    private var skills: [String] {
-        RobotPlan.skillSeconds.keys.filter { $0 != DuckOrder.sitToggle }.sorted()
-    }
+    /// The sequences kept on this phone, read here for the list; playing one is Play's stick
+    /// loop, so a tap sends Play the sequence.
+    @StateObject private var shelf = PadDesk()
 
     var body: some View {
         List {
-            Section {
-                if runs.duck == nil {
-                    Text(ControllerWords.tellNoDuck)
-                        .font(.footnote)
-                        .foregroundStyle(Theme.textSecondary)
+            if let added = router.added {
+                Section {
+                    Label(added, systemImage: "checkmark.circle.fill")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(Theme.measured)
+                        .accessibilityLabel(Text(added))
                 }
-                ForEach(skills, id: \.self) { name in
-                    tile(name.replacingOccurrences(of: "_", with: " ").capitalized,
-                         symbol: "figure.run", order: .skill(name))
-                }
-            } header: {
-                SectionHeading(text: "Skills")
-            } footer: {
-                if runs.duck == .sim {
-                    Text("The practice duck has no skills of its own; a real duck does.")
-                }
+                .listRowBackground(Theme.surfacePrimary)
             }
-            .listRowBackground(Theme.surfacePrimary)
+
+            MoveTileSections()
 
             Section {
-                ForEach(DuckSound.allCases, id: \.self) { sound in
-                    tile(sound.rawValue.capitalized, symbol: "speaker.wave.2", order: .sound(sound))
+                if shelf.sequences.isEmpty {
+                    Text(MoveTileSections.noSequences)
+                        .font(.footnote).foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                ForEach(shelf.sequences) { sequence in
+                    Button {
+                        router.go(to: .play(.sequence(sequence.id)))
+                    } label: {
+                        Label(sequence.name, systemImage: "list.bullet.rectangle")
+                            .frame(minHeight: DesignMetric.minimumTarget)
+                    }
+                    .foregroundStyle(Theme.textPrimary)
                 }
             } header: {
-                SectionHeading(text: "Sounds")
+                SectionHeading(text: MoveTileSections.mySequences)
             }
             .listRowBackground(Theme.surfacePrimary)
 
@@ -107,6 +109,9 @@ struct MovesView: View {
         .scrollContentBackground(.hidden)
         .background(Theme.backgroundSecondary)
         .navigationTitle("Moves")
+        .onAppear { shelf.reloadShelf() }
+        // THE "ADDED" CHIP IS SHOWN ONCE: it goes when the person leaves Moves.
+        .onDisappear { router.added = nil }
         .safeAreaInset(edge: .bottom) {
             if let caption = runs.caption {
                 Text(caption)
@@ -118,6 +123,58 @@ struct MovesView: View {
             }
         }
     }
+}
+
+/// Phone drivers installed in this app. None yet: the phone driver's app half is a later build,
+/// and the Auto card says so rather than pretending.
+enum PhoneDrivers {
+    static var installed: Bool { false }
+}
+
+/// Skills and sounds as tiles, on the Moves tab and in Play's pull-up Moves sheet: the same
+/// tiles in both places. A tap runs on the duck Play is on, through `DuckRuns`, with the Stop pill
+/// showing while it runs.
+struct MoveTileSections: View {
+    @ObservedObject private var runs = DuckRuns.shared
+
+    static let mySequences = "My sequences"
+    static let noSequences = "Nothing kept yet. Record one from Play, More."
+
+    /// The robot's one-shot skills, by the names robotd uses. Sit and stand are one skill on the
+    /// robot and live on Play's buttons, so the toggle is not offered here.
+    private var skills: [String] {
+        RobotPlan.skillSeconds.keys.filter { $0 != DuckOrder.sitToggle }.sorted()
+    }
+
+    var body: some View {
+        Section {
+            if runs.duck == nil {
+                Text(ControllerWords.tellNoDuck)
+                    .font(.footnote)
+                    .foregroundStyle(Theme.textSecondary)
+            }
+            ForEach(skills, id: \.self) { name in
+                tile(name.replacingOccurrences(of: "_", with: " ").capitalized,
+                     symbol: "figure.run", order: .skill(name))
+            }
+        } header: {
+            SectionHeading(text: "Skills")
+        } footer: {
+            if runs.duck == .sim {
+                Text("The practice duck has no skills of its own; a real duck does.")
+            }
+        }
+        .listRowBackground(Theme.surfacePrimary)
+
+        Section {
+            ForEach(DuckSound.allCases, id: \.self) { sound in
+                tile(sound.rawValue.capitalized, symbol: "speaker.wave.2", order: .sound(sound))
+            }
+        } header: {
+            SectionHeading(text: "Sounds")
+        }
+        .listRowBackground(Theme.surfacePrimary)
+    }
 
     private func tile(_ title: String, symbol: String, order: DuckOrder) -> some View {
         Button {
@@ -128,10 +185,4 @@ struct MovesView: View {
         .disabled(runs.duck == nil || runs.isRunning)
         .frame(minHeight: DesignMetric.minimumTarget)
     }
-}
-
-/// Phone drivers installed in this app. None yet: the phone driver's app half is a later build,
-/// and the Auto card says so rather than pretending.
-enum PhoneDrivers {
-    static var installed: Bool { false }
 }
