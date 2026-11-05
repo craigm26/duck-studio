@@ -1,48 +1,36 @@
 import SwiftUI
 import StudioKit
 
-/// The five tabs, in the order a person meets them.
+/// The three tabs, in the order a person meets them (build 91).
 ///
-/// A TAB PER QUESTION SOMEBODY IS ASKING, NOT PER KIND OF FILE. The old shell
-/// was sorted by data type — policies, motions, scenes, drafts, lab — which is
-/// how the app is built rather than how it is used, and it made the first
-/// screen a list of ONNX files belonging to a robot the person had not yet been
-/// shown. These five are the questions instead: which duck is mine, can I move
-/// it, what can it do, what can I make, and what is it made of. A file type is
-/// something you find once you are inside one of those.
+/// PLAY, MOVES, STUDIO. Play is the controller and the app opens on it; Moves is the toy box;
+/// Studio is the workshop, holding everything advanced one level down
+/// (docs/plans/native-first-redesign.md, "The screen hierarchy"). The Duck sheet opens from the
+/// duck pill on Play.
 ///
-/// THE ORDER IS THE TAG ORDER AND THE TAG ORDER IS LOAD-BEARING. `-tab 3` has
-/// to keep meaning the fourth tab for the screenshot runs, so `allCases` is the
-/// index space `launchTab` counts in — see `DuckStudioApp.launchTab`, which
-/// also accepts the raw value so a run can say `-tab studio` and not have to
-/// know what number Studio is this week.
+/// THE ORDER IS THE TAG ORDER AND THE TAG ORDER IS LOAD-BEARING: `-tab 1` is Moves. The kit's
+/// `ScreenHierarchy.launch` reads the argument, by index or by name, and keeps the old names
+/// working: `-tab control` is Play, `-tab learn` and `-tab behaviours` are Studio, `-tab duck` is
+/// Play with the Duck sheet up. The raw values are the target tree's tab ids, and a Linux test
+/// pins the tree.
 enum AppTab: String, CaseIterable, Identifiable {
-    // PLAY FIRST, AND THE APP OPENS ON IT. Somebody who installed an app for a
-    // robot wants to move the robot; everything else is a step on the Learn
-    // path. The raw values are the old ones where the tab is the same place, so
-    // `-tab control` still reaches it. Robot is not a tab any more: it is one
-    // row inside My Microduck, where the same bench is already described.
-    case control, learn, behaviours, studio, duck
+    case play, moves, studio
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .control: return "Play"
-        case .learn: return "Learn"
-        case .behaviours: return "Behaviours"
+        case .play: return "Play"
+        case .moves: return "Moves"
         case .studio: return "Studio"
-        case .duck: return "My Microduck"
         }
     }
 
     var symbol: String {
         switch self {
-        case .control: return "gamecontroller"
-        case .learn: return "graduationcap"
-        case .behaviours: return "brain.head.profile"
+        case .play: return "gamecontroller"
+        case .moves: return "square.grid.2x2"
         case .studio: return "wand.and.stars"
-        case .duck: return "bird"
         }
     }
 }
@@ -53,51 +41,48 @@ enum StudioDestination: String, Identifiable, Hashable, CaseIterable {
     case tune, preference
     /// Train a duck to shoot.
     case shoot
-    /// Mimic a person. Arrived with its caller: the Play tab's Mimic bar
-    /// offers only the camera and sends a person here for a video or a
-    /// YouTube clip.
+    /// Mimic a person (Mac only on the hub; routed for the Mac's Mimic links).
     case mimic
+    /// Build 91: the two tabs that folded into Studio.
+    case behaviours, learn
 
     var id: String { rawValue }
 }
 
+/// A place inside Play that somebody asked for.
+enum PlayRoute: Equatable {
+    case drive, tell, auto
+    /// Play, with the Duck sheet up.
+    case duckSheet
+}
+
+/// Where a screen can send somebody: a tab, and optionally a place inside it.
+enum AppRoute: Equatable {
+    case play(PlayRoute? = nil)
+    case moves
+    case studio(StudioDestination? = nil)
+}
+
 /// Which tab is showing, and the one way to change it from inside a screen.
 ///
-/// A SCREEN THAT SENDS SOMEBODY SOMEWHERE MUST BE ABLE TO ACTUALLY SEND THEM.
-/// The seven questions the first tab answers end in an action — "drive it" is
-/// the Play tab, "install one" is Behaviours — and before this existed the
-/// only honest thing a card could do was name the tab and hope. A sentence that
-/// tells a person to go and tap a tab is a sentence the app could have obeyed
-/// itself.
-///
-/// AND A TAB IS NOT ALWAYS THE WHOLE ROUTE. Behaviours → Retrain means "write a
-/// training request", which is Studio → Draft: two hops, of which the router
-/// could only make the first. Landing somebody on the Studio root with four
-/// rows in front of them and no mark on the one they asked for is the same
-/// failure as naming a tab and hoping, moved one screen further in. `pendingStudio`
-/// is the second hop, held until the tab that owns it can take it.
-///
-/// IT IS STILL A ROUTER AND NOT A NAVIGATION MODEL. It holds which of the five
-/// is in front and, optionally, ONE place inside Studio that has just been
-/// asked for. Each tab keeps its own `NavigationStack` and its own path, because
-/// a tab that rewinds to its root every time another tab nudged it is a tab that
-/// loses what somebody was in the middle of — which is why this is a one-shot
-/// request rather than a stored location. `StudioHubView` binds it straight to
-/// `navigationDestination(item:)`, so SwiftUI clears it back to nil the moment
-/// the person taps Back, and the tab is then free to be left where they left it.
+/// A SCREEN THAT SENDS SOMEBODY SOMEWHERE MUST BE ABLE TO ACTUALLY SEND THEM, and a tab is not
+/// always the whole route: Behaviours > Retrain means Studio > Draft. `pendingStudio` and
+/// `pendingPlay` are the second hop, held until the tab that owns it takes it, one-shot rather than
+/// stored, so a tab is left where the person left it.
 @MainActor final class AppRouter: ObservableObject {
     @Published var tab: AppTab
 
-    /// The place inside Studio somebody has just asked for, or nil.
-    ///
-    /// PUBLISHED AND WRITEABLE BECAUSE SwiftUI POPS IT. `navigationDestination(
-    /// item:)` takes a two-way binding: it pushes when this becomes non-nil and
-    /// writes nil back when the screen is dismissed. A one-way "consume it on
-    /// appear" version would have to guess when the person had left, and would
-    /// re-push the same screen the next time the Studio tab was selected.
+    /// The place inside Studio somebody has just asked for, or nil. Bound to
+    /// `navigationDestination(item:)`, which writes nil back when the screen is dismissed.
     @Published var pendingStudio: StudioDestination?
 
-    init(tab: AppTab = .control) {
+    /// The mode or sheet inside Play somebody has just asked for; Play clears it when taken.
+    @Published var pendingPlay: PlayRoute?
+
+    /// Whether the Duck sheet is up.
+    @Published var duckSheet = false
+
+    init(tab: AppTab = .play) {
         self.tab = tab
     }
 
@@ -106,21 +91,41 @@ enum StudioDestination: String, Identifiable, Hashable, CaseIterable {
         go(to: tab, then: nil)
     }
 
-    /// Show a tab, and — when the tab is Studio — the place inside it.
-    ///
-    /// `then` IS SET BEFORE THE TAB CHANGES so that the hub's
-    /// `navigationDestination` already has its item when the tab's view tree
-    /// comes forward: setting it afterwards makes the push a second animation a
-    /// person watches happen to them.
-    ///
-    /// A DESTINATION WITH A TAB THAT IS NOT STUDIO IS DROPPED RATHER THAN
-    /// REMEMBERED. Studio is the only tab that reads this, and a pending
-    /// destination left set while somebody is on Control would fire the next
-    /// time they touched the Studio tab — a push nobody asked for, arriving
-    /// minutes late.
+    /// Show a tab, and (when the tab is Studio) the place inside it. A destination for a tab
+    /// that is not Studio is dropped rather than remembered.
     func go(to tab: AppTab, then destination: StudioDestination?) {
         pendingStudio = tab == .studio ? destination : nil
         self.tab = tab
+    }
+
+    /// Push-capable routes: `router.go(to: .studio(.preference))`.
+    func go(to route: AppRoute) {
+        switch route {
+        case .play(let inside):
+            pendingStudio = nil
+            if inside == .duckSheet { duckSheet = true } else { pendingPlay = inside }
+            tab = .play
+        case .moves:
+            go(to: AppTab.moves)
+        case .studio(let inside):
+            go(to: .studio, then: inside)
+        }
+    }
+
+    /// The `-tab` launch argument, read by the kit.
+    static var launch: ScreenHierarchy.Launch {
+        let args = ProcessInfo.processInfo.arguments
+        guard let i = args.firstIndex(of: "-tab"), i + 1 < args.count else {
+            return ScreenHierarchy.launch(nil)
+        }
+        return ScreenHierarchy.launch(args[i + 1])
+    }
+
+    static func launched() -> AppRouter {
+        let asked = launch
+        let router = AppRouter(tab: AppTab(rawValue: asked.tab) ?? .play)
+        router.duckSheet = asked.duckSheet
+        return router
     }
 }
 
@@ -220,29 +225,9 @@ struct DuckStudioApp: App {
     /// first tab, exactly as before — and it is deliberately not a persisted
     /// preference, because "the tab you were last on" is a different feature
     /// with different opinions and this is not it.
-    @StateObject private var router = AppRouter(tab: DuckStudioApp.launchTab)
+    @StateObject private var router = AppRouter.launched()
 
     @Environment(\.scenePhase) private var scenePhase
-
-    /// The tab a `-tab` launch argument asked for, or the first.
-    ///
-    /// TWO SPELLINGS, ONE MEANING. `-tab 3` is the index into `AppTab.allCases`
-    /// and is kept because the screenshot runs already say it that way; `-tab
-    /// studio` is the raw value and is the spelling that survives the tabs
-    /// being reordered. Anything else — a sixth index, a word that is not a
-    /// case — opens the first tab rather than failing, because a screenshot run
-    /// that silently shoots the wrong tab is a worse outcome than one that
-    /// shoots the first.
-    static var launchTab: AppTab {
-        let args = ProcessInfo.processInfo.arguments
-        guard let i = args.firstIndex(of: "-tab"), i + 1 < args.count else { return .control }
-        let asked = args[i + 1]
-        if let n = Int(asked) {
-            guard AppTab.allCases.indices.contains(n) else { return .control }
-            return AppTab.allCases[n]
-        }
-        return AppTab(rawValue: asked) ?? .control
-    }
 
     var body: some Scene {
         WindowGroup {
@@ -269,37 +254,40 @@ struct DuckStudioApp: App {
                     DriveView(model: model, benches: benches, scenes: scenes, drafts: drafts,
                               robot: robot, models: models, detail: detail)
                 }
-                    .tabItem { Label(AppTab.control.title, systemImage: AppTab.control.symbol) }
-                    .tag(AppTab.control)
+                    .tabItem { Label(AppTab.play.title, systemImage: AppTab.play.symbol) }
+                    .tag(AppTab.play)
 
                 NavigationStack {
-                    LearnView(detail: detail)
+                    MovesView(model: model, drafts: drafts, benches: benches, models: models, robot: robot)
                 }
-                    .tabItem { Label(AppTab.learn.title, systemImage: AppTab.learn.symbol) }
-                    .tag(AppTab.learn)
-
-                NavigationStack {
-                    PolicyListView(model: model, scenes: scenes, drafts: drafts,
-                                   models: models, benches: benches, detail: detail)
-                }
-                    .tabItem { Label(AppTab.behaviours.title, systemImage: AppTab.behaviours.symbol) }
-                    .tag(AppTab.behaviours)
+                    .stopPill()
+                    .tabItem { Label(AppTab.moves.title, systemImage: AppTab.moves.symbol) }
+                    .tag(AppTab.moves)
 
                 NavigationStack {
                     StudioHubView(model: model, scenes: scenes, drafts: drafts,
                                   models: models, benches: benches, plans: plans,
                                   evals: evals, evalRunner: evalRunner, detail: detail)
                 }
+                    .stopPill()
                     .tabItem { Label(AppTab.studio.title, systemImage: AppTab.studio.symbol) }
                     .tag(AppTab.studio)
-
+            }
+            // THE DUCK SHEET, from the duck pill on Play (or `-tab duck`). Until the Duck sheet of
+            // the plan lands it holds today's My Microduck screen, which was a tab.
+            .sheet(isPresented: $router.duckSheet) {
                 NavigationStack {
                     MyMicroduckView(model: model, scenes: scenes, drafts: drafts,
                                     models: models, benches: benches, detail: detail,
                                     machines: machines, remote: remote, robot: robot)
+                        .toolbar {
+                            ToolbarItem(placement: .confirmationAction) {
+                                Button("Done") { router.duckSheet = false }
+                            }
+                        }
                 }
-                    .tabItem { Label(AppTab.duck.title, systemImage: AppTab.duck.symbol) }
-                    .tag(AppTab.duck)
+                .environmentObject(router)
+                .stopPill()
             }
             // THE ROUTER IS INJECTED ON THE TAB VIEW, WHICH IS THE ONLY PLACE
             // EVERY TAB IS DOWNSTREAM OF. A card on My Microduck that says
@@ -377,6 +365,7 @@ struct DuckStudioApp: App {
                     }
                 })) {
                 FirstRunView(detail: detail)
+                    .stopPill()
             }
             .onOpenURL { Imports.open($0, model: model, drafts: drafts, plans: plans) }
             // THE 0.4 s SETTLE IS THE POINT AND ALSO THE HOLE. Both stores
@@ -390,6 +379,9 @@ struct DuckStudioApp: App {
             // private, and adding a caller is not this change.
             .onChange(of: scenePhase) { _, phase in
                 if phase != .active { scenes.flush(); drafts.flush() }
+                // LEAVING THE FOREGROUND ENDS EVERY CHAIN, PLAN AND GOAL. The practice duck cannot
+                // run suspended and a real duck's link is not kept alive in the background.
+                if phase == .background { DuckRuns.shared.leftForeground() }
                 // .background, NOT .inactive: on a Mac a window that merely
                 // loses focus is inactive, and a download should survive that.
                 if phase == .background { PhoneModelRuntime.shared.stopDownloadForSuspension() }
@@ -438,8 +430,8 @@ struct DuckStudioApp: App {
 }
 
 #if os(macOS)
-/// The tabs as a Go menu, ⌘1 to ⌘5, which is how a Mac app with a tab bar is
-/// driven from the keyboard.
+/// The tabs as a Go menu, ⌘1 to ⌘3, and ⌘D for the Duck sheet, which is how a Mac app with a
+/// tab bar is driven from the keyboard.
 struct TabCommands: Commands {
     @ObservedObject var router: AppRouter
 
@@ -449,6 +441,8 @@ struct TabCommands: Commands {
                 Button(tab.title) { router.tab = tab }
                     .keyboardShortcut(KeyEquivalent(Character(String(index + 1))), modifiers: .command)
             }
+            Button("Duck") { router.go(to: .play(.duckSheet)) }
+                .keyboardShortcut("d", modifiers: .command)
         }
     }
 }

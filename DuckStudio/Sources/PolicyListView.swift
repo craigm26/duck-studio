@@ -996,6 +996,7 @@ struct PolicyDetailView: View {
                 }
             }
             .sheet(item: $presented) { what in
+                Group {
                 switch what {
                 case .share(let out):
                     NavigationStack {
@@ -1009,6 +1010,8 @@ struct PolicyDetailView: View {
                 case .publish:
                     PublishPolicyView(entry: shown, library: model)
                 }
+                }
+                .stopPill()
             }
             .alert("Could not share", isPresented: Binding(
                 get: { failure != nil }, set: { if !$0 { failure = nil } })) {
@@ -1232,7 +1235,7 @@ struct PolicyDetailView: View {
                     // pretending otherwise would be a claim about loading that
                     // nothing here performs.
                     Button {
-                        router.go(to: .control)
+                        router.go(to: .play)
                     } label: {
                         secondaryAction("Drive it live", symbol: "gamecontroller")
                             .frame(maxWidth: .infinity, alignment: .leading)

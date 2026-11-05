@@ -343,7 +343,7 @@ struct MyMicroduckView: View {
         let control = DeviceCard.Control.of(.move, over: peer.transportKind,
                                             reach: peer.reach)
         if control.isLive {
-            Button { router.go(to: .control) } label: {
+            Button { router.duckSheet = false; router.go(to: .play) } label: {
                 Label("Drive", systemImage: "gamecontroller")
                     .frame(maxWidth: .infinity)
             }
