@@ -141,7 +141,9 @@ enum StudioDestination: String, Identifiable, Hashable, CaseIterable {
 /// test is one you find out about in review. The same rule is why a blocked
 /// surface ships as an explicit "not yet" in a tested kit string rather than as
 /// an empty card or a control that is present and inert.
-@main
+///
+/// The entry point is `DuckStudioLaunch` (RenderTakes.swift), which starts this unless a Mac was
+/// launched with `-render-takes`.
 struct DuckStudioApp: App {
     @StateObject private var model = LibraryModel()
     @StateObject private var scenes = SceneStore()
