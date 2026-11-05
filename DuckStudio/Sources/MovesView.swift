@@ -92,13 +92,20 @@ struct MovesView: View {
             .listRowBackground(Theme.surfacePrimary)
 
             Section {
+                // WALK TO THE BALL IS A TELL TILE (the owner, after build 94), so its row opens Tell.
+                Button {
+                    router.go(to: .play(.tell))
+                } label: {
+                    HubRow(BallWalk.title,
+                           BallWalk.line(on: runs.duck, driverInstalled: drivers.phase.isInstalled),
+                           BallWalk.symbol)
+                }
+                .foregroundStyle(Theme.textPrimary)
                 ForEach(AutoGoal.allCases) { goal in
                     Button {
                         router.go(to: .play(.auto))
                     } label: {
-                        HubRow(goal.title,
-                               goal.subtitle(on: runs.duck, driverInstalled: drivers.phase.isInstalled),
-                               goal.symbol)
+                        HubRow(goal.title, goal.subtitle(on: runs.duck), goal.symbol)
                     }
                     .foregroundStyle(Theme.textPrimary)
                 }

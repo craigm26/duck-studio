@@ -34,6 +34,31 @@ final class DuckCameraFeed: ObservableObject {
     /// The head camera's newest frames for Dream-1, one per 0.2 s, oldest first.
     func dreamWindow() -> [String] { dreamFrames.frames }
 
+    /// How long since the camera last delivered a picture to the window, or nil before the first.
+    func dreamPictureAge() -> TimeInterval? {
+        dreamFrames.lastTick.map { ProcessInfo.processInfo.systemUptime - $0 }
+    }
+
+    /// While a phone driver steers: its colour around the cut picture, or nil for Dream-1's framing.
+    private var driverFill: (red: Double, green: Double, blue: Double)?
+    /// How often a still is asked for.
+    private var askEvery = DuckCamera.interval
+
+    /// A phone driver is about to steer. Its pictures are cut to the drawn stage's framing
+    /// (`BallWalk.Framing`), and stills are asked for at the rate it learned from, so its two
+    /// pictures are as far apart as in training. The window starts empty.
+    func beginDriverPictures(fill: (red: Double, green: Double, blue: Double)) {
+        driverFill = fill
+        askEvery = DriverTrial.cameraPeriod
+        keepsDreamFrames = true
+    }
+
+    func endDriverPictures() {
+        keepsDreamFrames = false
+        driverFill = nil
+        askEvery = DuckCamera.interval
+    }
+
     private var task: Task<Void, Never>?
     private var finder: DuckCards.Finder?
     private var watcher = DuckCards.Watcher()
@@ -75,7 +100,8 @@ final class DuckCameraFeed: ObservableObject {
                     self.picture = image
                     self.problem = nil
                     if self.readCards { self.read(image) }
-                    if self.keepsDreamFrames, let jpeg = Self.dreamJPEG(image) {
+                    if self.keepsDreamFrames,
+                       let jpeg = self.driverFill.map({ Self.driverJPEG(image, fill: $0) }) ?? Self.dreamJPEG(image) {
                         self.dreamFrames.add(jpeg, at: ProcessInfo.processInfo.systemUptime)
                     }
                     stamps.append(Date())
@@ -87,7 +113,7 @@ final class DuckCameraFeed: ObservableObject {
                 }
                 let spent = Date().timeIntervalSince(began)
                 // A camera that is not there is asked again every two seconds, not four times one.
-                let wait = next.0 == nil ? 2.0 : max(DuckCamera.interval - spent, 0.02)
+                let wait = next.0 == nil ? 2.0 : max(self.askEvery - spent, 0.02)
                 try? await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000))
             }
         }
@@ -128,6 +154,29 @@ final class DuckCameraFeed: ObservableObject {
                                       bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return nil }
         context.interpolationQuality = .medium
         context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        return encoded(context)
+    }
+
+    /// One picture as a phone driver is shown it: faces blurred as for Dream-1, then cut to the drawn
+    /// stage's framing by the kit, on `fill`. Never stretched: see `BallWalk.Framing`.
+    nonisolated static func driverJPEG(_ image: CGImage, fill: (red: Double, green: Double, blue: Double)) -> String? {
+        guard let image = DreamFaceBlur.scrubbed(image) else { return nil }
+        let plan = BallWalk.Framing.real(width: image.width, height: image.height)
+        let source = CGRect(x: plan.source.x, y: plan.source.y, width: plan.source.width, height: plan.source.height)
+        let target = CGRect(x: plan.target.x, y: plan.target.y, width: plan.target.width, height: plan.target.height)
+        guard let cut = image.cropping(to: source),
+              let context = CGContext(data: nil, width: DriverPrep.pictureWidth, height: DriverPrep.pictureHeight,
+                                      bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return nil }
+        context.setFillColor(red: fill.red, green: fill.green, blue: fill.blue, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: DriverPrep.pictureWidth, height: DriverPrep.pictureHeight))
+        context.interpolationQuality = .medium
+        context.draw(cut, in: target)
+        return encoded(context)
+    }
+
+    /// A drawn picture as the JPEG both of those send, base64.
+    private nonisolated static func encoded(_ context: CGContext) -> String? {
         guard let small = context.makeImage() else { return nil }
         let out = NSMutableData()
         guard let destination = CGImageDestinationCreateWithData(out, "public.jpeg" as CFString, 1, nil) else {

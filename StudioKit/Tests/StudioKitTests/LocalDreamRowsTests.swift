@@ -19,6 +19,15 @@ final class LocalDreamRowsTests: XCTestCase {
         }
     }
 
+    private final class Said: @unchecked Sendable {
+        private let lock = NSLock()
+        private var said: String?
+        var line: String? {
+            get { lock.lock(); defer { lock.unlock() }; return said }
+            set { lock.lock(); said = newValue; lock.unlock() }
+        }
+    }
+
     final class Clock: @unchecked Sendable {
         private let lock = NSLock()
         private var t = 0.0
@@ -124,6 +133,67 @@ final class LocalDreamRowsTests: XCTestCase {
         let moves = duck.sent.filter { $0 == "robot.move" }.count
         XCTAssertEqual(moves, 26, "two and a half seconds of rows at 10 Hz, plus the zero before the second ask")
         XCTAssertEqual(net.calls, 2, "one ask per 20 rows")
+        XCTAssertEqual(duck.sent.last, "robot.stop")
+    }
+
+    /// A real duck's walk: a driver that stands is ended by the rule, after about 2 s of still rows.
+    func testAStandingDriverEndsARealRunAndSaysSo() async {
+        let net = FakeNet(), clock = Clock(), duck = Link()
+        net.output = (0..<144).map { $0 % 3 == 0 ? 1 : 0 }
+        let said = Said()
+        // Forward rows for the first chunk, then the net stands: -0.5 undoes the fixture's mean.
+        net.onInfer = { if net.calls >= 2 { net.output = (0..<144).map { $0 % 3 == 0 ? -0.5 : 0 } } }
+        await DreamPilot(checkpoint: "driver@abc", prompt: "walk to the ball")
+            .run(on: duck, rows: rows(net, clock: clock), frames: { ["J", "J", "J"] },
+                 events: { if case .ended(let line) = $0 { said.line = line } },
+                 sleep: { clock.advance($0) }, now: { clock.date() },
+                 watch: BallWalk.pilotWatch(pictureAge: { 0.1 }))
+        XCTAssertEqual(said.line, BallWalk.Words.stoppedItself)
+        XCTAssertLessThan(net.calls, 5, "it ended instead of asking on for the whole limit")
+        XCTAssertEqual(duck.sent.last, "robot.stop")
+    }
+
+    /// Pictures stop arriving mid-chunk: the next row is not played, and the duck is stopped.
+    func testAStalePictureStopsARealRunBetweenAsks() async {
+        let net = FakeNet(), clock = Clock(), duck = Link()
+        net.output = (0..<144).map { $0 % 3 == 0 ? 1 : 0 }
+        let said = Said()
+        let began = clock.now()
+        await DreamPilot(checkpoint: "driver@abc", prompt: "walk to the ball")
+            .run(on: duck, rows: rows(net, clock: clock), frames: { ["J", "J", "J"] },
+                 events: { if case .ended(let line) = $0 { said.line = line } },
+                 sleep: { clock.advance($0) }, now: { clock.date() },
+                 watch: BallWalk.pilotWatch(pictureAge: { clock.now() - began }))
+        XCTAssertEqual(said.line, BallWalk.Words.cameraLost)
+        XCTAssertEqual(net.calls, 1, "the rows of one chunk were cut short")
+        let moves = duck.sent.filter { $0 == "robot.move" }.count
+        XCTAssertTrue((10...11).contains(moves), "1.0 s of rows, 0.1 s each, then none: \(moves)")
+        XCTAssertEqual(duck.sent.last, "robot.stop")
+    }
+
+    /// No camera at the very first look: nothing is asked and no move is sent.
+    func testNoPictureAgeMeansNoAskAndNoMove() async {
+        let net = FakeNet(), clock = Clock(), duck = Link()
+        await DreamPilot(checkpoint: "driver@abc", prompt: "walk to the ball")
+            .run(on: duck, rows: rows(net, clock: clock), frames: { ["J"] }, events: { _ in },
+                 sleep: { clock.advance($0) }, now: { clock.date() },
+                 watch: BallWalk.pilotWatch(pictureAge: { nil }))
+        XCTAssertEqual(net.calls, 0)
+        XCTAssertEqual(duck.sent, ["robot.stop"])
+    }
+
+    /// A Stop that lands while the watch waits: the row it was looking at is not sent.
+    func testAStopDuringTheWatchSendsNoRow() async {
+        let net = FakeNet(), clock = Clock(), duck = Link()
+        net.output = (0..<144).map { $0 % 3 == 0 ? 1 : 0 }
+        await DreamPilot(checkpoint: "driver@abc", prompt: "walk to the ball")
+            .run(on: duck, rows: rows(net, clock: clock), frames: { ["J", "J", "J"] }, events: { _ in },
+                 sleep: { clock.advance($0) }, now: { clock.date() },
+                 watch: { row in
+                     if row != nil { withUnsafeCurrentTask { $0?.cancel() } }
+                     return nil
+                 })
+        XCTAssertFalse(duck.sent.contains("robot.move"), "\(duck.sent)")
         XCTAssertEqual(duck.sent.last, "robot.stop")
     }
 

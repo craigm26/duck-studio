@@ -33,7 +33,7 @@ public enum ControllerWords {
         switch mode {
         case .drive: return "Your thumbs move the duck."
         case .tell: return "Say or type what the duck should do, or tap a tile."
-        case .auto: return "Ask Apple Intelligence for a plan, or pick another helper on the right. Take over any time."
+        case .auto: return "Ask Apple Intelligence for a plan, or use Dream-1 on the right. Take over any time."
         }
     }
 
@@ -109,13 +109,13 @@ public enum ControllerWords {
     // MARK: - an Auto run
 
     public static let takeOver = "Take over"
-    public static let takeOverHint = "Stops the goal and gives you the sticks."
-    /// The one status line while a goal runs, in place of the cards.
+    public static let takeOverHint = "Stops the run and gives you the sticks."
+    /// The one status line while a goal or a walk runs, in place of the cards.
     public static func autoRunning(_ what: String, elapsed: Double, cap: Double) -> String {
         String(format: "%@ · %.0f s of %.0f s", what, max(0, elapsed), cap)
     }
-    /// The other helpers, beside Apple Intelligence.
-    public static let otherHelpers = "Other helpers"
+    /// The other helper, beside Apple Intelligence.
+    public static let otherHelpers = "Also here"
 
     // MARK: - Drive
 
@@ -155,21 +155,17 @@ public enum ControllerWords {
 public enum AutoGoal: String, CaseIterable, Sendable, Identifiable {
     /// Dream-1 with the person's own key. First of the helpers beside Apple Intelligence.
     case dream
-    /// The phone driver (ducknet-s1), Practice duck only. Its card is `DriverCard`.
-    case walkToBall
 
     public var id: String { rawValue }
 
     public var title: String {
         switch self {
-        case .walkToBall: return "Walk to the ball, on this device"
         case .dream: return "Dream-1 (your key)"
         }
     }
 
     public var symbol: String {
         switch self {
-        case .walkToBall: return "soccerball"
         case .dream: return "sparkles"
         }
     }
@@ -177,7 +173,6 @@ public enum AutoGoal: String, CaseIterable, Sendable, Identifiable {
     /// Where it runs and whose it is. Neither card is Pollen's.
     public var provenance: String {
         switch self {
-        case .walkToBall: return "Runs on this device. Not made by Pollen."
         case .dream: return "Hosted by Dream Labs, your key. Not made by Pollen."
         }
     }
@@ -194,15 +189,6 @@ public enum AutoGoal: String, CaseIterable, Sendable, Identifiable {
     }
 
     public enum Words {
-        public static let practiceOnly = "Practice duck only for now. Runs on this device, no key needed."
-        /// On a real duck, installed or not. THE CAMERA PATH EXISTS (mediad `/frame`), and the driver
-        /// is still kept off the robot: it has only ever seen the drawn practice stage, never a real
-        /// floor, and no run of it has been judged on one (the build 90 plan's risk 7).
-        public static let practiceOnlyForNow = "Practice duck only for now. It has only seen the practice stage."
-        /// The driver is a download, not part of the app.
-        public static func getFirst(_ size: String) -> String { "Practice duck. Get it first, \(size), in Play, Auto." }
-        /// Studio's Drivers row: training your own. The one that ships is in Play, Auto.
-        public static let ownDriversLater = "Your own drivers come in a later build. Walk to the ball is in Play, Auto."
         public static let opensDream = "Opens Dream-1 with your goal."
         public static let needsKey = "Needs your Dream Labs key, in Studio, Settings."
         public static let addKey = "Add your key"
@@ -215,45 +201,36 @@ public enum AutoGoal: String, CaseIterable, Sendable, Identifiable {
     }
 
     /// Whether this card can start now.
-    /// - Parameters:
-    ///   - duck: the duck the controller is on, or nil when there is none to drive.
-    ///   - driverInstalled: whether a phone driver is on this device (walkToBall only).
+    /// - Parameter duck: the duck the controller is on, or nil when there is none to drive.
     /// - Parameter dreamReady: whether a Dream Labs key is on this phone, or the bridge says it
     ///   holds one. Without one the Dream row offers "Add your key" instead of Go.
-    public func availability(on duck: DuckIdentity.Kind?, driverInstalled: Bool,
-                             dreamReady: Bool = true) -> Availability {
-        guard let duck else { return .unavailable(Words.noDuck) }
+    public func availability(on duck: DuckIdentity.Kind?, dreamReady: Bool = true) -> Availability {
+        guard duck != nil else { return .unavailable(Words.noDuck) }
         switch self {
-        case .walkToBall:
-            if duck == .real { return .unavailable(Words.practiceOnlyForNow) }
-            if !driverInstalled { return .unavailable(Words.getFirst(DriverRelease.walkToBall.size)) }
-            return .ready
         case .dream:
             return dreamReady ? .ready : .unavailable(Words.needsKey)
         }
     }
 
     /// The subtitle on the card.
-    public func subtitle(on duck: DuckIdentity.Kind?, driverInstalled: Bool, dreamReady: Bool = true) -> String {
-        if let reason = availability(on: duck, driverInstalled: driverInstalled, dreamReady: dreamReady).reason {
+    public func subtitle(on duck: DuckIdentity.Kind?, dreamReady: Bool = true) -> String {
+        if let reason = availability(on: duck, dreamReady: dreamReady).reason {
             return reason
         }
         switch self {
-        case .walkToBall: return Words.practiceOnly
         case .dream: return Words.opensDream
         }
     }
 
     /// The button on the row: Go, or Add your key when Dream-1 has none.
-    public func action(on duck: DuckIdentity.Kind?, driverInstalled: Bool, dreamReady: Bool = true) -> String {
+    public func action(on duck: DuckIdentity.Kind?, dreamReady: Bool = true) -> String {
         if self == .dream, duck != nil, !dreamReady { return Words.addKey }
         return Words.go
     }
 
     public static var all: [String] {
         allCases.flatMap { [$0.title, $0.provenance] }
-            + [Words.practiceOnly, Words.practiceOnlyForNow, Words.getFirst(DriverRelease.walkToBall.size),
-               Words.ownDriversLater, Words.noDuck, Words.go, Words.running, Words.capped(30), Words.opensDream, Words.needsKey,
+            + [Words.noDuck, Words.go, Words.running, Words.capped(30), Words.opensDream, Words.needsKey,
                Words.addKey] + DriverCard.Words.all(.walkToBall)
     }
 }

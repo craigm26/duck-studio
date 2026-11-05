@@ -68,8 +68,8 @@ public actor LocalDreamRows: DreamRows {
 public enum DreamSourceChoice: Equatable, Sendable {
     case phone, direct, bridge, none
 
-    /// Phone drivers first and only on the simulated duck (they learned from its pictures); the
-    /// cloud models after. No key no longer means an empty list: a phone driver needs none.
+    /// In the Dream-1 panel, phone drivers first and only on the simulated duck (a real duck's walk
+    /// starts from Tell, with its own framing and ending); the cloud models after. No key no longer means an empty list: a phone driver needs none.
     public static func merge(cloud: [DuckDream.Model], phone: [DuckDream.Model], isSimDuck: Bool) -> [DuckDream.Model] {
         (isSimDuck ? phone : []) + cloud
     }
