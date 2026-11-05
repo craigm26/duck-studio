@@ -192,14 +192,22 @@ final class BallRunTests: XCTestCase {
         XCTAssertEqual(card.actions, [.tryAgain])
     }
 
-    func testInstalledIsGoOnThePracticeDuckOnly() {
+    func testInstalledIsGoOnEitherDuck() {
         XCTAssertEqual(DriverCard(phase: .installed, duck: .sim).actions, [.go, .delete])
-        let real = DriverCard(phase: .installed, duck: .real)
-        XCTAssertEqual(real.actions, [.delete], "no Go on a real duck")
-        XCTAssertTrue(real.lines.contains(AutoGoal.Words.practiceOnlyForNow))
-        XCTAssertTrue(real.lines.contains { $0.hasPrefix("Practice duck only for now") })
-        XCTAssertTrue(DriverCard(phase: .absent, duck: .real).lines.contains(AutoGoal.Words.practiceOnlyForNow))
+        XCTAssertEqual(DriverCard(phase: .installed, duck: .real).actions, [.go, .delete])
         XCTAssertEqual(DriverCard(phase: .installed, duck: nil).actions, [.delete])
+    }
+
+    /// On a real duck the numbers stay the simulator's, and the next line says they are not its own.
+    func testARealDuckIsNeverShownSimulatorNumbersAsItsOwn() {
+        for phase in [DriverInstall.Phase.absent, .installed] {
+            let lines = DriverCard(phase: phase, duck: .real).lines
+            let numbers = lines.firstIndex { $0.hasPrefix("Simulator test:") }
+            XCTAssertNotNil(numbers)
+            XCTAssertEqual(lines[numbers! + 1], BallWalk.Words.simulatorNumbersOnly)
+            XCTAssertTrue(lines.contains("Runs on this device. Not made by Pollen."))
+        }
+        XCTAssertFalse(DriverCard(phase: .installed, duck: .sim).lines.contains(BallWalk.Words.simulatorNumbersOnly))
     }
 
     func testAPhoneThatCannotDrawTheCameraHasNoGo() {
@@ -208,12 +216,19 @@ final class BallRunTests: XCTestCase {
         XCTAssertTrue(card.lines.contains(DriverCard.Words.needsNewerSystem))
     }
 
-    /// iOS 17: a download that could never run is not offered, on either duck.
+    /// iOS 17: a download that could never run on the practice duck is not offered there.
     func testAPhoneThatCannotDrawTheCameraIsNotOfferedGet() {
-        for duck in [DuckIdentity.Kind.sim, .real] {
-            let card = DriverCard(phase: .absent, duck: duck, cameraMissing: true)
-            XCTAssertEqual(card.actions, [])
-            XCTAssertTrue(card.lines.contains(DriverCard.Words.needsNewerSystem))
+        let card = DriverCard(phase: .absent, duck: .sim, cameraMissing: true)
+        XCTAssertEqual(card.actions, [])
+        XCTAssertTrue(card.lines.contains(DriverCard.Words.needsNewerSystem))
+    }
+
+    /// The iOS 18 rule is the drawn camera's. A real duck's pictures come from the duck.
+    func testARealDuckDoesNotNeedTheDrawnCamera() {
+        for (phase, actions) in [(DriverInstall.Phase.absent, [DriverCard.Action.get]), (.installed, [.go, .delete])] {
+            let card = DriverCard(phase: phase, duck: .real, cameraMissing: true)
+            XCTAssertEqual(card.actions, actions)
+            XCTAssertFalse(card.lines.contains(DriverCard.Words.needsNewerSystem))
         }
     }
 

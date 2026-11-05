@@ -42,8 +42,11 @@ public struct ControlArbiter: Equatable, Sendable {
     public enum RunKind: String, Equatable, Sendable {
         /// A Tell command, chain, sequence or plan.
         case tell
-        /// An Auto goal: the phone driver, Dream-1.
+        /// An Auto goal: Dream-1, or a planned sentence.
         case goal
+        /// Walk to the ball, a one-tap skill from Tell. Capped like a goal, and like a goal a stick
+        /// takes over from it, but it leaves the switch on Tell: the person never asked for Auto.
+        case walk
         /// One order from outside the panels: Siri, a Shortcut, a real duck's face button, a
         /// Moves tile. Capped like a goal; it never moves the switch.
         case order

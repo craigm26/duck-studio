@@ -414,12 +414,17 @@ public struct DreamPilot: Sendable {
 
     /// Runs until done, cancelled or refused. `frames` returns the head camera's
     /// newest frames as base64 JPEGs, oldest first; `sleep` is injectable for tests.
+    ///
+    /// `watch` LOOKS BEFORE EVERY ASK (with nil) AND BEFORE EVERY ROW (with the row, clamped), and a
+    /// sentence from it ends the run: stop, then end, like any other ending. A real duck's walk uses
+    /// it (`BallWalk.Watch`). Dream-1 and the practice duck pass none, and play exactly as they did.
     public func run(on peer: any DuckPeer,
                     rows: (any DreamRows)? = nil,
                     frames: @Sendable () async -> [String],
                     events: @Sendable (Event) async -> Void,
                     sleep: @Sendable (TimeInterval) async throws -> Void = { try await Task.sleep(nanoseconds: UInt64($0 * 1e9)) },
-                    now: @Sendable () -> Date = Date.init) async {
+                    now: @Sendable () -> Date = Date.init,
+                    watch: (@Sendable (DuckDrive.Twist?) async -> String?)? = nil) async {
         let source: any DreamRows = rows ?? BridgeDreamRows(peer)
         let start = now()
         // Standing still while Dream Labs starts the model is not driving: it is kept apart, so a
@@ -431,10 +436,11 @@ public struct DreamPilot: Sendable {
         var first = true
         var said = DuckDream.Words.stopped
         do {
-            while driven() < limit {
+            driving: while driven() < limit {
                 try Task.checkCancellation()
                 let window = Array(await frames().suffix(DreamPilot.window))
                 if window.isEmpty { said = DuckDream.Words.needsCamera; break }
+                if let watch, let end = await watch(nil) { said = end; break }
                 // NEVER WALK BLIND WHILE THE MODEL THINKS. Between chunks the duck is told
                 // zero, so a slow or hung answer leaves it standing, not still walking on
                 // the last row. `last` stays the command in force before this pause, which
@@ -476,6 +482,7 @@ public struct DreamPilot: Sendable {
                 for row in rows.prefix(DreamPilot.horizon) {
                     try Task.checkCancellation()
                     if driven() >= limit { break }
+                    if let watch, let end = await watch(DreamPilot.clamped(row)) { said = end; break driving }
                     last = DreamPilot.clamped(row)
                     try await peer.notify(.move(last))
                     played += 1

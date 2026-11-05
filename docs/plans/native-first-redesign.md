@@ -112,9 +112,10 @@ App
 │   ├── Pull-up Moves sheet (same tiles as the Moves tab)        [NEW, ControlMotionsSheet MERGE here]
 │   ├── Pose (practice duck: JointHandleOverlay + pose bar)      [KEEP, no longer Full-only]
 │   ├── Tell: typed field (TalkToTheDuckView) on every venue     [KEEP, PadChrome.swift:67 Robot removal CUT]
+│   ├── Tell: Walk to the ball (phone driver card, either duck)  [MERGE, build 95, was an Auto card]
 │   ├── Tell: Plan (PlanEditorView as a sheet)                   [KEEP]
 │   ├── Tell: Watch for cards (DuckCardsViews toggle)            [MERGE from DuckCameraView]
-│   ├── Auto: goal cards (Walk to the ball, Dream-1)             [MERGE, Dream chip DriveView:1203 + DreamSimSheet]
+│   ├── Auto: Ask the duck, Dream-1 beside it                    [MERGE, Dream chip DriveView:1203 + DreamSimSheet]
 │   └── "More" sheet
 │       ├── Scene (ControlSceneSheet), sim only                  [DOWN]
 │       ├── Record a sequence (SequenceKeepSheet)                [DOWN from PadChrome Record]
@@ -134,7 +135,7 @@ App
 │   │   Duck soccer (DuckSoccerView), Golf, Fetch, Follow me, Slalom,
 │   │   Flamingo, Bow bridge, Trick run (GhostDuckView games)    [MERGE, from Studio "Play" 2 to 3 taps deep]
 │   │   A game opens its own practice screen; it never moves the real duck and never switches venue
-│   ├── Goals: Walk to the ball, Dream-1 (same cards as Auto)    [NEW]
+│   ├── Goals: Walk to the ball (opens Tell), Dream-1 (opens Auto)  [NEW]
 │   └── Tile long-press: Put on a button, Add to Siri (ShortcutsLink), Details, Open in Studio  [NEW]
 │   A tap on a skill, sound, sequence or plan runs on the current duck with the persistent Stop pill shown
 │
@@ -206,6 +207,7 @@ App
 | A game | 3 taps | 1 tap (Moves, then tile) |
 | Say it on the real duck | impossible | 1 press |
 | A skill on the real duck | not offered | 1 tap |
+| Walk to the ball, driver already on the device | Auto, then Go (2 taps) | Tell, then Go (2 taps) |
 | Fresh install to a standing duck | 5 taps | 4 taps plus the bridge code |
 
 ## The three control modes
@@ -283,9 +285,10 @@ One press or one sentence runs a whole move or a short chain. The stick stays li
 The duck pursues a goal and you supervise. Choosing Auto shows a carousel of goal cards over the picture, collapsed to one row.
 
 **Goal cards.**
-1. **Walk to the ball, on this phone.** This is the build-90 phone driver. Subtitle: "Practice duck only for now. Runs on this phone, no key needed." On the real duck the card is visible but disabled, with "This driver was trained on the simulated duck."
-2. **Dream-1 (your key)**, on the Practice duck and the real duck. The prompt field is on the card, and the key lives in Studio > Settings > Models.
-3. **Later:** Follow me, Explore the room, and the brains layer (hosted VLAs, MCP).
+1. **Dream-1 (your key)**, on the Practice duck and the real duck. The prompt field is on the card, and the key lives in Studio > Settings > Models.
+2. **Later:** Follow me, Explore the room, and the brains layer (hosted VLAs, MCP).
+
+**Walk to the ball is not here since build 95.** The owner, after trying build 94: "that seems more like a semi-auto/manual step - not a real auto/autonomous type of interaction with the duck." It is a tile in Tell, on both ducks. See "Walk to the ball on a real duck (build 95)".
 
 Each card has a provenance line ("Runs on this iPhone", "Hosted by Dream Labs, your key") and is marked as not Pollen's.
 
@@ -406,7 +409,7 @@ Shortcuts-only, with no phrase:
 - Draft with words and Plan authoring (AutomationChatView, DraftEngine), as today.
 - Suggesting a name for a recorded sequence.
 - Moves search ("something happy").
-- Auto goal phrasing: "go get the ball" picks the Walk to the ball card. That is a choice of goal, not control.
+- Tell reads "walk to the ball", "go get the ball" and a few like them with no model (`BallWalk.heard`), after every stop word, and starts the Walk to the ball card with its own refusals. Ask the duck and Siri do not start it.
 - Summarising a run's result in plain words.
 - Siri AI conversation reaching our App Intents and entities. That is the system's model, not ours.
 - The MLX PhoneModelRuntime can be chosen as an alternative planner in Settings > Models, through the iOS 27 LanguageModel protocol (unverified).
@@ -496,11 +499,27 @@ Build 90 stays exactly as `docs/plans/build-90-phone-driver.md` describes it:
 
 **In build 91.** The Dream sheet becomes the Auto goal card "Walk to the ball, on this phone", badged Practice duck only. On the real duck the card is disabled with "This driver was trained on the simulated duck."
 
-**In build 92.** WalkToBallIntent and the Walk to the ball Control expose the same driver. Until a real-duck gate passes, they answer "Running on the practice duck".
+**In build 92.** WalkToBallIntent and the Walk to the ball Control expose the same driver. Until a real-duck gate passes, they answer "Running on the practice duck". (Neither has been built. Build 95 did not add them.)
 
 **If M1 never passes.** Auto ships in 91 with Dream-1 only (key required), and the Walk to the ball card, intent and Control are hidden.
 
-**On the real duck.** The phone driver reaches the real duck only after a separate real-duck gate in the real-duck program, run by a tester with a duck.
+**On the real duck.** This plan held the phone driver back for a separate real-duck gate. The owner replaced that on 2026-11-05 after trying build 94: "walk to the ball should stay on the real duck." Build 95 turns it on, with no gate passed. See below.
+
+### Walk to the ball on a real duck (build 95)
+
+**It has never run on a real duck, and the driver learned only on the drawn stage.** Everything below is reasoned from Pollen's sources and tested on Linux and in the compile gate, not on a floor.
+
+- **Where.** A card in Tell (`WalkBallCard`, the kit's `DriverCard`): Get, progress, Cancel, Go, Delete. Saying or typing it in Tell starts it too. While it runs, Tell shows the same status line and Take over as Auto, and the arbiter books it as `.walk`: capped like a goal, a stick takes over, and the switch stays on Tell.
+- **Pictures.** `DuckCameraFeed`, mediad `/frame`. While the driver steers, stills are asked for every `DriverTrial.cameraPeriod` (0.2 s, not 0.25), so its two pictures are the 0.4 s apart it learned. Seven pictures must arrive within 3 s or it refuses in words.
+- **The cameras differ.** The driver learned on a landscape picture, 320 by 176, 45 degrees tall and about 74 wide. An alpha duck's upright `/frame` is portrait, 720 by 1280, about 37 degrees wide and 62 tall, with its optical axis off centre. Dream-1's framing squashes that into 320 by 176, which makes a ball about three times wider than tall, so the driver does not use it. `BallWalk.Framing` keeps the drawn stage's scale (a degree covers the same pixels), centres on the real axis and crops top and bottom. The real view fills about 144 of the 320 pixels, and the rest is the driver's mean colour. The driver has never seen those side bars, and a ball outside that narrow view is not seen at all.
+- **Stale pictures.** `DreamPilot` takes an optional `watch`, asked before every ask and every row. A real run stops when no picture has come for 1 s. Without it, a pilot would play a chunk of up to 2 s from an old picture, and would keep asking from the last window for ever.
+- **Ready.** `robot.policies` says only sitting and homed. Sitting or homing is told what to do. Anything else gets `robot.init` and `robot.enable`, as a Tell walk does, and the settle. No bench call goes to a real duck.
+- **Ending.** No ground truth, so `BallWalk.Watch` ends a run on 2 s of still rows from the driver, or `Caps.standard` ends it at 30 s. The line says it stopped by itself or hit the limit, and never that it reached the ball.
+- **Safety.** One Stop, the pill and `DuckRuns`, the real cap, the foreground rule, `makeWay` and `stepAside`, as Dream-1. The first run on each driver asks first, in a dialog with no destructive role, because that draws red.
+- **iOS 18.** Only the practice camera needs it. A real run draws nothing, so it needs only the app's iOS 17.
+- **Practice duck.** Unchanged: the same `walkToBall`, so the M1 numbers stand. Only the run's booking changed.
+
+**Next, with a duck.** A person on a floor with the duck tethered or spotted: first whether side bars or a plain crop steer better, then whether 2 s of still rows ever means anything on a real floor.
 
 ## Phased builds
 
@@ -623,7 +642,7 @@ Every phase's acceptance includes a **structure** check, not only tokens (the bu
 - The brains layer as more Auto cards.
 - LookAtMe v2.
 - Games wired to a bridge (Fetch and Soccer first).
-- The phone driver on the real duck after its separate gate.
+- A measured real-duck gate for the phone driver (on since build 95, ungated, by the owner's call).
 - Acceptance for each item: its `ScreenHierarchy` row and a screenshot are checked in before the upload, alongside its Linux and device checks.
 
 ## Risks
@@ -639,7 +658,7 @@ Every phase's acceptance includes a **structure** check, not only tokens (the bu
 9. **Siri AI is limited at launch:** English only, not in the EU or China, iPhone 15 Pro or later, and still labelled beta. There is no robot schema domain. Phrases must work as plain App Shortcuts, and the deterministic path must be complete on its own.
 10. **Foundation Models can feel flaky:** background rate limits, guardrail false positives on kick and shoot, and no published latency. Keep the model off single commands.
 11. **Speech latency for short commands is unmeasured,** and SpeechTranscriber is tuned for long-form audio. The Stop button, the Control and the pad remain the primary Stop.
-12. **The phone driver is Practice-duck only and gated on M1.** If M1 misses, Auto ships with Dream-1 only, and the Walk to the ball surfaces hide.
+12. **The phone driver is on the real duck with no real-duck measurement** (the owner's call, build 95). It learned only on the drawn stage, and the real camera is a different shape. The first-run dialog, the 30 s cap and the stop on stale pictures are what stands between that and a table edge.
 13. **The 10-shortcut cap and the long app name** make phrases clumsy. INAlternativeAppNames is unverified, and "${applicationName}, stop" may collide with Siri's own stop.
 14. **The restructure breaks pinned contracts:** LabCatalogueTests, UXSurfaceTests, the `-tab N` contract, the NSCameraUsageDescription wording, README "five tabs", ASC-only App Store copy, the shared EndpointStore (the build-41 duplicate-store bug) and lastLoadedPolicy semantics.
 15. **Repeating build 40: new tokens without new structure.** The ScreenHierarchy test, the inventory-coverage test, the tap-count table and the structure lens are the guard.

@@ -104,7 +104,7 @@ final class DreamRunModel: ObservableObject {
 
     private var stopToken: StopPath.Token?
 
-    /// Walk to the ball is running (its status line says so, not Dream-1's).
+    /// Walk to the ball is running, on either duck (its status line says so, not Dream-1's).
     @Published private(set) var walking = false
     /// The line after the last walk, kept on the card until the next one.
     @Published private(set) var lastWalk: String?
@@ -197,6 +197,95 @@ final class DreamRunModel: ObservableObject {
             if let token = self.stopToken { DuckRuns.shared.finished(token); self.stopToken = nil }
         }
         // THE SAME STOP AS A DREAM-1 RUN: StopPath has already sent robot.stop by the time this runs.
+        let running = task
+        stopToken = DuckRuns.shared.track(.goal) { running?.cancel() }
+    }
+
+    /// Walk to the ball on a real duck: the same pieces as the practice run, and none of its bench.
+    ///
+    /// NOTHING HERE TOUCHES A WORLD. No reset, no ball, no network load: the driver is loaded as on
+    /// the practice duck, its pictures come from the duck's own camera (`DuckCameraFeed`, cut by
+    /// `BallWalk.Framing`), and its rows go through `DreamPilot` as ordinary moves. The run is under
+    /// the real cap, the one Stop and the foreground rule, and `stepAside` runs first, as for Dream-1.
+    ///
+    /// READY THE WAY TELL IS. `robot.policies` gives only sitting and homed: a duck that is sitting
+    /// or still homing is told what to do, and any other gets `robot.init` and `robot.enable` as a
+    /// Tell walk does. That cannot be skipped, because nothing says whether a duck is driving, and
+    /// a limp duck ignores every move without a word.
+    ///
+    /// THE END IS THE DRIVER'S OWN, OR THE CLOCK'S (`BallWalk.Watch`). Nothing measures the ball, so
+    /// the line after a run claims nothing about it.
+    func walkToBallReal(_ peer: any DuckPeer, feed: DuckCameraFeed, folder: String,
+                        stepAside: @escaping @MainActor () async -> Void) {
+        guard !running else { return }
+        DuckRuns.shared.makeWay()
+        running = true
+        walking = true
+        line = nil
+        lastWalk = nil
+        ended = nil
+        driving = peer
+        task = Task { [weak self] in
+            await stepAside()
+            let caps = ControlArbiter.Caps.standard
+            // THE CAP COVERS THE WHOLE RUN, standing up included, as Play's arbiter counts it.
+            let run = await caps.enforce(on: .real, stop: { DuckRuns.shared.stop() }) { () -> (said: String?, p50: Int?) in
+                var said: String?
+                var p50: Int?
+                do {
+                    let loaded = try await Task.detached {
+                        try DriverTrial.load(folder: folder, decode: { DriverPicture.rgb($0) },
+                                             tooHot: { ProcessInfo.processInfo.thermalState == .critical })
+                    }.value
+                    try Task.checkCancellation()
+                    let ready = await DuckOrder.Readiness.ask(peer)
+                    if let why = BallWalk.notReady(ready) { throw DuckDream.ReadError.refused(why) }
+                    try Task.checkCancellation()
+                    switch await DuckOrderRunner.run(.stand, ready: ready, on: peer, stopPath: DuckRuns.shared.path) {
+                    case .finished, .handedOff: break
+                    case .stopped: throw CancellationError()
+                    case .refused(let why): throw DuckDream.ReadError.refused(why)
+                    }
+                    try await Task.sleep(nanoseconds: UInt64(DuckOrder.settleSeconds * 1e9))
+                    feed.beginDriverPictures(fill: BallWalk.fill(loaded.manifest))
+                    defer { feed.endDriverPictures() }
+                    var waited = 0.0
+                    while feed.dreamWindow().count < BallWalk.Pictures.first {
+                        try await Task.sleep(nanoseconds: UInt64(DriverTrial.cameraPeriod * 1e9))
+                        waited += DriverTrial.cameraPeriod
+                        if waited > BallWalk.Pictures.within {
+                            throw DuckDream.ReadError.refused(feed.problem ?? BallWalk.Words.cameraTooSlow)
+                        }
+                    }
+                    await DreamPilot(checkpoint: loaded.modelID, prompt: loaded.manifest.task)
+                        .run(on: peer, rows: loaded.rows, frames: { await feed.dreamWindow() },
+                             events: { event in
+                                 await self?.apply(event)
+                                 if case .ended(let last) = event { await self?.noteEnd(last) }
+                             },
+                             watch: BallWalk.pilotWatch(pictureAge: { await feed.dreamPictureAge() }))
+                    said = self?.ended
+                    p50 = await loaded.rows.timings()?.p50
+                } catch is CancellationError {
+                    said = DuckDream.Words.stopped
+                } catch let refusal as DuckDream.ReadError {
+                    said = refusal.message
+                } catch let problem as DriverTrial.Problem {
+                    said = problem.message
+                } catch {
+                    said = Task.isCancelled ? DuckDream.Words.stopped : error.localizedDescription
+                }
+                return (said, p50)
+            }
+            guard let self else { return }
+            self.lastWalk = BallWalk.line(pilotSaid: run.result.said, capped: run.capped,
+                                          capSeconds: caps.seconds(on: .real), p50: run.result.p50)
+            self.line = self.lastWalk
+            self.walking = false
+            self.running = false
+            if let token = self.stopToken { DuckRuns.shared.finished(token); self.stopToken = nil }
+        }
+        // THE SAME STOP AS EVERY OTHER RUN: StopPath has already sent robot.stop by the time this runs.
         let running = task
         stopToken = DuckRuns.shared.track(.goal) { running?.cancel() }
     }

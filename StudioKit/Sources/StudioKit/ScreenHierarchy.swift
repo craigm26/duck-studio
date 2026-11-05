@@ -140,7 +140,7 @@ public enum ScreenHierarchy {
         "Plan from the controller": "play.tell.plan",
         "Watch for cards": "play.tell.cards",
         "Dream-1": "play.auto",
-        "Phone driver": "play.auto",
+        "Phone driver": "play.tell.walk",
         "Scene picker": "play.more.scene",
         "Record a sequence": "play.more.record",
         "Pad map": "play.more.padMap",
@@ -369,6 +369,7 @@ public enum ScreenHierarchy {
                 Node("play.pose", "Pose", .keep, source: "JointHandleOverlay.swift"),
                 Node("play.tell", "Tell", .keep, [
                     Node("play.tell.typed", "Typed field", .keep, source: "TalkToTheDuckView.swift"),
+                    Node("play.tell.walk", "Walk to the ball", .merge, source: "ControllerView.swift"),
                     Node("play.tell.plan", "Plan", .keep, source: "PlanEditorView.swift"),
                     Node("play.tell.cards", "Watch for cards", .merge, source: "DuckCardsViews.swift"),
                 ]),

@@ -1,7 +1,7 @@
 import XCTest
 @testable import StudioKit
 
-/// The controller's small rules: the venue-switch stick gate and the Auto goal cards.
+/// The controller's small rules: the venue-switch stick gate, Auto's goal card and the walk.
 final class ControllerWordsTests: XCTestCase {
 
     /// After a venue switch the stick is ignored until the finger lifts: a held deflection does
@@ -18,42 +18,41 @@ final class ControllerWordsTests: XCTestCase {
         XCTAssertTrue(gate.admits(centred: false), "a fresh push drives")
     }
 
-    /// Not on this device: the practice duck's card says to get it, and it cannot start.
+    /// Not on this device: the card says to get it, and it cannot start, on either duck.
     func testAPhoneDriverNotHereSaysGetIt() {
         let size = DriverRelease.walkToBall.size
-        XCTAssertEqual(AutoGoal.walkToBall.availability(on: .sim, driverInstalled: false),
-                       .unavailable(AutoGoal.Words.getFirst(size)))
-        XCTAssertEqual(AutoGoal.walkToBall.subtitle(on: .sim, driverInstalled: false),
-                       AutoGoal.Words.getFirst(size))
-        XCTAssertTrue(AutoGoal.Words.getFirst(size).contains("4.4 MB"))
+        for duck in [DuckIdentity.Kind.sim, .real] {
+            XCTAssertEqual(BallWalk.availability(on: duck, driverInstalled: false),
+                           .unavailable(BallWalk.Words.getFirst(size)))
+            XCTAssertEqual(BallWalk.line(on: duck, driverInstalled: false), BallWalk.Words.getFirst(size))
+        }
+        XCTAssertTrue(BallWalk.Words.getFirst(size).contains("4.4 MB"))
+        XCTAssertTrue(BallWalk.Words.getFirst(size).contains("Tell"))
     }
 
-    /// Once a driver is on the phone it runs on the practice duck only, and a real duck says so
-    /// whether or not one is installed.
-    func testAnInstalledDriverIsPracticeDuckOnly() {
-        XCTAssertEqual(AutoGoal.walkToBall.availability(on: .sim, driverInstalled: true), .ready)
-        for installed in [true, false] {
-            XCTAssertEqual(AutoGoal.walkToBall.availability(on: .real, driverInstalled: installed),
-                           .unavailable(AutoGoal.Words.practiceOnlyForNow))
+    /// Once a driver is on the phone it runs on either duck, and with no duck it does not.
+    func testAnInstalledDriverRunsOnEitherDuck() {
+        for duck in [DuckIdentity.Kind.sim, .real] {
+            XCTAssertEqual(BallWalk.availability(on: duck, driverInstalled: true), .ready)
+            XCTAssertEqual(BallWalk.line(on: duck, driverInstalled: true), BallWalk.subtitle)
         }
-        XCTAssertEqual(AutoGoal.walkToBall.subtitle(on: .sim, driverInstalled: true),
-                       AutoGoal.Words.practiceOnly)
+        XCTAssertEqual(BallWalk.availability(on: nil, driverInstalled: true), .unavailable(AutoGoal.Words.noDuck))
     }
 
     /// Dream-1 runs on either duck; nothing runs with no duck.
     func testDreamRunsOnEitherDuckAndNothingRunsOnNone() {
-        XCTAssertEqual(AutoGoal.dream.availability(on: .sim, driverInstalled: false), .ready)
-        XCTAssertEqual(AutoGoal.dream.availability(on: .real, driverInstalled: false), .ready)
+        XCTAssertEqual(AutoGoal.dream.availability(on: .sim), .ready)
+        XCTAssertEqual(AutoGoal.dream.availability(on: .real), .ready)
         for goal in AutoGoal.allCases {
-            XCTAssertEqual(goal.availability(on: nil, driverInstalled: true),
+            XCTAssertEqual(goal.availability(on: nil),
                            .unavailable(AutoGoal.Words.noDuck))
         }
     }
 
     /// Both cards say where they run and that they are not Pollen's.
     func testEveryCardHasProvenance() {
-        for goal in AutoGoal.allCases {
-            XCTAssertTrue(goal.provenance.contains("Not made by Pollen"), goal.provenance)
+        for line in AutoGoal.allCases.map(\.provenance) + [BallWalk.provenance] {
+            XCTAssertTrue(line.contains("Not made by Pollen"), line)
         }
     }
 

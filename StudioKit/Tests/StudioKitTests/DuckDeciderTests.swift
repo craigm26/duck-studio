@@ -234,13 +234,13 @@ final class DuckDeciderTests: XCTestCase {
     // MARK: - Auto's other helpers
 
     func testDreamComesFirstAndAsksForAKeyWhenThereIsNone() {
-        XCTAssertEqual(AutoGoal.allCases, [.dream, .walkToBall])
-        XCTAssertEqual(AutoGoal.dream.availability(on: .sim, driverInstalled: false, dreamReady: false),
+        XCTAssertEqual(AutoGoal.allCases, [.dream], "Walk to the ball moved to Tell")
+        XCTAssertEqual(AutoGoal.dream.availability(on: .sim, dreamReady: false),
                        .unavailable(AutoGoal.Words.needsKey))
-        XCTAssertEqual(AutoGoal.dream.action(on: .sim, driverInstalled: false, dreamReady: false), AutoGoal.Words.addKey)
-        XCTAssertEqual(AutoGoal.dream.action(on: .sim, driverInstalled: false, dreamReady: true), AutoGoal.Words.go)
-        XCTAssertEqual(AutoGoal.dream.subtitle(on: .real, driverInstalled: false), AutoGoal.Words.opensDream)
-        XCTAssertFalse(AutoGoal.dream.subtitle(on: .real, driverInstalled: false).contains("on the card"),
+        XCTAssertEqual(AutoGoal.dream.action(on: .sim, dreamReady: false), AutoGoal.Words.addKey)
+        XCTAssertEqual(AutoGoal.dream.action(on: .sim, dreamReady: true), AutoGoal.Words.go)
+        XCTAssertEqual(AutoGoal.dream.subtitle(on: .real), AutoGoal.Words.opensDream)
+        XCTAssertFalse(AutoGoal.dream.subtitle(on: .real).contains("on the card"),
                        "the card has no field, so it must not say to type on it")
     }
 }

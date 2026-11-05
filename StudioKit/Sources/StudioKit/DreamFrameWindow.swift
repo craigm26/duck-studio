@@ -24,6 +24,9 @@ public struct DreamFrameWindow: Sendable {
     private var recent: [TimeInterval] = []
     private var due: TimeInterval?
 
+    /// When the camera last delivered, kept or not: how a run knows its pictures have stopped.
+    public var lastTick: TimeInterval? { recent.last }
+
     public init() {}
 
     /// Takes one camera tick; whether its frame was kept. A timestamp earlier than the last is dropped.

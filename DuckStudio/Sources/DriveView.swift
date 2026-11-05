@@ -418,6 +418,10 @@ struct DriveView: View {
     @AppStorage("coach.done") private var coachDone = 0
     /// Dream-1 on the real duck, as a sheet over its picture.
     @State private var realDream = false
+    /// The first walk to the ball on a real duck is waiting for the person's yes.
+    @State private var confirmingWalk = false
+    /// The driver the person last said yes to on a real duck (`BallWalk.needsConfirming`).
+    @AppStorage("walk.real.confirmed") private var walkConfirmed = ""
     @Environment(\.scenePhase) private var scenePhase
 
     /// A REAL PAD WINS WHILE IT IS BEING HELD. Both inputs are live at once —
@@ -1336,9 +1340,10 @@ struct DriveView: View {
                 // THE GOAL HAS ALREADY MADE WAY (`DuckRuns.makeWay`). What was booked before it is
                 // forgotten quietly: stopping it here would stop the goal that just started.
                 if arbiter.running != nil { _ = arbiter.handle(.stop, at: Date()) }
-                apply(arbiter.handle(.start(.goal, duck: duck, owner: .app), at: Date()))
+                // A WALK STAYS ON TELL: it is a skill from there, and `.goal` would move the switch.
+                apply(arbiter.handle(.start(dreamModel.walking ? .walk : .goal, duck: duck, owner: .app), at: Date()))
             } else {
-                finishRun(.goal)
+                finishRun(arbiter.running?.kind == .walk ? .walk : .goal)
                 // "You took over." and the cap's line stay; the card keeps the run's own line.
                 if !arbiter.saidItsOwnEnding, let walked = dreamModel.lastWalk { say(walked) }
             }
@@ -1374,6 +1379,18 @@ struct DriveView: View {
         // A ROUTE INTO PLAY: a mode another screen asked for (Moves' goal rows).
         .onChange(of: router.pendingPlay) { _, asked in takePendingPlay(asked) }
         .onAppear { takePendingPlay(router.pendingPlay) }
+        // THE FIRST WALK ON A REAL DUCK ASKS FIRST, in the kit's words. A dialog, not a sheet: nothing
+        // runs yet, so there is nothing for a Stop pill to stop. No destructive role, because that
+        // draws the button red, and red is Stop and nothing else.
+        .confirmationDialog(BallWalk.Words.confirmTitle, isPresented: $confirmingWalk, titleVisibility: .visible) {
+            Button(BallWalk.Words.confirmStart) {
+                walkConfirmed = drivers.release.folder
+                startRealWalk()
+            }
+            Button(DriverCard.Words.cancel, role: .cancel) {}
+        } message: {
+            Text(BallWalk.Words.confirmLine(arbiter.caps.seconds(on: .real)))
+        }
         .sheet(isPresented: $realDream) {
             NavigationStack {
                 ScrollView {
@@ -1502,6 +1519,9 @@ struct DriveView: View {
 
     /// Tell: a sentence or a tile, read with no model, run by the kit's runner on this duck.
     @MainActor private func tell(_ text: String) {
+        // WALK TO THE BALL IS A SKILL, NOT AN ORDER: its own start, its own refusals, and the same
+        // Stop. Read here and not in the matcher, so Ask the duck and Siri mean what they meant.
+        if BallWalk.heard(text) { walkToBall(); return }
         guard let order = DuckOrderMatcher.match(text, skills: Array(RobotPlan.skillSeconds.keys)) else {
             say(ControllerWords.heard(text))
             return
@@ -1606,12 +1626,12 @@ struct DriveView: View {
         apply(arbiter.handle(.finished, at: Date()))
     }
 
-    /// The one status line while an Auto run or an outside order goes, so Auto's Take over shows
-    /// for a Siri order as it does for a goal.
-    private var autoStatus: String? {
-        guard let kind = arbiter.running?.kind, kind == .goal || kind == .order else { return nil }
+    /// The one status line while an Auto run, a walk or an outside order goes, so Take over shows
+    /// for each of them, in Auto and in Tell.
+    private var runStatus: String? {
+        guard let kind = arbiter.running?.kind, kind == .goal || kind == .order || kind == .walk else { return nil }
         let what = (kind == .order ? runs.outsideOrder?.what : nil) ?? autoWhat
-            ?? (dreamModel.walking ? AutoGoal.walkToBall.title
+            ?? (dreamModel.walking ? BallWalk.title
                 : dreamModel.running ? AutoGoal.dream.title : AutoGoal.Words.running)
         let started = autoStarted ?? arbiter.running?.startedAt ?? Date()
         let cap = arbiter.caps.seconds(on: venue == .real ? .real : .sim)
@@ -1659,24 +1679,55 @@ struct DriveView: View {
     /// Auto: a helper's button.
     @MainActor private func go(_ goal: AutoGoal) {
         switch goal {
-        case .walkToBall:
-            guard duckKind == .sim, drivers.phase.isInstalled, !dreamModel.running else { return }
-            if let why = BallRunStart.refusal(world: world) { say(why); return }
-            guard let bench = (try? requirePeer()) as? BenchPeer else { say(ControllerWords.tellNoDuck); return }
-            say(nil)
-            dreamModel.walkToBall(bench, feed: simHeadCamera, folder: drivers.folder,
-                                  stepAside: { await stepAside() }, seen: { live = $0 },
-                                  walkerOn: {
-                                      // THE BENCH CHANGED NETWORKS UNDER THE DESK, as in `swap`: the
-                                      // next stick drive must not think the old one is still loaded.
-                                      if let id = self.bench?.id { benches.noteLoaded(BallRunStart.walker, on: id) }
-                                      desk.noteLoaded(BallRunStart.walker)
-                                      stateSaid = nil
-                                  })
         case .dream:
             guard dreamReady else { router.go(to: .studio(nil)); return }
             if venue == .real { realDream = true } else { shelf = .dream }
         }
+    }
+
+    /// Tell: Walk to the ball, from its Go or a sentence. Every refusal is said, in Tell's caption.
+    @MainActor private func walkToBall() {
+        guard !dreamModel.running, !telling else { return }
+        let available = BallWalk.availability(on: duckKind, driverInstalled: drivers.phase.isInstalled)
+        if let why = available.reason { say(why); return }
+        if duckKind == .real { walkRealDuck() } else { walkPracticeDuck() }
+    }
+
+    /// M1's run, on the bench this screen is driving.
+    @MainActor private func walkPracticeDuck() {
+        if simHeadCamera.unavailable != nil { say(DriverCard.Words.needsNewerSystem); return }
+        if let why = BallRunStart.refusal(world: world) { say(why); return }
+        guard let bench = (try? requirePeer()) as? BenchPeer else { say(ControllerWords.tellNoDuck); return }
+        say(nil)
+        dreamModel.walkToBall(bench, feed: simHeadCamera, folder: drivers.folder,
+                              stepAside: { await stepAside() }, seen: { live = $0 },
+                              walkerOn: {
+                                  // THE BENCH CHANGED NETWORKS UNDER THE DESK, as in `swap`: the
+                                  // next stick drive must not think the old one is still loaded.
+                                  if let id = self.bench?.id { benches.noteLoaded(BallRunStart.walker, on: id) }
+                                  desk.noteLoaded(BallRunStart.walker)
+                                  stateSaid = nil
+                              })
+    }
+
+    /// NO BLIND DRIVING: with no picture coming in, it says so and nothing is sent to the duck.
+    @MainActor private func walkRealDuck() {
+        guard !dreamRecorder.recording else { return }
+        guard realFeed.running, realFeed.picture != nil, realFeed.problem == nil else {
+            say(realFeed.problem ?? BallWalk.Words.noPicture)
+            return
+        }
+        if BallWalk.needsConfirming(confirmed: walkConfirmed, release: drivers.release) {
+            confirmingWalk = true
+        } else {
+            startRealWalk()
+        }
+    }
+
+    @MainActor private func startRealWalk() {
+        guard let peer else { say(ControllerWords.tellNoDuck); return }
+        say(nil)
+        dreamModel.walkToBallReal(peer, feed: realFeed, folder: drivers.folder, stepAside: { await stepAside() })
     }
 
     /// The readout and the floor note, under the top strip at the leading edge.
@@ -1754,23 +1805,29 @@ struct DriveView: View {
                     // and no card is stacked over the sticks. A physical pad still takes over.
                     switch arbiter.mode {
                     case .tell:
-                        TellPanel(duck: duckKind, caption: caption?.text, busy: telling, listener: listener,
-                                  send: tell, stop: { stopNow() })
+                        // THE LINE KEEPS TIME WHILE A WALK RUNS, as Auto's does.
+                        TimelineView(.periodic(from: Date(), by: 1)) { _ in
+                            TellPanel(duck: duckKind, caption: caption?.text, busy: telling, listener: listener,
+                                      walkCard: DriverCard(phase: drivers.phase, duck: duckKind,
+                                                           release: drivers.release,
+                                                           cameraMissing: simHeadCamera.unavailable != nil,
+                                                           lastRun: dreamModel.lastWalk),
+                                      walkAct: { drivers.act($0) { walkToBall() } },
+                                      running: runStatus,
+                                      takeOver: takeOver,
+                                      send: tell, stop: { stopNow() },
+                                      shortScreenHeight: CGFloat(StageViewport.drawerHeight(
+                                          available: Double(glass.height))))
+                        }
                         sheetsRow
                     case .auto:
                         TimelineView(.periodic(from: Date(), by: 1)) { _ in
                             AutoPanel(duck: duckKind,
-                                      driverInstalled: drivers.phase.isInstalled,
-                                      driverCard: DriverCard(phase: drivers.phase, duck: duckKind,
-                                                             release: drivers.release,
-                                                             cameraMissing: simHeadCamera.unavailable != nil,
-                                                             lastRun: dreamModel.lastWalk),
-                                      driverAct: { drivers.act($0) { go(.walkToBall) } },
                                       dreamReady: dreamReady,
                                       ask: ask,
                                       listener: listener,
                                       caption: caption?.text,
-                                      running: autoStatus,
+                                      running: runStatus,
                                       plan: askPlan,
                                       example: tryExample,
                                       go: go,

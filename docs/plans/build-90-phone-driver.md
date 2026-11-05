@@ -420,7 +420,7 @@ The start is the same calls as `layOut`, with the 1.2 s pre-roll as one `/stop`.
 
 **A run ends when the duck parks.** `BallRunWatch` reads the bench's ground truth for the sentence afterwards and to end the run; it never steers. The rule is M1's parked (within 0.40 m, root moved at most 0.02 m in a second), checked at every moment rather than at the end. Replaying the 20 `m1-app2` logs through it: 16 runs park at some moment, all 16 had reached the ball by then, and 12 had not moved it. The other 4 never park, and go to the time limit. That is a replay, and the app has not run it.
 
-**The real duck stays out.** `mediad`'s `/frame` is wired for Dream-1, but this driver has only seen the drawn stage. The card says "Practice duck only for now" and has no Go there (risk 7 above).
+**The real duck stays out.** `mediad`'s `/frame` is wired for Dream-1, but this driver has only seen the drawn stage. The card says "Practice duck only for now" and has no Go there (risk 7 above). Build 95 replaced this by the owner's call: see "Walk to the ball on a real duck" in `native-first-redesign.md`.
 
 **Not run:** any of this on a phone. The Mac runs are the shipped pilot, driver and renderer in lockstep with the bench; the wall-clock path (`SimHeadCameraFeed` at 5 fps with the phone's own bench) has compiled and has not been driven.
 

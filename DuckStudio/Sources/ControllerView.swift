@@ -133,20 +133,45 @@ struct DuckPill: View {
 /// instead of scrolling off the edge. Only tiles this duck can do are drawn
 /// (`ControllerWords.tiles(for:)`). Refusals and results show in the panel's own caption line,
 /// which goes away on its own.
+///
+/// WALK TO THE BALL LIVES HERE (the owner's call after build 94): one tap, watched, and ended by
+/// the person, so a skill and not autonomy. While it runs the panel collapses to the same status
+/// line and Take over as Auto, with the red disc as the Stop.
 struct TellPanel: View {
     let duck: DuckIdentity.Kind?
     let caption: String?
     let busy: Bool
     @ObservedObject var listener: DuckListener
+    let walkCard: DriverCard
+    let walkAct: (DriverCard.Action) -> Void
+    /// The status line while something runs, or nil.
+    let running: String?
+    let takeOver: () -> Void
     let send: (String) -> Void
     let stop: () -> Void
+    /// The tallest the idle panel may be on a short screen.
+    let shortScreenHeight: CGFloat
     @State private var text = ""
     @FocusState private var focused: Bool
+    @Environment(\.verticalSizeClass) private var verticalSize
 
     private let columns = [GridItem(.adaptive(minimum: ControllerMetric.tileMinimum), spacing: 8)]
 
     var body: some View {
+        if let running {
+            RunStatusLine(symbol: BallWalk.symbol, line: running, takeOver: takeOver)
+        } else if verticalSize == .compact {
+            // THE SAME RULE AS AUTO: with the walk's card on it this panel would climb over the top
+            // strip and the red disc on a landscape phone, so it scrolls under the drawer's limit.
+            ScrollView { idle }.frame(maxHeight: shortScreenHeight)
+        } else {
+            idle
+        }
+    }
+
+    private var idle: some View {
         VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
+            WalkBallCard(card: walkCard, busy: busy, act: walkAct)
             LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
                 ForEach(ControllerWords.tiles(for: duck), id: \.said) { tile in
                     Button { send(tile.said) } label: {
@@ -191,18 +216,94 @@ struct TellPanel: View {
     }
 }
 
+/// The Walk to the ball card, big enough for a child to find: Get with its size, progress with
+/// Cancel, then Go and Delete. Every line and button is the kit's `DriverCard`.
+struct WalkBallCard: View {
+    let card: DriverCard
+    let busy: Bool
+    let act: (DriverCard.Action) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: Theme.spacing(.tight)) {
+                Label(BallWalk.title, systemImage: BallWalk.symbol)
+                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                    .foregroundStyle(Theme.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+                // GO MOVES A DUCK AND GETS THE BUTTON THAT SAYS SO. Delete sits at the far end, no red:
+                // red is Stop and nothing else, and an instant delete is not beside the thing you press.
+                ForEach(card.actions, id: \.self) { action in
+                    let title = card.title(action, release: .walkToBall)
+                    if action == .go {
+                        Button(title) { act(action) }
+                            .buttonStyle(.primaryActionInline)
+                            .disabled(busy)
+                            .accessibilityLabel(Text("\(title), \(BallWalk.title)"))
+                    } else {
+                        Button(title) { act(action) }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .frame(minHeight: DesignMetric.minimumTarget)
+                            .accessibilityLabel(Text("\(title), \(BallWalk.title)"))
+                    }
+                }
+            }
+            if let progress = card.progress {
+                ProgressView(value: progress)
+                    .accessibilityLabel(Text(BallWalk.title))
+            }
+            ForEach(card.lines, id: \.self) { line in
+                Text(line)
+                    .font(.caption2)
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(Theme.spacing(.tight))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .pondPanel(.control)
+        .accessibilityElement(children: .contain)
+        .accessibilityHint(Text(BallWalk.provenance))
+    }
+}
+
+/// The one line while a run goes: what it is, how long, and Take over. Tell's walk and Auto's goals.
+struct RunStatusLine: View {
+    let symbol: String
+    let line: String
+    let takeOver: () -> Void
+
+    var body: some View {
+        HStack(spacing: Theme.spacing(.tight)) {
+            Image(systemName: symbol).foregroundStyle(Theme.training).accessibilityHidden(true)
+            Text(line)
+                .font(.system(.footnote, design: .rounded).weight(.semibold))
+                .foregroundStyle(Theme.textPrimary)
+                .lineLimit(2)
+                .minimumScaleFactor(0.8)
+            Spacer(minLength: 0)
+            Button(ControllerWords.takeOver, action: takeOver)
+                .buttonStyle(.raisedAction)
+                .accessibilityHint(Text(ControllerWords.takeOverHint))
+        }
+        .padding(.horizontal, Theme.spacing(.snug))
+        .frame(minHeight: ControllerMetric.statusHeight)
+        .background(Theme.surfacePrimary, in: Capsule())
+        .overlay(Capsule().strokeBorder(Theme.outline, lineWidth: DesignMetric.outlineStroke))
+        .shadow(color: PondShadow.colour, radius: PondShadow.blur, y: PondShadow.y)
+    }
+}
+
 /// Auto, Apple Intelligence first (build 92, the owner's ask after 2.0 (91)).
 ///
 /// ONE PANEL DOCKED WHERE THE PAD WAS, NOTHING SCROLLING SIDEWAYS. Leading: the Ask the duck card,
 /// where on-device Apple Intelligence plans a few steps from a sentence. Trailing: a narrow column
-/// of the other helpers (Dream-1, then the phone driver, whose card is the kit's `DriverCard`). Every card is fully on
+/// with Dream-1. Walk to the ball moved to Tell after build 94. Every card is fully on
 /// screen. While a goal runs, the panel collapses to one status line with Take over; the red disc
 /// top right is the Stop.
 struct AutoPanel: View {
     let duck: DuckIdentity.Kind?
-    let driverInstalled: Bool
-    let driverCard: DriverCard
-    let driverAct: (DriverCard.Action) -> Void
     let dreamReady: Bool
     @ObservedObject var ask: AskTheDuck
     @ObservedObject var listener: DuckListener
@@ -221,23 +322,7 @@ struct AutoPanel: View {
 
     var body: some View {
         if let running {
-            HStack(spacing: Theme.spacing(.tight)) {
-                Image(systemName: "sparkles").foregroundStyle(Theme.training).accessibilityHidden(true)
-                Text(running)
-                    .font(.system(.footnote, design: .rounded).weight(.semibold))
-                    .foregroundStyle(Theme.textPrimary)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.8)
-                Spacer(minLength: 0)
-                Button(ControllerWords.takeOver, action: takeOver)
-                    .buttonStyle(.raisedAction)
-                    .accessibilityHint(Text(ControllerWords.takeOverHint))
-            }
-            .padding(.horizontal, Theme.spacing(.snug))
-            .frame(minHeight: ControllerMetric.statusHeight)
-            .background(Theme.surfacePrimary, in: Capsule())
-            .overlay(Capsule().strokeBorder(Theme.outline, lineWidth: DesignMetric.outlineStroke))
-            .shadow(color: PondShadow.colour, radius: PondShadow.blur, y: PondShadow.y)
+            RunStatusLine(symbol: "sparkles", line: running, takeOver: takeOver)
         } else if verticalSize == .compact {
             // A LANDSCAPE PHONE IS ABOUT 390 PT TALL. The cards scroll under the drawer's own height
             // limit, so the panel cannot climb over the top strip and the red disc.
@@ -257,63 +342,15 @@ struct AutoPanel: View {
                 Text(ControllerWords.otherHelpers)
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(Theme.textSecondary)
-                ForEach(AutoGoal.allCases) { goal in
-                    if goal == .walkToBall { driverHelper } else { helper(goal) }
-                }
+                ForEach(AutoGoal.allCases) { goal in helper(goal) }
             }
             .frame(width: ControllerMetric.helperColumn, alignment: .leading)
         }
     }
 
-    /// The phone driver's card: Get with its size, progress with Cancel, then Go and Delete.
-    private var driverHelper: some View {
-        let goal = AutoGoal.walkToBall
-        return VStack(alignment: .leading, spacing: 4) {
-            Label(goal.title, systemImage: goal.symbol)
-                .font(.system(.caption, design: .rounded).weight(.semibold))
-                .foregroundStyle(Theme.textPrimary)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
-            if let progress = driverCard.progress {
-                ProgressView(value: progress)
-                    .accessibilityLabel(Text(goal.title))
-            }
-            ForEach(driverCard.lines, id: \.self) { line in
-                Text(line)
-                    .font(.caption2)
-                    .foregroundStyle(Theme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            // GO MOVES A DUCK AND GETS THE BUTTON THAT SAYS SO. Delete sits at the far end, no red:
-            // red is Stop and nothing else, and an instant delete is not beside the thing you press.
-            HStack(spacing: Theme.spacing(.tight)) {
-                ForEach(driverCard.actions, id: \.self) { action in
-                    let title = driverCard.title(action, release: .walkToBall)
-                    if action == .go {
-                        Button(title) { driverAct(action) }
-                            .buttonStyle(.primaryActionInline)
-                            .accessibilityLabel(Text("\(title), \(goal.title)"))
-                        Spacer(minLength: 0)
-                    } else {
-                        Button(title) { driverAct(action) }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                            .frame(minHeight: DesignMetric.minimumTarget)
-                            .accessibilityLabel(Text("\(title), \(goal.title)"))
-                    }
-                }
-            }
-        }
-        .padding(Theme.spacing(.tight))
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .pondPanel(.control)
-        .accessibilityElement(children: .contain)
-        .accessibilityHint(Text(goal.provenance))
-    }
-
     private func helper(_ goal: AutoGoal) -> some View {
-        let availability = goal.availability(on: duck, driverInstalled: driverInstalled, dreamReady: dreamReady)
-        let action = goal.action(on: duck, driverInstalled: driverInstalled, dreamReady: dreamReady)
+        let availability = goal.availability(on: duck, dreamReady: dreamReady)
+        let action = goal.action(on: duck, dreamReady: dreamReady)
         // "Add your key" is a way forward, so it stays pressable.
         let pressable = availability == .ready || action == AutoGoal.Words.addKey
         return VStack(alignment: .leading, spacing: 4) {
@@ -322,7 +359,7 @@ struct AutoPanel: View {
                 .foregroundStyle(Theme.textPrimary)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
-            Text(goal.subtitle(on: duck, driverInstalled: driverInstalled, dreamReady: dreamReady))
+            Text(goal.subtitle(on: duck, dreamReady: dreamReady))
                 .font(.caption2)
                 .foregroundStyle(Theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -517,7 +554,7 @@ struct DuckPictureStage: View {
 enum ControllerMetric {
     static let switchWidth: CGFloat = 300
     static let cardWidth: CGFloat = 250
-    /// The trailing column of other helpers in Auto: narrow, so Ask the duck leads.
+    /// The trailing column beside Ask the duck in Auto: narrow, so Ask the duck leads.
     static let helperColumn: CGFloat = 132
     /// Tell's tiles wrap at this width, two or three to a row on a phone.
     static let tileMinimum: CGFloat = 130

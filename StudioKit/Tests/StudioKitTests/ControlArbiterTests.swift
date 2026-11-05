@@ -279,4 +279,48 @@ final class ControlArbiterTests: XCTestCase {
         _ = a.handle(.stop, at: t)
         XCTAssertFalse(a.saidItsOwnEnding, "Stop has no line of its own to keep")
     }
+
+    // MARK: - Walk to the ball, from Tell
+
+    /// A walk is capped and books a run, and the switch stays on Tell. A `.goal` would have moved it.
+    func testAWalkStaysOnTellAndIsCapped() {
+        var a = ControlArbiter(mode: .tell)
+        let d = a.handle(.start(.walk, duck: .real, owner: .app), at: t0)
+        XCTAssertEqual(d.effects, [.rearm])
+        XCTAssertTrue(d.passInput)
+        XCTAssertEqual(a.mode, .tell)
+        XCTAssertEqual(a.running?.kind, .walk)
+        XCTAssertTrue(ControlArbiter.RunKind.walk.isCapped)
+        XCTAssertEqual(a.running?.endsBy, at(30))
+        XCTAssertEqual(a.handle(.tick, at: at(29)).effects, [])
+        assertStopOnly(a.handle(.tick, at: at(30)))
+        XCTAssertEqual(a.lastEnding, .capped)
+    }
+
+    /// Sticks, the pad and Take over all take over a walk, say so and go to Drive: none does nothing.
+    func testEveryTakeoverInputTakesOverAWalk() {
+        for input in [ControlArbiter.Event.stickTouch, .padInput, .movePress] {
+            var a = ControlArbiter(mode: .tell)
+            _ = a.handle(.start(.walk, duck: .real, owner: .app), at: t0)
+            XCTAssertFalse(a.sticksRest, "sticks rest only in Auto")
+            let d = a.handle(input, at: at(1))
+            XCTAssertEqual(d.effects, [.stopPath, .rearm, .setMode(.drive),
+                                       .caption(ControlArbiter.Words.tookOver)], "\(input)")
+            XCTAssertTrue(d.passInput)
+            XCTAssertEqual(a.mode, .drive)
+            XCTAssertNil(a.running)
+        }
+    }
+
+    /// Every other ending is the Stop only, and a connection or the foreground ends a walk.
+    func testAWalkEndsOnEveryHandBack() {
+        for (event, ending) in [(ControlArbiter.Event.stop, ControlArbiter.Ending.stopped), (.connectionLost, .connectionLost),
+                                (.background, .leftForeground), (.selectMode(.auto), .stopped)] {
+            var a = ControlArbiter(mode: .tell)
+            _ = a.handle(.start(.walk, duck: .real, owner: .app), at: t0)
+            assertStopOnly(a.handle(event, at: at(1)))
+            XCTAssertNil(a.running)
+            XCTAssertEqual(a.lastEnding, ending)
+        }
+    }
 }
