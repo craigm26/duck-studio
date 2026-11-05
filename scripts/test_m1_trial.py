@@ -48,7 +48,7 @@ class ScoreTests(unittest.TestCase):
         self.assertTrue(r["reached"])
         self.assertTrue(r["standing_at_end"])
         self.assertTrue(r["stopped_at_ball"])
-        self.assertAlmostEqual(r["time_s"], 0.8)        # first tick within 0.20 m: x = 0.8 at t = 1.2 + 0.8
+        self.assertAlmostEqual(r["time_s"], 0.7)        # first tick within REACH, 0.35 m: x = 0.7 at t = 1.2 + 0.7
         self.assertAlmostEqual(r["first_seen_s"], 0.4)  # the heading comes within the camera on the 4th tick
         self.assertEqual(r["ball_push_m"], 0.0)
         self.assertEqual(r["moved_last_s_m"], 0.0)
@@ -88,7 +88,7 @@ class ScoreTests(unittest.TestCase):
     def test_expert_clock_starts_at_the_start(self):
         ticks = [(0.1 * i, WALK) for i in range(1, 9)] + [(0.82, STILL)] * 16
         r = m1_trial.score(write_log(self.dir.name, "expert", ticks))
-        self.assertAlmostEqual(r["time_s"], 0.8)
+        self.assertAlmostEqual(r["time_s"], 0.7)
         self.assertTrue(r["stopped_at_ball"])
         self.assertIsNone(r["ended_stop_then_end"])
 
@@ -102,6 +102,30 @@ class ScoreTests(unittest.TestCase):
         self.assertEqual((s["parked_at_ball"], s["reached_and_parked"]), (1, 1))
         self.assertAlmostEqual(s["mean_ball_push_m"], 0.2)
         self.assertEqual(s["never_saw"], 0)
+
+
+class FullStateTests(unittest.TestCase):
+    """Round 3: every tick keeps the bench's whole state, so DAgger can draw the driver's own pictures."""
+
+    def test_start_and_every_step_carry_the_bench_state(self):
+        def state(t, x):
+            return {"t": t, "position": [x, 0.0, 0.116], "quaternion": [1, 0, 0, 0], "upright": True,
+                    "joints": [0.01 * i for i in range(14)], "ball": [1.0, 0.0, 0.05], "ballRadius": 0.05}
+        with tempfile.TemporaryDirectory() as d:
+            run = m1_trial.Run(pathlib.Path(d), "expert", 7, 0.0, 1.0, state(0.5, 0.0))
+            run.see(state(0.6, 0.1), [0.25, 0.0, 0.0])
+            run.see(state(0.7, 0.2), [0.25, 0.0, 0.0])
+            run.f.close()
+            lines = [json.loads(l) for l in open(run.path)]
+        self.assertEqual([l["type"] for l in lines], ["start", "step", "step"])
+        self.assertEqual(lines[0]["bench"], state(0.5, 0.0))
+        self.assertEqual(lines[2]["bench"]["joints"], state(0.7, 0.2)["joints"])
+        self.assertEqual(lines[2]["bench"]["position"], [0.2, 0.0, 0.116])
+        self.assertAlmostEqual(lines[2]["dist"], 0.8)
+
+    def test_stopped_line_is_past_the_reach(self):
+        self.assertEqual(m1_trial.REACH, 0.35)
+        self.assertAlmostEqual(m1_trial.STOPPED_M, 0.40)
 
 
 class SeedTests(unittest.TestCase):

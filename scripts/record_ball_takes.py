@@ -26,10 +26,14 @@ import sys
 import urllib.request
 
 MAX_FORWARD, MAX_TURN, DEAD_ZONE = 0.3, 1.0, 0.05      # DuckDrive.maxForward, maxTurn, deadZone
-REACH, SLOWING, ARC_FORWARD = 0.20, 0.35, 0.25               # BallExpert
+REACH = 0.35                     # BallExpert.reach: the top half of the ball is still in the head picture here
+WALK_START = 0.25                # BallExpert.walkStart: forward is 0 or at least this (the walker's dead band)
+ARC_FORWARD = WALK_START         # BallExpert.arcForward
+MIN_TURN = 0.1                   # BallExpert.minTurn: a smaller steer is no steer
 SEEN = 30.0 * math.pi / 180      # BallExpert.seen: the camera's half-width is 36.98 deg
 SEARCH_TURN = -MAX_TURN          # BallExpert.searchTurn: no ball in view, turn right
 STANDING_ROWS = 15               # BallExpert.standingRows: 1.5 s of standing kept after arrival
+PICTURE_EDGE = 0.30              # closer than this (root to ball) the ball has left the bottom of the picture
 TASK = "walk to the ball"
 WALKER = "alpha_walking.onnx"
 MASK64 = (1 << 64) - 1
@@ -52,28 +56,26 @@ class SplitMix64:
 
 def style(seed: int) -> dict:
     rng = SplitMix64(seed)
-    return {"speed": 0.7 + 0.3 * rng.next(), "turnGain": 3.0 + 1.0 * rng.next(),
-            "weave": 0.03 * rng.next(), "weavePeriod": 2 + 2 * rng.next()}
+    return {"speed": 0.7 + 0.3 * rng.next(), "turnGain": 3.0 + 1.0 * rng.next()}
 
 
-PLAIN = {"speed": 1.0, "turnGain": 3.5, "weave": 0.0, "weavePeriod": 3.0}
+PLAIN = {"speed": 1.0, "turnGain": 3.5}
 
 
 def command(x, y, yaw, bx, by, t, s=PLAIN):
-    """BallExpert.command(x:y:yaw:bx:by:t:style:), line for line."""
+    """BallExpert.command(x:y:yaw:bx:by:t:style:), line for line. `t` is unused since round 3."""
     dx, dy = bx - x, by - y
     distance = math.sqrt(dx * dx + dy * dy)
-    if distance <= REACH:
-        return (0.0, 0.0, 0.0)
     off = math.remainder(math.atan2(dy, dx) - yaw, 2 * math.pi)
     if not abs(off) < SEEN:
         return (ARC_FORWARD, 0.0, SEARCH_TURN)
+    if distance <= REACH:
+        return (0.0, 0.0, 0.0)
     vyaw = min(max(s["turnGain"] * off, -MAX_TURN), MAX_TURN)
-    ease = min(1.0, (distance - REACH) / SLOWING)
-    floor = 2 * DEAD_ZONE
-    vx = max(MAX_FORWARD * s["speed"] * ease * math.cos(off), floor)
-    vy = s["weave"] * math.sin(2 * math.pi * t / s["weavePeriod"])
-    return (min(vx, MAX_FORWARD), vy, vyaw)
+    if abs(vyaw) < MIN_TURN:
+        vyaw = 0.0
+    vx = min(max(MAX_FORWARD * s["speed"] * math.cos(off), WALK_START), MAX_FORWARD)
+    return (vx, 0.0, vyaw)
 
 
 def yaw_of(q):
@@ -118,11 +120,16 @@ def vectors(path):
         s = style(seed) if seed else PLAIN
         cases.append({"x": x, "y": y, "yaw": yaw, "bx": bx, "by": by, "t": t,
                       "styleSeed": seed, "command": list(command(x, y, yaw, bx, by, t, s))})
-    cases.append({"x": 0, "y": 0, "yaw": 0, "bx": 0.15, "by": 0, "t": 0, "styleSeed": 0, "command": [0, 0, 0]})
+    # The edges: inside reach ahead (stand), inside reach but out of view (search), a steer under
+    # MIN_TURN (no turn), and a ball far off to the side at the cone's edge.
+    for (bx, by) in [(0.15, 0.0), (0.34, 0.0), (0.0, 0.3), (-0.2, 0.0), (1.0, 0.004), (1.0, -0.02), (0.36, 0.0)]:
+        cases.append({"x": 0, "y": 0, "yaw": 0, "bx": bx, "by": by, "t": 0, "styleSeed": 0,
+                      "command": list(command(0, 0, 0, bx, by, 0, PLAIN))})
     with open(path, "w") as f:
         json.dump({"source": "scripts/record_ball_takes.py", "styles": {str(k): style(k) for k in range(1, 7)},
                    "constants": {"reach": REACH, "seen": SEEN, "searchTurn": SEARCH_TURN,
-                                 "arcForward": ARC_FORWARD, "slowing": SLOWING, "standingRows": STANDING_ROWS},
+                                 "arcForward": ARC_FORWARD, "walkStart": WALK_START, "minTurn": MIN_TURN,
+                                 "standingRows": STANDING_ROWS},
                    "cases": cases}, f, indent=1)
     print(f"wrote {len(cases)} vectors to {path}")
 
@@ -152,7 +159,7 @@ def record(bench, takes, out, first_seed, limit_s, hold):
             # per take, not once. It is latched, not re-asked: a standing duck sways a millimetre or
             # two, and re-asking at the reach line flickers between stand and a 0.1 m/s creep that
             # the walker does not even step for (measured on seed 10001, 2026-11-04).
-            rows, previous, standing, fell = [], (0.0, 0.0, 0.0), 0, False
+            rows, previous, standing, fell, under = [], (0.0, 0.0, 0.0), 0, False, False
             while standing or state["t"] - t0 < limit_s:
                 bx, by = state["ball"][0], state["ball"][1]
                 c = (0.0, 0.0, 0.0) if standing else command(
@@ -160,6 +167,10 @@ def record(bench, takes, out, first_seed, limit_s, hold):
                     bx, by, state["t"] - t0, s)
                 rows.append({"state": list(previous), "action": list(c), "bench": state})
                 if c == (0.0, 0.0, 0.0):
+                    # A ball that ROLLS into a standing duck ends under the camera: a standing row with
+                    # no ball in the picture, the thing round 3 removes. Rare (2 of 240 seeds in
+                    # takes-v4, both balls the bench set rolling); the take is dropped.
+                    under = under or math.hypot(bx - state["position"][0], by - state["position"][1]) < PICTURE_EDGE
                     standing += 1
                     if standing > STANDING_ROWS:
                         break
@@ -169,7 +180,7 @@ def record(bench, takes, out, first_seed, limit_s, hold):
                     fell = True
                     break
             arrived = standing > STANDING_ROWS
-            if arrived and not fell and len(rows) >= 17:
+            if arrived and not fell and not under and len(rows) >= 17:
                 f.write(json.dumps({"seed": seed, "task": TASK, "bearing": bearing, "range": rng_range,
                                     "style": s, "walker": WALKER, "hold": hold,
                                     "startsInView": abs(start_off) < SEEN, "zeroRowsAtEnd": standing,
@@ -182,7 +193,8 @@ def record(bench, takes, out, first_seed, limit_s, hold):
                       f"{'in view' if abs(start_off) < SEEN else 'searching'} at start", flush=True)
             else:
                 dropped += 1
-                why = "fell" if fell else ("too short" if arrived else "time limit")
+                why = "fell" if fell else ("ball rolled under the camera" if under else
+                                           ("too short" if arrived else "time limit"))
                 print(f"seed {seed} dropped: {why}", flush=True)
     call(bench, "/stop", {})
     print(f"kept {kept}, dropped {dropped}, started in view {in_view}, started searching {kept - in_view}, "

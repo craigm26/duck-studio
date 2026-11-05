@@ -17,17 +17,20 @@ THREE DRIVERS ON THE SAME SEEDS:
 - `expert`: BallExpert (this repo's parity-tested port) every 0.1 s on this machine, as it was
   recorded, and stopped at the ball: the ceiling.
 
-REACHED means the duck's root came within BallExpert.reach (0.20 m) of the ball's centre at any tick
-of the run. Round 1's two successes walked through the ball, so reaching is not enough on its own:
-STOPPED AT THE BALL means the run ended within STOPPED_M (0.35 m, BallExpert's slowing distance) and
-standing, every command of the last STANDING_S (1 s) inside the walker's dead zone. Each run also
+REACHED means the duck's root came within BallExpert.reach (0.35 m since round 3: the top half of
+the ball is still in the head picture there) of the ball's centre at any tick of the run. Round 1's two
+successes walked through the ball, so reaching is not enough on its own: STOPPED AT THE BALL means the
+run ended within STOPPED_M (reach + 0.05 m, 0.40 m) and standing, every command of the last STANDING_S (1 s) inside the walker's dead zone. Each run also
 reports the time to reach and to first see the ball (the root's heading within the head camera's
 half-width, from the first ask), how far the ball was pushed, and how far the root moved in the last
-second. PARKED AT THE BALL is the physical twin of stopped: the same 0.35 m, but the root still
+second. PARKED AT THE BALL is the physical twin of stopped: the same 0.40 m, but the root still
 (moved at most STILL_M in the last second) whatever the commands were, because alpha_walking does
 not step for every command above the dead zone (measured 2026-11-04: the v3 driver's 0.1 to 0.2 m/s
 moved the duck 0.02 to 0.03 m/s). Each run's every tick, every chunk the driver answered and the stop/end order is saved as
-JSON lines in OUT/WHO/seed-N.jsonl, with OUT/WHO/summary.json beside them; every number is scored
+JSON lines in OUT/WHO/seed-N.jsonl. Every tick (and the start) also carries the bench's FULL state
+under "bench" (root, quaternion, 14 joints, ball, sim time: what record_ball_takes.py keeps per row),
+so a later DAgger round can draw the pictures the driver itself visited and have the expert label
+them. OUT/WHO/summary.json sits beside the logs; every number is scored
 from that log (`score`), so `--rescore` rebuilds a summary from old logs without the bench.
 
     python3 scripts/m1_trial.py --who expert --out ~/scratch/ball-takes/m1-v1
@@ -45,12 +48,12 @@ import sys
 import time
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from record_ball_takes import (DEAD_ZONE, REACH, SLOWING, STANDING_ROWS, WALKER, SplitMix64,  # noqa: E402
+from record_ball_takes import (DEAD_ZONE, REACH, STANDING_ROWS, WALKER, SplitMix64,  # noqa: E402
                                call, command, style, yaw_of)
 
 PREFIX = "TRIAL>"
 MAC_APP = "~/m1-app/DuckStudio.app/Contents/MacOS/DuckStudio"
-STOPPED_M = SLOWING        # stopped at the ball: ended this close (BallExpert.slowing, 0.35 m)
+STOPPED_M = round(REACH + 0.05, 3)   # stopped at the ball: ended this close (0.40 m), a stop's few mm of drift spared
 STANDING_S = 1.0           # and every command of the last second inside the dead zone
 STILL_M = 0.02             # parked: the root moved at most this far in that last second, whatever was asked
 HALF_HFOV = math.atan(math.tan(math.radians(45 / 2)) * 320 / 176)   # the head camera's half-width, 36.98 deg
@@ -86,7 +89,7 @@ class Run:
         self.asks, self.ask_ms, self.refusals, self.tail = 0, [], [], []
         self.last = None
         self.write({"type": "start", "seed": seed, "who": who, "bearing": bearing, "range": rng_range,
-                    **geometry(state)})
+                    **geometry(state), "bench": state})
         self.see(state, None)
 
     def write(self, obj):
@@ -98,7 +101,7 @@ class Run:
         if not g["upright"]:
             self.fell = True
         if cmd is not None:
-            self.write({"type": "step", "cmd": cmd, **g})
+            self.write({"type": "step", "cmd": cmd, **g, "bench": state})
 
     def event(self, kind, req):
         self.tail.append(kind)
@@ -120,7 +123,7 @@ class Run:
 def score(path):
     """One run's numbers, from its log alone. The clock starts at the first ask (the driver's first
     look; the expert has none, so its start). Seeing is judged from the root's heading, so a ball
-    under the camera (closer than about 0.29 m) still counts as seen."""
+    under the camera (closer than about 0.30 m) still counts as seen."""
     with open(path) as f:
         lines = [json.loads(l) for l in f]
     start = lines[0]
