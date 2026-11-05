@@ -1339,7 +1339,8 @@ struct DriveView: View {
                 apply(arbiter.handle(.start(.goal, duck: duck, owner: .app), at: Date()))
             } else {
                 finishRun(.goal)
-                if let walked = dreamModel.lastWalk { say(walked) }
+                // "You took over." and the cap's line stay; the card keeps the run's own line.
+                if !arbiter.saidItsOwnEnding, let walked = dreamModel.lastWalk { say(walked) }
             }
         }
         // THE CAP IS CHECKED WHILE ANY GOAL RUNS: Dream-1 or an Ask the duck plan.
@@ -1664,7 +1665,14 @@ struct DriveView: View {
             guard let bench = (try? requirePeer()) as? BenchPeer else { say(ControllerWords.tellNoDuck); return }
             say(nil)
             dreamModel.walkToBall(bench, feed: simHeadCamera, folder: drivers.folder,
-                                  stepAside: { await stepAside() }, seen: { live = $0 })
+                                  stepAside: { await stepAside() }, seen: { live = $0 },
+                                  walkerOn: {
+                                      // THE BENCH CHANGED NETWORKS UNDER THE DESK, as in `swap`: the
+                                      // next stick drive must not think the old one is still loaded.
+                                      if let id = self.bench?.id { benches.noteLoaded(BallRunStart.walker, on: id) }
+                                      desk.noteLoaded(BallRunStart.walker)
+                                      stateSaid = nil
+                                  })
         case .dream:
             guard dreamReady else { router.go(to: .studio(nil)); return }
             if venue == .real { realDream = true } else { shelf = .dream }
@@ -1755,7 +1763,7 @@ struct DriveView: View {
                                       driverInstalled: drivers.phase.isInstalled,
                                       driverCard: DriverCard(phase: drivers.phase, duck: duckKind,
                                                              release: drivers.release,
-                                                             cameraNote: simHeadCamera.unavailable,
+                                                             cameraMissing: simHeadCamera.unavailable != nil,
                                                              lastRun: dreamModel.lastWalk),
                                       driverAct: { drivers.act($0) { go(.walkToBall) } },
                                       dreamReady: dreamReady,

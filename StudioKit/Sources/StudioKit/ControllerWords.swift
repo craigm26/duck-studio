@@ -162,7 +162,7 @@ public enum AutoGoal: String, CaseIterable, Sendable, Identifiable {
 
     public var title: String {
         switch self {
-        case .walkToBall: return "Walk to the ball, on this phone"
+        case .walkToBall: return "Walk to the ball, on this device"
         case .dream: return "Dream-1 (your key)"
         }
     }
@@ -177,7 +177,7 @@ public enum AutoGoal: String, CaseIterable, Sendable, Identifiable {
     /// Where it runs and whose it is. Neither card is Pollen's.
     public var provenance: String {
         switch self {
-        case .walkToBall: return "Runs on this phone. Not made by Pollen."
+        case .walkToBall: return "Runs on this device. Not made by Pollen."
         case .dream: return "Hosted by Dream Labs, your key. Not made by Pollen."
         }
     }
@@ -194,7 +194,7 @@ public enum AutoGoal: String, CaseIterable, Sendable, Identifiable {
     }
 
     public enum Words {
-        public static let practiceOnly = "Practice duck only for now. Runs on this phone, no key needed."
+        public static let practiceOnly = "Practice duck only for now. Runs on this device, no key needed."
         /// On a real duck, installed or not. THE CAMERA PATH EXISTS (mediad `/frame`), and the driver
         /// is still kept off the robot: it has only ever seen the drawn practice stage, never a real
         /// floor, and no run of it has been judged on one (the build 90 plan's risk 7).

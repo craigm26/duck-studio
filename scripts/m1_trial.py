@@ -75,7 +75,9 @@ def setup(bench, seed):
     state = call(bench, "/ball", {"bearing": bearing, "range": rng_range})
     if APP_START:
         # The app's own start (`BenchPeer.layOut`): the same three calls, then the pre-roll as one
-        # /stop, because no request runs while the app waits for its first pictures.
+        # /stop, because no request runs while the app waits for its first pictures. The driver arm
+        # then stands through DriverTrial's own pre-roll as well (first ask near t=2.9, not 1.7):
+        # the lockstep trial needs those ticks to draw its window, and the app does not.
         state = call(bench, "/stop", {"settle": APP_SETTLE_S})
     return bearing, rng_range, state
 
@@ -294,6 +296,8 @@ def main():
     p.add_argument("--limit", type=float, default=60.0, help="expert only: seconds of sim time")
     p.add_argument("--rescore", action="store_true", help="no bench: score OUT/WHO's logs again")
     a = p.parse_args()
+    global APP_START
+    APP_START = a.app_start
     seeds = parse_seeds(a.seeds)
     out_dir = pathlib.Path(a.out).expanduser() / a.who
     out_dir.mkdir(parents=True, exist_ok=True)

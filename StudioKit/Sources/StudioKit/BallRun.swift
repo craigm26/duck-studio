@@ -33,7 +33,7 @@ public struct BallRunStart: Equatable, Sendable {
 
     public enum Words {
         public static let needsPlainFloor =
-            "Walk to the ball needs the plain floor: the driver has never seen stairs. Pick the bench's own world in Scene."
+            "Walk to the ball needs a flat floor: it has never seen stairs. Pick Bare floor in Scene."
         public static let cameraTooSlow = "The practice camera did not start in time. Try again."
     }
 
@@ -76,6 +76,9 @@ public struct BallRunWatch: Equatable, Sendable {
     public static let parkedWithin = BallExpert.reach + 0.05
     public static let stillMetres = 0.02
     public static let stillSeconds = 1.0
+    /// A ball that moved further than this gets a mention in the line after a run. It says the ball
+    /// moved, not that the duck pushed it: a start can leave the ball rolling by itself.
+    public static let movedMetres = 0.03
 
     public enum Outcome: Equatable, Sendable {
         case parked(reachedAfter: Double?, metres: Double)
@@ -90,6 +93,8 @@ public struct BallRunWatch: Equatable, Sendable {
     private var closest: Double?
     private var fell = false
     private var parkedAt: Double?
+    private var ballStart: (x: Double, y: Double)?
+    private var ballMoved = 0.0
     private var trail: [(t: Double, x: Double, y: Double)] = []
 
     public init() {}
@@ -104,6 +109,11 @@ public struct BallRunWatch: Equatable, Sendable {
         guard let ball = live.ball else { return false }
         let t = live.t, root = live.stance.root
         if started == nil { started = t }
+        if let first = ballStart {
+            ballMoved = max(ballMoved, Self.apart(ball.x - first.x, ball.y - first.y))
+        } else {
+            ballStart = (ball.x, ball.y)
+        }
         let metres = Self.apart(ball.x - root.x, ball.y - root.y)
         closest = min(closest ?? metres, metres)
         if metres <= BallExpert.reach, reachedAt == nil { reachedAt = t }
@@ -130,11 +140,14 @@ public struct BallRunWatch: Equatable, Sendable {
 
     public enum Words {
         public static func parked(_ seconds: Double) -> String { String(format: "Reached the ball in %.1f s and stopped.", seconds) }
+        public static func parkedBallMoved(_ seconds: Double, _ metres: Double) -> String {
+            String(format: "Reached the ball in %.1f s and stopped. The ball moved %.2f m.", seconds, metres)
+        }
         public static func parkedShort(_ metres: Double) -> String { String(format: "Stopped %.2f m from the ball.", metres) }
         public static func reachedNoStop(_ seconds: Double) -> String { String(format: "Reached the ball in %.1f s but did not stop.", seconds) }
         public static func missed(_ metres: Double) -> String { String(format: "Did not reach the ball. Closest: %.2f m.", metres) }
         public static let fell = "The duck fell over on the way."
-        public static func answered(_ ms: Int) -> String { "Each answer took \(ms) ms (p50)." }
+        public static func answered(_ ms: Int) -> String { "It answered in about \(ms) ms." }
     }
 
     /// The line after a run. `pilotSaid` is the pilot's last word, kept when it ended for a reason of
@@ -142,7 +155,8 @@ public struct BallRunWatch: Equatable, Sendable {
     public func line(pilotSaid: String?, p50: Int?) -> String {
         var first: String?
         switch outcome {
-        case .parked(let after?, _): first = Words.parked(after)
+        case .parked(let after?, _):
+            first = ballMoved > Self.movedMetres ? Words.parkedBallMoved(after, ballMoved) : Words.parked(after)
         case .parked(nil, let metres): first = Words.parkedShort(metres)
         case .reached(let after): first = Words.reachedNoStop(after)
         case .missed(let closest): first = Words.missed(closest)
@@ -172,16 +186,19 @@ public struct DriverCard: Equatable, Sendable {
         public static let tryAgain = "Try again"
         public static let delete = "Delete"
         public static func getting(_ percent: Int) -> String { "Getting the driver: \(percent)%" }
-        public static let checking = "Checking it on this phone."
+        public static let checking = "Checking it on this device."
+        /// A device that cannot draw the practice camera can never press Go, so it is not offered Get.
+        public static let needsNewerSystem = "Walk to the ball needs iOS 18 or newer: it draws the practice duck's camera."
         /// The fresh-seed number, and what it still does wrong.
         public static func honest(_ r: DriverRelease) -> String {
-            "Simulator test: reached \(r.freshReached) of \(r.freshRuns), stopped at \(r.freshParked). "
-                + "It can bump the ball."
+            "Simulator test: reached the ball \(r.freshReached) of \(r.freshRuns) times, stopped there "
+                + "\(r.freshParked) of \(r.freshRuns). It often bumps the ball first."
         }
         public static func all(_ r: DriverRelease) -> [String] {
-            [provenance, get(r.size), cancel, tryAgain, delete, getting(40), checking, honest(r),
-             BallRunStart.Words.needsPlainFloor, BallRunStart.Words.cameraTooSlow,
-             BallRunWatch.Words.parked(9.5), BallRunWatch.Words.parkedShort(0.38),
+            [provenance, get(r.size), cancel, tryAgain, delete, getting(40), checking, needsNewerSystem,
+             honest(r), BallRunStart.Words.needsPlainFloor, BallRunStart.Words.cameraTooSlow,
+             BallRunWatch.Words.parked(9.5), BallRunWatch.Words.parkedBallMoved(9.5, 0.21),
+             BallRunWatch.Words.parkedShort(0.38),
              BallRunWatch.Words.reachedNoStop(9.5), BallRunWatch.Words.missed(0.6),
              BallRunWatch.Words.fell, BallRunWatch.Words.answered(9)]
         }
@@ -198,18 +215,22 @@ public struct DriverCard: Equatable, Sendable {
     }
 
     /// - Parameters:
-    ///   - cameraNote: why this device cannot draw the practice camera, or nil.
+    ///   - cameraMissing: this device cannot draw the practice camera.
     ///   - lastRun: the line from the last run, kept until the next.
     public init(phase: DriverInstall.Phase, duck: DuckIdentity.Kind?, release: DriverRelease = .walkToBall,
-                cameraNote: String? = nil, lastRun: String? = nil) {
+                cameraMissing: Bool = false, lastRun: String? = nil) {
         var lines: [String] = []
         var actions: [Action] = []
         progress = phase.fraction
         switch phase {
         case .absent:
             lines.append(Words.honest(release))
-            if duck == .real { lines.append(AutoGoal.Words.practiceOnlyForNow) }
-            actions = [.get]
+            if cameraMissing {
+                lines.append(Words.needsNewerSystem)
+            } else {
+                if duck == .real { lines.append(AutoGoal.Words.practiceOnlyForNow) }
+                actions = [.get]
+            }
         case .getting:
             lines.append(Words.getting(Int(((phase.fraction ?? 0) * 100).rounded())))
             actions = [.cancel]
@@ -224,8 +245,8 @@ public struct DriverCard: Equatable, Sendable {
             if let lastRun { lines.append(lastRun) } else { lines.append(Words.honest(release)) }
             if let reason = goal.availability(on: duck, driverInstalled: true).reason {
                 lines.append(reason)
-            } else if let cameraNote {
-                lines.append(cameraNote)
+            } else if cameraMissing {
+                lines.append(Words.needsNewerSystem)
             } else {
                 actions.append(.go)
             }

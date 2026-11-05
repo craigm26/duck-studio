@@ -15,8 +15,9 @@ final class BallRunTests: XCTestCase {
         return try! JSONSerialization.data(withJSONObject: body)
     }
 
-    private func live(t: Double = 1, x: Double = 0, y: Double = 0, upright: Bool = true) throws -> DuckDrive.Live {
-        try DuckDrive.readLive(Self.state(t: t, x: x, y: y, upright: upright))
+    private func live(t: Double = 1, x: Double = 0, y: Double = 0, upright: Bool = true,
+                      ball: Double = 0.8) throws -> DuckDrive.Live {
+        try DuckDrive.readLive(Self.state(t: t, x: x, y: y, ball: [ball, 0, 0.05], upright: upright))
     }
 
     private actor Calls {
@@ -135,7 +136,7 @@ final class BallRunTests: XCTestCase {
         XCTAssertGreaterThan(after, 0)
         XCTAssertEqual(metres, 0.8 - x, accuracy: 1e-6)
         XCTAssertTrue(watch.line(pilotSaid: DuckDream.Words.stopped, p50: 9).hasPrefix("Reached the ball in "))
-        XCTAssertTrue(watch.line(pilotSaid: DuckDream.Words.stopped, p50: 9).hasSuffix("Each answer took 9 ms (p50)."))
+        XCTAssertTrue(watch.line(pilotSaid: DuckDream.Words.stopped, p50: 9).hasSuffix("It answered in about 9 ms."))
     }
 
     func testStandingFarFromTheBallIsNotParked() throws {
@@ -151,7 +152,7 @@ final class BallRunTests: XCTestCase {
         for i in 0..<40 { t = Double(i) * 0.1; XCTAssertFalse(watch.see(try live(t: t, x: Double(i) * 0.06))) }
         guard case .reached(let after) = watch.outcome else { return XCTFail("\(watch.outcome)") }
         XCTAssertEqual(watch.line(pilotSaid: DuckDream.Words.timeUp, p50: 12),
-                       String(format: "Reached the ball in %.1f s but did not stop. Each answer took 12 ms (p50).", after))
+                       String(format: "Reached the ball in %.1f s but did not stop. It answered in about 12 ms.", after))
     }
 
     func testAFallEndsTheRun() throws {
@@ -173,8 +174,8 @@ final class BallRunTests: XCTestCase {
         let card = DriverCard(phase: .absent, duck: .sim)
         XCTAssertEqual(card.actions, [.get])
         XCTAssertEqual(card.title(.get, release: .walkToBall), "Get (4.4 MB)")
-        XCTAssertEqual(card.lines, ["Simulator test: reached 20 of 20, stopped at 14. It can bump the ball.",
-                                    "Runs on this phone. Not made by Pollen."])
+        XCTAssertEqual(card.lines, ["Simulator test: reached the ball 20 of 20 times, stopped there 14 of 20. It often bumps the ball first.",
+                                    "Runs on this device. Not made by Pollen."])
     }
 
     func testDownloadingShowsProgressAndCancel() {
@@ -202,9 +203,32 @@ final class BallRunTests: XCTestCase {
     }
 
     func testAPhoneThatCannotDrawTheCameraHasNoGo() {
-        let card = DriverCard(phase: .installed, duck: .sim, cameraNote: "Needs iOS 18.")
+        let card = DriverCard(phase: .installed, duck: .sim, cameraMissing: true)
         XCTAssertEqual(card.actions, [.delete])
-        XCTAssertTrue(card.lines.contains("Needs iOS 18."))
+        XCTAssertTrue(card.lines.contains(DriverCard.Words.needsNewerSystem))
+    }
+
+    /// iOS 17: a download that could never run is not offered, on either duck.
+    func testAPhoneThatCannotDrawTheCameraIsNotOfferedGet() {
+        for duck in [DuckIdentity.Kind.sim, .real] {
+            let card = DriverCard(phase: .absent, duck: duck, cameraMissing: true)
+            XCTAssertEqual(card.actions, [])
+            XCTAssertTrue(card.lines.contains(DriverCard.Words.needsNewerSystem))
+        }
+    }
+
+    /// The sentence after a run does not hide a ball that moved.
+    func testTheLineSaysTheBallMoved() throws {
+        var watch = BallRunWatch()
+        var t = 2.0
+        _ = watch.see(try live(t: t, x: 0))
+        // Reached with the ball moved on by 0.2 m, then a second standing still.
+        for x in stride(from: 0.03, through: 0.48, by: 0.03) { t += 0.1; _ = watch.see(try live(t: t, x: x, ball: 0.8)) }
+        var done = false
+        for _ in 0..<14 where !done { t += 0.1; done = watch.see(try live(t: t, x: 0.7, ball: 1.0)) }
+        XCTAssertTrue(done)
+        XCTAssertTrue(watch.line(pilotSaid: nil, p50: nil).hasSuffix("The ball moved 0.20 m."),
+                      watch.line(pilotSaid: nil, p50: nil))
     }
 
     func testTheLastRunTakesTheHonestLinesPlace() {

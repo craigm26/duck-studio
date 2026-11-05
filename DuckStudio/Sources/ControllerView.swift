@@ -276,6 +276,7 @@ struct AutoPanel: View {
                 .fixedSize(horizontal: false, vertical: true)
             if let progress = driverCard.progress {
                 ProgressView(value: progress)
+                    .accessibilityLabel(Text(goal.title))
             }
             ForEach(driverCard.lines, id: \.self) { line in
                 Text(line)
@@ -283,13 +284,23 @@ struct AutoPanel: View {
                     .foregroundStyle(Theme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            HStack(spacing: 4) {
+            // GO MOVES A DUCK AND GETS THE BUTTON THAT SAYS SO. Delete sits at the far end, no red:
+            // red is Stop and nothing else, and an instant delete is not beside the thing you press.
+            HStack(spacing: Theme.spacing(.tight)) {
                 ForEach(driverCard.actions, id: \.self) { action in
-                    Button(driverCard.title(action, release: .walkToBall), role: action == .delete ? .destructive : nil) {
-                        driverAct(action)
+                    let title = driverCard.title(action, release: .walkToBall)
+                    if action == .go {
+                        Button(title) { driverAct(action) }
+                            .buttonStyle(.primaryActionInline)
+                            .accessibilityLabel(Text("\(title), \(goal.title)"))
+                        Spacer(minLength: 0)
+                    } else {
+                        Button(title) { driverAct(action) }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .frame(minHeight: DesignMetric.minimumTarget)
+                            .accessibilityLabel(Text("\(title), \(goal.title)"))
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
                 }
             }
         }
@@ -297,6 +308,7 @@ struct AutoPanel: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .pondPanel(.control)
         .accessibilityElement(children: .contain)
+        .accessibilityHint(Text(goal.provenance))
     }
 
     private func helper(_ goal: AutoGoal) -> some View {

@@ -118,8 +118,10 @@ final class DreamRunModel: ObservableObject {
     /// `seen` gives the screen each state: the stage draws what the driver is doing.
     func walkToBall(_ peer: BenchPeer, feed: SimHeadCameraFeed, folder: String,
                     stepAside: @escaping @MainActor () async -> Void,
-                    seen: @escaping @MainActor (DuckDrive.Live) -> Void) {
+                    seen: @escaping @MainActor (DuckDrive.Live) -> Void,
+                    walkerOn: @escaping @MainActor () -> Void) {
         guard !running else { return }
+        DuckRuns.shared.makeWay()
         running = true
         walking = true
         line = nil
@@ -138,7 +140,10 @@ final class DreamRunModel: ObservableObject {
                     try DriverTrial.load(folder: folder, decode: { DriverPicture.rgb($0) },
                                          tooHot: { ProcessInfo.processInfo.thermalState == .critical })
                 }.value
+                // THE LOAD IGNORES CANCEL. A Stop while it ran must not lay the world out after.
+                try Task.checkCancellation()
                 try await peer.layOut(start)
+                walkerOn()
                 try Task.checkCancellation()
                 feed.stop()
                 feed.start(peer)
@@ -161,12 +166,15 @@ final class DreamRunModel: ObservableObject {
                     }
                     return watch
                 }
-                await DreamPilot(checkpoint: loaded.modelID, prompt: loaded.manifest.task)
-                    .run(on: peer, rows: loaded.rows, frames: { await feed.dreamWindow() },
-                         events: { event in
-                             await self?.apply(event)
-                             if case .ended(let last) = event { await self?.noteEnd(last) }
-                         })
+                // THE CAP LIVES WITH THE RUN, as Dream-1's does: Play's tick ends with its tab.
+                _ = await ControlArbiter.Caps.standard.enforce(on: .sim, stop: { DuckRuns.shared.stop() }) {
+                    await DreamPilot(checkpoint: loaded.modelID, prompt: loaded.manifest.task)
+                        .run(on: peer, rows: loaded.rows, frames: { await feed.dreamWindow() },
+                             events: { event in
+                                 await self?.apply(event)
+                                 if case .ended(let last) = event { await self?.noteEnd(last) }
+                             })
+                }
                 watcher.cancel()
                 watched = await watcher.value
                 said = self?.ended

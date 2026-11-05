@@ -106,7 +106,9 @@ struct DreamSimStatus: View {
     @ObservedObject var recorder: DreamRecorder
 
     var body: some View {
-        if recorder.recording || model.running {
+        // NOT FOR WALK TO THE BALL: Auto's status line and Take over already cover it, and this
+        // pill's heading names Dream-1, a hosted product the walk has nothing to do with.
+        if recorder.recording || (model.running && !model.walking) {
             HStack(spacing: Theme.spacing(.tight)) {
                 Image(systemName: recorder.recording ? "record.circle.fill" : "sparkles")
                     .foregroundStyle(recorder.recording ? Theme.critical : Theme.actionInk)
