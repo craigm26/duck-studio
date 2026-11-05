@@ -35,7 +35,9 @@ from that log (`score`), so `--rescore` rebuilds a summary from old logs without
 
     python3 scripts/m1_trial.py --who expert --out ~/scratch/ball-takes/m1-v1
     python3 scripts/m1_trial.py --who driver --mac-driver '~/m1-driver' --out ~/scratch/ball-takes/m1-v1
+    python3 scripts/m1_trial.py --who driver --raw --out ~/scratch/ball-takes/m1-v1   # no DriverSnap
     python3 scripts/m1_trial.py --who driver --rescore --out ~/scratch/ball-takes/m1-v1
+    python3 scripts/m1_trial.py --who expert --app-start --seeds 8001-8020 --out ~/scratch/ball-takes/m1-app   # the app's start
 """
 
 import argparse
@@ -56,6 +58,8 @@ MAC_APP = "~/m1-app/DuckStudio.app/Contents/MacOS/DuckStudio"
 STOPPED_M = round(REACH + 0.05, 3)   # stopped at the ball: ended this close (0.40 m), a stop's few mm of drift spared
 STANDING_S = 1.0           # and every command of the last second inside the dead zone
 STILL_M = 0.02             # parked: the root moved at most this far in that last second, whatever was asked
+APP_SETTLE_S = 1.2         # DriverTrial.preRoll
+APP_START = False          # --app-start
 HALF_HFOV = math.atan(math.tan(math.radians(45 / 2)) * 320 / 176)   # the head camera's half-width, 36.98 deg
 
 
@@ -68,7 +72,14 @@ def setup(bench, seed):
     bearing, rng_range = start_of(seed)
     call(bench, "/reset", {})
     call(bench, "/policy", {"policy": WALKER})
-    return bearing, rng_range, call(bench, "/ball", {"bearing": bearing, "range": rng_range})
+    state = call(bench, "/ball", {"bearing": bearing, "range": rng_range})
+    if APP_START:
+        # The app's own start (`BenchPeer.layOut`): the same three calls, then the pre-roll as one
+        # /stop, because no request runs while the app waits for its first pictures. The driver arm
+        # then stands through DriverTrial's own pre-roll as well (first ask near t=2.9, not 1.7):
+        # the lockstep trial needs those ticks to draw its window, and the app does not.
+        state = call(bench, "/stop", {"settle": APP_SETTLE_S})
+    return bearing, rng_range, state
 
 
 def geometry(state):
@@ -199,7 +210,7 @@ def run_expert(bench, seeds, out_dir, limit):
     return results
 
 
-def run_mac(bench, seeds, out_dir, who, mac_driver):
+def run_mac(bench, seeds, out_dir, who, mac_driver, raw=False):
     sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
     import mac_compile_check as base
     import paramiko
@@ -209,7 +220,7 @@ def run_mac(bench, seeds, out_dir, who, mac_driver):
     client.get_transport().set_keepalive(30)
     ch = client.get_transport().open_session()
     ch.set_combine_stderr(True)
-    arg = "zero" if who == "zero" else mac_driver
+    arg = "zero" if who == "zero" else mac_driver + (" -driver-raw" if raw else "")
     ch.exec_command(f"export HOME={base.Q_HOME} CFFIXED_USER_HOME={base.Q_HOME}; {MAC_APP} -driver-trial {arg}")
     pending = list(seeds)
     results, run, buf = [], None, b""
@@ -280,9 +291,13 @@ def main():
     p.add_argument("--seeds", default="5001-5010")
     p.add_argument("--out", required=True)
     p.add_argument("--mac-driver", default="~/m1-driver")
+    p.add_argument("--app-start", action="store_true", help="lay each start as the app does (BenchPeer.layOut)")
+    p.add_argument("--raw", action="store_true", help="driver only: play its rows without the snap")
     p.add_argument("--limit", type=float, default=60.0, help="expert only: seconds of sim time")
     p.add_argument("--rescore", action="store_true", help="no bench: score OUT/WHO's logs again")
     a = p.parse_args()
+    global APP_START
+    APP_START = a.app_start
     seeds = parse_seeds(a.seeds)
     out_dir = pathlib.Path(a.out).expanduser() / a.who
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -296,7 +311,7 @@ def main():
     elif a.who == "expert":
         results = run_expert(a.bench, seeds, out_dir, a.limit)
     else:
-        results = run_mac(a.bench, seeds, out_dir, a.who, a.mac_driver)
+        results = run_mac(a.bench, seeds, out_dir, a.who, a.mac_driver, a.raw)
     summary = summarize(a.who, a.seeds, results)
     (out_dir / "summary.json").write_text(json.dumps(summary, indent=1))
     print(json.dumps({k: v for k, v in summary.items() if k != "results"}))

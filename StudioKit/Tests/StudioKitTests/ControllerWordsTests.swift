@@ -18,22 +18,24 @@ final class ControllerWordsTests: XCTestCase {
         XCTAssertTrue(gate.admits(centred: false), "a fresh push drives")
     }
 
-    /// The phone driver is not installed in the app: its card says so and cannot start, on any
-    /// duck. Never faked.
-    func testThePhoneDriverIsHonestlyNotHereYet() {
-        for duck in [DuckIdentity.Kind.sim, .real] {
-            XCTAssertEqual(AutoGoal.walkToBall.availability(on: duck, driverInstalled: false),
-                           .unavailable(AutoGoal.Words.notOnThisPhone))
-        }
+    /// Not on this device: the practice duck's card says to get it, and it cannot start.
+    func testAPhoneDriverNotHereSaysGetIt() {
+        let size = DriverRelease.walkToBall.size
+        XCTAssertEqual(AutoGoal.walkToBall.availability(on: .sim, driverInstalled: false),
+                       .unavailable(AutoGoal.Words.getFirst(size)))
         XCTAssertEqual(AutoGoal.walkToBall.subtitle(on: .sim, driverInstalled: false),
-                       AutoGoal.Words.notOnThisPhone)
+                       AutoGoal.Words.getFirst(size))
+        XCTAssertTrue(AutoGoal.Words.getFirst(size).contains("4.4 MB"))
     }
 
-    /// Once a driver is on the phone it runs on the practice duck only.
+    /// Once a driver is on the phone it runs on the practice duck only, and a real duck says so
+    /// whether or not one is installed.
     func testAnInstalledDriverIsPracticeDuckOnly() {
         XCTAssertEqual(AutoGoal.walkToBall.availability(on: .sim, driverInstalled: true), .ready)
-        XCTAssertEqual(AutoGoal.walkToBall.availability(on: .real, driverInstalled: true),
-                       .unavailable(AutoGoal.Words.trainedOnSim))
+        for installed in [true, false] {
+            XCTAssertEqual(AutoGoal.walkToBall.availability(on: .real, driverInstalled: installed),
+                           .unavailable(AutoGoal.Words.practiceOnlyForNow))
+        }
         XCTAssertEqual(AutoGoal.walkToBall.subtitle(on: .sim, driverInstalled: true),
                        AutoGoal.Words.practiceOnly)
     }

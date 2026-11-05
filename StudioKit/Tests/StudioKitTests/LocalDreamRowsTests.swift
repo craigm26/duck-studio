@@ -158,4 +158,25 @@ final class LocalDreamRowsTests: XCTestCase {
             XCTAssertFalse(line.contains("\u{2014}"), line)
         }
     }
+
+    // MARK: - the snap on the way out
+
+    private func firstRow(snapped: Bool) async throws -> DuckDrive.Twist {
+        var m = try DriverManifest.read(DriverFilesTests.manifest { $0["snap"] = ["forward_zero_below": 0.12, "forward_start": 0.25, "turn_zero_below": 0.1] })
+        m.playsRaw = !snapped
+        let net = FakeNet()
+        net.output[0] = 0.4      // act_mean 0.1 + 0.4 * 0.2 = 0.18 forward, in the walker's dead band
+        let pic = picture
+        let source = LocalDreamRows(net: net, manifest: m, modelID: "driver@abc", decode: { _ in pic })
+        let chunk = try await source.act(checkpoint: "driver@abc", prompt: "", frames: [DuckDream.cameraRole: ["a"]],
+                                         state: [:], reset: true)
+        return chunk.rows[0]
+    }
+
+    func testTheRowsThePilotGetsAreSnappedUnlessTheTrialSaysRaw() async throws {
+        let snapped = try await firstRow(snapped: true)
+        XCTAssertEqual(snapped.vx, 0.25)
+        let raw = try await firstRow(snapped: false)
+        XCTAssertEqual(raw.vx, 0.18, accuracy: 1e-6)
+    }
 }

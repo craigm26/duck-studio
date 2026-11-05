@@ -64,14 +64,16 @@ public enum DriverPrep {
         return DriverInput(values: out)
     }
 
-    /// The network's flat output as walk commands: `rows` x 3, un-normalised. Refused whole if any
-    /// value is not finite or the count is wrong, never played in part.
+    /// The network's flat output as walk commands: `rows` x 3, un-normalised, then snapped onto the
+    /// expert's commands when the manifest says so (`DriverManifest.outputSnap`). Refused whole if
+    /// any value is not finite or the count is wrong, never played in part.
     public static func rows(_ flat: [Float], rows: Int, manifest: DriverManifest) throws -> [DuckDrive.Twist] {
         guard flat.count == rows * 3 else { throw Problem.badOutput(flat.count) }
         if let bad = flat.firstIndex(where: { !$0.isFinite }) { throw Problem.badOutput(bad) }
-        return (0..<rows).map { r in
+        let raw = (0..<rows).map { r in
             func v(_ c: Int) -> Double { Double(flat[r * 3 + c] * manifest.actStd[c] + manifest.actMean[c]) }
             return DuckDrive.Twist(vx: v(0), vy: v(1), vyaw: v(2))
         }
+        return manifest.outputSnap?.chunk(raw) ?? raw
     }
 }

@@ -22,6 +22,8 @@ final class TrainedDriverTests: XCTestCase {
         let problem = try DriverGolden.check(net: net, golden: golden)
         XCTAssertNil(problem, problem?.message ?? "")
         print("trained driver: task \(manifest.task), label \(manifest.label), val L1 \(manifest.valL1 ?? .nan), "
-            + "zero \(manifest.baselineZeroL1 ?? .nan), repeat \(manifest.baselineRepeatL1 ?? .nan)")
+            + "zero \(manifest.baselineZeroL1 ?? .nan), repeat \(manifest.baselineRepeatL1 ?? .nan), "
+            + "snap \(manifest.outputSnap.map { "\($0.forwardZeroBelow)/\($0.forwardStart)/\($0.turnZeroBelow)" } ?? "none")")
+        if let snap = manifest.outputSnap { XCTAssertTrue(snap.isValid) }
     }
 }

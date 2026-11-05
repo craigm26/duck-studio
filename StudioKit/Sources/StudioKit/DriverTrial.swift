@@ -22,6 +22,9 @@ public enum DriverTrial {
     public static let flag = "-driver-trial"
     /// Instead of a driver folder: the zero-twist baseline, every row still.
     public static let zero = "zero"
+    /// After the driver folder: play the rows as the network answers them, no `DriverSnap`, so one
+    /// build can judge a driver with and without its snap.
+    public static let rawFlag = "-driver-raw"
     /// The app's wait between Run and the first ask (`DreamRunModel.run`), the window filling.
     public static let preRoll: TimeInterval = 1.2
     /// The sim head camera's period (`SimHeadCameraFeed`: five pictures a second).
@@ -35,13 +38,15 @@ public enum DriverTrial {
     public struct Job: Equatable, Sendable {
         /// The driver folder (policy.json, model.safetensors, golden.json), or nil for zero twist.
         public let driver: String?
+        /// Skip the driver's snap (`rawFlag`).
+        public var raw = false
     }
 
-    /// `-driver-trial DIR` or `-driver-trial zero`.
+    /// `-driver-trial DIR`, `-driver-trial DIR -driver-raw` or `-driver-trial zero`.
     public static func job(arguments: [String]) -> Job? {
         guard let at = arguments.firstIndex(of: flag), arguments.count > at + 1 else { return nil }
         let value = arguments[at + 1]
-        return Job(driver: value == zero ? nil : value)
+        return Job(driver: value == zero ? nil : value, raw: arguments.contains(rawFlag))
     }
 
     /// Request JSON out, reply JSON back.
@@ -60,10 +65,12 @@ public enum DriverTrial {
 
     /// A driver folder, checked as the phone checks one before installing it: the manifest, both
     /// files' sizes and SHA-256, the weights' shapes, and the golden replay.
-    public static func load(folder: String, decode: @escaping @Sendable (String) -> [UInt8]?) throws -> (rows: LocalDreamRows, manifest: DriverManifest, modelID: String) {
+    public static func load(folder: String, raw: Bool = false, decode: @escaping @Sendable (String) -> [UInt8]?,
+                            tooHot: @escaping @Sendable () -> Bool = { false }) throws -> (rows: LocalDreamRows, manifest: DriverManifest, modelID: String) {
         let root = URL(fileURLWithPath: folder)
         func read(_ name: String) throws -> Data { try Data(contentsOf: root.appendingPathComponent(name)) }
-        let manifest = try DriverManifest.read(try read("policy.json"))
+        var manifest = try DriverManifest.read(try read(DriverManifest.policyFile))
+        manifest.playsRaw = raw
         let weights = try read(DriverManifest.weightsFile)
         let goldenData = try read(DriverManifest.goldenFile)
         guard manifest.matches(weights, path: DriverManifest.weightsFile) else { throw Problem.notThisDriver("weights hash") }
@@ -73,7 +80,7 @@ public enum DriverTrial {
             throw Problem.golden(problem.message)
         }
         let modelID = "\(manifest.label)@\(String(DriverHash.hex(weights).prefix(12)))"
-        return (LocalDreamRows(net: net, manifest: manifest, modelID: modelID, decode: decode), manifest, modelID)
+        return (LocalDreamRows(net: net, manifest: manifest, modelID: modelID, decode: decode, tooHot: tooHot), manifest, modelID)
     }
 
     /// The bitmap a decoded picture is drawn into before `rgb(rgba:)`: the driver's picture size, 4 bytes a pixel.
@@ -114,8 +121,11 @@ public enum DriverTrial {
         do {
             let rows: any DreamRows, modelID: String, task: String
             if let folder = job.driver {
-                let loaded = try load(folder: folder, decode: decode)
+                let loaded = try load(folder: folder, raw: job.raw, decode: decode)
                 (rows, modelID, task) = (loaded.rows, loaded.modelID, loaded.manifest.task)
+                say("driver trial: snap " + (loaded.manifest.outputSnap.map {
+                    "forward 0 under \($0.forwardZeroBelow), start \($0.forwardStart), turn 0 under \($0.turnZeroBelow)"
+                } ?? "none, rows played as answered"))
             } else {
                 (rows, modelID, task) = (StillRows(), "zero twist", "walk to the ball")
             }

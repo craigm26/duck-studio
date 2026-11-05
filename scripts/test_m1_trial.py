@@ -13,6 +13,7 @@ import unittest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import m1_trial  # noqa: E402
+from statistics import StatisticsError as statistics_error  # noqa: E402
 
 
 def write_log(folder, who, ticks, ball_moves=0.0, start_off=2.0, ask_at=1.2):
@@ -126,6 +127,27 @@ class FullStateTests(unittest.TestCase):
     def test_stopped_line_is_past_the_reach(self):
         self.assertEqual(m1_trial.REACH, 0.35)
         self.assertAlmostEqual(m1_trial.STOPPED_M, 0.40)
+
+
+class AppStartTests(unittest.TestCase):
+    """The flag that was parsed and never read: a run called "app start" was not one."""
+
+    def test_the_flag_reaches_setup_and_settles_on_stop(self):
+        calls = []
+        real, flag, argv = m1_trial.call, m1_trial.APP_START, sys.argv
+        m1_trial.call = lambda bench, path, body: calls.append(path) or {}
+        try:
+            with tempfile.TemporaryDirectory() as out:
+                sys.argv = ["m1_trial.py", "--who", "expert", "--app-start", "--rescore", "--out", out]
+                try:
+                    m1_trial.main()
+                except (ValueError, IndexError, SystemExit, statistics_error):
+                    pass  # no logs to score; only the flag matters here
+            self.assertTrue(m1_trial.APP_START)
+            m1_trial.setup("bench", 8001)
+            self.assertEqual(calls, ["/reset", "/policy", "/ball", "/stop"])
+        finally:
+            m1_trial.call, m1_trial.APP_START, sys.argv = real, flag, argv
 
 
 class SeedTests(unittest.TestCase):

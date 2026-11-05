@@ -16,6 +16,7 @@ struct MovesView: View {
     @ObservedObject var models: EndpointStore
     let robot: BridgeLink
     @ObservedObject private var runs = DuckRuns.shared
+    @ObservedObject private var drivers = PhoneDrivers.shared
     @EnvironmentObject private var router: AppRouter
 
     /// The sequences kept on this phone, read here for the list; playing one is Play's stick
@@ -96,7 +97,7 @@ struct MovesView: View {
                         router.go(to: .play(.auto))
                     } label: {
                         HubRow(goal.title,
-                               goal.subtitle(on: runs.duck, driverInstalled: PhoneDrivers.installed),
+                               goal.subtitle(on: runs.duck, driverInstalled: drivers.phase.isInstalled),
                                goal.symbol)
                     }
                     .foregroundStyle(Theme.textPrimary)
@@ -124,12 +125,6 @@ struct MovesView: View {
             }
         }
     }
-}
-
-/// Phone drivers installed in this app. None yet: the phone driver's app half is a later build,
-/// and the Auto card says so rather than pretending.
-enum PhoneDrivers {
-    static var installed: Bool { false }
 }
 
 /// Skills and sounds as tiles, on the Moves tab and in Play's pull-up Moves sheet: the same

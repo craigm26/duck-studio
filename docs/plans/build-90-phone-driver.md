@@ -321,6 +321,49 @@ Round 2's driver (`craigm26/duck-driver-walk-to-ball-v3`) reached 10 of 20 balls
 - **What the walk-throughs are.** 5 reached runs ended walking (5006, 5008, 5009, 6002, 6007). Most of them had the ball in view under 15% of the time: the search arc carried the duck onto a ball it never saw. The search turn is still softened (toward the hidden ball 0.2 to 0.5 of the expert's full turn).
 - **Ready for the next round:** `scripts/dagger_relabel.py` turns M1 driver logs into takes with expert labels (rows with the ball under the camera dropped, standing capped at 16 rows).
 
+### Output snap (2026-11-04)
+
+`DriverSnap` puts each row back on the expert's commands: forward under 0.12 is 0, 0.12 to 0.25 is 0.25, a turn under 0.1 is 0, sideways is 0. `DriverPrep.rows` applies it, so the phone and M1 play the same rows. v4 has no `snap` block in its policy.json, so its numbers are pinned by the SHA-256 of its weights; a later driver carries a block. `-driver-raw` (`m1_trial.py --raw`) plays the rows as answered, so one build judges both arms. `scripts/m1_table.py` prints the table from the logs.
+
+Confirmed from the run logs, not the code: every row of every snapped ask (1,200 chunks over the 40 runs) is on the expert's command set (100.0%); unsnapped 0.0%. The trial prints which snap it loaded. The pilot's 3-row blend into each new chunk still runs after the snap; those rows are not on the set, and that is the pilot's job.
+
+| who | seeds | reached | parked | reached and parked | stopped | time to reach (mean) | first seen (mean) | search turn |
+|---|---|---|---|---|---|---|---|---|
+| v4 unsnapped | fresh 7001-7020 | 9 | 17 | 7 | 0 | 15.3 s | 9.8 s | 0.33 |
+| v4 snapped | fresh 7001-7020 | 13 | 17 | 10 | 4 | 20.4 s | 13.5 s | 0.31 |
+| v4 unsnapped | standard 5001-5010, 6001-6010 | 12 | 14 | 7 | 0 | 21.3 s | 12.5 s | 0.33 |
+| v4 snapped | standard | 17 | 15 | 12 | 6 | 21.5 s | 15.4 s | 0.30 |
+| zero | fresh | 0 | 0 | 0 | 0 | | | 0 |
+| expert | fresh | 20 | 20 | 20 | 20 | 8.8 s | 2.5 s | 1 |
+
+The snap reaches more balls and stops some. It does not touch the search turn, which is a share of the expert's full turn while the ball is hidden, so a DAgger round follows.
+
+### DAgger round and the stand latch (2026-11-05)
+
+- **Runs.** v4 snapped on seeds 30001 to 30040 (28 reached). `dagger_relabel.py`: 40 takes, 18,329 rows (9,925 search, 8,069 approach, 335 stand).
+- **Data.** takes-v5 = takes-v4 + those, 280 episodes, 43,860 frames, Dream validator ok. Private `craigm26/duck-drive-walk-to-ball-v5`@8767a57.
+- **Training.** t4-small, 30,000 steps, 17 minutes, about $0.12. Public `craigm26/duck-driver-walk-to-ball-v5`: val L1 0.125 (zero 1.249, repeat 0.284). Weights commit 306f2a6, snap block in policy.json at fe94d4a (the revision to pin).
+- **First M1 on v5.** Search fixed: turn 0.82 of the expert's, first sight 2.8 s (v4 13.5 s), reached 20 of 20. But parked 1 of 20: at the line it said stand on row 0 and walk by row 19, and the pilot plays 20 rows of each chunk.
+- **The latch.** `DriverSnap.chunk`: from the first row whose forward snaps to 0, every row is still. BallExpert's stand is latched and never turns, so this is its command set too. The next ask looks again.
+- **Because seeds 7001-7020 showed the fault,** the latch was also judged on seeds 8001-8020, used by nothing before it.
+
+| who | seeds | reached | parked | reached and parked | stopped | time to reach (mean) | first seen (mean) | search turn |
+|---|---|---|---|---|---|---|---|---|
+| expert | 7001-7020 | 20 | 20 | 20 | 20 | 8.8 s | 2.5 s | 1 |
+| v4 snap + latch | 7001-7020 | 13 | 18 | 11 | 18 | 18.9 s | 13.5 s | 0.31 |
+| v5 snap, no latch | 7001-7020 | 20 | 1 | 1 | 0 | 10.9 s | 2.8 s | 0.82 |
+| **v5 snap + latch** | 7001-7020 | 19 | 13 | 12 | 13 | 12.6 s | 2.8 s | 0.82 |
+| v5 snap, no latch | standard | 20 | 2 | 2 | 0 | 9.9 s | 3.2 s | 0.82 |
+| **v5 snap + latch** | standard | 20 | 14 | 14 | 14 | 9.9 s | 3.2 s | 0.82 |
+| expert | 8001-8020 | 20 | 20 | 20 | 20 | 8.5 s | 2.3 s | 1 |
+| zero | 8001-8020 | 0 | 0 | 0 | 0 | | | 0 |
+| v4 snap + latch | 8001-8020 | 15 | 16 | 11 | 16 | 17.5 s | 10.1 s | 0.30 |
+| **v5 snap + latch** | 8001-8020 | 20 | 14 | 14 | 14 | 12.7 s | 2.7 s | 0.78 |
+
+**Pick: v5 with snap and latch.** On both sets it finds the ball in the expert's time and reaches nearly every one, where v4 reaches 13 to 15.
+
+**What is still wrong.** v5 arrives too hard: the root came within 0.2 m of the ball in 13 of 20 runs on 8001-8020, so it often pushes the ball (0.21 m on average) before standing, and 6 of 20 were still walking at the end. "Parked" there means parked after the push. Likely cause, not yet tested: the DAgger takes keep only 335 stand rows, and a stand label is followed by whatever the driver did next, so the chunks teach "stand now, walk later". The next relabel should end a take at each stand with a full standing tail.
+
 ## Risks and kill criteria
 
 **Risks**
@@ -352,3 +395,31 @@ Round 2's driver (`craigm26/duck-driver-walk-to-ball-v3`) reached 10 of 20 balls
 7. **The real duck.** Confirm that phone drivers stay sim-only until a separate, gated decision, in line with `enabled_on_robot = false`.
 
 Files read: `/home/craigm26/projects/duck-studio/StudioKit/Sources/StudioKit/DreamDataset.swift`, `/home/craigm26/projects/duck-studio/StudioKit/Sources/StudioKit/HubTraining.swift`, `/home/craigm26/projects/duck-studio/StudioKit/Sources/StudioKit/HuggingFacePublish.swift`, `/home/craigm26/projects/duck-studio/DuckStudio/Sources/DreamRecorder.swift`, `/home/craigm26/projects/duck-studio/DuckStudio/project.yml` (location only).
+
+## In the app (2026-11-05)
+
+The Auto card is live on the practice duck: Get (4.4 MB), then Go, then the one Stop and the 60 s Auto cap.
+
+**Install.** `DriverRelease.walkToBall` pins `craigm26/duck-driver-walk-to-ball-v5` at `fe94d4a`, plus the SHA-256 of `policy.json` and of the weights. `DriverInstaller` fetches the three files over plain URLSession from public resolve URLs, with no token and no lock. It checks sizes and hashes, writes a side folder, runs `DriverTrial.load` on it (the golden replay included) and only then renames it into Application Support. `status()` re-reads the disk at launch and removes a damaged driver. Mac, real download with `DuckStudio -driver-get-check`: installed in 1.2 s, Cancel left nothing, delete left nothing.
+
+**Three things found while wiring it.**
+1. `/ball` was not in `DuckBench.routes`, so the phone's bench would have answered 404. It is now, with a factory (`DuckDrive.placeBall`) and the factory test.
+2. Nothing put the walker on the servos. `/reset` leaves the standing policy, and the driver's commands would have moved nothing. `BenchPeer.layOut` is now M1's start: reset, `alpha_walking.onnx`, the ball, and the 1.2 s pre-roll as one `/stop`, whose answer the peer keeps, so the head camera has the placed ball from its first picture.
+3. `DreamRunModel.run` called the Stop (`halt()`) as `stopDriving`, and `halt()` stops a running Dream run, so a goal started from Play cancelled itself. Both Play panels now use `stepAside()`.
+
+**The ball.** The head camera draws `live.ball` at the bench's radius. The stage draws its ball prop (100 mm across) and moves it to the same `live.ball` each frame. `DreamPracticeWorld`'s fixed ball is only for a bench with none, so the app never shows it. A world with stairs is refused in words: the head camera does not draw them.
+
+**Is it reachable from where the app starts?** Yes for reaching, and it stops less often. `--app-start` was parsed and never read until the round 1 review, so the first table written here was a rerun of the M1 start, not the app's. Fixed and rerun on seeds 8001-8020 (`~/scratch/ball-takes/m1-app2`):
+
+| Arm | Reached | Parked | Stopped | Reach s | First sight s | Ball push m |
+|---|---|---|---|---|---|---|
+| expert | 20 | 20 | 20 | 8.5 | 2.4 | 0 |
+| v5 snap+latch | 20 | 12 | 12 | 13.1 | 2.7 | 0.29 |
+
+The start is the same calls as `layOut`, with the 1.2 s pre-roll as one `/stop`. The driver arm then also stands through `DriverTrial`'s own pre-roll, because the lockstep trial needs those ticks to draw its window, so its first ask is near t=2.9 where the app's comes just after 1.2. That is the closest this harness comes, and it is not the wall-clock path. The card takes the lower number: reached 20 of 20, stopped there 12 of 20. The root came within 0.2 m of the ball in 15 of 20, and 8 of 20 were still walking when the 60 s ended.
+
+**A run ends when the duck parks.** `BallRunWatch` reads the bench's ground truth for the sentence afterwards and to end the run; it never steers. The rule is M1's parked (within 0.40 m, root moved at most 0.02 m in a second), checked at every moment rather than at the end. Replaying the 20 `m1-app2` logs through it: 16 runs park at some moment, all 16 had reached the ball by then, and 12 had not moved it. The other 4 never park, and go to the time limit. That is a replay, and the app has not run it.
+
+**The real duck stays out.** `mediad`'s `/frame` is wired for Dream-1, but this driver has only seen the drawn stage. The card says "Practice duck only for now" and has no Go there (risk 7 above).
+
+**Not run:** any of this on a phone. The Mac runs are the shipped pilot, driver and renderer in lockstep with the bench; the wall-clock path (`SimHeadCameraFeed` at 5 fps with the phone's own bench) has compiled and has not been driven.

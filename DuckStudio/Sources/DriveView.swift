@@ -296,6 +296,7 @@ struct DriveView: View {
     /// Dream-1 on the simulated duck: its drawn head camera, a run, and recordings (`DreamSimSheet`).
     @StateObject private var simHeadCamera = SimHeadCameraFeed()
     @StateObject private var dreamModel = DreamRunModel()
+    @ObservedObject private var drivers = PhoneDrivers.shared
     @StateObject private var dreamRecorder = DreamRecorder()
 
     /// THE PEER THE DRIVE LOOP ACTUALLY TALKS TO, AS THE VOCABULARY AND NOT AS
@@ -1338,6 +1339,8 @@ struct DriveView: View {
                 apply(arbiter.handle(.start(.goal, duck: duck, owner: .app), at: Date()))
             } else {
                 finishRun(.goal)
+                // "You took over." and the cap's line stay; the card keeps the run's own line.
+                if !arbiter.saidItsOwnEnding, let walked = dreamModel.lastWalk { say(walked) }
             }
         }
         // THE CAP IS CHECKED WHILE ANY GOAL RUNS: Dream-1 or an Ask the duck plan.
@@ -1608,7 +1611,8 @@ struct DriveView: View {
     private var autoStatus: String? {
         guard let kind = arbiter.running?.kind, kind == .goal || kind == .order else { return nil }
         let what = (kind == .order ? runs.outsideOrder?.what : nil) ?? autoWhat
-            ?? (dreamModel.running ? AutoGoal.dream.title : AutoGoal.Words.running)
+            ?? (dreamModel.walking ? AutoGoal.walkToBall.title
+                : dreamModel.running ? AutoGoal.dream.title : AutoGoal.Words.running)
         let started = autoStarted ?? arbiter.running?.startedAt ?? Date()
         let cap = arbiter.caps.seconds(on: venue == .real ? .real : .sim)
         let stepLine = ask.phase.activeStep.map { i -> String in
@@ -1656,8 +1660,19 @@ struct DriveView: View {
     @MainActor private func go(_ goal: AutoGoal) {
         switch goal {
         case .walkToBall:
-            // Not installed in the app yet: the row has no button. Nothing to fake here.
-            say(AutoGoal.Words.notOnThisPhone)
+            guard duckKind == .sim, drivers.phase.isInstalled, !dreamModel.running else { return }
+            if let why = BallRunStart.refusal(world: world) { say(why); return }
+            guard let bench = (try? requirePeer()) as? BenchPeer else { say(ControllerWords.tellNoDuck); return }
+            say(nil)
+            dreamModel.walkToBall(bench, feed: simHeadCamera, folder: drivers.folder,
+                                  stepAside: { await stepAside() }, seen: { live = $0 },
+                                  walkerOn: {
+                                      // THE BENCH CHANGED NETWORKS UNDER THE DESK, as in `swap`: the
+                                      // next stick drive must not think the old one is still loaded.
+                                      if let id = self.bench?.id { benches.noteLoaded(BallRunStart.walker, on: id) }
+                                      desk.noteLoaded(BallRunStart.walker)
+                                      stateSaid = nil
+                                  })
         case .dream:
             guard dreamReady else { router.go(to: .studio(nil)); return }
             if venue == .real { realDream = true } else { shelf = .dream }
@@ -1745,7 +1760,12 @@ struct DriveView: View {
                     case .auto:
                         TimelineView(.periodic(from: Date(), by: 1)) { _ in
                             AutoPanel(duck: duckKind,
-                                      driverInstalled: PhoneDrivers.installed,
+                                      driverInstalled: drivers.phase.isInstalled,
+                                      driverCard: DriverCard(phase: drivers.phase, duck: duckKind,
+                                                             release: drivers.release,
+                                                             cameraMissing: simHeadCamera.unavailable != nil,
+                                                             lastRun: dreamModel.lastWalk),
+                                      driverAct: { drivers.act($0) { go(.walkToBall) } },
                                       dreamReady: dreamReady,
                                       ask: ask,
                                       listener: listener,

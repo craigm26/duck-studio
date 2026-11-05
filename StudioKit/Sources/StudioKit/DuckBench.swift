@@ -614,6 +614,9 @@ public enum DuckBench {
         // Changing what the duck is standing in, and reading back what the
         // bank could actually express. See `DuckWorld.swift`.
         "/world",
+        // Where a Walk to the ball run puts the ball, by bearing and range from the duck, as every
+        // M1 run did. See `BallRun.swift`.
+        "/ball",
     ]
 
     /// What a `/tune` answer says.
