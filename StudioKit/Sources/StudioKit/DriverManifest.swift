@@ -43,6 +43,8 @@ public struct DriverManifest: Decodable, Equatable, Sendable {
     public let baselineRepeatL1: Double?
     /// How its answers are put onto the expert's commands (`DriverSnap`), when it says.
     public let snap: DriverSnap?
+    /// The M1 harness's unsnapped arm: this driver played exactly as it answers. Never from a file.
+    public var playsRaw = false
 
     enum CodingKeys: String, CodingKey {
         case arch, format, task, label, input, chunk, files, dataset, snap
@@ -114,7 +116,8 @@ public struct DriverManifest: Decodable, Equatable, Sendable {
 
     /// The snap its rows get: its own `snap` block, else the one pinned for its weights, else none.
     public var outputSnap: DriverSnap? {
-        snap ?? files[Self.weightsFile].flatMap { DriverSnap.known[$0.sha256.lowercased()] }
+        if playsRaw { return nil }
+        return snap ?? files[Self.weightsFile].flatMap { DriverSnap.known[$0.sha256.lowercased()] }
     }
 
     /// Whether `data` is the file `path` this manifest describes, by size and SHA-256.

@@ -54,6 +54,7 @@ final class DriverTrialTests: XCTestCase {
     func testTheJobIsADriverFolderOrZero() {
         XCTAssertEqual(DriverTrial.job(arguments: ["app", "-driver-trial", "/d"]), .init(driver: "/d"))
         XCTAssertEqual(DriverTrial.job(arguments: ["app", "-driver-trial", "zero"]), .init(driver: nil))
+        XCTAssertEqual(DriverTrial.job(arguments: ["app", "-driver-trial", "/d", "-driver-raw"]), .init(driver: "/d", raw: true))
         XCTAssertNil(DriverTrial.job(arguments: ["app", "-driver-trial"]))
         XCTAssertNil(DriverTrial.job(arguments: ["app"]))
     }
