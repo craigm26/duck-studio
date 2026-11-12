@@ -427,6 +427,7 @@ These fixes come from code read this session:
 | Phone driver ducknet-s1 | Tell (moved from Auto after build 94) | none yet (`WalkToBallIntent` was planned and has not been built) | Tell's Walk to the ball card with its number, on the practice duck and a real one |
 | Dream-1 (plain) via DreamDirect | Auto | none in v1 | Auto goal card with a prompt field, provenance and its number; Studio > Settings > Models for the key |
 | Gate counts and run summary | Tell, Auto | none | run summary chip; Studio > Measure for the export |
+| Wander (rule-based, no model; `wander.md`) | Auto | none | Auto card "Wander" with its number, on the practice duck and a real one |
 | Provider settings, consent, Forget key | n/a | none | Studio > Settings > Models, one level down |
 | Later BYOK planners and ER-2 | Tell and Auto, never Drive | none | Auto cards "Go to the [thing]" with the pointed dot drawn before moving |
 
@@ -499,6 +500,7 @@ Each build is one TestFlight upload. Kit work rides along, and nothing is upload
 4. `.drive`-from-planner and `.plan`-from-planner, with arbiter clamps.
 5. ACT ensembling and bias calibration, only if BrainBench shows a gain.
 6. Bridge-hosted VLA adapters, only after duck teleop data and fine-tuning exist.
+7. Wander (`docs/plans/wander.md`): edge stop, BrainBench task W1 and golden traces first, then the Swift port behind the gate once a real or tester's duck has measured it.
 
 **Outside TestFlight (OpenCastor via PyPI, no TestFlight slot).**
 
