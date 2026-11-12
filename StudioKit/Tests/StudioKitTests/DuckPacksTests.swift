@@ -46,9 +46,10 @@ final class DuckPacksTests: XCTestCase {
 
     // MARK: - the packs this app ships
 
-    func testTheFourPacksShipYoungestFirst() throws {
-        XCTAssertEqual(DuckPacks.bundled.map(\.id), ["get-to-the-pond", "duck-maze", "loop-the-course", "design-a-level"])
-        XCTAssertEqual(DuckPacks.bundled.map(\.challenges.count), [6, 10, 10, 3])
+    func testTheEightPacksShipYoungestFirst() throws {
+        XCTAssertEqual(DuckPacks.bundled.map(\.id), ["get-to-the-pond", "morning-chores", "duck-maze", "long-rows",
+                                                     "loop-the-course", "night-field", "design-a-level", "plan-the-farm"])
+        XCTAssertEqual(DuckPacks.bundled.map(\.challenges.count), [6, 6, 10, 6, 10, 5, 3, 3])
     }
 
     func testEveryBundledChallengeIsSolvedByItsSolutionAtPar() throws {

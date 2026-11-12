@@ -1,0 +1,153 @@
+{
+  "format": "duck-pack/0",
+  "id": "morning-chores",
+  "name": "Morning chores",
+  "grades": "PreK to K",
+  "grade_from": -1,
+  "grade_to": 0,
+  "vocabulary": "r001",
+  "license": "CC-BY-4.0",
+  "credit": "Duck Cards, from microduckstudio.com",
+  "about": "Morning on a pretend farm, three by three squares: lay Walk, Turn, Hello and Peck cards to get the duck to the barn, the corn and Moo-Bot, in as few steps as you can. It is a game about farm robots; the duck does no farm work.",
+  "cards": ["start", "end", "walk_forward", "turn_left", "turn_right", "greet", "peck_ground"],
+  "score": "steps",
+  "board": {"columns": 3, "rows": 3, "square_cm": 30, "duck_square_cm": 30, "duck_square_source": "duckbench simulator (Pollen's MJCF, alpha_walking), 2026-10-15, with a first spec past Pollen's pad envelope; the shipped spec is not measured yet, so on a real duck Walk and Turn cards are timed until Pollen's duck-sim and a tester's duck pass (docs/PACKS.md, Acceptance)"},
+  "challenges": [
+    {
+      "id": "mc-1",
+      "name": "Out of the box",
+      "start": {"at": [1, 2], "facing": "north"},
+      "goal": [1, 0],
+      "walls": [],
+      "gates": [],
+      "finish_with": null,
+      "par": 2,
+      "solution": [{"card": "walk_forward"}, {"card": "walk_forward"}],
+      "buggy": null,
+      "hint": "The door is straight ahead. How many squares away is it?",
+      "note": "Aunt Mo has just lifted the duck out of its box, and the back door is straight ahead."
+    },
+    {
+      "id": "mc-2",
+      "name": "Right to the barn",
+      "start": {"at": [0, 1], "facing": "north"},
+      "goal": [1, 1],
+      "walls": [],
+      "gates": [],
+      "finish_with": null,
+      "par": 2,
+      "solution": [{"card": "turn_right"}, {"card": "walk_forward"}],
+      "buggy": null,
+      "hint": "Which way does the duck turn to face the barn? Stand up and turn with it.",
+      "note": "The barn is right beside the duck, not in front of it."
+    },
+    {
+      "id": "mc-3",
+      "name": "Through the barn door",
+      "start": {"at": [0, 1], "facing": "east"},
+      "goal": [2, 1],
+      "walls": [],
+      "gates": [{"at": [1, 1], "axis": "ew"}],
+      "finish_with": null,
+      "par": 2,
+      "solution": [{"card": "walk_forward"}, {"card": "walk_forward"}],
+      "buggy": null,
+      "hint": "Walk through the door the long way, across the board. Count the squares first.",
+      "note": "The barn door is open, and the hay is on the far side of it."
+    },
+    {
+      "id": "mc-4",
+      "name": "Count to Moo-Bot",
+      "start": {"at": [0, 2], "facing": "east"},
+      "goal": [2, 2],
+      "walls": [],
+      "gates": [],
+      "finish_with": "greet",
+      "par": 3,
+      "solution": [
+        {"card": "walk_forward"},
+        {"card": "walk_forward"},
+        {"card": "greet"}
+      ],
+      "buggy": null,
+      "hint": "Count the squares to Moo-Bot. Hello goes last, after the duck gets there, and it counts as a step.",
+      "note": "Moo-Bot is a pretend milking robot. Like a real one, it stays in its stall, so the duck walks over and says Hello."
+    },
+    {
+      "id": "mc-5",
+      "name": "Corn in the feed lane",
+      "start": {"at": [0, 2], "facing": "north"},
+      "goal": [2, 0],
+      "walls": [],
+      "gates": [],
+      "finish_with": "peck_ground",
+      "par": 6,
+      "solution": [
+        {"card": "walk_forward"},
+        {"card": "walk_forward"},
+        {"card": "turn_right"},
+        {"card": "walk_forward"},
+        {"card": "walk_forward"},
+        {"card": "peck_ground"}
+      ],
+      "buggy": null,
+      "hint": "Walk up first, then turn. Peck the ground goes last, and it counts as a step.",
+      "note": "Pretend corn lies in the far corner of the feed lane."
+    },
+    {
+      "id": "mc-6",
+      "name": "Round the fence",
+      "start": {"at": [0, 2], "facing": "north"},
+      "goal": [1, 2],
+      "walls": [{"between": [[0, 2], [1, 2]]}, {"between": [[0, 1], [1, 1]]}],
+      "gates": [],
+      "finish_with": null,
+      "par": 7,
+      "solution": [
+        {"card": "walk_forward"},
+        {"card": "walk_forward"},
+        {"card": "turn_right"},
+        {"card": "walk_forward"},
+        {"card": "turn_right"},
+        {"card": "walk_forward"},
+        {"card": "walk_forward"}
+      ],
+      "buggy": null,
+      "hint": "The fence is two squares long. Walk past the end of it, then come back down.",
+      "note": "The hens are just the other side of a fence. Go round the end of it."
+    }
+  ],
+  "lessons": [
+    {
+      "title": "Be the duck",
+      "skill": "Sequences",
+      "body": "Tape a three by three grid on the floor, 30 cm squares. One child is the duck and stands on the start square, facing the way the challenge says. The class lays the cards in a row and reads them aloud one at a time, and the duck does exactly what each card says, nothing more.",
+      "ask": "Did the duck end up where we meant? Which card took it somewhere else?"
+    },
+    {
+      "title": "Which way is right?",
+      "skill": "Left and right",
+      "body": "Put a sticker on every child's right hand. Before a Turn card goes down, everyone turns their own body the way the duck would. A Turn card turns the duck where it stands; it does not move it to a new square.",
+      "ask": "When the duck is facing you, is its right the same as your right?"
+    },
+    {
+      "title": "Count like Tam",
+      "skill": "Counting",
+      "body": "In chapter 1 of The Duck Who Stayed, Tam counts things. Before any card goes down, point and count the squares from the duck to the barn, out loud. Lay that many Walk forward cards. Then act it out and count the steps again.",
+      "ask": "How did you know how many Walk cards you needed?"
+    },
+    {
+      "title": "The last card",
+      "skill": "Endings",
+      "body": "Count to Moo-Bot ends with Hello, and Corn in the feed lane ends with Peck the ground. Those cards go last, after the duck has arrived. The duck stands still for them, and each one counts as a step.",
+      "ask": "What happens if Peck the ground comes before the duck gets to the corn?"
+    },
+    {
+      "title": "Real robots on a farm",
+      "skill": "Robots and people",
+      "body": "Some real farms have robots. A milking robot stays in one place, and the cows walk to it. Our duck only plays a game about farm robots: it does not milk, carry feed or look after animals. Ask the class to name farm jobs and say who does each one.",
+      "ask": "Which farm jobs need a person?"
+    }
+  ],
+  "yours": []
+}

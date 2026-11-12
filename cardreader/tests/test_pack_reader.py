@@ -203,7 +203,8 @@ class Refusals(unittest.TestCase):
 
     def test_a_pack_nobody_can_find(self):
         self.refused("There is no pack file at nope.duckpack, and no starter pack is called that. The starter "
-                     "packs are design-a-level, duck-maze, get-to-the-pond and loop-the-course.",
+                     "packs are design-a-level, duck-maze, get-to-the-pond, long-rows, loop-the-course, "
+                     "morning-chores, night-field and plan-the-farm.",
                      pack="nope.duckpack")
         with self.assertRaises(P.PackError):
             P.find("Get To The Pond", DECK)
