@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://microduckstudio.com/schemas/duck-decision-v1.json",
+  "title": "DuckDecision v1",
+  "description": "One decision from a closed set. StudioKit DuckDecision.swift is the source; DuckDecisionSchemaTests holds this file to it. Skill and sound names are narrowed per run by AllowedDecisions.",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "kind": { "const": "skill" },
+        "name": { "type": "string", "maxLength": 280 }
+      },
+      "required": ["kind", "name"],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": { "const": "walk" },
+        "forward_m": { "type": "number" },
+        "side_m": { "type": "number" }
+      },
+      "required": ["kind", "forward_m", "side_m"],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": { "const": "turn" },
+        "degrees": { "type": "number" }
+      },
+      "required": ["kind", "degrees"],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": { "const": "sound" },
+        "name": { "type": "string", "maxLength": 280 }
+      },
+      "required": ["kind", "name"],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": { "const": "ask" },
+        "question": { "type": "string", "maxLength": 280 }
+      },
+      "required": ["kind", "question"],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": { "const": "done" },
+        "reason": { "type": "string", "maxLength": 280 }
+      },
+      "required": ["kind", "reason"],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": { "const": "stop" },
+        "reason": { "type": "string", "maxLength": 280 }
+      },
+      "required": ["kind", "reason"],
+      "additionalProperties": false
+    }
+  ]
+}

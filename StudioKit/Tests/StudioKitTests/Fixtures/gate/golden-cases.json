@@ -1,0 +1,112 @@
+{
+  "id": "duck-envelope-gate-golden-v1",
+  "note": "Golden cases for DuckEnvelopeGate rows (brains-layer.md 6.2). Written by hand from the plan's rules, for the Swift gate now and a Python gate later. Each case binds a fresh gate and feeds its rows in order. A row's missing keys take the values in defaults; an explicit null means absent. Twists are [vx m/s, vy m/s, vyaw rad/s]; poses are [x m, y m, yaw rad]. Non-finite numbers are written as the strings nan and inf. A pass has rule null.",
+  "limits_id": "microduck-placeholder-v1",
+  "limits": {
+    "id": "microduck-placeholder-v1",
+    "maxForward": 0.3, "maxBackward": 0.3, "maxSideways": 0.3, "maxTurn": 1.0,
+    "maxDeltaLinear": 0.1, "maxDeltaTurn": 0.35,
+    "maxStateAgeMs": 100, "staleCutSeconds": 1.0, "maxObservationAgeS": 1.0,
+    "matHalfM": 1.0, "stopSeconds": 0.5, "arcSamples": 10, "maxTiltDeg": 30,
+    "runCapPracticeS": 60, "runCapRealS": 30,
+    "runWallClockS": 180, "maxDecisions": 20, "maxHostedCalls": 20, "maxIdenticalInARow": 3,
+    "skillsPerMinute": 4, "confidenceFloor": 0.6, "clampShareForGo": 0.2,
+    "placeholders": ["maxDeltaLinear", "maxDeltaTurn", "maxStateAgeMs", "staleCutSeconds",
+                     "maxObservationAgeS", "matHalfM", "stopSeconds", "maxTiltDeg",
+                     "skillsPerMinute", "confidenceFloor"]
+  },
+  "defaults": {
+    "odom_age_ms": 20, "observation_age_s": null, "chunk_late": false,
+    "pose": [0, 0, 0], "tilt_deg": 2, "phone_unlocked": true
+  },
+  "cases": [
+    {"id": "pass-small-step", "venue": "practice", "rows": [
+      {"t": 0, "twist": [0.1, 0, 0], "expect": {"verdict": "pass", "rule": null, "sent": [0.1, 0, 0], "stop_path": false}}
+    ]},
+    {"id": "speeding-up-is-eased", "venue": "practice", "rows": [
+      {"t": 0.0, "twist": [0.3, 0, 0], "expect": {"verdict": "slowed", "rule": "rate", "sent": [0.1, 0, 0], "stop_path": false}},
+      {"t": 0.1, "twist": [0.3, 0, 0], "expect": {"verdict": "slowed", "rule": "rate", "sent": [0.2, 0, 0], "stop_path": false}},
+      {"t": 0.2, "twist": [0.3, 0, 0], "expect": {"verdict": "pass", "rule": null, "sent": [0.3, 0, 0], "stop_path": false}}
+    ]},
+    {"id": "over-the-stick-is-clamped", "venue": "practice", "rows": [
+      {"t": 0.0, "twist": [0, 0.1, 0], "expect": {"verdict": "pass", "rule": null, "sent": [0, 0.1, 0], "stop_path": false}},
+      {"t": 0.1, "twist": [0, 0.2, 0], "expect": {"verdict": "pass", "rule": null, "sent": [0, 0.2, 0], "stop_path": false}},
+      {"t": 0.2, "twist": [0, 0.3, 0], "expect": {"verdict": "pass", "rule": null, "sent": [0, 0.3, 0], "stop_path": false}},
+      {"t": 0.3, "twist": [0, 0.5, 0], "expect": {"verdict": "clamped", "rule": "stick", "sent": [0, 0.3, 0], "stop_path": false}}
+    ]},
+    {"id": "clamp-then-rate-names-the-rate", "venue": "practice", "rows": [
+      {"t": 0, "twist": [0.6, 0, 0], "expect": {"verdict": "slowed", "rule": "rate", "sent": [0.1, 0, 0], "stop_path": false}}
+    ]},
+    {"id": "slowing-down-is-free", "venue": "practice", "rows": [
+      {"t": 0.0, "twist": [0.1, 0, 0], "expect": {"verdict": "pass", "rule": null, "sent": [0.1, 0, 0], "stop_path": false}},
+      {"t": 0.1, "twist": [0.2, 0, 0], "expect": {"verdict": "pass", "rule": null, "sent": [0.2, 0, 0], "stop_path": false}},
+      {"t": 0.2, "twist": [0.3, 0, 0], "expect": {"verdict": "pass", "rule": null, "sent": [0.3, 0, 0], "stop_path": false}},
+      {"t": 0.3, "twist": [0, 0, 0], "expect": {"verdict": "pass", "rule": null, "sent": [0, 0, 0], "stop_path": false}}
+    ]},
+    {"id": "reversing-starts-from-zero", "venue": "practice", "rows": [
+      {"t": 0.0, "twist": [0.1, 0, 0], "expect": {"verdict": "pass", "rule": null, "sent": [0.1, 0, 0], "stop_path": false}},
+      {"t": 0.1, "twist": [0.2, 0, 0], "expect": {"verdict": "pass", "rule": null, "sent": [0.2, 0, 0], "stop_path": false}},
+      {"t": 0.2, "twist": [0.3, 0, 0], "expect": {"verdict": "pass", "rule": null, "sent": [0.3, 0, 0], "stop_path": false}},
+      {"t": 0.3, "twist": [-0.3, 0, 0], "expect": {"verdict": "slowed", "rule": "rate", "sent": [-0.1, 0, 0], "stop_path": false}}
+    ]},
+    {"id": "not-a-number-is-invalid-and-latches", "venue": "practice", "rows": [
+      {"t": 0.0, "twist": ["nan", 0, 0], "expect": {"verdict": "invalid", "rule": "finite", "sent": [0, 0, 0], "stop_path": true}},
+      {"t": 0.1, "twist": [0.1, 0, 0], "expect": {"verdict": "cut", "rule": "finite", "sent": [0, 0, 0], "stop_path": true}}
+    ]},
+    {"id": "infinity-is-invalid", "venue": "practice", "rows": [
+      {"t": 0, "twist": [0, 0, "inf"], "expect": {"verdict": "invalid", "rule": "finite", "sent": [0, 0, 0], "stop_path": true}}
+    ]},
+    {"id": "stale-odometry-holds-then-cuts", "venue": "practice", "rows": [
+      {"t": 0.0, "twist": [0.1, 0, 0], "odom_age_ms": 250, "expect": {"verdict": "held", "rule": "stale", "sent": [0, 0, 0], "stop_path": false}},
+      {"t": 0.5, "twist": [0.1, 0, 0], "odom_age_ms": 250, "expect": {"verdict": "held", "rule": "stale", "sent": [0, 0, 0], "stop_path": false}},
+      {"t": 1.0, "twist": [0.1, 0, 0], "odom_age_ms": 250, "expect": {"verdict": "cut", "rule": "stale", "sent": [0, 0, 0], "stop_path": true}},
+      {"t": 1.1, "twist": [0.1, 0, 0], "expect": {"verdict": "cut", "rule": "stale", "sent": [0, 0, 0], "stop_path": true}}
+    ]},
+    {"id": "stale-odometry-recovers", "venue": "practice", "rows": [
+      {"t": 0.0, "twist": [0.1, 0, 0], "odom_age_ms": 250, "expect": {"verdict": "held", "rule": "stale", "sent": [0, 0, 0], "stop_path": false}},
+      {"t": 0.1, "twist": [0.1, 0, 0], "expect": {"verdict": "pass", "rule": null, "sent": [0.1, 0, 0], "stop_path": false}}
+    ]},
+    {"id": "no-odometry-holds", "venue": "practice", "rows": [
+      {"t": 0, "twist": [0.1, 0, 0], "odom_age_ms": null, "expect": {"verdict": "held", "rule": "stale", "sent": [0, 0, 0], "stop_path": false}}
+    ]},
+    {"id": "no-pose-holds", "venue": "practice", "rows": [
+      {"t": 0, "twist": [0.1, 0, 0], "pose": null, "expect": {"verdict": "held", "rule": "stale", "sent": [0, 0, 0], "stop_path": false}}
+    ]},
+    {"id": "late-chunk-holds-and-is-not-replayed", "venue": "practice", "rows": [
+      {"t": 0, "twist": [0.1, 0, 0], "chunk_late": true, "expect": {"verdict": "held", "rule": "stale", "sent": [0, 0, 0], "stop_path": false}}
+    ]},
+    {"id": "old-observation-holds", "venue": "practice", "rows": [
+      {"t": 0.0, "twist": [0.1, 0, 0], "observation_age_s": 1.5, "expect": {"verdict": "held", "rule": "stale", "sent": [0, 0, 0], "stop_path": false}},
+      {"t": 0.1, "twist": [0.1, 0, 0], "observation_age_s": 0.5, "expect": {"verdict": "pass", "rule": null, "sent": [0.1, 0, 0], "stop_path": false}}
+    ]},
+    {"id": "keep-in-slows-near-the-edge", "venue": "practice", "rows": [
+      {"t": 0, "twist": [0.1, 0, 0], "pose": [0.97, 0, 0], "expect": {"verdict": "slowed", "rule": "keep-in", "sent": [0.05, 0, 0], "stop_path": false, "keep_in_margin_m": 0.03}}
+    ]},
+    {"id": "keep-in-sees-the-arc-not-a-straight-line", "venue": "practice", "rows": [
+      {"t": 0.0, "twist": [0.1, 0, 0.35], "expect": {"verdict": "pass", "rule": null, "sent": [0.1, 0, 0.35], "stop_path": false}},
+      {"t": 0.1, "twist": [0.2, 0, 0.7], "expect": {"verdict": "pass", "rule": null, "sent": [0.2, 0, 0.7], "stop_path": false}},
+      {"t": 0.2, "twist": [0.3, 0, 1.0], "expect": {"verdict": "pass", "rule": null, "sent": [0.3, 0, 1.0], "stop_path": false}},
+      {"t": 0.3, "twist": [0.3, 0, 1.0], "pose": [0, 0.98, 0], "expect": {"verdict": "slowed", "rule": "keep-in", "sent": [0.15, 0, 1.0], "stop_path": false}}
+    ]},
+    {"id": "outside-the-mat-cuts", "venue": "practice", "rows": [
+      {"t": 0, "twist": [0.1, 0, 0], "pose": [1.05, 0, 0], "expect": {"verdict": "cut", "rule": "keep-in", "sent": [0, 0, 0], "stop_path": true}}
+    ]},
+    {"id": "tilt-cuts", "venue": "practice", "rows": [
+      {"t": 0, "twist": [0.1, 0, 0], "tilt_deg": 45, "expect": {"verdict": "cut", "rule": "tilt", "sent": [0, 0, 0], "stop_path": true}}
+    ]},
+    {"id": "cut-beats-held", "venue": "practice", "rows": [
+      {"t": 0, "twist": [0.1, 0, 0], "odom_age_ms": 250, "tilt_deg": 45, "expect": {"verdict": "cut", "rule": "tilt", "sent": [0, 0, 0], "stop_path": true}}
+    ]},
+    {"id": "practice-run-cap-is-60-s", "venue": "practice", "rows": [
+      {"t": 59.9, "twist": [0.1, 0, 0], "expect": {"verdict": "pass", "rule": null, "sent": [0.1, 0, 0], "stop_path": false}},
+      {"t": 60.1, "twist": [0.1, 0, 0], "expect": {"verdict": "cut", "rule": "run", "sent": [0, 0, 0], "stop_path": true}}
+    ]},
+    {"id": "real-run-cap-is-30-s", "venue": "real", "rows": [
+      {"t": 29.9, "twist": [0.1, 0, 0], "expect": {"verdict": "pass", "rule": null, "sent": [0.1, 0, 0], "stop_path": false}},
+      {"t": 30.1, "twist": [0.1, 0, 0], "expect": {"verdict": "cut", "rule": "run", "sent": [0, 0, 0], "stop_path": true}}
+    ]},
+    {"id": "locked-phone-holds", "venue": "practice", "rows": [
+      {"t": 0, "twist": [0.1, 0, 0], "phone_unlocked": false, "expect": {"verdict": "held", "rule": "run", "sent": [0, 0, 0], "stop_path": false}}
+    ]}
+  ]
+}
