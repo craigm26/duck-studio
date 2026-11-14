@@ -8,6 +8,9 @@ final class DuckDecisionTests: XCTestCase {
         .skill(name: "kick_left"), .walk(forwardM: 0.5, sideM: -0.25), .turn(degrees: 90),
         .sound(name: "greet"), .ask(question: "Which ball?"), .done(reason: "at the ball"),
         .stop(reason: "asked to"),
+        .drive(source: .dream1, goal: "walk to the red ball", seconds: 3),
+        .plan(RobotPlanProposal(beats: [.init(action: "walk_forward", speed: "slow", seconds: 2),
+                                        .init(action: "kick_left", speed: "normal", seconds: 0)])),
     ]
 
     func decode(_ json: String) throws -> DuckDecision {
@@ -30,8 +33,9 @@ final class DuckDecisionTests: XCTestCase {
         XCTAssertEqual(Set((obj ?? [:]).keys), ["kind", "forward_m", "side_m"])
     }
 
+    /// `drive` and `plan` are decisions now (roadmap item 4). `look_at` and `walk_to` still are not.
     func testTheLaterCasesAreNotDecisions() {
-        for kind in ["look_at", "lookAt", "walk_to", "drive", "plan", "move"] {
+        for kind in ["look_at", "lookAt", "walk_to", "move"] {
             XCTAssertThrowsError(try decode(#"{"kind":"\#(kind)"}"#)) { error in
                 XCTAssertEqual(error as? DuckDecision.WireError, .unknownKind(kind))
             }

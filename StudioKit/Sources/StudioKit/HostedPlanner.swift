@@ -70,6 +70,30 @@ public enum HostedPlanner {
             case .done, .stop:
                 props["reason"] = .object(["type": .string("string"), "description": .string(
                     "Why, in one short sentence, at most \(DuckDecision.maxTextLength) characters.")])
+            case .drive:
+                props["source"] = .object(["type": .string("string"), "enum": .array(allowed.sources.map { .string($0.rawValue) }),
+                                           "description": .string("Which driver takes the duck, by id.")])
+                props["goal"] = .object(["type": .string("string"), "description": .string(
+                    "What the driver should do, in a few words, at most \(DuckDecision.maxTextLength) characters.")])
+                props["seconds"] = .object(["type": .string("number"), "description": .string(
+                    "How long the driver has, at most \(Int(DuckDecision.maxDriveSeconds)) s; more is cut.")])
+            case .plan:
+                let beat: [String: JSONValue] = [
+                    "type": .string("object"),
+                    "properties": .object([
+                        "action": .object(["type": .string("string"),
+                                           "enum": .array(planActions(allowed).map { .string($0) })]),
+                        "speed": .object(["type": .string("string"),
+                                          "enum": .array(RobotPlanProposal.speeds.map { .string($0) })]),
+                        "seconds": .object(["type": .string("number"), "description": .string(
+                            "How long a walk, turn or stop lasts. Ignored for a move of the duck's own.")]),
+                    ]),
+                    "required": .array(["action", "speed", "seconds"].map { .string($0) }),
+                    "additionalProperties": .bool(false),
+                ]
+                props["beats"] = .object(["type": .string("array"), "items": .object(beat), "description": .string(
+                    "The steps in order. At most \(RobotPlanProposal.maxBeats) steps and "
+                    + "\(Int(RobotPlanProposal.maxWalkSeconds)) s of walking in all; more is cut from the end.")])
             }
             props[whyField] = .object(["type": .string("string"),
                                        "description": .string("Why this is the next step, in one short sentence.")])
@@ -93,7 +117,14 @@ public enum HostedPlanner {
         case .ask: return "Ask the person a question when the goal is unclear or no other tool fits."
         case .done: return "The goal is met. The duck stops."
         case .stop: return "Stop the duck now."
+        case .drive: return "Hand the duck to a driver for a few seconds with a short goal. Control comes back to you after."
+        case .plan: return "Run a short plan of steps in order."
         }
+    }
+
+    /// The beat actions a plan may name in this run: the timed ones, and the skills this run allows.
+    static func planActions(_ allowed: AllowedDecisions) -> [String] {
+        RobotPlanProposal.timedActions + RobotPlanProposal.skillActions(for: allowed)
     }
 
     private static func meters(_ m: Double) -> String { String(format: "%.1f m", m) }

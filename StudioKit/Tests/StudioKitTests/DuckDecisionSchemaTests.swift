@@ -43,8 +43,21 @@ final class DuckDecisionSchemaTests: XCTestCase {
             for field in kind.fields {
                 let p = try XCTUnwrap(props[field])
                 switch field {
-                case "forward_m", "side_m", "degrees":
+                case "forward_m", "side_m", "degrees", "seconds":
                     XCTAssertEqual(p["type"] as? String, "number", field)
+                case "source":
+                    XCTAssertEqual(p["type"] as? String, "string", field)
+                    XCTAssertEqual(p["enum"] as? [String], ActionSourceID.allCases.map(\.rawValue), "the closed set of sources")
+                case "beats":
+                    XCTAssertEqual(p["type"] as? String, "array", field)
+                    XCTAssertEqual(p["maxItems"] as? Int, RobotPlanProposal.wireMaxBeats)
+                    let items = try XCTUnwrap(p["items"] as? [String: Any])
+                    XCTAssertEqual(items["additionalProperties"] as? Bool, false)
+                    XCTAssertEqual(items["required"] as? [String], ["action", "speed", "seconds"])
+                    let ip = try XCTUnwrap(items["properties"] as? [String: [String: Any]])
+                    XCTAssertEqual(ip["action"]?["enum"] as? [String], RobotPlanProposal.actions)
+                    XCTAssertEqual(ip["speed"]?["enum"] as? [String], RobotPlanProposal.speeds)
+                    XCTAssertEqual(ip["seconds"]?["type"] as? String, "number")
                 default:
                     XCTAssertEqual(p["type"] as? String, "string", field)
                     XCTAssertEqual(p["maxLength"] as? Int, DuckDecision.maxTextLength, field)

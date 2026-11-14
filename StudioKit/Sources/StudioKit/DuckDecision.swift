@@ -9,11 +9,13 @@ import DuckKit
 /// in the kit carries the decision out later, after the arbiter has clamped it and the gate has
 /// checked it.
 ///
-/// ONLY THE V1 CASES ARE HERE. The plan's later cases (`lookAt`, `walkTo`, `drive`, `plan`) are
+/// THE V1 CASES, PLUS `drive` AND `plan` (roadmap item 4). `lookAt` and `walkTo` are still
 /// left out of the enum on purpose, not marked unavailable. A case that exists can be decoded,
 /// stored and switched on, and an "unavailable" marker does not stop any of that at run time.
 /// Left out, a model that writes `{"kind":"look_at"}` is refused by the reader like any other
-/// unknown word, and adding a case later is a visible change that every `switch` has to answer.
+/// unknown word. `drive` and `plan` exist, and are OFF BY DEFAULT: `AllowedDecisions.forDuck`
+/// never offers them, so a planner can only answer with one when a caller opts in with
+/// `allowing(drive:)` or `allowingPlans()`.
 ///
 /// THE WIRE SHAPE IS FLAT AND SNAKE_CASE: `{"kind":"walk","forward_m":0.5,"side_m":0}`. It is
 /// the shape in `Resources/Planner/duck-decision.schema.json`, which a BYOK tool definition and
@@ -35,10 +37,16 @@ public enum DuckDecision: Equatable, Hashable, Sendable {
     /// The planner asks for a stop. It calls the stop path like any other entry point. A stop
     /// never needs a planner to ask for it.
     case stop(reason: String)
+    /// Hand the duck to an action source from the kit's closed set for a few seconds, with a goal
+    /// in words. The arbiter clamps `seconds`; the gate is bound on every row (3.3).
+    case drive(source: ActionSourceID, goal: String, seconds: Double)
+    /// A short plan of beats, run by `RobotPlanRunner`. At most `RobotPlanProposal.maxBeats`
+    /// beats and `RobotPlanProposal.maxWalkSeconds` of timed beats; more is cut.
+    case plan(RobotPlanProposal)
 
     /// The case names on the wire. `CaseIterable`, so the schema test can check every one.
     public enum Kind: String, CaseIterable, Codable, Hashable, Sendable, Comparable {
-        case skill, walk, turn, sound, ask, done, stop
+        case skill, walk, turn, sound, ask, done, stop, drive, plan
 
         public static func < (a: Kind, b: Kind) -> Bool {
             allCases.firstIndex(of: a)! < allCases.firstIndex(of: b)!
@@ -52,6 +60,8 @@ public enum DuckDecision: Equatable, Hashable, Sendable {
             case .turn: return ["degrees"]
             case .ask: return ["question"]
             case .done, .stop: return ["reason"]
+            case .drive: return ["source", "goal", "seconds"]
+            case .plan: return ["beats"]
             }
         }
 
@@ -69,6 +79,8 @@ public enum DuckDecision: Equatable, Hashable, Sendable {
         case .ask: return .ask
         case .done: return .done
         case .stop: return .stop
+        case .drive: return .drive
+        case .plan: return .plan
         }
     }
 
@@ -85,6 +97,20 @@ public enum DuckDecision: Equatable, Hashable, Sendable {
     public static let maxSideM = DuckDrive.maxSideways * maxSeconds
     /// The most one turn decision may turn, in degrees.
     public static let maxTurnDegrees = DuckDrive.maxTurn * maxSeconds * 180 / .pi
+    /// The longest one `.drive` decision may hand the duck to an action source. The same 5 s
+    /// ceiling as a walk: a planner's every motion shares one ceiling until BrainBench shows a
+    /// longer leg earns its place.
+    public static let maxDriveSeconds = maxSeconds
+
+    /// robotd's names for the skills this decision would run: one for `.skill`, one per skill
+    /// beat for `.plan`, none otherwise. The allowlist and the skills-per-minute cap read these.
+    public var skillNames: [String] {
+        switch self {
+        case .skill(let n): return [n]
+        case .plan(let p): return p.skillNames
+        default: return []
+        }
+    }
 
     /// This decision with its numbers held to one decision's limits, and how much of the asked
     /// amount was cut off (0 when nothing was, up to 1). The gate asks for a Go above 20%.
@@ -99,6 +125,12 @@ public enum DuckDecision: Equatable, Hashable, Sendable {
         case .turn(let d):
             let cd = min(max(d, -Self.maxTurnDegrees), Self.maxTurnDegrees)
             return (.turn(degrees: cd), d != 0 ? max(0, 1 - abs(cd) / abs(d)) : 0)
+        case .drive(let source, let goal, let s):
+            let cs = min(max(s, 0), Self.maxDriveSeconds)
+            return (.drive(source: source, goal: goal, seconds: cs), s > 0 ? max(0, 1 - cs / s) : 0)
+        case .plan(let p):
+            let (cp, cut) = p.clamped()
+            return (.plan(cp), cut)
         default:
             return (self, 0)
         }
@@ -109,6 +141,8 @@ public enum DuckDecision: Equatable, Hashable, Sendable {
         switch self {
         case .walk(let f, let s): return f.isFinite && s.isFinite
         case .turn(let d): return d.isFinite
+        case .drive(_, _, let s): return s.isFinite
+        case .plan(let p): return p.beats.allSatisfy { $0.seconds.isFinite }
         default: return true
         }
     }
@@ -132,6 +166,8 @@ extension DuckDecision: Codable {
         case missingField(String)
         case wrongType(String)
         case textTooLong(String)
+        /// A `.drive` named an action source outside the kit's closed set.
+        case unknownSource(String)
     }
 
     public init(from decoder: Decoder) throws {
@@ -170,6 +206,26 @@ extension DuckDecision: Codable {
         case .ask: self = .ask(question: try text("question"))
         case .done: self = .done(reason: try text("reason"))
         case .stop: self = .stop(reason: try text("reason"))
+        case .drive:
+            let word = try text("source")
+            guard let source = ActionSourceID(rawValue: word) else { throw WireError.unknownSource(word) }
+            self = .drive(source: source, goal: try text("goal"), seconds: try number("seconds"))
+        case .plan:
+            guard c.contains(Key("beats")) else { throw WireError.missingField("beats") }
+            let beats: [RobotPlanProposal.Beat]
+            do {
+                beats = try c.decode([RobotPlanProposal.Beat].self, forKey: Key("beats"))
+            } catch let e as WireError {
+                throw e
+            } catch {
+                throw WireError.wrongType("beats")
+            }
+            // More than `maxBeats` is read so the arbiter can cut it and say so; past the wire's
+            // own bound it is not a plan at all.
+            guard (1...RobotPlanProposal.wireMaxBeats).contains(beats.count) else {
+                throw WireError.wrongType("beats")
+            }
+            self = .plan(RobotPlanProposal(beats: beats))
         }
     }
 
@@ -184,6 +240,11 @@ extension DuckDecision: Codable {
         case .turn(let d): try c.encode(d, forKey: Key("degrees"))
         case .ask(let q): try c.encode(q, forKey: Key("question"))
         case .done(let r), .stop(let r): try c.encode(r, forKey: Key("reason"))
+        case .drive(let source, let goal, let seconds):
+            try c.encode(source.rawValue, forKey: Key("source"))
+            try c.encode(goal, forKey: Key("goal"))
+            try c.encode(seconds, forKey: Key("seconds"))
+        case .plan(let p): try c.encode(p.beats, forKey: Key("beats"))
         }
     }
 }
@@ -201,23 +262,45 @@ public struct AllowedDecisions: Equatable, Hashable, Sendable, Codable {
     public let kinds: Set<DuckDecision.Kind>
     public let skills: [String]
     public let sounds: [String]
+    /// The action sources a `.drive` may name in this run. Empty unless `.drive` is allowed.
+    public let sources: [ActionSourceID]
 
     public static let alwaysAllowed: Set<DuckDecision.Kind> = [.stop, .done, .ask]
 
-    private enum CodingKeys: String, CodingKey { case kinds, skills, sounds }
+    private enum CodingKeys: String, CodingKey { case kinds, skills, sounds, sources }
 
     /// Decoded through `init`, so a stored set cannot drop stop, done or ask.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         self.init(kinds: try c.decode(Set<DuckDecision.Kind>.self, forKey: .kinds),
                   skills: try c.decodeIfPresent([String].self, forKey: .skills) ?? [],
-                  sounds: try c.decodeIfPresent([String].self, forKey: .sounds) ?? [])
+                  sounds: try c.decodeIfPresent([String].self, forKey: .sounds) ?? [],
+                  sources: try c.decodeIfPresent([ActionSourceID].self, forKey: .sources) ?? [])
     }
 
-    public init(kinds: Set<DuckDecision.Kind>, skills: [String] = [], sounds: [String] = []) {
+    /// A `.drive` with no source to name is not allowed at all: the kind is dropped with the
+    /// empty list, so no tool or prompt offers a drive that could only be refused.
+    public init(kinds: Set<DuckDecision.Kind>, skills: [String] = [], sounds: [String] = [],
+                sources: [ActionSourceID] = []) {
+        var kinds = kinds
+        if sources.isEmpty { kinds.remove(.drive) }
         self.kinds = kinds.union(Self.alwaysAllowed)
         self.skills = kinds.contains(.skill) ? Array(Set(skills)).sorted() : []
         self.sounds = kinds.contains(.sound) ? Array(Set(sounds)).sorted() : []
+        self.sources = kinds.contains(.drive) ? Array(Set(sources)).sorted() : []
+    }
+
+    /// This set, with `.drive` allowed for these sources. OFF UNLESS A CALLER ASKS: nothing in
+    /// `forDuck` adds it.
+    public func allowing(drive sources: [ActionSourceID]) -> AllowedDecisions {
+        AllowedDecisions(kinds: kinds.union([.drive]), skills: skills, sounds: sounds,
+                         sources: self.sources + sources)
+    }
+
+    /// This set, with `.plan` allowed. A plan's skill beats still need `.skill` and the name in
+    /// `skills`, so a planner that may not run a skill may not plan one either. Off unless asked.
+    public func allowingPlans() -> AllowedDecisions {
+        AllowedDecisions(kinds: kinds.union([.plan]), skills: skills, sounds: sounds, sources: sources)
     }
 
     /// The set for this duck and this planner.
@@ -246,6 +329,7 @@ public struct AllowedDecisions: Equatable, Hashable, Sendable, Codable {
         case unknownSkill(String)
         case unknownSound(String)
         case badField(String)
+        case unknownSource(String)
 
         public var says: String {
             switch self {
@@ -261,6 +345,8 @@ public struct AllowedDecisions: Equatable, Hashable, Sendable, Codable {
                 return "The planner named the sound \"\(n)\", which is not one of this duck's sounds."
             case .badField(let f):
                 return "The planner wrote \"\(f)\" in a way this app does not read, so nothing was guessed."
+            case .unknownSource(let n):
+                return "The planner named the driver \"\(n)\", which is not one this run may hand the duck to."
             }
         }
     }
@@ -272,18 +358,40 @@ public struct AllowedDecisions: Equatable, Hashable, Sendable, Codable {
         switch decision {
         case .skill(let n) where !skills.contains(n): return .failure(.unknownSkill(n))
         case .sound(let n) where !sounds.contains(n): return .failure(.unknownSound(n))
+        case .drive(let source, let goal, let seconds):
+            guard sources.contains(source) else { return .failure(.unknownSource(source.rawValue)) }
+            guard !goal.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return .failure(.badField("goal")) }
+            guard seconds > 0 else { return .failure(.badField("seconds")) }
+            return .success(decision)
+        case .plan(let p):
+            // A skill beat is a skill: the same kind and the same names as a `.skill` decision.
+            for beat in p.beats {
+                guard let name = beat.skillName else { continue }
+                guard kinds.contains(.skill), skills.contains(name) else { return .failure(.unknownSkill(name)) }
+            }
+            return .success(decision)
         default: return .success(decision)
         }
     }
 
     /// Read one decision from a JSON object, and admit it. Throws `Refusal`.
+    ///
+    /// A KIND THIS RUN DOES NOT ALLOW IS REFUSED BY NAME FIRST, before its fields are read, so a
+    /// half-written `drive` in a run without drives says "drive is not allowed", not which field
+    /// it left out.
     public func read(_ data: Data) throws -> DuckDecision {
+        if let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+           let word = object["kind"] as? String, let kind = DuckDecision.Kind(rawValue: word),
+           !kinds.contains(kind) {
+            throw Refusal.kindNotAllowed(kind)
+        }
         let decision: DuckDecision
         do {
             decision = try JSONDecoder().decode(DuckDecision.self, from: data)
         } catch let e as DuckDecision.WireError {
             switch e {
             case .unknownKind(let k): throw Refusal.unknownKind(k)
+            case .unknownSource(let n): throw Refusal.unknownSource(n)
             case .unexpectedField(let f), .missingField(let f), .wrongType(let f), .textTooLong(let f):
                 throw Refusal.badField(f)
             }

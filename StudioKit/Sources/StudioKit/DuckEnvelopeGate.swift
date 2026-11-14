@@ -428,8 +428,13 @@ public struct DuckEnvelopeGate: Sendable {
         var reasons: [ConfirmReason] = []
         if binding.mode == .tell { reasons.append(.tellCountdown) }
         if !seenKinds.contains(d.kind) { reasons.append(.newKind(d.kind)) }
-        if case .skill(let n) = d, !seenSkills.contains(n) { reasons.append(.newSkill(n)) }
+        var asked = Set<String>()
+        for n in d.skillNames where !seenSkills.contains(n) && asked.insert(n).inserted { reasons.append(.newSkill(n)) }
         if !seenSources.contains(decided.provider.id) { reasons.append(.newSource(decided.provider.id)) }
+        // The action source a `.drive` hands the duck to is a new source too (rule 10).
+        if case .drive(let source, _, _) = d, !seenSources.contains(source.rawValue) {
+            reasons.append(.newSource(source.rawValue))
+        }
         if d.clamped().cut > limits.clampShareForGo { reasons.append(.bigClamp) }
         // The one place confidence is read. It appends; nothing above depends on it.
         if let c = decided.confidence, !(c.isFinite && c >= limits.confidenceFloor && c <= 1) {
@@ -476,10 +481,12 @@ public struct DuckEnvelopeGate: Sendable {
 
         // 8. Allowlist, per venue and brain kind, and skills per minute.
         if case .failure = binding.allowed.admit(d) { return held(.allowlist) }
-        if case .skill = d {
+        // A plan's skill beats are skills: the same remote rule and the same per-minute cap.
+        let skills = d.skillNames
+        if !skills.isEmpty {
             if binding.remote && binding.venue == .real { return held(.allowlist) }
             let lastMinute = skillTimes.filter { t - $0 < 60 }
-            if lastMinute.count >= limits.skillsPerMinute { return held(.allowlist) }
+            if lastMinute.count + skills.count > limits.skillsPerMinute { return held(.allowlist) }
         }
 
         // 10. Confirmation for anything new.
@@ -491,15 +498,19 @@ public struct DuckEnvelopeGate: Sendable {
         // It runs.
         let (clamped, share) = d.clamped()
         seenKinds.insert(d.kind)
-        if case .skill(let n) = d { seenSkills.insert(n); skillTimes.append(t) }
+        for n in skills { seenSkills.insert(n); skillTimes.append(t) }
         seenSources.insert(decided.provider.id)
+        if case .drive(let source, _, _) = d { seenSources.insert(source.rawValue) }
         decisions += 1
         if binding.remote { hostedCalls += 1 }
         recent.append(d)
         if d.kind == .ask { askOpen = true }
         if share > 0 {
-            stats.count(.stick)
-            return DecisionCheck(decision: clamped, verdict: .clamped, rule: .stick, confirmations: [],
+            // A walk or turn is cut to the stick envelope; a drive's seconds or a plan's beats and
+            // walk time are cut to the run's own limits (6.5, "Model-supplied durations").
+            let rule: Rule = (d.kind == .drive || d.kind == .plan) ? .run : .stick
+            stats.count(rule)
+            return DecisionCheck(decision: clamped, verdict: .clamped, rule: rule, confirmations: [],
                                  stopPath: false)
         }
         return DecisionCheck(decision: d, verdict: .pass, rule: nil, confirmations: [], stopPath: false)

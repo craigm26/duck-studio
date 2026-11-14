@@ -395,6 +395,12 @@ public struct DreamPilot: Sendable {
               vyaw: min(max(t.vyaw, -DuckDrive.maxTurn), DuckDrive.maxTurn))
     }
 
+    /// What a bound gate says about one row: send this twist instead, or end the run here.
+    public enum Filtered: Equatable, Sendable {
+        case send(DuckDrive.Twist)
+        case end(String)
+    }
+
     public enum Event: Equatable, Sendable {
         case asked
         case played(rows: Int, seconds: Double)
@@ -418,13 +424,19 @@ public struct DreamPilot: Sendable {
     /// `watch` LOOKS BEFORE EVERY ASK (with nil) AND BEFORE EVERY ROW (with the row, clamped), and a
     /// sentence from it ends the run: stop, then end, like any other ending. A real duck's walk uses
     /// it (`BallWalk.Watch`). Dream-1 and the practice duck pass none, and play exactly as they did.
+    ///
+    /// `filter` IS WHERE A GATE IS BOUND (brains-layer.md 6.2). It sees every row after the stick
+    /// clamp and the watch, and what it answers is what goes on the wire: the twist it returns (held,
+    /// slowed or clamped), or the end of the run. A planner's `.drive` passes one
+    /// (`PlannerLeg.drive`). Every caller that passes none plays exactly as before.
     public func run(on peer: any DuckPeer,
                     rows: (any DreamRows)? = nil,
                     frames: @Sendable () async -> [String],
                     events: @Sendable (Event) async -> Void,
                     sleep: @Sendable (TimeInterval) async throws -> Void = { try await Task.sleep(nanoseconds: UInt64($0 * 1e9)) },
                     now: @Sendable () -> Date = Date.init,
-                    watch: (@Sendable (DuckDrive.Twist?) async -> String?)? = nil) async {
+                    watch: (@Sendable (DuckDrive.Twist?) async -> String?)? = nil,
+                    filter: (@Sendable (DuckDrive.Twist) async -> Filtered)? = nil) async {
         let source: any DreamRows = rows ?? BridgeDreamRows(peer)
         let start = now()
         // Standing still while Dream Labs starts the model is not driving: it is kept apart, so a
@@ -485,7 +497,15 @@ public struct DreamPilot: Sendable {
                     if let watch, let end = await watch(DreamPilot.clamped(row)) { said = end; break driving }
                     // THE WATCH WAITS ON OTHER ACTORS, and a Stop can land during it: no row after a Stop.
                     try Task.checkCancellation()
-                    last = DreamPilot.clamped(row)
+                    var send = DreamPilot.clamped(row)
+                    if let filter {
+                        switch await filter(send) {
+                        case .send(let t): send = DreamPilot.clamped(t)
+                        case .end(let words): said = words; break driving
+                        }
+                        try Task.checkCancellation()
+                    }
+                    last = send
                     try await peer.notify(.move(last))
                     played += 1
                     try await sleep(1 / DreamPilot.rowsPerSecond)
