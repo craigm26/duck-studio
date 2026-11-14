@@ -73,6 +73,63 @@ final class GateKeyExportTests: XCTestCase {
         }
     }
 
+    /// The BYOK planners (AnthropicPlanner, OpenAIPlanner): no key in a planner's printed form,
+    /// an error's words, a decision, a gate export of that decision, or any copy, even when the
+    /// vendor quotes the key back or the model writes it into its reason.
+    func testNoKeyLeavesTheHostedPlanners() async throws {
+        let keys = [HostedFixtures.anthropicKey, HostedFixtures.openaiKey]
+        for key in keys { XCTAssertTrue(KeyScrub.containsKey(key), "the grep must be able to fail on \(key)") }
+
+        let anthropic = AnthropicPlanner(key: keys[0], http: StubPlannerHTTP())
+        let openai = OpenAIPlanner(key: keys[1], http: StubPlannerHTTP())
+        var texts: [String] = []
+        for p in [anthropic as any Planner, openai as any Planner] {
+            texts.append(String(describing: p))
+            texts.append(String(reflecting: p))
+            var dumped = ""
+            dump(p, to: &dumped)
+            texts.append(dumped)
+            texts.append(String(describing: p.info))
+        }
+
+        // Every error, including one whose vendor message quotes the key.
+        for key in keys {
+            let quoted = "Incorrect API key provided: \(key). You can find your API key at the dashboard."
+            texts.append(AnthropicPlanner.error(status: 400, headers: [:],
+                                                top: ["error": ["type": "invalid_request_error", "message": quoted]]).says)
+            texts.append(OpenAIPlanner.error(status: 400, headers: [:],
+                                             top: ["error": ["type": "invalid_request_error", "message": quoted]]).says)
+        }
+        texts += PlannerErrorWordsTests.allErrors.map(\.says)
+        texts += HostedPlannerWords.all
+
+        // A decision whose reason holds a key, and the gate's export of it.
+        var events: [GateEvent] = []
+        for (vendor, key) in zip(HostedVendor.allCases, keys) {
+            let json = vendor == .anthropic
+                ? HostedFixtures.anthropicToolUse("walk", #"{"forward_m":0.5,"side_m":0,"why":"use \#(key) now"}"#)
+                : HostedFixtures.openaiCall("walk", #"{"forward_m":0.5,"side_m":0,"why":"use \#(key) now"}"#)
+            let stub = StubPlannerHTTP(json: json)
+            let planner: any Planner = vendor == .anthropic
+                ? AnthropicPlanner(key: key, http: stub) : OpenAIPlanner(key: key, http: stub)
+            let d = try await planner.decide(HostedFixtures.ask())
+            texts += [d.why, String(describing: d), d.provider.modelVersion]
+            var gate = DuckEnvelopeGate()
+            gate.bind(DuckEnvelopeGate.Binding(d.provider, venue: .practice, mode: .tell, allowed: HostedFixtures.practice))
+            _ = try gate.check(d, at: 1)
+            events += gate.events
+            texts.append(gate.stats.summary(venue: .practice, limits: gate.limits).joined(separator: "\n"))
+        }
+        texts.append(try GateExport.jsonLines(events))
+
+        for text in texts {
+            XCTAssertFalse(KeyScrub.containsKey(text), "a key pattern is in:\n\(text)")
+            for key in keys {
+                XCTAssertFalse(text.contains(String(key.dropFirst(6))), "most of a key is in:\n\(text)")
+            }
+        }
+    }
+
     func testTheExportIsOneObjectPerLine() throws {
         var gate = DuckEnvelopeGate()
         gate.bind(DuckEnvelopeGate.Binding(PlannerInfo.duckTalk, venue: .practice, mode: .tell,

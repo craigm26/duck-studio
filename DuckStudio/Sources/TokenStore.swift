@@ -51,6 +51,25 @@ enum DreamKeyStore {
     }
 }
 
+/// A person's own Anthropic or OpenAI key, kept the same way, one slot per vendor.
+///
+/// ONE SLOT EACH, so a key for one vendor can never be sent to the other. The kit
+/// checks a paste's prefix before it is saved (`HostedVendor.cleaned`). Each key is
+/// read only when a planner is built, and goes only to its own vendor's host.
+enum HostedKeyStore {
+    private static let account = "duck-studio"
+    private static func service(_ v: HostedVendor) -> String {
+        switch v {
+        case .anthropic: return "com.anthropic.api-key"
+        case .openai: return "com.openai.api-key"
+        }
+    }
+
+    static func save(_ key: String, for v: HostedVendor) { KeychainSecret.save(key, service: service(v), account: account) }
+    static func load(_ v: HostedVendor) -> String? { KeychainSecret.load(service: service(v), account: account) }
+    static func clear(_ v: HostedVendor) { KeychainSecret.clear(service: service(v), account: account) }
+}
+
 /// One generic-password item, by service and account. The two stores above
 /// and `RemoteReachStore` (the identity-only Hugging Face sign-in) are the
 /// callers, each under its own service name.
