@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://microduckstudio.com/schemas/duck-decision-v1.json",
-  "title": "DuckDecision v1",
-  "description": "One decision from a closed set. StudioKit DuckDecision.swift is the source; DuckDecisionSchemaTests holds this file to it. Skill and sound names are narrowed per run by AllowedDecisions.",
+  "title": "DuckDecision v1 with drive and plan",
+  "description": "One decision from a closed set. StudioKit DuckDecision.swift is the source; DuckDecisionSchemaTests holds this file to it. Skill and sound names, drive sources and plan skill beats are narrowed per run by AllowedDecisions, and drive and plan are off unless a run allows them. A plan may carry up to 24 beats on the wire; the arbiter cuts it to 6 beats and 5 s of timed beats, and a drive to 5 s.",
   "oneOf": [
     {
       "type": "object",
@@ -66,6 +66,40 @@
         "reason": { "type": "string", "maxLength": 280 }
       },
       "required": ["kind", "reason"],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": { "const": "drive" },
+        "source": { "type": "string", "enum": ["dreamlabs.dream-1", "phone.ducknet-s1"] },
+        "goal": { "type": "string", "maxLength": 280 },
+        "seconds": { "type": "number" }
+      },
+      "required": ["kind", "source", "goal", "seconds"],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": { "const": "plan" },
+        "beats": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 24,
+          "items": {
+            "type": "object",
+            "properties": {
+              "action": { "type": "string", "enum": ["walk_forward", "walk_backward", "turn_left", "turn_right", "stop", "kick_left", "kick_right", "sit_or_stand", "roll", "peck_ground"] },
+              "speed": { "type": "string", "enum": ["slow", "normal", "fast"] },
+              "seconds": { "type": "number" }
+            },
+            "required": ["action", "speed", "seconds"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["kind", "beats"],
       "additionalProperties": false
     }
   ]

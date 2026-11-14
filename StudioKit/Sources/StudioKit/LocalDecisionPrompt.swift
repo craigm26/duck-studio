@@ -59,6 +59,23 @@ public enum LocalDecisionPrompt {
                                 "maximum": DuckDecision.maxTurnDegrees.rounded(.down)] as [String: Any]]
         case .ask: return ["question": text]
         case .done, .stop: return ["reason": text]
+        case .drive:
+            return ["source": ["type": "string", "enum": allowed.sources.map(\.rawValue)] as [String: Any],
+                    "goal": text,
+                    "seconds": ["type": "number", "minimum": 0, "maximum": DuckDecision.maxDriveSeconds] as [String: Any]]
+        case .plan:
+            let beat: [String: Any] = [
+                "type": "object",
+                "properties": [
+                    "action": ["type": "string", "enum": HostedPlanner.planActions(allowed)] as [String: Any],
+                    "speed": ["type": "string", "enum": RobotPlanProposal.speeds] as [String: Any],
+                    "seconds": ["type": "number", "minimum": 0, "maximum": RobotPlanProposal.maxWalkSeconds] as [String: Any],
+                ] as [String: Any],
+                "required": ["action", "speed", "seconds"],
+                "additionalProperties": false,
+            ]
+            return ["beats": ["type": "array", "items": beat, "minItems": 1,
+                              "maxItems": RobotPlanProposal.maxBeats] as [String: Any]]
         }
     }
 
@@ -95,6 +112,8 @@ public enum LocalDecisionPrompt {
         case .ask: return "Ask the person a question when the goal is unclear or nothing else fits."
         case .done: return "The goal is met. The duck stops."
         case .stop: return "Stop the duck now."
+        case .drive: return "Hand the duck to a driver for a few seconds with a short goal. Control comes back to you after."
+        case .plan: return "Run a short plan of steps in order."
         }
     }
 
@@ -142,6 +161,13 @@ public enum LocalDecisionPrompt {
             return #"{"kind":"done","reason":"...","why":"..."}"#
         case .stop:
             return #"{"kind":"stop","reason":"...","why":"..."}"#
+        case .drive:
+            return #"{"kind":"drive","source":"SOURCE","goal":"...","seconds":3,"why":"..."} where SOURCE is one of: "#
+                + names(allowed.sources.map(\.rawValue)) + ", at most \(Int(DuckDecision.maxDriveSeconds)) s"
+        case .plan:
+            return #"{"kind":"plan","beats":[{"action":"ACTION","speed":"normal","seconds":2}],"why":"..."} where ACTION is one of: "#
+                + names(HostedPlanner.planActions(allowed)) + "; at most \(RobotPlanProposal.maxBeats) steps and "
+                + "\(Int(RobotPlanProposal.maxWalkSeconds)) s of walking in all"
         }
     }
 
