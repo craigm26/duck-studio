@@ -432,7 +432,7 @@ public struct DuckEnvelopeGate: Sendable {
         for n in d.skillNames where !seenSkills.contains(n) && asked.insert(n).inserted { reasons.append(.newSkill(n)) }
         if !seenSources.contains(decided.provider.id) { reasons.append(.newSource(decided.provider.id)) }
         // The action source a `.drive` hands the duck to is a new source too (rule 10).
-        if case .drive(let source, _, _) = d, !seenSources.contains(source.rawValue) {
+        if case .drive(let source, _) = d, !seenSources.contains(source.rawValue) {
             reasons.append(.newSource(source.rawValue))
         }
         if d.clamped().cut > limits.clampShareForGo { reasons.append(.bigClamp) }
@@ -500,7 +500,7 @@ public struct DuckEnvelopeGate: Sendable {
         seenKinds.insert(d.kind)
         for n in skills { seenSkills.insert(n); skillTimes.append(t) }
         seenSources.insert(decided.provider.id)
-        if case .drive(let source, _, _) = d { seenSources.insert(source.rawValue) }
+        if case .drive(let source, _) = d { seenSources.insert(source.rawValue) }
         decisions += 1
         if binding.remote { hostedCalls += 1 }
         recent.append(d)

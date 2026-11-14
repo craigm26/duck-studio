@@ -37,9 +37,14 @@ public enum DuckDecision: Equatable, Hashable, Sendable {
     /// The planner asks for a stop. It calls the stop path like any other entry point. A stop
     /// never needs a planner to ask for it.
     case stop(reason: String)
-    /// Hand the duck to an action source from the kit's closed set for a few seconds, with a goal
-    /// in words. The arbiter clamps `seconds`; the gate is bound on every row (3.3).
-    case drive(source: ActionSourceID, goal: String, seconds: Double)
+    /// Hand the duck to an action source from the kit's closed set for a few seconds. The arbiter
+    /// clamps `seconds`; the gate is bound on every row (3.3).
+    ///
+    /// NO GOAL TEXT FROM THE MODEL. The source is told the person's own goal, word for word
+    /// (`PlannerAsk.goal`, from the human turn only, 3.2), which the executor fills in. A planner
+    /// answer that carries a `goal` field is refused like any other unexpected field, so text a
+    /// model wrote, or read off a sign in the camera, never becomes a driver's prompt.
+    case drive(source: ActionSourceID, seconds: Double)
     /// A short plan of beats, run by `RobotPlanRunner`. At most `RobotPlanProposal.maxBeats`
     /// beats and `RobotPlanProposal.maxWalkSeconds` of timed beats; more is cut.
     case plan(RobotPlanProposal)
@@ -60,7 +65,7 @@ public enum DuckDecision: Equatable, Hashable, Sendable {
             case .turn: return ["degrees"]
             case .ask: return ["question"]
             case .done, .stop: return ["reason"]
-            case .drive: return ["source", "goal", "seconds"]
+            case .drive: return ["source", "seconds"]
             case .plan: return ["beats"]
             }
         }
@@ -125,9 +130,9 @@ public enum DuckDecision: Equatable, Hashable, Sendable {
         case .turn(let d):
             let cd = min(max(d, -Self.maxTurnDegrees), Self.maxTurnDegrees)
             return (.turn(degrees: cd), d != 0 ? max(0, 1 - abs(cd) / abs(d)) : 0)
-        case .drive(let source, let goal, let s):
+        case .drive(let source, let s):
             let cs = min(max(s, 0), Self.maxDriveSeconds)
-            return (.drive(source: source, goal: goal, seconds: cs), s > 0 ? max(0, 1 - cs / s) : 0)
+            return (.drive(source: source, seconds: cs), s > 0 ? max(0, 1 - cs / s) : 0)
         case .plan(let p):
             let (cp, cut) = p.clamped()
             return (.plan(cp), cut)
@@ -141,7 +146,7 @@ public enum DuckDecision: Equatable, Hashable, Sendable {
         switch self {
         case .walk(let f, let s): return f.isFinite && s.isFinite
         case .turn(let d): return d.isFinite
-        case .drive(_, _, let s): return s.isFinite
+        case .drive(_, let s): return s.isFinite
         case .plan(let p): return p.beats.allSatisfy { $0.seconds.isFinite }
         default: return true
         }
@@ -209,7 +214,7 @@ extension DuckDecision: Codable {
         case .drive:
             let word = try text("source")
             guard let source = ActionSourceID(rawValue: word) else { throw WireError.unknownSource(word) }
-            self = .drive(source: source, goal: try text("goal"), seconds: try number("seconds"))
+            self = .drive(source: source, seconds: try number("seconds"))
         case .plan:
             guard c.contains(Key("beats")) else { throw WireError.missingField("beats") }
             let beats: [RobotPlanProposal.Beat]
@@ -240,9 +245,8 @@ extension DuckDecision: Codable {
         case .turn(let d): try c.encode(d, forKey: Key("degrees"))
         case .ask(let q): try c.encode(q, forKey: Key("question"))
         case .done(let r), .stop(let r): try c.encode(r, forKey: Key("reason"))
-        case .drive(let source, let goal, let seconds):
+        case .drive(let source, let seconds):
             try c.encode(source.rawValue, forKey: Key("source"))
-            try c.encode(goal, forKey: Key("goal"))
             try c.encode(seconds, forKey: Key("seconds"))
         case .plan(let p): try c.encode(p.beats, forKey: Key("beats"))
         }
@@ -358,9 +362,8 @@ public struct AllowedDecisions: Equatable, Hashable, Sendable, Codable {
         switch decision {
         case .skill(let n) where !skills.contains(n): return .failure(.unknownSkill(n))
         case .sound(let n) where !sounds.contains(n): return .failure(.unknownSound(n))
-        case .drive(let source, let goal, let seconds):
+        case .drive(let source, let seconds):
             guard sources.contains(source) else { return .failure(.unknownSource(source.rawValue)) }
-            guard !goal.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return .failure(.badField("goal")) }
             guard seconds > 0 else { return .failure(.badField("seconds")) }
             return .success(decision)
         case .plan(let p):
