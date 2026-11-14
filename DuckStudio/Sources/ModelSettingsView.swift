@@ -200,6 +200,23 @@ struct ModelSettingsView: View {
                 SectionHeading(text: HostedPlannerWords.heading)
             }
             .listRowBackground(Theme.surfacePrimary)
+
+            // ONE LEVEL DOWN TOO: a robot tool server (MCP, brains-layer.md 5.3) is read from,
+            // never driven through, and nothing it lists is offered on Play or Auto yet.
+            Section {
+                NavigationLink { MCPServerView() } label: {
+                    VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
+                        Label(MCPWords.rowTitle, systemImage: "server.rack")
+                            .foregroundStyle(Theme.textPrimary)
+                        Text(MCPWords.rowDetail)
+                            .font(.caption).foregroundStyle(Theme.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            } header: {
+                SectionHeading(text: MCPWords.heading)
+            }
+            .listRowBackground(Theme.surfacePrimary)
         }
         // THE RECESSED GROUND UNDER THE CARDS, which is the one arrangement
         // that lets a coloured word be set anywhere on this screen: `Palette`

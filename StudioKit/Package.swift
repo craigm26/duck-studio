@@ -17,7 +17,10 @@ let package = Package(
     name: "StudioKit",
     platforms: [.iOS(.v17), .macOS(.v13)],
     products: [
-        .library(name: "StudioKit", targets: ["StudioKit"])
+        .library(name: "StudioKit", targets: ["StudioKit"]),
+        // The MCP client (brains-layer.md 5.3), a separate product so StudioKit itself never
+        // imports the SDK and StopPath cannot reach it.
+        .library(name: "StudioMCP", targets: ["StudioMCP"]),
     ],
     dependencies: [
         // By tag, never by sibling path: an inspector that reports which
@@ -34,7 +37,15 @@ let package = Package(
         // graph, `PolicyBlend` depends on `shapeProblem`'s contract, and the
         // refusal corpus's `hidden_narrowed.onnx` is expected to load.
         // 1.37.0: Pollen's set @d5a8b55 — sit-stand v6, velstand leads the walk slot.
-        .package(url: "https://github.com/craigm26/duckkit.git", from: "1.37.0")
+        .package(url: "https://github.com/craigm26/duckkit.git", from: "1.37.0"),
+        // THE MCP SDK, PINNED EXACTLY. modelcontextprotocol/swift-sdk 0.12.1 (a0ae212, 2026-05-07).
+        // Licence: Apache-2.0, with contributions from before the project's relicensing still
+        // under MIT (its LICENSE says so); both are permissive. Exact, not `from:`, because a
+        // client that decides what a planner may read must be built against a reader somebody
+        // can name. Used only by `StudioMCP`, and only on Apple platforms (see that target).
+        .package(url: "https://github.com/modelcontextprotocol/swift-sdk.git", exact: "0.12.1"),
+        // The SDK's logger type, so the client can hand it a silent one by name.
+        .package(url: "https://github.com/apple/swift-log.git", from: "1.5.0"),
     ],
     targets: [
         // THE APRILTAG LIBRARY, VENDORED, NOT RE-WRITTEN. AprilRobotics/apriltag
@@ -74,6 +85,26 @@ let package = Package(
             // byte (`scripts/check_duckcards_vectors.sh`).
             resources: [.copy("Resources/StairsChallenge"), .copy("Resources/Planner"),
                         .copy("Resources/DuckCards"), .copy("Resources/DuckPacks")]
+        ),
+        // THE ONLY TARGET THAT IMPORTS THE MCP SDK. Apple platforms only: the SDK's HTTP client
+        // has no server-sent events on Linux, and the kit's Linux tests must not depend on a
+        // network library they do not use. On Linux this target compiles to nothing (its source
+        // is behind `#if canImport(MCP)`), and every rule it follows is in StudioKit, tested there.
+        .target(
+            name: "StudioMCP",
+            dependencies: [
+                "StudioKit",
+                .product(name: "MCP", package: "swift-sdk", condition: .when(platforms: [.iOS, .macOS])),
+                .product(name: "Logging", package: "swift-log"),
+            ]
+        ),
+        .testTarget(
+            name: "StudioMCPTests",
+            dependencies: [
+                "StudioMCP", "StudioKit",
+                .product(name: "MCP", package: "swift-sdk", condition: .when(platforms: [.iOS, .macOS])),
+                .product(name: "Logging", package: "swift-log"),
+            ]
         ),
         .testTarget(
             name: "StudioKitTests",

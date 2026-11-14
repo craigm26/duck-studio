@@ -130,6 +130,43 @@ final class GateKeyExportTests: XCTestCase {
         }
     }
 
+    /// The robot tool server's token (MCP, 5.3 and 5.4): not in its printed form, a planner note,
+    /// a planner prompt, a gate export, a refusal or any copy, even when the server echoes it back
+    /// bare (no "Bearer" in front, so no key pattern could catch it) or as a header.
+    func testNoMCPTokenLeaves() throws {
+        // No vendor prefix: only the exact-value redaction can catch this one, which is the point.
+        let raw = "q7Lm2Xv9" + String(repeating: "Rt4w", count: 6)
+        XCTAssertFalse(KeyScrub.containsKey(raw), "a bare token has no shape the key grep knows")
+        let bearer = try MCPBearer.cleaned(raw).get()
+        let leak = { (text: String) in text.contains(raw) || text.contains(String(raw.dropFirst(6))) }
+        XCTAssertTrue(leak("echo " + raw), "the grep can fail")
+
+        // What a server could send back, as the HTTP source hands it on (`bearer.redact`).
+        let echoed = bearer.redact("you are \(raw); Authorization: Bearer \(raw)")
+        let note = PlannerContextNote(source: "duck.local duck_state", text: echoed)
+        let planner = PlannerInfo(id: "byok.x", modelVersion: "m", label: "x", runsOn: .hosted(vendor: "v"),
+                                  key: .byok(provider: "v"), decisionDeadline: .seconds(8))
+        let ask = PlannerAsk(goal: "turn", state: DuckStateSnapshot(), allowed: AllowedDecisions(kinds: [.turn]),
+                             context: [note])
+        let d = Decided(decision: .turn(degrees: 10), why: "the server said " + echoed, provider: planner,
+                        latency: .milliseconds(5))
+        var gate = DuckEnvelopeGate()
+        gate.bind(DuckEnvelopeGate.Binding(planner, venue: .practice, mode: .tell, allowed: ask.allowed))
+        _ = try gate.check(d, at: 1)
+
+        var dumped = ""
+        dump(bearer, to: &dumped)
+        let texts = [String(describing: bearer), String(reflecting: bearer), dumped, "\(bearer)", echoed,
+                     note.text, HostedPlanner.userText(ask), LocalDecisionPrompt.userText(ask),
+                     try GateExport.jsonLines(gate.events), gate.stats.chip,
+                     MCPRefusal.excluded("walk", .motion).says, MCPWords.savedHere(host: "duck.local", hint: bearer.hint)]
+            + MCPWords.all
+        for text in texts {
+            XCTAssertFalse(leak(text), "the MCP token is in:\n\(text)")
+            XCTAssertFalse(KeyScrub.containsKey(text), "a key pattern is in:\n\(text)")
+        }
+    }
+
     func testTheExportIsOneObjectPerLine() throws {
         var gate = DuckEnvelopeGate()
         gate.bind(DuckEnvelopeGate.Binding(PlannerInfo.duckTalk, venue: .practice, mode: .tell,

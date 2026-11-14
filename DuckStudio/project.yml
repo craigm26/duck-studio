@@ -110,6 +110,10 @@ targets:
         product: Tokenizers
       - package: StudioKit
         product: StudioKit
+      # The MCP client (brains-layer.md 5.3): lists a robot tool server's tools and reads the
+      # read-only ones. Only MCPServerView.swift imports it (`MCPBoundaryTests`).
+      - package: StudioKit
+        product: StudioMCP
       - package: DuckKit
         product: DuckKit
       # The fingerprint and the official-release manifest. This is the product

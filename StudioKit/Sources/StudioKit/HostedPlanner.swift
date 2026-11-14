@@ -159,6 +159,7 @@ public enum HostedPlanner {
             let recent = ask.history.suffix(5).map { DuckDecisionWire.json($0.decision) }
             lines.append("Steps so far in this run, oldest first: " + recent.joined(separator: "; "))
         }
+        lines += PlannerContextNote.promptLines(ask.context)
         return lines.joined(separator: "\n")
     }
 
