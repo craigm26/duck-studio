@@ -1,4 +1,4 @@
-"""Duck Card packs: reading a pack, the board rule, par, and the four starter packs.
+"""Duck Card packs: reading a pack, the board rule, par, and the eight starter packs.
 
     python3 -m unittest discover -s cardreader/tests -p test_packs.py -v
 """
@@ -225,9 +225,11 @@ class TheStarterPacks(unittest.TestCase):
     def setUp(self):
         self.packs = {p.id: p for p in P.bundled(DECK)}
 
-    def test_the_four_packs_youngest_first(self):
+    def test_the_eight_packs_youngest_first(self):
         self.assertEqual([p.id for p in P.bundled(DECK)],
-                         ["get-to-the-pond", "duck-maze", "loop-the-course", "design-a-level"])
+                         ["get-to-the-pond", "morning-chores", "duck-maze", "long-rows",
+                          "loop-the-course", "night-field", "design-a-level", "plan-the-farm"])
+        self.assertEqual([len(p.challenges) for p in P.bundled(DECK)], [6, 6, 10, 6, 10, 5, 3, 3])
 
     def test_the_copies_are_the_studiokit_files(self):
         for p in self.packs:

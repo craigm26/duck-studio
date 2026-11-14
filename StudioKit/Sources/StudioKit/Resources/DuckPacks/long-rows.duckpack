@@ -1,0 +1,198 @@
+{
+  "format": "duck-pack/0",
+  "id": "long-rows",
+  "name": "Long rows",
+  "grades": "1 to 2",
+  "grade_from": 1,
+  "grade_to": 2,
+  "vocabulary": "r001",
+  "license": "CC-BY-4.0",
+  "credit": "Duck Cards, from microduckstudio.com",
+  "about": "A pretend crop field, six by four squares, where the fewest cards wins: walk a row, turn at the end, come back along the next one, and say each long walk in three cards with Repeat.",
+  "cards": ["start", "end", "walk_forward", "walk_backward", "turn_left", "turn_right", "stop", "peck_ground", "repeat", "end_repeat"],
+  "score": "cards",
+  "board": {"columns": 6, "rows": 4, "square_cm": 30, "duck_square_cm": 30, "duck_square_source": "duckbench simulator (Pollen's MJCF, alpha_walking), 2026-10-15, with a first spec past Pollen's pad envelope; the shipped spec is not measured yet, so on a real duck Walk and Turn cards are timed until Pollen's duck-sim and a tester's duck pass (docs/PACKS.md, Acceptance)"},
+  "challenges": [
+    {
+      "id": "lr-1",
+      "name": "Peck at the row end",
+      "start": {"at": [0, 1], "facing": "east"},
+      "goal": [5, 1],
+      "walls": [],
+      "gates": [],
+      "finish_with": "peck_ground",
+      "par": 4,
+      "solution": [
+        {"card": "repeat", "times": 5},
+        {"card": "walk_forward"},
+        {"card": "end_repeat"},
+        {"card": "peck_ground"}
+      ],
+      "buggy": null,
+      "hint": "Five Walk forward cards say the same thing five times. Is there a card that says it once?",
+      "note": "The duck plays a field robot at the start of a long row. It walks to the far end and pecks once to say it got there."
+    },
+    {
+      "id": "lr-2",
+      "name": "Back down the lane",
+      "start": {"at": [5, 2], "facing": "east"},
+      "goal": [1, 2],
+      "walls": [],
+      "gates": [],
+      "finish_with": null,
+      "par": 3,
+      "solution": [
+        {"card": "repeat", "times": 4},
+        {"card": "walk_backward"},
+        {"card": "end_repeat"}
+      ],
+      "buggy": null,
+      "hint": "The duck faces the wrong way. Can it get there without a Turn card?",
+      "note": "The lane between the rows is narrow, so the duck backs down it without turning round."
+    },
+    {
+      "id": "lr-3",
+      "name": "Bump at the row end",
+      "start": {"at": [0, 0], "facing": "east"},
+      "goal": [5, 3],
+      "walls": [],
+      "gates": [],
+      "finish_with": null,
+      "par": 7,
+      "solution": [
+        {"card": "repeat", "times": 5},
+        {"card": "walk_forward"},
+        {"card": "end_repeat"},
+        {"card": "turn_right"},
+        {"card": "repeat", "times": 3},
+        {"card": "walk_forward"},
+        {"card": "end_repeat"}
+      ],
+      "buggy": [
+        {"card": "repeat", "times": 5},
+        {"card": "walk_forward"},
+        {"card": "end_repeat"},
+        {"card": "turn_left"},
+        {"card": "repeat", "times": 3},
+        {"card": "walk_forward"},
+        {"card": "end_repeat"}
+      ],
+      "hint": "Act it out. Where is the duck when it bumps, and which way is it facing?",
+      "note": "Tam laid this row, and the duck bumped into the edge of the field. One card is wrong."
+    },
+    {
+      "id": "lr-4",
+      "name": "Up the step field",
+      "start": {"at": [0, 3], "facing": "north"},
+      "goal": [3, 0],
+      "walls": [],
+      "gates": [{"at": [1, 2], "axis": "ew"}, {"at": [2, 1], "axis": "ew"}, {"at": [3, 0], "axis": "ew"}],
+      "finish_with": null,
+      "par": 6,
+      "solution": [
+        {"card": "repeat", "times": 3},
+        {"card": "walk_forward"},
+        {"card": "turn_right"},
+        {"card": "walk_forward"},
+        {"card": "turn_left"},
+        {"card": "end_repeat"}
+      ],
+      "buggy": null,
+      "hint": "Each stair is one up and one across. Lay one stair, then repeat it.",
+      "note": "Three field gates climb the hill like stairs, and the duck goes through every one."
+    },
+    {
+      "id": "lr-5",
+      "name": "Turn at the row end",
+      "start": {"at": [0, 0], "facing": "east"},
+      "goal": [0, 1],
+      "walls": [{"between": [[0, 0], [0, 1]]}, {"between": [[1, 0], [1, 1]]}, {"between": [[2, 0], [2, 1]]}, {"between": [[3, 0], [3, 1]]}, {"between": [[4, 0], [4, 1]]}],
+      "gates": [{"at": [5, 0], "axis": "ew"}, {"at": [0, 1], "axis": "ew"}],
+      "finish_with": null,
+      "par": 9,
+      "solution": [
+        {"card": "repeat", "times": 5},
+        {"card": "walk_forward"},
+        {"card": "end_repeat"},
+        {"card": "turn_right"},
+        {"card": "walk_forward"},
+        {"card": "turn_right"},
+        {"card": "repeat", "times": 5},
+        {"card": "walk_forward"},
+        {"card": "end_repeat"}
+      ],
+      "buggy": null,
+      "hint": "There are two long walks and one turn at the end. Each long walk can be a Repeat.",
+      "note": "Down one row, round the end, and back along the next: the way a tractor or a field robot works a field."
+    },
+    {
+      "id": "lr-6",
+      "name": "Check the crops",
+      "start": {"at": [0, 0], "facing": "east"},
+      "goal": [0, 1],
+      "walls": [{"between": [[0, 0], [0, 1]]}, {"between": [[1, 0], [1, 1]]}, {"between": [[2, 0], [2, 1]]}, {"between": [[3, 0], [3, 1]]}, {"between": [[4, 0], [4, 1]]}],
+      "gates": [{"at": [5, 0], "axis": "ew"}, {"at": [0, 1], "axis": "ew"}],
+      "finish_with": "peck_ground",
+      "par": 10,
+      "solution": [
+        {"card": "repeat", "times": 5},
+        {"card": "walk_forward"},
+        {"card": "end_repeat"},
+        {"card": "turn_right"},
+        {"card": "walk_forward"},
+        {"card": "turn_right"},
+        {"card": "repeat", "times": 5},
+        {"card": "walk_forward"},
+        {"card": "end_repeat"},
+        {"card": "peck_ground"}
+      ],
+      "buggy": [
+        {"card": "repeat", "times": 5},
+        {"card": "walk_forward"},
+        {"card": "end_repeat"},
+        {"card": "turn_left"},
+        {"card": "walk_forward"},
+        {"card": "turn_right"},
+        {"card": "repeat", "times": 5},
+        {"card": "walk_forward"},
+        {"card": "end_repeat"},
+        {"card": "peck_ground"}
+      ],
+      "hint": "It is Turn at the row end with one more card. Where does Peck the ground go?",
+      "note": "Walk a row, round the end, back along the next row, and peck once to say the walk is done. The peck is only pretend: the duck cannot look at a plant."
+    }
+  ],
+  "lessons": [
+    {
+      "title": "Say it shorter",
+      "skill": "Loops",
+      "body": "Solve Peck at the row end with plain cards, then again with Repeat and End repeat, writing the number on Repeat in pencil or on a sticky note. The score is cards: count every card between Start and End, Repeat and End repeat included. Print 2 Repeat and 2 End repeat cards for each group.",
+      "ask": "How many cards did Repeat save, and how many steps does the duck still take?"
+    },
+    {
+      "title": "A field on a table",
+      "skill": "Setting up",
+      "body": "Six by four squares of 30 cm is 1.8 by 1.2 m, too big for most classroom floors. Draw the field on a sheet of tabletop paper with small squares, and walk a finger or a toy along each row first. Save the big taped field for a run with the duck.",
+      "ask": "What changes when the squares are smaller, and what stays the same?"
+    },
+    {
+      "title": "Bump!",
+      "skill": "Debugging",
+      "body": "Hand out the buggy row for Bump at the row end. Groups act it out card by card and stop on the card that bumps. Find the one wrong card and fix the row with a single swap. Then do the same for Check the crops.",
+      "ask": "Was the wrong card the one that bumped, or a card before it?"
+    },
+    {
+      "title": "Row by row",
+      "skill": "Patterns",
+      "body": "Trace Turn at the row end with a finger and say each move aloud. Circle the two long walks. Each one is a Repeat. The turn at the row end happens once, so it stays as plain cards between them.",
+      "ask": "Which part of the path happens again, and which part happens only once?"
+    },
+    {
+      "title": "What would a person check?",
+      "skill": "Robots and people",
+      "body": "In Check the crops the duck pecks at the end, but the peck is only pretend: nothing on the duck can look at a plant. Real farmers walk their rows to look. Talk about what a person might look for, like holes in leaves, dry soil or a broken stem, and what a person does when something is wrong.",
+      "ask": "If a plant looked wrong, who would you tell, and what would you write down?"
+    }
+  ],
+  "yours": []
+}

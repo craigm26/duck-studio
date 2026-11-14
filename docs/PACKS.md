@@ -187,17 +187,32 @@ by, given whether or not the row solved it. `said` is the first of these that ho
 | solved over par | `Solved in N steps. Par is P, so a shorter row is out there.` |
 | solved under par | `Solved in N steps, under par P. Tell whoever wrote the challenge.` |
 
-## The four starter packs
+## The starter packs
+
+Youngest first, as both readers list them (by `grade_from`, `grade_to`, then id):
 
 | id | grades | cards in play | board | score | challenges |
 |---|---|---|---|---|---|
 | `get-to-the-pond` | PreK to K | Start, End, Walk forward, Turn left, Turn right | 3 x 3, 30 cm squares | steps | 6, no walls in the first 3 |
+| `morning-chores` | PreK to K | Start, End, Walk forward, Turn left, Turn right, Hello, Peck the ground | 3 x 3 | steps | 6; a gate in 1, walls in 1, `finish_with` in 2 |
 | `duck-maze` | 1 to 2 | + Walk back, Stop, Hello, Kick, right | 4 x 4 | steps | 10; walls from 3, gates from 6, `finish_with` in 2 |
+| `long-rows` | 1 to 2 | Start, End, Walk forward, Walk back, Turn left, Turn right, Stop, Peck the ground, Repeat, End repeat | 6 x 4 | cards | 6; Repeat beats the plain row in every one, 2 Find the bug |
 | `loop-the-course` | 3 to 5 | + Repeat, End repeat, Slow, Fast, Look left, Look right | 5 x 5 | cards | 10; at least 4 where Repeat beats the plain row, 2 Find the bug |
+| `night-field` | 3 to 5 | Start, End, Walk forward, Walk back, Turn left, Turn right, Stop, Slow, Peck the ground, Alarm, Repeat, End repeat, When it falls | 5 x 5 | cards | 5; 2 Find the bug, one ends with Stop, a nested loop of 17 cards |
 | `design-a-level` | 6 to 8 | every printed card, + When it falls, Your cards | 6 x 6, 30 cm squares | cards | 3 worked examples; the lesson is authoring one for another group |
+| `plan-the-farm` | 6 to 8 | Start, End, Walk forward, Walk back, Turn left, Turn right, Stop, Slow, Peck the ground, Hello, Repeat, End repeat, When it falls, Your cards 203 to 205 | 6 x 6 (6 x 2 and 6 x 5 in two) | cards | 3; the lessons add writing a spec and a level of the class's own |
 
 Each pack carries 3 to 6 lessons in the voice of the cards page's "Lessons to start with": one
 class period, paper first, a question to ask at the end.
+
+The four farm packs (`morning-chores`, `long-rows`, `night-field`, `plan-the-farm`) go with the
+picture book The Duck Who Stayed, set on a farm. Each challenge's `note` is its one-line story
+setup. The duck plays a game about real farm robots and does no farm work: a Peck the ground at
+the end is pretend, nothing on the duck looks at a plant, a milking robot in a story stays in its
+place, and a Stop on the board is a counted step. `plan-the-farm` lends Your cards 203 to 205
+(Walk the row, Row end right, Row end left), clear of `design-a-level`'s 200 and 201. Every
+`cards` par in these packs was settled by an exhaustive search for a shorter row (Walk, Turn,
+Repeat to any depth and the pack's Your cards); none exists, The whole night field's 17 included.
 
 ## Where packs live
 
