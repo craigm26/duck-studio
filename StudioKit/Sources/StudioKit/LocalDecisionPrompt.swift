@@ -61,7 +61,6 @@ public enum LocalDecisionPrompt {
         case .done, .stop: return ["reason": text]
         case .drive:
             return ["source": ["type": "string", "enum": allowed.sources.map(\.rawValue)] as [String: Any],
-                    "goal": text,
                     "seconds": ["type": "number", "minimum": 0, "maximum": DuckDecision.maxDriveSeconds] as [String: Any]]
         case .plan:
             let beat: [String: Any] = [
@@ -112,7 +111,7 @@ public enum LocalDecisionPrompt {
         case .ask: return "Ask the person a question when the goal is unclear or nothing else fits."
         case .done: return "The goal is met. The duck stops."
         case .stop: return "Stop the duck now."
-        case .drive: return "Hand the duck to a driver for a few seconds with a short goal. Control comes back to you after."
+        case .drive: return "Hand the duck to a driver for a few seconds. The driver is given the person's goal. Control comes back to you after."
         case .plan: return "Run a short plan of steps in order."
         }
     }
@@ -162,7 +161,7 @@ public enum LocalDecisionPrompt {
         case .stop:
             return #"{"kind":"stop","reason":"...","why":"..."}"#
         case .drive:
-            return #"{"kind":"drive","source":"SOURCE","goal":"...","seconds":3,"why":"..."} where SOURCE is one of: "#
+            return #"{"kind":"drive","source":"SOURCE","seconds":3,"why":"..."} where SOURCE is one of: "#
                 + names(allowed.sources.map(\.rawValue)) + ", at most \(Int(DuckDecision.maxDriveSeconds)) s"
         case .plan:
             return #"{"kind":"plan","beats":[{"action":"ACTION","speed":"normal","seconds":2}],"why":"..."} where ACTION is one of: "#

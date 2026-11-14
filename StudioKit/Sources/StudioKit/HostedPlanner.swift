@@ -73,8 +73,6 @@ public enum HostedPlanner {
             case .drive:
                 props["source"] = .object(["type": .string("string"), "enum": .array(allowed.sources.map { .string($0.rawValue) }),
                                            "description": .string("Which driver takes the duck, by id.")])
-                props["goal"] = .object(["type": .string("string"), "description": .string(
-                    "What the driver should do, in a few words, at most \(DuckDecision.maxTextLength) characters.")])
                 props["seconds"] = .object(["type": .string("number"), "description": .string(
                     "How long the driver has, at most \(Int(DuckDecision.maxDriveSeconds)) s; more is cut.")])
             case .plan:
@@ -117,7 +115,7 @@ public enum HostedPlanner {
         case .ask: return "Ask the person a question when the goal is unclear or no other tool fits."
         case .done: return "The goal is met. The duck stops."
         case .stop: return "Stop the duck now."
-        case .drive: return "Hand the duck to a driver for a few seconds with a short goal. Control comes back to you after."
+        case .drive: return "Hand the duck to a driver for a few seconds. The driver is given the person's goal. Control comes back to you after."
         case .plan: return "Run a short plan of steps in order."
         }
     }

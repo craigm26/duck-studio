@@ -14,9 +14,9 @@ extension ControlArbiter {
     public static func clamp(_ decision: DuckDecision, secondsLeft: Double) -> (decision: DuckDecision, cut: Double) {
         let left = secondsLeft.isFinite ? max(secondsLeft, 0) : 0
         switch decision {
-        case .drive(let source, let goal, let s):
+        case .drive(let source, let s):
             let cs = min(max(s, 0), DuckDecision.maxDriveSeconds, left)
-            return (.drive(source: source, goal: goal, seconds: cs), s > 0 ? max(0, 1 - cs / s) : 0)
+            return (.drive(source: source, seconds: cs), s > 0 ? max(0, 1 - cs / s) : 0)
         case .plan(let p):
             let (cp, cut) = p.clamped(walkSeconds: min(RobotPlanProposal.maxWalkSeconds, left))
             return (.plan(cp), cut)
@@ -87,10 +87,11 @@ public enum PlannerLeg {
         }
         public static let gateNotBound = "The limits were not set up for this run, so nothing moved."
         public static let noTimeLeft = "This run has no time left for the driver. Nothing moved."
+        public static let noGoal = "There is no goal from you for the driver to follow. Nothing moved."
         public static let notThisKind = "That decision is not one this step carries out. Nothing moved."
         public static let gateCut = "The duck reached one of its limits, so the driver was stopped."
 
-        public static let all = [noSuchSource("x"), gateNotBound, noTimeLeft, notThisKind, gateCut]
+        public static let all = [noSuchSource("x"), gateNotBound, noTimeLeft, noGoal, notThisKind, gateCut]
     }
 
     // MARK: .drive
@@ -133,6 +134,10 @@ public enum PlannerLeg {
     /// Hand the duck to the named source with the gate bound on every row, for at most the
     /// clamped seconds. `runStart` is when the planner's run began, for the gate's run cap.
     ///
+    /// THE SOURCE IS TOLD THE PERSON'S GOAL, WORD FOR WORD. `humanGoal` is the run's
+    /// `PlannerAsk.goal`, from the human turn only (3.2). The decision carries no text, so nothing
+    /// a model wrote can become the driver's prompt.
+    ///
     /// THE GATE IS THE RUN'S OWN. It must already be bound (`DuckEnvelopeGate.bind`); an unbound
     /// gate refuses the leg. Each row goes through `act` after the stick clamp, and the gate's
     /// twist is what is sent. A cut or invalid row ends the leg through `DreamPilot`'s own ending:
@@ -141,6 +146,7 @@ public enum PlannerLeg {
     /// NO ASSIST. `DuckAssist` does not exist yet, so the source drives plain. The spec allows a
     /// plain source ("Dream-1 (plain)"), and "+ assist" is a label only a measured row may earn.
     public static func drive(_ decision: DuckDecision,
+                             humanGoal: String,
                              allowed: AllowedDecisions,
                              secondsLeft: Double,
                              sources: [DriveSource],
@@ -154,15 +160,16 @@ public enum PlannerLeg {
                              now: @escaping @Sendable () -> Date = Date.init) async -> Ending {
         guard case .drive = decision else { return .refused(Words.notThisKind) }
         if case .failure(let r) = allowed.admit(decision) { return .refused(r.says) }
-        guard case .drive(let id, let goal, let seconds) = ControlArbiter.clamp(decision, secondsLeft: secondsLeft).decision
+        guard case .drive(let id, let seconds) = ControlArbiter.clamp(decision, secondsLeft: secondsLeft).decision
         else { return .refused(Words.notThisKind) }
+        guard !humanGoal.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return .refused(Words.noGoal) }
         guard seconds >= 1 / DreamPilot.rowsPerSecond else { return .refused(Words.noTimeLeft) }
         guard let source = sources.first(where: { $0.id == id }) else { return .refused(Words.noSuchSource(id.rawValue)) }
         guard await gate.isBound else { return .refused(Words.gateNotBound) }
 
         let cut = CutBox()
         let ended = SaidBox()
-        let pilot = DreamPilot(checkpoint: source.checkpoint, prompt: goal, limit: seconds)
+        let pilot = DreamPilot(checkpoint: source.checkpoint, prompt: humanGoal, limit: seconds)
         await pilot.run(on: peer, rows: source.rows, frames: frames,
                         events: { e in
                             switch e {
