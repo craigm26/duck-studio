@@ -70,6 +70,24 @@ enum HostedKeyStore {
     static func clear(_ v: HostedVendor) { KeychainSecret.clear(service: service(v), account: account) }
 }
 
+/// The robot tool server's token (MCP, brains-layer.md 5.3), kept the same way, in its own slot.
+///
+/// ITS OWN SLOT, because it opens a different door from every key above, and a store that held
+/// "the token" would let one silently replace another. Read only when the client is built; it goes
+/// only to the server whose address is saved beside it (`MCPServerStore`), and never into a log.
+enum MCPTokenStore {
+    private static let service = "com.duckstudio.mcp-server-token"
+    private static let account = "duck-studio"
+
+    static func save(_ token: MCPBearer) {
+        KeychainSecret.save(String(token.header.dropFirst("Bearer ".count)), service: service, account: account)
+    }
+    static func load() -> MCPBearer? {
+        KeychainSecret.load(service: service, account: account).flatMap { try? MCPBearer.cleaned($0).get() }
+    }
+    static func clear() { KeychainSecret.clear(service: service, account: account) }
+}
+
 /// One generic-password item, by service and account. The two stores above
 /// and `RemoteReachStore` (the identity-only Hugging Face sign-in) are the
 /// callers, each under its own service name.

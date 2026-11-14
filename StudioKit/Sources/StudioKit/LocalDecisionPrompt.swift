@@ -194,6 +194,7 @@ public enum LocalDecisionPrompt {
             }
             lines.append("Steps so far, oldest first: " + recent.joined(separator: "; "))
         }
+        lines += PlannerContextNote.promptLines(ask.context)
         return lines.joined(separator: "\n")
     }
 

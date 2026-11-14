@@ -250,11 +250,21 @@ Without bridge-side motion, the stop-latch and consent problems below cannot ari
 
 **How `duck_stop` is described.** It is described only as "a remote brain can also ask for a stop". It depends on Cloudflare, on the vendor's model choosing to call it, and on the chat UI. It is never presented as a way to stop the duck. The local Stop paths are the stop.
 
-### 5.3 The app as an MCP client (later)
+### 5.3 The app as an MCP client (first slice built 2026-11-13)
 
 - **Client.** `modelcontextprotocol/swift-sdk` with `HTTPClientTransport`, connecting to the bridge's duck server, robot-md-gateway or another robot MCP server. Listed tools join `AllowedDecisions` for Foundation Models (iOS 27 tool calling) or BYOK sessions.
 - **No second motion path.** For the duck, the app prefers its own `DuckPeer` path and uses MCP only for tools it does not have natively.
 - **Claude BYOK shortcut.** This is the Messages API MCP connector, `mcp_servers` with beta header `mcp-client-2025-11-20`. It needs a scoped token minted for that use: LoA 0 plus `duck_propose` only, short-lived, and revocable from Studio. It can never run anything. The setup sheet says the connector is not ZDR-eligible.
+
+**What the first slice built (roadmap item 3, `feat/mcp-client`).**
+
+- **SDK, pinned and fenced.** `modelcontextprotocol/swift-sdk` 0.12.1 exactly (commit a0ae212). Licence: Apache-2.0, with older contributions still MIT; both permissive. It is imported by one file in a separate `StudioMCP` target, on iOS and macOS only. StudioKit itself does not import it, so the kit still builds and tests on Linux, and StopPath, LinePeer, DuckPeer, ControlArbiter and the gate cannot reach it. `MCPBoundaryTests` checks this by reading the source.
+- **The seam.** `MCPToolSource` in the kit can list tools and read one tool with no arguments. It has no way to call a tool with arguments. `MCPHTTPToolSource` in `StudioMCP` is the real one: Streamable HTTP, non-streaming, a silent logger, no cookies or cache, and it declares no sampling, elicitation or roots capability, so a server cannot ask the app to run a model or ask the person anything.
+- **Address and token.** One server, set in Studio > Settings > Models > Robot tool servers. The address is http or https with no user, password, query or fragment. The optional bearer token is in its own Keychain slot (`MCPTokenStore`), is held in `MCPBearer`, which prints only its hint, and is sent over plain http only to a local address (loopback, private ranges, tailnet, `.local`), with a line saying it is unencrypted. Every string a server sends back has the token and any key-shaped text replaced by hints.
+- **Classification, conservative.** `MCPToolPolicy`: a tool joins only if the server marks it `readOnlyHint: true`, does not also mark it destructive, and its name does not read as motion, stop, a write, a key or a limit. No hints means out. The annotations are the server's own claim, so the name check is a second lock. Both the reader and the HTTP source refuse to call anything else, and refuse tools that need arguments.
+- **What "join" means in this slice.** A planner calls nothing (3.3), so read-only tools are not offered to a model as callable tools. Instead the app reads up to three read-only, no-argument tools before a decision and passes their answers in `PlannerAsk.context` as `PlannerContextNote`s. In the prompt they sit after the goal, under a heading that says they are data, each quoted as one JSON string, so a "Goal:" inside one cannot start a line. They never set `goal` or `allowed` (3.2).
+- **Against a real server.** robot-md 2.0.0's `robot-md mcp` speaks stdio only, and robot-md-gateway takes signed RCAN envelopes over HTTP and dispatches to that stdio server, so neither offers MCP over HTTP. On the Mac, `robot-md mcp` with the Microduck preset (robot-md main, which has the preset; 2.0.0 on PyPI does not) was put behind a stdio-to-HTTP proxy and listed through the Swift client. It lists 21 tools with no annotations, so a planner reads none of them. That is the honest result until robot-md marks its read-only tools.
+- **Not built.** The Claude BYOK `mcp_servers` shortcut: it needs a server with `duck_propose` and a scoped LoA 0 token, and neither exists. Wiring notes into a live planner run: no planner is offered on Play or Auto yet (offer rule), so the reader is kit code with tests, and the settings screen only lists and classifies. Foundation Models tool calling over MCP tools. More than one server.
 
 ### 5.4 What never goes over MCP
 
@@ -495,7 +505,7 @@ Each build is one TestFlight upload. Kit work rides along, and nothing is upload
 
 1. BYOK planners (Claude, GPT; Gemini and ER-2 are off on the Gemini API age terms), then ER-2 pointing only if those terms change. ER-2 needs head envelope rows for `.lookAt` and observation-age gating for `.walkTo`, and its price is checked before any cost figure appears.
 2. MLX on the phone, then LAN Ollama/MLX on a Mac, with TLS or the plaintext caveat.
-3. The app as an MCP client, with the scoped token for the Claude shortcut.
+3. The app as an MCP client, with the scoped token for the Claude shortcut. First slice built 2026-11-13 (5.3): list, classify and read read-only tools as planner data. The Claude shortcut is not built.
 4. `.drive`-from-planner and `.plan`-from-planner, with arbiter clamps.
 5. ACT ensembling and bias calibration, only if BrainBench shows a gain.
 6. Bridge-hosted VLA adapters, only after duck teleop data and fine-tuning exist.
@@ -540,9 +550,11 @@ Each build is one TestFlight upload. Kit work rides along, and nothing is upload
 
 ## 11. Open questions for Craig
 
-1. **Authless stop.** The recommendation is no authless mode at all. If you want one later, it would be a separate stop-only endpoint with nothing readable. Is that acceptable?
+Questions 1 and 3 were decided on 2026-11-13. Craig delegated them, and the plan's recommendations were adopted.
+
+1. **Authless stop. Decided 2026-11-13: no authless mode at all.** Craig delegated; the recommendation was adopted. No MCP server for the duck runs without auth, and there is no separate authless stop-only endpoint. The local Stop paths are the stop.
 2. **Bridge gate source.** The recommendation is one Python gate imported from bounded-embodiment-bench (public), not a copy in castor. Agree?
-3. **MCP when the app is closed.** The recommendation is to refuse MCP motion when no Studio controller is connected, and on the real duck to require a Go tap at the phone. Agree?
+3. **MCP when the app is closed. Decided 2026-11-13: MCP motion is refused when no Studio controller is connected, and the real duck needs a Go tap at the phone. Elicitation alone is allowed only on the practice duck.** Craig delegated; the recommendation was adopted. The app as a client (5.3) sends no motion over MCP at all, and declares no elicitation capability, so it is never the place a server collects consent for motion.
 4. **Offer bar.** Is "beats do-nothing by 4/10 on the holdout with zero post-gate crossings" right for Tell, with a higher bar (proposed 6/10) for Auto, and every row pinned to a model version?
 5. **ER-2 price.** $2/$10 per M tokens is unverified. It gets checked before any cost-per-run figure appears. Is that fine, and should ER-2 be the first later provider or after the BYOK LLMs?
 6. **Dream key on the bridge.** Until TLS pairing exists, should the bridge path be offered at all, given the "sent unencrypted over your Wi-Fi" sheet, or should DreamDirect be the only way for now?

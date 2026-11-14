@@ -471,10 +471,13 @@ public struct PlannerAsk: Sendable {
     public let allowed: AllowedDecisions
     /// The last few decisions in this run.
     public let history: [Decided]
+    /// Data from outside the person's turn, such as a read-only MCP tool's answer (5.3). It is
+    /// quoted in the prompt as data after the goal, and it never sets `goal` or `allowed`.
+    public let context: [PlannerContextNote]
 
     public init(goal: String, utterance: String? = nil, frame: Data? = nil,
                 frameTimestamp: ContinuousClock.Instant? = nil, state: DuckStateSnapshot,
-                allowed: AllowedDecisions, history: [Decided] = []) {
+                allowed: AllowedDecisions, history: [Decided] = [], context: [PlannerContextNote] = []) {
         self.goal = goal
         self.utterance = utterance
         self.frame = frame
@@ -482,6 +485,7 @@ public struct PlannerAsk: Sendable {
         self.state = state
         self.allowed = allowed
         self.history = history
+        self.context = context
     }
 }
 
