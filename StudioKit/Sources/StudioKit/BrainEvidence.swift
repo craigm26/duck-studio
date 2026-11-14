@@ -115,10 +115,15 @@ public struct TermsRow: Equatable, Hashable, Sendable, Codable {
     public let trainsOnImages: Bool?
     /// The youngest age the terms allow. Nil when unknown.
     public let minimumAge: Int?
+    /// Set only for a model that runs on the person's own devices (MLX on this phone, Ollama or
+    /// LM Studio on their Mac): there is no vendor, and this names the licence the weights come
+    /// under ("Apache-2.0", "Gemma Terms of Use"). Nil for a vendor's service and for this app's
+    /// own code. Optional so rows stored before it existed still decode.
+    public let localModelLicence: String?
 
     public init(providerId: String, checked: String, source: String, physicalControl: Answer,
                 byokInThirdPartyApp: Answer, imageRetention: String?, trainsOnImages: Bool?,
-                minimumAge: Int?) {
+                minimumAge: Int?, localModelLicence: String? = nil) {
         self.providerId = providerId
         self.checked = checked
         self.source = source
@@ -127,6 +132,26 @@ public struct TermsRow: Equatable, Hashable, Sendable, Codable {
         self.imageRetention = imageRetention
         self.trainsOnImages = trainsOnImages
         self.minimumAge = minimumAge
+        self.localModelLicence = localModelLicence
+    }
+
+    /// Whether a vendor stands behind this brain. A local model has none.
+    public var hasVendor: Bool { localModelLicence == nil && byokInThirdPartyApp != .notApplicable }
+
+    /// The row for a model that runs on the person's own devices.
+    ///
+    /// NO VENDOR MEANS NO VENDOR RETENTION, AND THAT IS WRITTEN DOWN, NOT ASSUMED. Nothing is
+    /// sent to a company, so retention and training are answered ("nothing kept by a vendor",
+    /// false), and a key in a third-party app does not apply. What does apply is the model's own
+    /// licence, which a person reads and dates like any vendor's terms: whether it permits
+    /// controlling a physical device, and any age limit. Until somebody has read it, pass
+    /// `.unknown` and nil, and the card stays hidden.
+    public static func localModel(_ providerId: String, checked: String, licence: String, source: String,
+                                  physicalControl: Answer, minimumAge: Int?) -> TermsRow {
+        TermsRow(providerId: providerId, checked: checked, source: source,
+                 physicalControl: physicalControl, byokInThirdPartyApp: .notApplicable,
+                 imageRetention: "No vendor. Nothing is kept anywhere but your own devices.",
+                 trainsOnImages: false, minimumAge: minimumAge, localModelLicence: licence)
     }
 
     /// The row for this app's own code running on the phone: no vendor, no key, nothing sent.
@@ -216,6 +241,9 @@ public enum OfferRule {
         case undated
         case labelClaimsAssist
         case realDuckOff
+        /// A local model whose version names no checkpoint (an Ollama tag, a repository with
+        /// no commit). A tag moves when somebody pulls again, so no number can be pinned to it.
+        case unpinnedLocalModel
         case holdoutTooSmall(Int)
         case crossingsAfterGate(Int)
         case belowBar(mode: BrainMode)
@@ -243,6 +271,12 @@ public enum OfferRule {
             return .hidden(.rowsForAnotherProvider)
         }
         guard terms.permits(key: brain.key) else { return .hidden(.termsDoNotPermit) }
+        // A LOCAL MODEL'S ROW IS PER CHECKPOINT. Its EvidenceRow is per model id plus the weights
+        // it ran (digest or commit, which pins the quantisation), so a bare name cannot carry one.
+        if terms.localModelLicence != nil,
+           !LocalModelVersion.isPinned(brain.modelVersion) || !LocalModelVersion.isPinned(row.modelVersion) {
+            return .hidden(.unpinnedLocalModel)
+        }
         guard row.venue == .practice else { return .hidden(.notAPracticeDuckRow) }
         guard row.gated else { return .hidden(.ungatedRow) }
         guard let day = row.shortDate else { return .hidden(.undated) }
