@@ -114,6 +114,7 @@ ELSEWHERE=(
   "seed Shoot.swift"               # duckbench's POST /shoot body
   "status DreamDirect.swift"       # Dream Labs' error body, read not written
   "status HubTraining.swift"       # the Hugging Face Jobs API, read not written
+  "status OpenAIPlanner.swift"     # OpenAI's Responses API reply, read not written
   "task BallTakes.swift"           # a line of the driver's ball-takes file
   "task DreamDataset.swift"        # LeRobot's meta/tasks.jsonl
 )

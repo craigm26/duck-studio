@@ -177,8 +177,8 @@ Status meanings:
 | Dream-1 via bridge | action source | Dream Labs, called from the robot's computer | on the bridge, entered with `castor dream key set` on the bridge host or through TLS pairing | same | same, plus "Key kept on your duck's computer" | later (after the key-transfer fix in section 6.6) |
 | Apple Foundation Models | planner (closed set) | phone | none | under 3 s to preview (redesign target); about 200 ms first token (unverified) | "Picks from your duck's moves, on this phone" | launch (91 typed Tell; 93 voice and Tools) |
 | MLX `PhoneModelRuntime` | planner (closed set; text parsed and validated) | phone | none | under 5 s, labelled slower | "Local model on this phone" | later |
-| Claude / GPT / Gemini (BYOK) | planner (tools = the closed set) | vendor cloud | BYOK in the Keychain | under 8 s per decision; Tell and Auto only, never Drive | "Hosted by [vendor], your key" | later |
-| Gemini Robotics-ER 2 | planner (points for `walkTo`/`lookAt`, task steps) | Google (hosted) | BYOK. The key must be restricted (unrestricted keys get 403, unverified) and the setup sheet says so. | under 3 s per point (unverified) while the duck holds zero twist | "Hosted by Google, your key. Points; your duck walks." | later (price $2/$10 per M tokens unverified; check it before any cost figure is shown) |
+| Claude / GPT (BYOK) | planner (tools = the closed set) | vendor cloud | BYOK in the Keychain | under 8 s per decision; Tell and Auto only, never Drive | "Hosted by [vendor], your key" | kit and key screen built (`AnthropicPlanner`, `OpenAIPlanner`); hidden until an EvidenceRow exists. Gemini is off: its API terms require account holders 18+ and bar apps likely used by under-18s (read 2026-11-13). |
+| Gemini Robotics-ER 2 | planner (points for `walkTo`/`lookAt`, task steps) | Google (hosted) | BYOK. The key must be restricted (unrestricted keys get 403, unverified) and the setup sheet says so. | under 3 s per point (unverified) while the duck holds zero twist | "Hosted by Google, your key. Points; your duck walks." | off: the Gemini API terms bar apps likely used by under-18s (read 2026-11-13) |
 | LAN Ollama / MLX on a Mac | planner (closed set) | Mac on the LAN | optional bearer | under 15 s, labelled slow | "On your Mac. Slower, weaker on our tests." plus its number | later (plaintext caveat, section 6.6) |
 | openpi / GR00T / SmolVLA via bridge | action source | bridge or GPU box | held on the bridge | per adapter | "+ assist", "fine-tuned on [dataset]" | research (needs duck teleop data and fine-tuning) |
 | Pi API, Gemini Robotics VLA / On-Device | action source | n/a | n/a | n/a | not offered | research (waitlist or trusted testers only) |
@@ -493,7 +493,7 @@ Each build is one TestFlight upload. Kit work rides along, and nothing is upload
 
 **Build 95 and later (one batch per build, each with its BrainBench row, TermsRow and `ScreenHierarchy` row checked in before upload).**
 
-1. BYOK planners (Claude, GPT, Gemini), then ER-2 pointing. ER-2 needs head envelope rows for `.lookAt` and observation-age gating for `.walkTo`, and its price is checked before any cost figure appears.
+1. BYOK planners (Claude, GPT; Gemini and ER-2 are off on the Gemini API age terms), then ER-2 pointing only if those terms change. ER-2 needs head envelope rows for `.lookAt` and observation-age gating for `.walkTo`, and its price is checked before any cost figure appears.
 2. MLX on the phone, then LAN Ollama/MLX on a Mac, with TLS or the plaintext caveat.
 3. The app as an MCP client, with the scoped token for the Claude shortcut.
 4. `.drive`-from-planner and `.plan`-from-planner, with arbiter clamps.

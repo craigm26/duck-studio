@@ -183,6 +183,23 @@ struct ModelSettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             .listRowBackground(Theme.surfacePrimary)
+
+            // ONE LEVEL DOWN, because these keys pay a vendor per decision and
+            // none of their planners is offered yet (brains-layer.md section 8).
+            Section {
+                NavigationLink { HostedKeysView() } label: {
+                    VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
+                        Label(HostedPlannerWords.rowTitle, systemImage: "key")
+                            .foregroundStyle(Theme.textPrimary)
+                        Text(HostedPlannerWords.rowDetail)
+                            .font(.caption).foregroundStyle(Theme.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            } header: {
+                SectionHeading(text: HostedPlannerWords.heading)
+            }
+            .listRowBackground(Theme.surfacePrimary)
         }
         // THE RECESSED GROUND UNDER THE CARDS, which is the one arrangement
         // that lets a coloured word be set anywhere on this screen: `Palette`
