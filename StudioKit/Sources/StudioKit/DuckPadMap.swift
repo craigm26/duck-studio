@@ -68,6 +68,10 @@ public struct DuckPadMap: Equatable, Sendable {
         case run(motion: UUID)
         case stop
         case reset
+        /// One of a real duck's own skills by `robotd`'s name (Pollen's emotions).
+        case skill(String)
+        /// What the sticks mean, as Pollen's D-pad picks it.
+        case selectMode(DuckPad.StickMode)
         /// Named, with the reason, exactly as `DuckPad.unsupported` is.
         case notYet(String)
     }
@@ -118,21 +122,66 @@ public struct DuckPadMap: Equatable, Sendable {
 
     /// The shipped arrangement, as a map.
     ///
-    /// THE MODE CHANGES NOTHING TODAY AND THE ARGUMENT STAYS. `robotd`'s two
-    /// presets fill the same slots except `stand`, which no control is bound to,
-    /// so a roller bench and a walking bench get the same fourteen entries —
-    /// and `modeIsAnAssumption` is the sentence that says so out loud rather
-    /// than letting somebody discover it. The parameter is here because the day
-    /// `/health` grows a drive-mode field this is the door that reads it.
+    /// SPARSE: NO ENTRY IS THE SHIPPED ENTRY. Up to build 96 this wrote every
+    /// control's shipped effect out explicitly, so a map nobody had touched
+    /// carried that build's table forever and a change to the defaults never
+    /// reached it. Now a map holds only what somebody chose, and everything
+    /// else falls through to `DuckPad.bindings`, Pollen's defaults.
+    ///
+    /// ON WHEELS, A AND X RUN NOTHING, as Pollen's pad has it
+    /// (`DuckPad.rollerRunsNothing`, Pollen #576). This app cannot read a
+    /// duck's drive mode yet (`modeIsAnAssumption`), so every caller asks for
+    /// `.walk` today; the parameter is the door the day it can.
     public static func defaults(in mode: DuckOfficialPolicies.Mode) -> DuckPadMap {
         var buttons: [DuckPad.Control: Effect] = [:]
-        for control in remappable {
-            buttons[control] = shipped(for: control)
+        if mode == .roller {
+            for control in DuckPad.rollerRunsNothing {
+                buttons[control] = .notYet(DuckPad.onWheelsNothing)
+            }
         }
         return DuckPadMap(locomotion: .slot(.walk), buttons: buttons)
     }
 
-    /// EVERY CONTROL BUT THE TWO STICKS — fourteen. A control whose robot
+    /// The table builds up to 96 shipped, before the pad followed Pollen's
+    /// defaults. A saved map from one of those builds wrote all of it out
+    /// (see `defaults(in:)`), so an entry equal to its row here is that
+    /// build's default rather than somebody's choice, and `decode` drops it:
+    /// a person who never customised a button gets Pollen's, and one who did
+    /// keeps theirs.
+    static let shippedUpTo96: [DuckPad.Control: Effect] = [
+        .a: .loadSlot(.groundPick),
+        .x: .loadSlot(.roulade),
+        .leftBumper: .loadSlot(.kickLeft),
+        .rightBumper: .loadSlot(.kickRight),
+        .dpadDown: .loadSlot(.sitstand),
+        .y: .notYet("The bench takes a velocity twist and no head pose, so there "
+                  + "is no head to put the sticks on."),
+        .b: .notYet("Body pose rides in the command block the bench does not "
+                  + "accept, so this does nothing here."),
+        .rightTrigger: .notYet("The mouth is servo 9 and no network drives it. Nothing on a "
+                             + "bench opens it."),
+        .leftTrigger: .notYet("Same servo, same absence."),
+        .start: .notYet("There is no motor bus to enable. The bench is always running "
+                      + "whatever is loaded."),
+        .dpadUp: .notYet("Drive mode is a robot configuration and a restart of robotd. "
+                       + "Load a roller policy instead."),
+        .select: .notYet("Nothing here has power to cut."),
+        .dpadLeft: .stop,
+        .dpadRight: .reset,
+    ]
+
+    /// Drop every entry that is a default, current or up to build 96.
+    func normalised() -> DuckPadMap {
+        var kept: [DuckPad.Control: Effect] = [:]
+        for (control, effect) in buttons
+        where effect != DuckPadMap.shipped(for: control)
+            && effect != DuckPadMap.shippedUpTo96[control] {
+            kept[control] = effect
+        }
+        return DuckPadMap(locomotion: locomotion, buttons: kept)
+    }
+
+    /// EVERY CONTROL BUT THE TWO STICKS: sixteen. A control whose robot
     /// function has no bench wire (the head, the body pose, the mouth, the
     /// motor bus, the drive mode, the power) is still a button a person can
     /// put a sequence on: binding one asks nothing of the bench.
@@ -151,6 +200,8 @@ public struct DuckPadMap: Equatable, Sendable {
         case .drive: return .drive
         case .stop: return .stop
         case .reset: return .reset
+        case .skill(let name): return .skill(name)
+        case .selectMode(let mode): return .selectMode(mode)
         case .unsupported(let why): return .notYet(why)
         }
     }
@@ -290,6 +341,18 @@ public struct DuckPadMap: Equatable, Sendable {
             caption = "Reset"
             name = caption
             here_ = "Puts the duck back on its feet."
+        case .skill(let skill):
+            // A REAL DUCK'S, SO DEAD ON THE PRACTICE DUCK this table describes.
+            // `DriveView.liveHere` draws it live on a real one.
+            live = false
+            name = skill.capitalized
+            caption = "Play \(skill)"
+            here_ = DuckPad.onlyOnARealDuck(skill)
+        case .selectMode(let mode):
+            live = mode == .move
+            caption = mode == .move ? "Move mode" : "Head mode"
+            name = caption
+            here_ = mode == .move ? DuckPad.modeSaid(.move) : DuckPad.noHeadOnTheBench
         case .notYet(let why):
             live = false
             caption = "Nothing here"
@@ -300,22 +363,32 @@ public struct DuckPadMap: Equatable, Sendable {
         // so their `onTheRobot` is an em dash; reading "On the robot: —" aloud
         // is worse than saying nothing.
         let detail = robot == "—" ? here_ : "\(here_) On the robot: \(robot)."
+        // A REAL DUCK'S SKILL KEEPS ITS NAME, so a real duck can draw "Excited"
+        // on Y; Simple on the practice duck leaves it off because it is dead.
+        let keepsName: Bool
+        if case .skill = here { keepsName = true } else { keepsName = live }
         return Shown(control: control, onTheRobot: robot, caption: caption,
                      detail: detail, isLive: live,
                      isCustom: here != DuckPadMap.shipped(for: control),
-                     name: live ? name : nil)
+                     name: keepsName ? name : nil)
     }
 
     // MARK: - editing
 
+    /// Bind a control. Binding the shipped effect is the same as clearing it,
+    /// so the map stays sparse and a later change to the defaults reaches it.
     public mutating func bind(_ effect: Effect, to control: DuckPad.Control) {
         guard control != .leftStick, control != .rightStick else { return }
-        buttons[control] = effect
+        if effect == DuckPadMap.shipped(for: control) {
+            buttons[control] = nil
+        } else {
+            buttons[control] = effect
+        }
     }
 
-    /// Put a control back to what the pad ships with.
+    /// Put a control back to what the pad ships with: Pollen's default.
     public mutating func clear(_ control: DuckPad.Control) {
-        buttons[control] = DuckPadMap.shipped(for: control)
+        buttons[control] = nil
     }
 
     public mutating func steer(_ locomotion: Locomotion) {
@@ -483,6 +556,8 @@ public struct DuckPadMap: Equatable, Sendable {
         case .drive: return ["effect": "drive"]
         case .stop: return ["effect": "stop"]
         case .reset: return ["effect": "reset"]
+        case .skill(let name): return ["effect": "skill", "name": name]
+        case .selectMode(let mode): return ["effect": "selectMode", "mode": mode.rawValue]
         case .notYet(let why): return ["effect": "notYet", "why": why]
         }
     }
@@ -525,7 +600,9 @@ public struct DuckPadMap: Equatable, Sendable {
                   let effect = read(effect: body) else { continue }
             buttons[control] = effect
         }
-        return DuckPadMap(locomotion: locomotion, buttons: buttons)
+        // A MAP NOBODY TOUCHED FOLLOWS THE DEFAULTS. Entries equal to a default,
+        // today's or one written by build 96 or earlier, are dropped here.
+        return DuckPadMap(locomotion: locomotion, buttons: buttons).normalised()
     }
 
     private static func read(effect body: [String: Any]) -> Effect? {
@@ -549,6 +626,13 @@ public struct DuckPadMap: Equatable, Sendable {
         case "drive": return .drive
         case "stop": return .stop
         case "reset": return .reset
+        case "skill":
+            guard let name = body["name"] as? String, !name.isEmpty else { return nil }
+            return .skill(name)
+        case "selectMode":
+            guard let raw = body["mode"] as? String,
+                  let mode = DuckPad.StickMode(rawValue: raw) else { return nil }
+            return .selectMode(mode)
         case "notYet":
             guard let why = body["why"] as? String else { return nil }
             return .notYet(why)

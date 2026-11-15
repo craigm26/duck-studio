@@ -98,6 +98,8 @@ final class PadReader: ObservableObject {
         note(pad.dpad.up, .dpadUp); note(pad.dpad.down, .dpadDown)
         note(pad.dpad.left, .dpadLeft); note(pad.dpad.right, .dpadRight)
         note(pad.buttonMenu, .start); note(pad.buttonOptions, .select)
+        note(pad.leftThumbstickButton, .leftStickClick)
+        note(pad.rightThumbstickButton, .rightStickClick)
 
         for control in down.subtracting(held) {
             lastPressed = control

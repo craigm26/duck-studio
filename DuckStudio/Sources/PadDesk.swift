@@ -43,6 +43,10 @@ final class PadDesk: ObservableObject {
     /// button.
     @Published private(set) var motions: [UUID: String] = [:]
 
+    /// Pollen's head speed cap, carried between frames of the drive loop. NOT
+    /// published: it changes every frame and nothing draws it.
+    var headGlide = DuckDrive.HeadGlide()
+
     private let maps = PadMapStore()
     private let store = SequenceStore()
 

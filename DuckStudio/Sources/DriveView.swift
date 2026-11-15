@@ -402,6 +402,9 @@ struct DriveView: View {
     /// The one line under the controller. It goes away on its own (`CaptionLine`), and on a mode
     /// change, a stick drive and the next tap (build 92: one refusal used to stay in every mode).
     @State private var caption: CaptionLine?
+    /// A short form somebody wrote for a long line (a run's outcome), keyed by the full text so it
+    /// can never be drawn beside a different line. `StageLine` takes the first sentence otherwise.
+    @State private var shortFor: (full: String, short: String)?
     /// Ask the duck: Apple Intelligence plans, the kit validates, `DuckRuns` runs.
     @StateObject private var ask = AskTheDuck()
     /// The mic on Tell and Ask the duck.
@@ -1006,6 +1009,9 @@ struct DriveView: View {
                 motionOutcome = [StairsChallenge.scoredWhereItIsScored, cellOutcome.told,
                                  StairsChallenge.oneCellIsNotAScore,
                                  ControlShelf.thisIsTheRun].joined(separator: " ")
+                if let motionOutcome {
+                    shortFor = (motionOutcome, StairsChallenge.oneCellSaid(cellOutcome))
+                }
                 await watch(try DuckBench.readClimbedClip(data, named: draft.name))
             case .perform(let standing, let because):
                 let call = try DuckBench.perform(address, keys: draft.benchTrack,
@@ -1016,6 +1022,8 @@ struct DriveView: View {
                                                         askedForWorld: standing?.plan != nil)
                 motionOutcome = [outcome.told, because, ControlShelf.thisIsTheRun]
                     .compactMap { $0 }.joined(separator: " ")
+                // THE PICTURE GETS THE ONE LINE: "Stayed upright to the end, ...".
+                if let motionOutcome { shortFor = (motionOutcome, outcome.short) }
                 await watch(try? DuckBench.readPerformedClip(data, named: draft.name,
                                                              laid: outcome.laid))
             case .notYet(let blocked):
@@ -1252,16 +1260,16 @@ struct DriveView: View {
                 .transition(.opacity)
             }
             // IN TELL AND AUTO THE PANEL CARRIES THE LINE, so a refusal sits beside what was asked.
+            // ONE COLLAPSED LINE, THE REST ON A TAP (`StageLine`). This was the whole text, unbounded,
+            // and a run's report took the top half of the picture (build 96).
             if let line = (arbiter.mode == .drive ? caption?.text : nil)
                 ?? (stickGate.waitingForLift ? ControllerWords.liftToDrive : nil) {
-                Text(line)
-                    .font(.system(.footnote, design: .rounded))
-                    .foregroundStyle(Theme.textPrimary)
+                StageLineView(line: stageLine(line), stageHeight: glass.height)
                     .padding(.horizontal, Theme.spacing(.snug))
                     .padding(.vertical, Theme.spacing(.hairline))
-                    .background(Theme.surfacePrimary, in: Capsule())
+                    .background(Theme.surfacePrimary, in: RoundedRectangle(
+                        cornerRadius: Theme.radius(DriveMetric.viewport), style: .continuous))
                     .shadow(color: PondShadow.colour, radius: PondShadow.blur, y: PondShadow.y)
-                    .fixedSize(horizontal: false, vertical: true)
             }
             // A FALLEN PRACTICE DUCK GETS ITS WAY BACK UP RIGHT HERE, one small button.
             if venue != .real, bench != nil, live.map({ !$0.upright }) == true {
@@ -1273,11 +1281,9 @@ struct DriveView: View {
                 .accessibilityHint(Text(ControllerWords.fellOver))
             }
             if let refusal = cameraDoor.refusal(for: .venue), venue != .real {
-                Text(refusal)
-                    .font(.caption2)
-                    .foregroundStyle(Theme.textSecondary)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
+                // COLLAPSED LIKE EVERY OTHER LINE ON THE PICTURE, still where the control is.
+                StageLineView(line: StageLine(refusal), stageHeight: glass.height,
+                              font: .caption2, colour: Theme.textSecondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
@@ -2504,7 +2510,13 @@ struct DriveView: View {
     /// Whether the overlay has anything to say. An empty panel is a rectangle
     /// over the duck for no reason, and this one is opaque.
     private var hasReadout: Bool {
-        !layers.isEmpty || lastAction != nil || live.map { !$0.upright } == true
+        !layers.isEmpty || (lastAction != nil && lastAction != caption?.text)
+            || live.map { !$0.upright } == true
+    }
+
+    /// A line for the picture, with the short form somebody wrote for exactly this text.
+    private func stageLine(_ text: String) -> StageLine {
+        StageLine(text, short: shortFor?.full == text ? shortFor?.short : nil)
     }
 
     /// The readout, on a real surface rather than a scrim.
@@ -2569,9 +2581,11 @@ struct DriveView: View {
                     .font(.caption2.monospaced())
                     .foregroundStyle(Theme.textTertiary)
             }
-            if let lastAction {
-                Text(lastAction).font(.caption2.weight(.medium))
-                    .foregroundStyle(Theme.amber)
+            // NOT A SECOND COPY OF THE CAPTION. A press hands its result to both, so while the
+            // caption is showing it the readout leaves it out; and it is one collapsed line here too.
+            if let lastAction, lastAction != caption?.text {
+                StageLineView(line: stageLine(lastAction), stageHeight: glass.height,
+                              font: .caption2.weight(.medium), colour: Theme.amber)
             }
             if let live, !live.upright {
                 // NOT AN ERROR, AND NOT HIDDEN EITHER. A duck on its side is
@@ -2870,8 +2884,11 @@ struct DriveView: View {
     /// one of its own skills (or Stop) is live; the rest are the practice duck's.
     private func liveHere(_ control: DuckPad.Control, shown: DuckPadMap.Shown) -> Bool {
         guard venue == .real else { return shown.isLive }
-        return shown.isLive && desk.map.effect(for: control, naming: desk.name(ofSequence:),
-                                               namingMotion: desk.name(ofMotion:)).realDuckOrder != nil
+        // A REAL DUCK ALSO HAS POLLEN'S EMOTIONS AND HEAD MODE, which the practice duck draws dead.
+        let effect = desk.map.effect(for: control, naming: desk.name(ofSequence:),
+                                     namingMotion: desk.name(ofMotion:))
+        if case .selectMode = effect { return true }
+        return effect.realDuckOrder != nil
     }
 
     private func padButtonBody(_ control: DuckPad.Control, shown: DuckPadMap.Shown) -> some View {
@@ -3008,10 +3025,15 @@ struct DriveView: View {
                     padButton(.leftBumper); padButton(.rightBumper)
                 }
                 HStack(spacing: Theme.spacing(.tight)) {
-                    padButton(.dpadLeft); padButton(.dpadDown); padButton(.dpadRight)
+                    padButton(.dpadLeft); padButton(.dpadUp); padButton(.dpadDown)
+                    padButton(.dpadRight)
                 }
                 HStack(spacing: Theme.spacing(.tight)) {
                     padButton(.start); padButton(.select)
+                }
+                // THE BENCH'S STOP AND RESET, on the stick clicks Pollen's pad never reads.
+                HStack(spacing: Theme.spacing(.tight)) {
+                    padButton(.leftStickClick); padButton(.rightStickClick)
                 }
             }
             .frame(maxWidth: .infinity)
@@ -3482,6 +3504,20 @@ struct DriveView: View {
     @MainActor private func press(_ control: DuckPad.Control) async {
         // A PRESS IS THE PERSON'S OWN: it ends a Tell order or a goal first.
         if arbiter.running != nil { apply(arbiter.handle(.movePress, at: Date())) }
+        // POLLEN'S ARROWS PICK WHAT THE STICKS MEAN, on either duck: left is move mode, up is head
+        // mode, which only a real duck has (`posingRobotHead`).
+        if case .selectMode(let mode) = desk.map.effect(for: control, naming: desk.name(ofSequence:),
+                                                        namingMotion: desk.name(ofMotion:)) {
+            if mode == .head && venue != .real {
+                lastAction = "\(control.face): \(DuckPad.noHeadOnTheBench)"
+                say(lastAction)
+                return
+            }
+            posingHead = mode == .head
+            lastAction = DuckPad.modeSaid(mode)
+            say(lastAction)
+            return
+        }
         // THE STICKS DRIVE A ROBOT AND THE FACE BUTTONS STILL DO NOT, which
         // is a narrower not-yet than the one that used to be here and is worth
         // the distinction. Every face binding in this app ends in a bench call
@@ -3574,8 +3610,11 @@ struct DriveView: View {
             // this tab had against the lab. Stop is one press away and is
             // never disabled.
             engageLoop()
-        case .drive:
+        case .drive, .selectMode:
             break
+        case .skill(let name):
+            // POLLEN'S EMOTIONS ARE A REAL DUCK'S. Said, not silent.
+            lastAction = "\(control.face): \(DuckPad.onlyOnARealDuck(name))"
         case .stop:
             lastAction = isSimple ? "Stopped" : "\(control.face) → stop"
             await halt()
@@ -4225,10 +4264,14 @@ struct DriveView: View {
                 // robot that keeps walking for up to half a second because
                 // somebody looked around. `padd` puts both in one frame for
                 // exactly this reason.
+                // AND THE HEAD GLIDES AT POLLEN'S CAP (`DuckDrive.HeadGlide`), so a full stick snap
+                // is a constant-speed move rather than a jump, as it is from Pollen's pad.
                 if posingRobotHead {
                     try await peer.notify(.move(.still))
-                    try await peer.notify(.head(DuckDrive.head(for: sticks)))
+                    try await peer.notify(.head(desk.headGlide.next(DuckDrive.head(for: sticks),
+                                                                    at: Date())))
                 } else {
+                    desk.headGlide.reset()
                     try await peer.notify(.move(go.command))
                 }
                 if let bench = drivingABench {

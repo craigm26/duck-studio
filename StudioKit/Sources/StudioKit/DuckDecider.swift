@@ -492,7 +492,10 @@ extension DuckPadMap.Effect {
             guard let name = RobotPlan.robotdName[slot] else { return nil }
             return .skill(name)
         case .stop: return .stop
-        case .play, .drive, .run, .reset, .notYet: return nil
+        // POLLEN'S EMOTIONS ARE `[pad]` SKILLS (robotd-params/src/lib.rs:452-463), run by name.
+        case .skill(let name): return .skill(name)
+        // A MODE IS NOT AN ORDER: the view switches what the sticks mean.
+        case .play, .drive, .run, .reset, .selectMode, .notYet: return nil
         }
     }
 
