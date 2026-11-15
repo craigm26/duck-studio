@@ -483,6 +483,14 @@ Each build is one TestFlight upload. Kit work rides along, and nothing is upload
   - warm and cold stop-to-zero measured and printed
   - stick touch cancels Auto
 
+**What the kit core built (2026-11-14, `feat/build91-controller`).** StudioKit only, no new UI.
+
+- `BrainRunner` carries out the 3.3 table for an arbiter-started Tell or Goal run. Its initializer takes an `AgreedPlanner`, a `HumanGoal` and a `ControlArbiter.Run`; it binds its own gate, builds the allowed set from `AllowedDecisions.forDuck`, makes planner pictures only through `PlannerFrameGate` with the planner's own consent setting, and reaches the duck only through a `LatchedPeer`. The arbiter clamps every decision before the gate sees it. Every ending goes through StopPath.
+- `DreamPilot` takes a required `PilotGate`. The kit's runners always pass `.enforced`. Two callers are exempt by name and a source test holds the list: the M1 harness (section 7 measures ungated too) and the app's Dream-1 and Walk to the ball runs, whose readings are app work (the practice duck reports no odometry, so the gate would hold and then cut every practice run after 1 s).
+- `LatchedPeer` refuses every move and motion call after a Stop until a person re-arms. The person's own sticks do not go through it.
+- `BrainRunSummary` holds the steps with provenance and labels, the gate's counts and events, and the ending, as data.
+- Not built: the Go card, the ask sheet, the summary chip on screen, Dream-1's camera-consent sheet, and the app wiring of `BrainRunner` and of the gate readings. These and the device checks above remain for build 91.
+
 **Build 92 (front door).**
 
 - Intents never call a planner in the background. `TellTheDuckIntent` stays deterministic there.
