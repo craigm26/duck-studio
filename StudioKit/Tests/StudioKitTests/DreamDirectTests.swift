@@ -162,7 +162,8 @@ final class DreamDirectTests: XCTestCase {
         let dream = DreamDirect(key: Self.key, version: "88", http: fake)
         await DreamPilot(checkpoint: "m", prompt: "walk", limit: 0.15)
             .run(on: duck, rows: dream, frames: { ["F"] }, events: { _ in },
-                 sleep: { clock.advance($0) }, now: { clock.now() })
+                 sleep: { clock.advance($0) }, now: { clock.now() },
+                 gate: .exempt(.benchMeasurement))
         XCTAssertFalse(duck.sent.contains { $0.hasPrefix("dream") })
         XCTAssertTrue(duck.sent.contains("robot.move"))
         XCTAssertEqual(duck.sent.last, "robot.stop")

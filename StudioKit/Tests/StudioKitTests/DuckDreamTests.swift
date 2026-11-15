@@ -148,7 +148,8 @@ final class DuckDreamTests: XCTestCase {
         let clock = Clock(), events = Events()
         await DreamPilot(checkpoint: "m", prompt: "walk", limit: 0.35)
             .run(on: duck, frames: { ["F"] }, events: { events.add($0) },
-                 sleep: { clock.advance($0) }, now: { clock.now() })
+                 sleep: { clock.advance($0) }, now: { clock.now() },
+                 gate: .exempt(.benchMeasurement))
         let sent = duck.sent
         XCTAssertTrue(sent.first?.contains(#""method":"dream.act""#) == true)
         XCTAssertTrue(sent.first?.contains(#""reset":true"#) == true)
@@ -166,7 +167,8 @@ final class DuckDreamTests: XCTestCase {
         let clock = Clock()
         await DreamPilot(checkpoint: "m", prompt: "walk", limit: 0.25)
             .run(on: duck, frames: { ["F"] }, events: { _ in },
-                 sleep: { clock.advance($0) }, now: { clock.now() })
+                 sleep: { clock.advance($0) }, now: { clock.now() },
+                 gate: .exempt(.benchMeasurement))
         let acts = duck.sent.filter { $0.contains("dream.act") }
         XCTAssertGreaterThanOrEqual(acts.count, 2)
         XCTAssertTrue(acts[1].contains(#""reset":false"#))
@@ -181,7 +183,8 @@ final class DuckDreamTests: XCTestCase {
         let clock = Clock(), events = Events()
         await DreamPilot(checkpoint: "m", prompt: "walk", limit: 11)
             .run(on: duck, frames: { ["F"] }, events: { events.add($0) },
-                 sleep: { clock.advance($0) }, now: { clock.now() })
+                 sleep: { clock.advance($0) }, now: { clock.now() },
+                 gate: .exempt(.benchMeasurement))
         XCTAssertTrue(events.all.contains(.waiting(DuckDream.Words.startingFor(0))))
         let sent = duck.sent
         XCTAssertTrue(sent[1].contains("robot.stop"), "held still while the model starts")
@@ -195,7 +198,8 @@ final class DuckDreamTests: XCTestCase {
         let clock = Clock(), events = Events()
         await DreamPilot(checkpoint: "m", prompt: "walk", limit: 0.95)
             .run(on: duck, frames: { ["F"] }, events: { events.add($0) },
-                 sleep: { clock.advance($0) }, now: { clock.now() })
+                 sleep: { clock.advance($0) }, now: { clock.now() },
+                 gate: .exempt(.benchMeasurement))
         let moves = duck.sent.filter { $0.contains("robot.move") }.map(Self.twist).filter { $0 != [0, 0, 0] }
         XCTAssertEqual(moves.count, 10, "the whole second of driving, after the wait")
         XCTAssertTrue(events.all.contains(.waiting(DuckDream.Words.startingFor(290))))
@@ -211,7 +215,8 @@ final class DuckDreamTests: XCTestCase {
                  sleep: { s in
                      clock.advance(s)
                      if clock.now().timeIntervalSince1970 > 0.15, clock.now().timeIntervalSince1970 < 0.25 { duck.failActs = 1 }
-                 }, now: { clock.now() })
+                 }, now: { clock.now() },
+                 gate: .exempt(.benchMeasurement))
         let acts = duck.sent.filter { $0.contains("dream.act") }
         XCTAssertGreaterThanOrEqual(acts.count, 3)
         let p = try? JSONSerialization.jsonObject(with: Data(acts[2].utf8)) as? [String: Any]
@@ -225,7 +230,8 @@ final class DuckDreamTests: XCTestCase {
         let clock = Clock(), events = Events()
         await DreamPilot(checkpoint: "m", prompt: "walk")
             .run(on: duck, frames: { ["F"] }, events: { events.add($0) },
-                 sleep: { clock.advance($0) }, now: { clock.now() })
+                 sleep: { clock.advance($0) }, now: { clock.now() },
+                 gate: .exempt(.benchMeasurement))
         XCTAssertFalse(duck.sent.contains { $0.contains("robot.move") })
         XCTAssertEqual(events.all.last, .ended(DuckDream.Words.gaveUpWaiting))
         XCTAssertLessThanOrEqual(clock.now().timeIntervalSince1970, DreamPilot.waitLimit + 1)
@@ -248,7 +254,8 @@ final class DuckDreamTests: XCTestCase {
         let clock = Clock()
         await DreamPilot(checkpoint: "m", prompt: "walk", limit: 0.25)
             .run(on: duck, frames: { ["F"] }, events: { _ in },
-                 sleep: { clock.advance($0) }, now: { clock.now() })
+                 sleep: { clock.advance($0) }, now: { clock.now() },
+                 gate: .exempt(.benchMeasurement))
         let moves = duck.sent.filter { $0.contains("robot.move") }.map(Self.twist).filter { $0 != [0, 0, 0] }
         XCTAssertEqual(moves.first, [0.2, 0, 0], "no motion to continue before the first chunk")
         XCTAssertEqual(moves.count, 3)
@@ -260,7 +267,8 @@ final class DuckDreamTests: XCTestCase {
         let clock = Clock()
         await DreamPilot(checkpoint: "m", prompt: "walk", limit: 0.45)
             .run(on: duck, frames: { ["F"] }, events: { _ in },
-                 sleep: { clock.advance($0) }, now: { clock.now() })
+                 sleep: { clock.advance($0) }, now: { clock.now() },
+                 gate: .exempt(.benchMeasurement))
         let sent = duck.sent
         let asks = sent.indices.filter { sent[$0].contains("dream.act") }
         XCTAssertGreaterThanOrEqual(asks.count, 2)
@@ -287,7 +295,8 @@ final class DuckDreamTests: XCTestCase {
         let run = Task {
             await DreamPilot(checkpoint: "m", prompt: "walk")
                 .run(on: duck, rows: Hung(), frames: { ["F"] },
-                     events: { if case .asked = $0 { asked.fulfill() } })
+                     events: { if case .asked = $0 { asked.fulfill() } },
+                     gate: .exempt(.benchMeasurement))
         }
         await fulfillment(of: [asked], timeout: 5)
         let pressed = Date()
@@ -305,7 +314,8 @@ final class DuckDreamTests: XCTestCase {
         duck.failure = DuckReply.Failure(code: -32602, message: "no Dream Labs key is saved on this robot; send dream.key.set first")
         let events = Events()
         await DreamPilot(checkpoint: "m", prompt: "walk")
-            .run(on: duck, frames: { ["F"] }, events: { events.add($0) }, sleep: { _ in })
+            .run(on: duck, frames: { ["F"] }, events: { events.add($0) }, sleep: { _ in },
+                 gate: .exempt(.benchMeasurement))
         XCTAssertFalse(duck.sent.contains { $0.contains("robot.move") })
         XCTAssertTrue(duck.sent.suffix(2).first!.contains("robot.stop"))
         XCTAssertEqual(events.all.last, .ended("no Dream Labs key is saved on this robot; send dream.key.set first"))
@@ -315,7 +325,8 @@ final class DuckDreamTests: XCTestCase {
         let duck = FakeBridge()
         let events = Events()
         await DreamPilot(checkpoint: "m", prompt: "walk")
-            .run(on: duck, frames: { [] }, events: { events.add($0) }, sleep: { _ in })
+            .run(on: duck, frames: { [] }, events: { events.add($0) }, sleep: { _ in },
+                 gate: .exempt(.benchMeasurement))
         XCTAssertFalse(duck.sent.contains { $0.contains("dream.act") })
         XCTAssertEqual(events.all.last, .ended(DuckDream.Words.needsCamera))
     }

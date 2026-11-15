@@ -14,8 +14,8 @@ import Foundation
 /// confirmation. Rule 9 (head) is later: there is no head output from a planner yet. The row's
 /// verdict is the most severe one any rule reached, and the rule named is the first to reach it.
 ///
-/// NOT WIRED IN YET. This build adds the gate and its golden cases only. Binding it inside
-/// `DreamPilot` and the runners is a later build.
+/// WIRED IN FROM BUILD 91. `DreamPilot` takes a required `PilotGate`, and `BrainRunner` binds one
+/// gate per run and sends every decision and every twist row through it (`GateHolder`).
 ///
 /// The copy calls it "the limits" or "the envelope". It makes no claim that any brain is safe.
 public struct DuckEnvelopeGate: Sendable {

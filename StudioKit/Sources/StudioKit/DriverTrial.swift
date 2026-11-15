@@ -160,7 +160,8 @@ public enum DriverTrial {
                                 if case .ended(let said) = event { _ = try? await wire(["op": "ended", "said": said]) }
                             },
                             sleep: { try await duck.advance($0) },
-                            now: { Date(timeIntervalSince1970: duck.simTime) })
+                            now: { Date(timeIntervalSince1970: duck.simTime) },
+                            gate: .exempt(.benchMeasurement))
             ran += 1
         }
     }
