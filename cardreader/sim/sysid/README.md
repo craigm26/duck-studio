@@ -28,6 +28,11 @@ ranges (microduck_rl `tasks/microduck_velocity_env_cfg.py`, inherited unchanged 
 
 `sysid_run.py` asserts every command against these before sending it.
 
+These are the bounds as they were when this ran (2026-10-15). Pollen lowered the pad's full
+reverse to 0.3 m/s in microduck 145e91b2 (2026-11-10), so vx is now -0.3 to 0.4 on the pad
+(`cardreader/duckcards/pollen-pad-drive.json`), and the backward steps past -0.30 below are
+past it.
+
 ## What it found
 
 | axis, direction | stands still up to | moves every time from | delay | time constant | at the bound |

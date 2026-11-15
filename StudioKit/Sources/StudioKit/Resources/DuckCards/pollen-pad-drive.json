@@ -1,10 +1,10 @@
 {
   "format": "pollen-pad-drive/0",
-  "source": "pollen-robotics/microduck robotd-params/src/lib.rs, impl Default for PadDriveParams (lines 144 to 158)",
-  "commit": "34b6e7dcd145307e6eb7f9deb370e378dec2b26b",
-  "read": "2026-10-15",
-  "said": "Since the v8 velstand, which tracks yaw commands, forward/back is 0.4 m/s and turning 1.0 rad/s, what that policy follows well on the robot.",
-  "vx": [-0.4, 0.4],
+  "source": "pollen-robotics/microduck robotd-params/src/lib.rs, impl Default for PadDriveParams (lines 285 to 299)",
+  "commit": "094d4bb4af31ec181156e1ea772437fdd7a55978",
+  "read": "2026-11-14",
+  "said": "Forward is 0.4 m/s and turning 1.0 rad/s since the v8 velstand; the v9 set went back to the v7 velstand, and these still feel right on the robot. Back is 0.3 m/s.",
+  "vx": [-0.3, 0.4],
   "vy": [-0.3, 0.3],
   "vyaw": [-1.0, 1.0]
 }

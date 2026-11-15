@@ -18,9 +18,12 @@ v8 velstand under Pollen's robotd in duck-sim through `robot.move` only: forward
 up to 0.20 m/s and walks every time from 0.25 (about a third of the command, 0.09 to 0.135 m/s);
 backward it stands still up to -0.30 and walks from -0.35; it turns in place from 0.625 rad/s
 left and 0.5 right, about 64 degrees a second at 1.0, and coasts about 8 degrees after a turn
-stops. So the speeds clear those dead bands, the caps fit docs/PACKS.md's time bounds, and a
-card that makes no progress for `stall_s` ends as "stuck" (a duck that cannot do the card at the
-speeds it may be sent). `cardreader/sim/results/` is the Monte Carlo.
+stops. So the forward and turning speeds clear those dead bands; backward cannot, because
+Pollen's pad backs at 0.3 at most (microduck 145e91b2), so a Walk back card backs at 0.3, the
+most a duck may be sent, and ends "stuck" on a duck that will not step back at it. The caps
+fit docs/PACKS.md's time bounds, and a card that makes no progress for `stall_s` ends as "stuck"
+(a duck that cannot do the card at the speeds it may be sent). `cardreader/sim/results/` is the
+Monte Carlo.
 
 THE BOARD. A row keeps where the duck should be: the odometry pose it started the first card at,
 then one square or one quarter turn per card. Each card aims at that board pose rather than at
@@ -73,8 +76,9 @@ OFF_NOTE = ("Walk and Turn cards on a duck are timed for now: two seconds each, 
 # POLLEN'S PAD ENVELOPE, ONE SOURCE OF TRUTH. `pollen-pad-drive.json` is StudioKit's
 # `Resources/DuckCards/pollen-pad-drive.json` byte for byte: `PadDriveParams::default()` in
 # pollen-robotics/microduck `robotd-params/src/lib.rs`, with the commit it was read at. Pollen's
-# own words for it: what the v8 velstand "follows well on the robot". robotd does not clamp a
-# `robot.move` to it (the pad is bounded, other clients are not), so no card may ask for more.
+# own words for it (its `said`): these "still feel right on the robot", and "Back is 0.3 m/s".
+# robotd does not clamp a `robot.move` to it (the pad is bounded, other clients are not), so no
+# card may ask for more.
 ENVELOPE_FILE = HERE / "pollen-pad-drive.json"
 ENVELOPE_FORMAT = "pollen-pad-drive/0"
 

@@ -314,7 +314,7 @@ These fixes come from code read this session:
 **Checks per row, in order.** Every failure resolves to a fixed verdict:
 
 1. **Finite numbers.** All three values must be finite. Otherwise **invalid**: zero twist, then StopPath.
-2. **Stick envelope.** 0.3 m/s forward and back, 0.3 m/s sideways, 1.0 rad/s turn (`DuckDrive.swift`). This is below the envelope's sourced 0.4 m/s and 1.0 rad/s. Over the limit gives **clamped**.
+2. **Stick envelope.** 0.3 m/s forward and back, 0.3 m/s sideways, 1.0 rad/s turn (`DuckDrive.swift`). Forward is below the envelope's sourced 0.4 m/s; back and turn are the envelope's own 0.3 m/s (Pollen's reverse since microduck 145e91b2) and 1.0 rad/s. Over the limit gives **clamped**.
 3. **Rate.** A limit on the change in twist per row, generalising the 3-row ease. Over the limit gives **slowed**.
 4. **Staleness.**
    - Odometry older than `max_state_age_ms` (100, placeholder) gives **held** (zero twist) for up to 1 s. If it is still stale after that, **cut** and StopPath.
