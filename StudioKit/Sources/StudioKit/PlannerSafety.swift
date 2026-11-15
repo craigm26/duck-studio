@@ -79,6 +79,9 @@ public enum PlannerDisclosure {
     /// The model's name. A hosted planner's is the id the vendor said answered. A local one's is
     /// the model name in its id ("lan.qwen3.5:4b" gives "qwen3.5:4b"), which a person chose.
     public static func modelName(_ info: PlannerInfo) -> String {
+        // Apple's on-device model has no id a person would read; it gets the same name the
+        // settings screen gives it (`stepLabel(for endpoint:)`).
+        if info.id == OnDeviceDecision.providerId { return OnDeviceDecision.modelName }
         if case .hosted = info.runsOn, HostedVendor.allCases.contains(where: { $0.providerId == info.id }) {
             return info.modelVersion
         }

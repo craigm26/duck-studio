@@ -195,7 +195,8 @@ public enum HostedPlannerWords {
     public static let saveKey = "Save the key"
     public static let forgetKey = "Forget the key"
     public static let notOfferedYet =
-        "Not offered on Play or Auto yet. A planner shows there only after it is measured on the practice duck."
+        "Not offered in Auto yet. Tell asks a model only when you pick it under Tell with, and shows each step it "
+        + "picks on a card before the duck moves."
 
     public static func keyPlaceholder(_ v: HostedVendor) -> String { "Your \(v.name) API key (\(v.keyPrefix)...)" }
     public static func savedHere(_ v: HostedVendor, hint: String) -> String { "This device holds \(v.name) key \(hint)." }

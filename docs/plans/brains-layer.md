@@ -491,6 +491,14 @@ Each build is one TestFlight upload. Kit work rides along, and nothing is upload
 - `BrainRunSummary` holds the steps with provenance and labels, the gate's counts and events, and the ending, as data.
 - Not built: the Go card, the ask sheet, the summary chip on screen, Dream-1's camera-consent sheet, and the app wiring of `BrainRunner` and of the gate readings. These and the device checks above remain for build 91.
 
+**What typed Tell built (2026-11-14, `feat/build91-tell`).**
+
+- `TellRouter` (kit): Walk to the ball and the matcher (DuckTalk) first, a stop word anywhere is a stop, and a model only when the person picked one under Studio > Settings > Models > Tell with, the adult's agreement is current, and its key, server or Apple Intelligence is there. Apple's on-device model is the default choice.
+- Play's Tell runs `BrainRunner` for what the phone cannot read, with the Go card (`TellGoCard`: a countdown when Tell's own card is the only reason, a tapped Go for anything new), the question sheet, and the summary chip with its step list (`TellSummary`). Stop is unchanged; the run is registered with the one stop path.
+- Apple's on-device model answers through guided generation over the v1 kinds and the duck's names, then `OnDeviceDecision.read` admits it against the run's set.
+- The practice duck's gate reading is its simulated position (`PracticeDuckReading`), with age 0 because its world advances only inside a request. It never goes into `DuckState.odom`. A real duck's reading is robotd's odometry and its age (`RealDuckReading`).
+- Not built: Dream-1's camera-consent sheet, Auto, the M1 harness's gate, and gate readings for the app's Dream-1 and Walk to the ball runs.
+
 **Build 92 (front door).**
 
 - Intents never call a planner in the background. `TellTheDuckIntent` stays deterministic there.

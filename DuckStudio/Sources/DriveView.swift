@@ -414,6 +414,8 @@ struct DriveView: View {
     @State private var stickStarted = false
     /// A Tell order is running.
     @State private var telling = false
+    /// Typed Tell with a model (build 91): the Go card, the question and the summary.
+    @StateObject private var brain = TellBrainModel()
     /// Which one-time coach marks are done, as `Onboarding.CoachMarks`' bit set (build 93).
     @AppStorage("coach.done") private var coachDone = 0
     /// Dream-1 on the real duck, as a sheet over its picture.
@@ -1407,6 +1409,12 @@ struct DriveView: View {
             }
             .stopPill()
         }
+        // THE PLANNER'S QUESTION, one at a time. Closing it without an answer ends the run.
+        .sheet(isPresented: Binding(get: { brain.asking != nil }, set: { if !$0 { brain.answer(nil) } })) {
+            TellAskSheet(question: brain.asking ?? "", answer: { brain.answer($0) })
+                .presentationDetents([.medium])
+                .stopPill()
+        }
     }
 
     // MARK: - the controller's pieces
@@ -1518,15 +1526,23 @@ struct DriveView: View {
         DreamKeyStore.load() != nil || (venue == .real && robot.greeting?.answersDream == true)
     }
 
-    /// Tell: a sentence or a tile, read with no model, run by the kit's runner on this duck.
+    /// Tell: a sentence or a tile. DuckTalk and the matcher read it first, with no model; what they
+    /// cannot read goes to the planner the person chose in Models, when an adult has agreed
+    /// (`TellRouter`, build 91).
     @MainActor private func tell(_ text: String) {
         // WALK TO THE BALL IS A SKILL, NOT AN ORDER: its own start, its own refusals, and the same
-        // Stop. Read here and not in the matcher, so Ask the duck and Siri mean what they meant.
-        if BallWalk.heard(text) { walkToBall(); return }
-        guard let order = DuckOrderMatcher.match(text, skills: Array(RobotPlan.skillSeconds.keys)) else {
-            say(ControllerWords.heard(text))
-            return
+        // Stop. Read before the matcher, so Ask the duck and Siri mean what they meant.
+        let setup = TellPlanners.setup(duck: duckKind, models: settingsModels, skills: Array(RobotPlan.skillSeconds.keys))
+        switch TellRouter.route(text, setup: setup) {
+        case .walkToBall: walkToBall()
+        case .said(let line): say(line)
+        case .planner(let choice): tellWithPlanner(text, choice: choice)
+        case .order(let order): tellOrder(order)
         }
+    }
+
+    /// One order the phone read, run by the kit's runner on this duck.
+    @MainActor private func tellOrder(_ order: DuckOrder) {
         if order == .stop { stopNow(); return }
         guard peer != nil else { say(ControllerWords.tellNoDuck); return }
         // SAID BEFORE ANYTHING IS SENT: an order this duck cannot do is refused in a sentence.
@@ -1552,6 +1568,83 @@ struct DriveView: View {
             watcher.cancel()
             telling = false
             if !arbiter.saidItsOwnEnding { say(runs.caption) }
+            finishRun(.tell)
+        }
+    }
+
+    /// Tell with a model: `BrainRunner` asks the chosen planner for one decision at a time, the gate
+    /// checks each, and the person sees a Go card before anything new runs.
+    ///
+    /// STOP IS UNCHANGED. The runner registers with the one stop path, so the red disc, the pill, a
+    /// stick touch and leaving the screen end it the way they end everything else. After a Stop the
+    /// latch stays shut; the next Tell is the person's own start, and the arbiter's `.start` re-arms.
+    @MainActor private func tellWithPlanner(_ text: String, choice: TellPlannerChoice) {
+        guard let target = peer, let goal = HumanGoal(personSaid: text) else { say(ControllerWords.tellNoDuck); return }
+        guard !dreamModel.running, !telling, !brain.running else { say(BallWalk.Words.busy); return }
+        // THE STICK LOOP STEPS ASIDE, as for an order.
+        if running { running = false; flight?.cancel() }
+        let duck: DuckIdentity.Kind = venue == .real ? .real : .sim
+        let decision = arbiter.handle(.start(.tell, duck: duck, owner: .app), at: Date())
+        apply(decision)
+        // THE ARBITER CAN REFUSE (off screen). A refusal is the end of it.
+        guard decision.passInput, let run = arbiter.running else { return }
+        say(nil)
+        telling = true
+        brain.begin(choice == .draftModel ? settingsModels.selected.name : TellWords.title(choice))
+        let models = settingsModels
+        let bench = benchPeer
+        let link = robot
+        let feed = realFeed
+        let sim = simHeadCamera
+        let model = brain
+        let path = runs.path
+        let work = Task { @MainActor () -> BrainRunSummary? in
+            let planner: AgreedPlanner
+            do {
+                planner = try await TellPlanners.make(choice, models: models)
+            } catch {
+                say(TellWords.couldNotStart(KeyScrub.scrub(String(String(describing: error).prefix(200)))))
+                return nil
+            }
+            guard path.admits, !Task.isCancelled else { return nil }
+            // WHAT THE GATE READS: the practice duck's own simulated position, or what a real duck's
+            // odometry said and how old it is. Nothing is filled in that the duck did not say.
+            let reading: @Sendable () async -> PlannerLeg.Reading
+            if duck == .real {
+                reading = { @MainActor in RealDuckReading.reading(link.lastState, now: Date()) }
+            } else {
+                reading = { await bench?.gateReading() ?? .none }
+            }
+            // A PICTURE ONLY THROUGH THE FRAME GATE: the provider's own camera switch (off by default),
+            // a provider that takes pictures at all, then the face blur. Otherwise none is made.
+            let picture = PlannerPictureSource(
+                picture: { @MainActor in duck == .real ? feed.picture : sim.picture },
+                blur: PlannerFrames.faceBlur, encode: PlannerFrames.jpeg)
+            let hooks = BrainRunner.Hooks(reading: reading,
+                                          confirm: { await model.confirm($0) },
+                                          ask: { await model.ask($0) },
+                                          picture: picture,
+                                          step: { await model.step($0) })
+            guard let runner = BrainRunner(planner: planner, run: run, goal: goal, peer: target, stopPath: path,
+                                           hooks: hooks) else { return nil }
+            return await runner.run()
+        }
+        // REGISTERED WITH DUCKRUNS TOO, so the Stop pill shows over the question's sheet. Its cancel is
+        // the same task's; the stop itself is unchanged.
+        let token = runs.track(.goal) { work.cancel() }
+        Task {
+            let watcher = Task { @MainActor in
+                while !Task.isCancelled {
+                    if let bench = benchPeer, venue != .real { live = await bench.live }
+                    try? await Task.sleep(nanoseconds: 100_000_000)
+                }
+            }
+            let summary = await work.value
+            runs.finished(token)
+            watcher.cancel()
+            telling = false
+            brain.end(summary)
+            if let summary, !arbiter.saidItsOwnEnding { say(summary.ending.says) }
             finishRun(.tell)
         }
     }
@@ -1814,7 +1907,11 @@ struct DriveView: View {
                     // EACH MODE'S PANEL TAKES THE PAD'S PLACE (build 92), so the duck stays in view
                     // and no card is stacked over the sticks. A physical pad still takes over.
                     switch arbiter.mode {
+                    case .tell where brain.running:
+                        // A MODEL IS PICKING THE STEPS: the Go card, or who is thinking, and Take over.
+                        TellRunPanel(model: brain, venue: venue == .real ? .real : .practice, takeOver: takeOver)
                     case .tell:
+                        TellSummaryChip(model: brain)
                         // THE LINE KEEPS TIME WHILE A WALK RUNS, as Auto's does.
                         TimelineView(.periodic(from: Date(), by: 1)) { _ in
                             TellPanel(duck: duckKind, caption: caption?.text, busy: telling, listener: listener,

@@ -148,8 +148,8 @@ struct ModelSettingsView: View {
             .listRowBackground(Theme.surfacePrimary)
 
             // THE SAME "A MODEL, NOT A PERSON" LINE THE HOSTED KEY SCREEN HAS, for the models
-            // on this screen: on this device, downloaded, or on a computer you chose. None is
-            // offered on Play or Auto yet; when one is, every step it picks carries the label
+            // on this screen: on this device, downloaded, or on a computer you chose. Tell asks the
+            // one picked under Tell with (build 91), and every step it picks carries the label
             // shown here (PlannerSafety, gaps 1 and 2).
             Section {
                 ForEach(LocalPlannerWords.card(store.selected.kind, model: store.selected.model), id: \.self) { line in
@@ -166,6 +166,10 @@ struct ModelSettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             .listRowBackground(Theme.surfacePrimary)
+
+            // WHICH MODEL TELL ASKS (build 91), beside the agreement it needs. A hosted vendor shows
+            // here only once its key is on this device.
+            TellPlannerSection(hasKey: { HostedKeyStore.load($0) != nil })
 
             ParentalAgreementSection(store: safety)
 
