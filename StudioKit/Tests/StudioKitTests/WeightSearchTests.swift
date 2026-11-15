@@ -292,8 +292,8 @@ final class WeightSearchTests: XCTestCase {
     /// A SEARCHED NETWORK IS NOT A TUNED ONE, and a folder full of both should
     /// say which is which.
     func testASearchedNetworkIsNamedApartFromATunedOne() throws {
-        let base = try DuckPolicy.load(contentsOf: URL(fileURLWithPath:
-            "/home/craigm26/projects/duck-studio/DuckStudio/Resources/alpha_walking.onnx"))
+        let base = try DuckPolicy.load(contentsOf: XCTUnwrap(Bundle.module.url(
+            forResource: "alpha_walking", withExtension: "onnx", subdirectory: "Fixtures/policies")))
         let name = WeightSearch.filename(for: base)
         XCTAssertTrue(name.hasPrefix("searched-"))
         XCTAssertTrue(name.hasSuffix(".onnx"))
@@ -304,8 +304,8 @@ final class WeightSearchTests: XCTestCase {
     /// three networks, and one filename for all of them is how the second
     /// overwrites the first on somebody's robot.
     func testTwoDifferentNetworksGetTwoDifferentNames() throws {
-        let base = try DuckPolicy.load(contentsOf: URL(fileURLWithPath:
-            "/home/craigm26/projects/duck-studio/DuckStudio/Resources/alpha_walking.onnx"))
+        let base = try DuckPolicy.load(contentsOf: XCTUnwrap(Bundle.module.url(
+            forResource: "alpha_walking", withExtension: "onnx", subdirectory: "Fixtures/policies")))
         let p = base.parameters
         let moved = WeightSearch.candidate(from: p.layers,
                                            scales: WeightSearch.scales(of: p.layers),
