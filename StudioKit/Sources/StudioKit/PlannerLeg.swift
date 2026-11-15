@@ -49,17 +49,24 @@ public actor GateHolder {
     public func act(_ row: DuckEnvelopeGate.Row) throws -> DuckEnvelopeGate.Result {
         try gate.act(row)
     }
+
+    /// The reasons this decision would need a Go now. Confidence can only add to them.
+    public func confirmations(for decided: Decided) -> [DuckEnvelopeGate.ConfirmReason] {
+        gate.confirmations(for: decided)
+    }
+
+    /// The open `.ask` was answered.
+    public func answered() { gate.answered() }
 }
 
 // MARK: - carrying out a `.drive` or a `.plan`
 
 /// Carries out one `.drive` or `.plan` decision, then hands control back (3.3, later rows).
 ///
-/// THIS IS NOT THE BRAIN RUNNER. Build 91's `BrainRunner` (the loop that asks a planner, checks
-/// each decision, runs it and asks again) does not exist yet, and neither do the v1 executors for
-/// `.skill`, `.walk` and `.turn`. These are the two later rows of the executor table, as kit
-/// functions a runner will call: each one re-checks and re-clamps its decision itself, runs it,
-/// and returns an `Ending` that says why control came back. Nothing in the app calls them yet.
+/// THIS IS NOT THE BRAIN RUNNER. `BrainRunner` (build 91) is the loop that asks a planner, checks
+/// each decision, runs it and asks again; it calls these two for `.drive` and `.plan`. Each one
+/// re-checks and re-clamps its decision itself, runs it, and returns an `Ending` that says why
+/// control came back.
 ///
 /// WHAT EACH ONE TRUSTS: NOTHING IN THE DECISION. Both re-admit the decision against the run's
 /// `AllowedDecisions` and re-clamp it with `ControlArbiter.clamp` before anything moves, even if
@@ -139,9 +146,10 @@ public enum PlannerLeg {
     /// a model wrote can become the driver's prompt.
     ///
     /// THE GATE IS THE RUN'S OWN. It must already be bound (`DuckEnvelopeGate.bind`); an unbound
-    /// gate refuses the leg. Each row goes through `act` after the stick clamp, and the gate's
-    /// twist is what is sent. A cut or invalid row ends the leg through `DreamPilot`'s own ending:
-    /// `robot.stop`, then the source's `end`.
+    /// gate refuses the leg. `DreamPilot` itself carries the gate (`PilotGate.enforced`): each row
+    /// goes through `act` after the stick clamp, and the gate's twist is what is sent. A cut or
+    /// invalid row ends the leg through `DreamPilot`'s own ending: `robot.stop`, then the source's
+    /// `end`. With a `latch`, a Stop ends the leg before its next ask or row.
     ///
     /// NO ASSIST. `DuckAssist` does not exist yet, so the source drives plain. The spec allows a
     /// plain source ("Dream-1 (plain)"), and "+ assist" is a label only a measured row may earn.
@@ -155,6 +163,7 @@ public enum PlannerLeg {
                              on peer: any DuckPeer,
                              frames: @escaping @Sendable () async -> [String],
                              reading: @escaping @Sendable () async -> Reading,
+                             latch: (any MotionLatch)? = nil,
                              events: @escaping @Sendable (DreamPilot.Event) async -> Void = { _ in },
                              sleep: @escaping @Sendable (TimeInterval) async throws -> Void = { try await Task.sleep(nanoseconds: UInt64($0 * 1e9)) },
                              now: @escaping @Sendable () -> Date = Date.init) async -> Ending {
@@ -172,42 +181,12 @@ public enum PlannerLeg {
         let pilot = DreamPilot(checkpoint: source.checkpoint, prompt: humanGoal, limit: seconds)
         await pilot.run(on: peer, rows: source.rows, frames: frames,
                         events: { e in
-                            switch e {
-                            case .ended(let said):
-                                await ended.set(said)
-                            case .asked:
-                                // WAIT: the pilot has just sent a zero twist (A2). It goes in the
-                                // gate's log as a row too, so the rate rule eases the next chunk
-                                // in from still and a cut found while standing ends the leg.
-                                let r = await reading()
-                                let row = DuckEnvelopeGate.Row(
-                                    t: now().timeIntervalSince(runStart), twist: .still,
-                                    odomAgeMs: r.odomAgeMs, observationAgeS: nil, pose: r.pose,
-                                    tiltDeg: r.tiltDeg, phoneUnlocked: r.phoneUnlocked, phase: "wait")
-                                if let result = try? await gate.act(row), result.stopPath {
-                                    await cut.set(result.rule ?? .run)
-                                }
-                            default:
-                                break
-                            }
+                            if case .ended(let said) = e { await ended.set(said) }
                             await events(e)
                         },
                         sleep: sleep, now: now,
-                        filter: { twist in
-                            let r = await reading()
-                            let row = DuckEnvelopeGate.Row(
-                                t: now().timeIntervalSince(runStart), twist: GateTwist(twist),
-                                odomAgeMs: r.odomAgeMs, observationAgeS: r.observationAgeS, pose: r.pose,
-                                tiltDeg: r.tiltDeg, phoneUnlocked: r.phoneUnlocked, phase: "drive")
-                            guard let result = try? await gate.act(row) else {
-                                return .end(Words.gateNotBound)
-                            }
-                            if result.stopPath {
-                                await cut.set(result.rule ?? .run)
-                                return .end(Words.gateCut)
-                            }
-                            return .send(result.sent.drive)
-                        })
+                        gate: .enforced(gate, reading: reading, runStart: runStart, latch: latch,
+                                        phase: "drive", onCut: { await cut.set($0) }))
         if let rule = await cut.rule { return .gateCut(rule) }
         let said = await ended.said ?? DuckDream.Words.stopped
         return said == DuckDream.Words.timeUp ? .done : .stopped(said)

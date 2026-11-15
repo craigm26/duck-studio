@@ -395,12 +395,6 @@ public struct DreamPilot: Sendable {
               vyaw: min(max(t.vyaw, -DuckDrive.maxTurn), DuckDrive.maxTurn))
     }
 
-    /// What a bound gate says about one row: send this twist instead, or end the run here.
-    public enum Filtered: Equatable, Sendable {
-        case send(DuckDrive.Twist)
-        case end(String)
-    }
-
     public enum Event: Equatable, Sendable {
         case asked
         case played(rows: Int, seconds: Double)
@@ -425,10 +419,17 @@ public struct DreamPilot: Sendable {
     /// sentence from it ends the run: stop, then end, like any other ending. A real duck's walk uses
     /// it (`BallWalk.Watch`). Dream-1 and the practice duck pass none, and play exactly as they did.
     ///
-    /// `filter` IS WHERE A GATE IS BOUND (brains-layer.md 6.2). It sees every row after the stick
-    /// clamp and the watch, and what it answers is what goes on the wire: the twist it returns (held,
-    /// slowed or clamped), or the end of the run. A planner's `.drive` passes one
-    /// (`PlannerLeg.drive`). Every caller that passes none plays exactly as before.
+    /// `gate` IS REQUIRED, AND IT IS WHERE THE ENVELOPE IS BOUND (brains-layer.md 6.2, build 91).
+    /// With `PilotGate.enforced`, every row goes through `DuckEnvelopeGate.act` after the stick
+    /// clamp and the watch, and the gate's twist is what goes on the wire; the zero twist sent
+    /// before each ask goes through it too, as a WAIT row. A gate that was never bound ends the run
+    /// before anything moves (`act` before `bind` throws), and a cut or invalid row ends it through
+    /// the same ending as everything else: `robot.stop`, then the source's `end`. With a latch, a
+    /// shut latch ends the run before the next ask and before the next row.
+    ///
+    /// `PilotGate.exempt` names why a run is not gated, from a closed list (`PilotGate.Exemption`).
+    /// `PilotGateTests` reads the sources so that only the listed callers use it, and never the
+    /// kit's own runners.
     public func run(on peer: any DuckPeer,
                     rows: (any DreamRows)? = nil,
                     frames: @Sendable () async -> [String],
@@ -436,7 +437,7 @@ public struct DreamPilot: Sendable {
                     sleep: @Sendable (TimeInterval) async throws -> Void = { try await Task.sleep(nanoseconds: UInt64($0 * 1e9)) },
                     now: @Sendable () -> Date = Date.init,
                     watch: (@Sendable (DuckDrive.Twist?) async -> String?)? = nil,
-                    filter: (@Sendable (DuckDrive.Twist) async -> Filtered)? = nil) async {
+                    gate: PilotGate) async {
         let source: any DreamRows = rows ?? BridgeDreamRows(peer)
         let start = now()
         // Standing still while Dream Labs starts the model is not driving: it is kept apart, so a
@@ -448,8 +449,14 @@ public struct DreamPilot: Sendable {
         var first = true
         var said = DuckDream.Words.stopped
         do {
+            // BOUND BEFORE ANYTHING IS ASKED OR SENT. An unbound gate is the run's end, not a pass.
+            if case .enforced(let bound) = gate.kind, !(await bound.holder.isBound) {
+                said = PlannerLeg.Words.gateNotBound
+                throw GateEnded.ended
+            }
             driving: while driven() < limit {
                 try Task.checkCancellation()
+                if gate.latchShut { said = DuckDream.Words.stopped; break }
                 let window = Array(await frames().suffix(DreamPilot.window))
                 if window.isEmpty { said = DuckDream.Words.needsCamera; break }
                 if let watch, let end = await watch(nil) { said = end; break }
@@ -458,6 +465,11 @@ public struct DreamPilot: Sendable {
                 // the last row. `last` stays the command in force before this pause, which
                 // is what the recordings call state.
                 if !first { try await peer.notify(.move(.still)) }
+                // WAIT: the zero twist (A2) goes in the gate's log as a row too, so the rate rule
+                // eases the next chunk in from still and a cut found while standing ends the run.
+                if case .enforced(let bound) = gate.kind {
+                    if let end = await bound.wait(now: now()) { said = end; break }
+                }
                 await events(.asked)
                 let chunk: DuckDream.Chunk
                 let asked = now()
@@ -498,13 +510,14 @@ public struct DreamPilot: Sendable {
                     // THE WATCH WAITS ON OTHER ACTORS, and a Stop can land during it: no row after a Stop.
                     try Task.checkCancellation()
                     var send = DreamPilot.clamped(row)
-                    if let filter {
-                        switch await filter(send) {
+                    if case .enforced(let bound) = gate.kind {
+                        switch await bound.row(send, now: now()) {
                         case .send(let t): send = DreamPilot.clamped(t)
                         case .end(let words): said = words; break driving
                         }
                         try Task.checkCancellation()
                     }
+                    if gate.latchShut { said = DuckDream.Words.stopped; break driving }
                     last = send
                     try await peer.notify(.move(last))
                     played += 1
@@ -513,17 +526,115 @@ public struct DreamPilot: Sendable {
                 await events(.played(rows: played, seconds: driven()))
             }
             if driven() >= limit { said = DuckDream.Words.timeUp }
+        } catch is GateEnded {
+            // `said` is already the reason.
         } catch is CancellationError {
             said = DuckDream.Words.stopped
         } catch let refusal as DuckDream.ReadError {
             said = refusal.message
         } catch let misuse as DuckCall.Misuse {
             said = misuse.message
+        } catch let latched as LatchedPeer.Refused {
+            said = latched.message
         } catch {
             said = error.localizedDescription
         }
         _ = try? await peer.call(.stop)
         await source.end()
         await events(.ended(said))
+    }
+
+    private enum GateEnded: Error { case ended }
+}
+
+/// How `DreamPilot` is held to the envelope for one run. Required on every run: there is no
+/// default, so a caller cannot leave the gate out by forgetting it.
+public struct PilotGate: Sendable {
+
+    /// Why a run plays without the gate. A CLOSED LIST: each case is one known caller, and
+    /// `PilotGateTests` fails if any other source file uses `exempt`, or if the kit's own runners
+    /// (`BrainRunner`, `PlannerLeg`) ever do.
+    public enum Exemption: String, Sendable, CaseIterable {
+        /// The M1 harness (`DriverTrial`) measuring a driver on the physics machine. Section 7
+        /// measures every source ungated as well as gated, so its crossings before the gate can
+        /// be counted. Never a duck a person is beside.
+        case benchMeasurement = "bench measurement"
+        /// The app's Dream-1 run screen and Walk to the ball, which the app drives itself. Their
+        /// gate binding needs readings the app has to supply (the practice duck reports no
+        /// odometry, and the gate holds then cuts without it), so it is build 91's app work, with
+        /// a device check, not this kit change.
+        case appRunNotYetWired = "app run, gate not wired yet"
+    }
+
+    enum Kind: Sendable {
+        case enforced(Bound)
+        case exempt(Exemption)
+    }
+
+    let kind: Kind
+
+    /// Every row through `gate`, which must already be bound. `reading` is what the duck reports
+    /// when the row is made; `runStart` is when the run began, for the gate's run cap; `latch`
+    /// (the app's `StopPath`) ends the run when shut; `phase` names the rows in the gate's log;
+    /// `onCut` hears the rule when the gate ends the run.
+    public static func enforced(_ gate: GateHolder,
+                                reading: @escaping @Sendable () async -> PlannerLeg.Reading,
+                                runStart: Date,
+                                latch: (any MotionLatch)? = nil,
+                                phase: String = "drive",
+                                onCut: (@Sendable (DuckEnvelopeGate.Rule) async -> Void)? = nil) -> PilotGate {
+        PilotGate(kind: .enforced(Bound(holder: gate, reading: reading, runStart: runStart, latch: latch,
+                                        phase: phase, onCut: onCut)))
+    }
+
+    /// No gate, for one of the listed reasons.
+    public static func exempt(_ why: Exemption) -> PilotGate { PilotGate(kind: .exempt(why)) }
+
+    public var isEnforced: Bool { if case .enforced = kind { return true }; return false }
+
+    var latchShut: Bool {
+        if case .enforced(let b) = kind, let latch = b.latch { return !latch.admits }
+        return false
+    }
+
+    struct Bound: Sendable {
+        let holder: GateHolder
+        let reading: @Sendable () async -> PlannerLeg.Reading
+        let runStart: Date
+        let latch: (any MotionLatch)?
+        let phase: String
+        let onCut: (@Sendable (DuckEnvelopeGate.Rule) async -> Void)?
+
+        enum Answer { case send(DuckDrive.Twist), end(String) }
+
+        /// One row a source wants sent, through the gate.
+        func row(_ twist: DuckDrive.Twist, now: Date) async -> Answer {
+            let r = await reading()
+            let row = DuckEnvelopeGate.Row(
+                t: now.timeIntervalSince(runStart), twist: GateTwist(twist),
+                odomAgeMs: r.odomAgeMs, observationAgeS: r.observationAgeS, pose: r.pose,
+                tiltDeg: r.tiltDeg, phoneUnlocked: r.phoneUnlocked, phase: phase)
+            guard let result = try? await holder.act(row) else { return .end(PlannerLeg.Words.gateNotBound) }
+            if result.stopPath {
+                await onCut?(result.rule ?? .run)
+                return .end(PlannerLeg.Words.gateCut)
+            }
+            return .send(result.sent.drive)
+        }
+
+        /// The zero twist before an ask, logged as a WAIT row. Nil to go on, or the run's end.
+        func wait(now: Date) async -> String? {
+            let r = await reading()
+            let row = DuckEnvelopeGate.Row(
+                t: now.timeIntervalSince(runStart), twist: .still,
+                odomAgeMs: r.odomAgeMs, observationAgeS: nil, pose: r.pose,
+                tiltDeg: r.tiltDeg, phoneUnlocked: r.phoneUnlocked, phase: "wait")
+            guard let result = try? await holder.act(row) else { return PlannerLeg.Words.gateNotBound }
+            if result.stopPath {
+                await onCut?(result.rule ?? .run)
+                return PlannerLeg.Words.gateCut
+            }
+            return nil
+        }
     }
 }

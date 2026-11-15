@@ -129,7 +129,8 @@ final class LocalDreamRowsTests: XCTestCase {
         net.output = (0..<144).map { $0 % 3 == 0 ? 1 : 0 }      // forward 0.3 every row
         await DreamPilot(checkpoint: "driver@abc", prompt: "walk to the ball", limit: 2.5)
             .run(on: duck, rows: rows(net, clock: clock), frames: { ["J", "J", "J"] }, events: { _ in },
-                 sleep: { clock.advance($0) }, now: { clock.date() })
+                 sleep: { clock.advance($0) }, now: { clock.date() },
+                 gate: .exempt(.benchMeasurement))
         let moves = duck.sent.filter { $0 == "robot.move" }.count
         XCTAssertEqual(moves, 26, "two and a half seconds of rows at 10 Hz, plus the zero before the second ask")
         XCTAssertEqual(net.calls, 2, "one ask per 20 rows")
@@ -147,7 +148,8 @@ final class LocalDreamRowsTests: XCTestCase {
             .run(on: duck, rows: rows(net, clock: clock), frames: { ["J", "J", "J"] },
                  events: { if case .ended(let line) = $0 { said.line = line } },
                  sleep: { clock.advance($0) }, now: { clock.date() },
-                 watch: BallWalk.pilotWatch(pictureAge: { 0.1 }))
+                 watch: BallWalk.pilotWatch(pictureAge: { 0.1 }),
+                 gate: .exempt(.benchMeasurement))
         XCTAssertEqual(said.line, BallWalk.Words.stoppedItself)
         XCTAssertLessThan(net.calls, 5, "it ended instead of asking on for the whole limit")
         XCTAssertEqual(duck.sent.last, "robot.stop")
@@ -163,7 +165,8 @@ final class LocalDreamRowsTests: XCTestCase {
             .run(on: duck, rows: rows(net, clock: clock), frames: { ["J", "J", "J"] },
                  events: { if case .ended(let line) = $0 { said.line = line } },
                  sleep: { clock.advance($0) }, now: { clock.date() },
-                 watch: BallWalk.pilotWatch(pictureAge: { clock.now() - began }))
+                 watch: BallWalk.pilotWatch(pictureAge: { clock.now() - began }),
+                 gate: .exempt(.benchMeasurement))
         XCTAssertEqual(said.line, BallWalk.Words.cameraLost)
         XCTAssertEqual(net.calls, 1, "the rows of one chunk were cut short")
         let moves = duck.sent.filter { $0 == "robot.move" }.count
@@ -177,7 +180,8 @@ final class LocalDreamRowsTests: XCTestCase {
         await DreamPilot(checkpoint: "driver@abc", prompt: "walk to the ball")
             .run(on: duck, rows: rows(net, clock: clock), frames: { ["J"] }, events: { _ in },
                  sleep: { clock.advance($0) }, now: { clock.date() },
-                 watch: BallWalk.pilotWatch(pictureAge: { nil }))
+                 watch: BallWalk.pilotWatch(pictureAge: { nil }),
+                 gate: .exempt(.benchMeasurement))
         XCTAssertEqual(net.calls, 0)
         XCTAssertEqual(duck.sent, ["robot.stop"])
     }
@@ -192,7 +196,8 @@ final class LocalDreamRowsTests: XCTestCase {
                  watch: { row in
                      if row != nil { withUnsafeCurrentTask { $0?.cancel() } }
                      return nil
-                 })
+                 },
+                 gate: .exempt(.benchMeasurement))
         XCTAssertFalse(duck.sent.contains("robot.move"), "\(duck.sent)")
         XCTAssertEqual(duck.sent.last, "robot.stop")
     }

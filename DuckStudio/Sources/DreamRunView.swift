@@ -87,7 +87,8 @@ final class DreamRunModel: ObservableObject {
                 try? await Task.sleep(nanoseconds: 1_200_000_000)
                 await pilot.run(on: peer, rows: rows,
                                 frames: { await source.dreamWindow() },
-                                events: { event in await self?.apply(event) })
+                                events: { event in await self?.apply(event) },
+                                gate: .exempt(.appRunNotYetWired))
             }.capped
             await MainActor.run {
                 if capped { self?.line = ControlArbiter.Words.capped(caps.seconds(on: duck)) }
@@ -173,7 +174,8 @@ final class DreamRunModel: ObservableObject {
                              events: { event in
                                  await self?.apply(event)
                                  if case .ended(let last) = event { await self?.noteEnd(last) }
-                             })
+                             },
+                             gate: .exempt(.appRunNotYetWired))
                 }
                 watcher.cancel()
                 watched = await watcher.value
@@ -264,7 +266,8 @@ final class DreamRunModel: ObservableObject {
                                  await self?.apply(event)
                                  if case .ended(let last) = event { await self?.noteEnd(last) }
                              },
-                             watch: BallWalk.pilotWatch(pictureAge: { await feed.dreamPictureAge() }))
+                             watch: BallWalk.pilotWatch(pictureAge: { await feed.dreamPictureAge() }),
+                             gate: .exempt(.appRunNotYetWired))
                     said = self?.ended
                     p50 = await loaded.rows.timings()?.p50
                 } catch is CancellationError {
