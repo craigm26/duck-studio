@@ -192,9 +192,11 @@ public enum HostedPlanner {
         .ask(question: refusal.says + " What should the duck do?")
     }
 
-    /// Whether this ask may send its picture: there is one, and camera consent was given.
-    public static func sendsFrame(_ ask: PlannerAsk, cameraConsent: Bool) -> Bool {
-        cameraConsent && (ask.frame?.isEmpty == false)
+    /// Whether this ask may send its picture: there is one, and `PlannerFrameGate.allows` says
+    /// this provider may be sent one. The picture itself is made only by `PlannerFrameGate.frame`,
+    /// which blurs faces before it encodes and sends nothing when blurring is not possible.
+    public static func sendsFrame(_ ask: PlannerAsk, info: PlannerInfo, cameraConsent: Bool) -> Bool {
+        PlannerFrameGate.allows(info, consent: cameraConsent) && (ask.frame?.isEmpty == false)
     }
 
     // MARK: the run, with its deadline

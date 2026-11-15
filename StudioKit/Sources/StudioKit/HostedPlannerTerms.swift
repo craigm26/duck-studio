@@ -232,7 +232,8 @@ public enum HostedPlannerWords {
 
     public static func bills(_ v: HostedVendor) -> String { "\(v.name) bills your key for each decision." }
 
-    /// The card's lines, in order. The children's privacy statement link is added when it exists.
+    /// The card's lines, in order. The children's privacy statement is linked beside them
+    /// (`ParentalAgreementWords.privacyURL`), with the adult's agreement (`ParentalAgreement`).
     public static func card(_ v: HostedVendor) -> [String] {
         [aiDisclosure(v), keyStays(v), retention(v), whatIsSent(v), adultWatches, forChildren, canBeWrong, bills(v)]
     }
