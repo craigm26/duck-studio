@@ -55,7 +55,7 @@ public struct OpenAIPlanner: Planner {
                      "parameters": .object(t.schema), "strict": .bool(true)])
         }
         var content: [JSONValue] = [.object(["type": .string("input_text"), "text": .string(HostedPlanner.userText(ask))])]
-        if HostedPlanner.sendsFrame(ask, cameraConsent: cameraConsent), let frame = ask.frame {
+        if HostedPlanner.sendsFrame(ask, info: info, cameraConsent: cameraConsent), let frame = ask.frame {
             content.append(.object(["type": .string("input_image"), "detail": .string("low"),
                                     "image_url": .string("data:image/jpeg;base64," + frame.base64EncodedString())]))
         }

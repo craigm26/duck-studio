@@ -20,6 +20,7 @@ import StudioKit
 /// coloured capsule in it is a list with one row shouting.
 struct ModelSettingsView: View {
     @ObservedObject var store: EndpointStore
+    @ObservedObject private var safety = PlannerSafetyStore.shared
     @State private var editing: ModelEndpoint?
     /// Held for the confirmation, because removing a downloaded model frees
     /// gigabytes and the sentence should name how many first.
@@ -145,6 +146,28 @@ struct ModelSettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             .listRowBackground(Theme.surfacePrimary)
+
+            // THE SAME "A MODEL, NOT A PERSON" LINE THE HOSTED KEY SCREEN HAS, for the models
+            // on this screen: on this device, downloaded, or on a computer you chose. None is
+            // offered on Play or Auto yet; when one is, every step it picks carries the label
+            // shown here (PlannerSafety, gaps 1 and 2).
+            Section {
+                ForEach(LocalPlannerWords.card(store.selected.kind, model: store.selected.model), id: \.self) { line in
+                    Text(line)
+                        .foregroundStyle(Theme.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                PlannerStepLabelExample(label: PlannerDisclosure.stepLabel(for: store.selected))
+            } header: {
+                SectionHeading(text: PlannerSafetyWords.localHeading)
+            } footer: {
+                Text(HostedPlannerWords.notOfferedYet)
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .listRowBackground(Theme.surfacePrimary)
+
+            ParentalAgreementSection(store: safety)
 
             Section {
                 // ABOVE THE PRESETS, because it is a different act: a preset

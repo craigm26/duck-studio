@@ -58,7 +58,7 @@ public struct AnthropicPlanner: Planner {
                      "input_schema": .object(t.schema), "strict": .bool(true)])
         }
         var content: [JSONValue] = []
-        if HostedPlanner.sendsFrame(ask, cameraConsent: cameraConsent), let frame = ask.frame {
+        if HostedPlanner.sendsFrame(ask, info: info, cameraConsent: cameraConsent), let frame = ask.frame {
             content.append(.object(["type": .string("image"), "source": .object([
                 "type": .string("base64"), "media_type": .string("image/jpeg"),
                 "data": .string(frame.base64EncodedString())])]))
