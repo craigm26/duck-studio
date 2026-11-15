@@ -229,6 +229,8 @@ final class DuckDeciderTests: XCTestCase {
         XCTAssertNil(DuckPadMap.Effect.reset.realDuckOrder)
         XCTAssertNil(DuckPadMap.Effect.drive.realDuckOrder)
         XCTAssertNil(DuckPadMap.Effect.notYet("x").realDuckOrder)
+        XCTAssertEqual(DuckPadMap.Effect.skill("excited").realDuckOrder, .skill("excited"))
+        XCTAssertNil(DuckPadMap.Effect.selectMode(.head).realDuckOrder)
     }
 
     // MARK: - Auto's other helpers

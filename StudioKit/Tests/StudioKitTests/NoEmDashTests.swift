@@ -55,7 +55,7 @@ final class NoEmDashTests: XCTestCase {
         "DuckIntentPlan.swift": 1,
         "DuckLineSequence.swift": 3,
         "DuckLink.swift": 6,
-        "DuckPad.swift": 14,
+        "DuckPad.swift": 5,
         "DuckPadMap.swift": 9,
         "DuckPeer.swift": 2,
         "DuckPlanFile.swift": 1,

@@ -47,56 +47,90 @@ public enum DuckDrive {
 
     // MARK: - what the stick can ask for
     //
-    // EVERY NUMBER BELOW IS POLLEN'S, out of `padd/src/main.rs` in
-    // pollen-robotics/microduck — the daemon that drives a real Microduck from
-    // a gamepad. They are its clap defaults, and they are here rather than
-    // invented because somebody who has driven the robot with a pad already has
-    // muscle memory for exactly these, and a phone that felt different at the
-    // same stick deflection would be teaching a second set of reflexes for one
-    // robot. Where a number here disagrees with one measured on the bench, the
-    // comment says so rather than quietly picking a winner.
+    // THE STICKS ARE POLLEN'S PAD, NUMBER FOR NUMBER. `Pad` below is
+    // `robotd-params` in pollen-robotics/microduck at 094d4bb4 (release 0.21.1),
+    // the defaults `padd` and `netpadd` drive a real Microduck with when
+    // `robotd.toml` says nothing. Somebody who has driven the robot with a pad
+    // has muscle memory for exactly these, and a phone that felt different at
+    // the same stick deflection would be teaching a second set of reflexes for
+    // one robot. `DuckPadDefaultsTests` pins every one against its source line.
 
-    /// The fastest forward this offers, metres per second — `padd`'s
-    /// `--max-linear` default. Inside Pollen's pad envelope (0.4 since the v8
-    /// velstand, `DuckCardLoop.envelope`); left at 0.3, the speed duckbench
-    /// measured and the one the sticks have always had.
+    /// Pollen's default pad envelope and shaping, cited by file and line at
+    /// pollen-robotics/microduck 094d4bb4.
+    public enum Pad {
+        /// Full stick forward, m/s: `PadDriveParams::default()` `vx_max`
+        /// (robotd-params/src/lib.rs:291). 0.4 since the v8 velstand.
+        public static let forward = 0.4
+        /// Full stick back, m/s: `vx_min` = -0.3 (robotd-params/src/lib.rs:292,
+        /// "default vx_min is -0.3", 145e91b2).
+        public static let backward = 0.3
+        /// Full stick sideways, m/s: `vy_max` / `vy_min` (robotd-params/src/lib.rs:293-294).
+        public static let sideways = 0.3
+        /// Full right stick, rad/s: `vyaw_max` / `vyaw_min` (robotd-params/src/lib.rs:295-296).
+        public static let turn = 1.0
+        /// Deflection below this counts as centre, per axis, with no rescale of
+        /// what is left: `PadAxesParams` `deadzone` (robotd-params/src/pad_axes.rs:220,
+        /// applied at pad_axes.rs:56).
+        public static let deadzone = 0.1
+        /// Full-deflection head travel, radians, every joint: `PadHeadParams::default()`
+        /// (robotd-params/src/pad_axes.rs:266).
+        public static let headTravel = 2.5
+        /// The head sticks' response curve, `(1 - e)·x + e·x³`: `DEFAULT_EXPO`
+        /// (robotd-params/src/pad_axes.rs:271, shape at :287-290). The drive sticks
+        /// are linear (`PadDriveParams::scale`, lib.rs:313-319).
+        public static let headExpo = 0.6
+        /// The fastest a stick moves the head target, rad/s per joint:
+        /// `DEFAULT_MAX_SPEED` (robotd-params/src/pad_axes.rs:272).
+        public static let headMaxSpeed = 10.0
+        /// The longest step the head cap allows for, seconds: `HEAD_SLEW_MAX_DT`
+        /// (pad-map/src/mapper.rs:557), so a late frame is not a second's worth of head.
+        public static let headMaxStep = 0.1
+
+        /// `[pad_roller]` on wheels: forward 0.6, back 0.5, no strafe, 0.3 rad/s
+        /// (robotd-params/src/pad_axes.rs:330-341). Not used by `twist(for:)`: this app cannot
+        /// read a duck's drive mode yet (`DuckPadMap.modeIsAnAssumption`).
+        public static let rollerForward = 0.6
+        public static let rollerBackward = 0.5
+        public static let rollerSideways = 0.0
+        public static let rollerTurn = 0.3
+
+        /// The head curve, odd and fixed at 0 and ±1, exactly as `PadHeadParams::shape`.
+        public static func shape(_ x: Double) -> Double {
+            (1 - headExpo) * x + headExpo * x * x * x
+        }
+    }
+
+    /// The fastest a PLANNED forward walk goes, m/s: typed moves, Tell, plans,
+    /// replayed decisions and every brain's envelope (`DuckEnvelopeGate`).
     ///
-    /// THE BENCH HAS RUN BOTH THIS AND FASTER. `alpha_walking` covers 0.681 m
-    /// in six seconds at vx = 0.3 and 1.207 m at 0.5, so 0.3 is comfortably a
-    /// walk rather than the 7 mm shuffle vx = 0.15 produces. Pollen drives the
-    /// real robot at 0.3 and this follows them: the faster figure is a thing
-    /// the bench has measured, not a speed anybody has driven a duck at.
+    /// NOT THE STICK. The stick reaches Pollen's `Pad.forward`, 0.4. This
+    /// stays at 0.3, the speed duckbench measured (`alpha_walking` covers
+    /// 0.681 m in six seconds at vx = 0.3 and 1.207 m at 0.5) and the one every
+    /// planner and its golden cases were written against. Pollen publishes a
+    /// pad default and nothing for a client that is not a pad; robotd does not
+    /// clamp `robot.move`, so a planner's ceiling is this app's to choose, and
+    /// a thumb on a stick is not.
     public static let maxForward = 0.3
 
-    /// Backwards, same figure — `padd`'s `--max-linear-backward`. Their roller
-    /// mode deliberately pushes harder than it brakes (0.6 against 0.5); the
-    /// walking mode does not, and neither does this.
-    public static let maxBackward = 0.3
+    /// Backwards, m/s: Pollen's pad back speed, `Pad.backward`.
+    public static let maxBackward = Pad.backward
 
-    /// Strafing, m/s. `padd` scales `vy` by the same `--max-linear`.
-    public static let maxSideways = 0.3
+    /// Strafing, m/s: `Pad.sideways`.
+    public static let maxSideways = Pad.sideways
 
-    /// Turning, rad/s: Pollen's pad envelope, `PadDriveParams::default()`
-    /// `vyaw_max` (`DuckCardLoop.envelope`, `Resources/DuckCards/pollen-pad-drive.json`).
-    ///
-    /// IT WAS 1.5, `padd`'s old `--max-angular` default. Pollen moved the pad
-    /// to 1.0 with the v8 velstand, which tracks yaw commands: "what that
-    /// policy follows well on the robot" (robotd-params, 34b6e7d). robotd does
-    /// not clamp a `robot.move` to it, so this side does: the sticks, typed
-    /// moves and every plan's turn now top out at 1.0 rad/s. It is still
-    /// twice the first guess made here (0.5, for symmetry with the forward
-    /// figure): turning and walking are not the same units.
-    public static let maxTurn = 1.0
+    /// Turning, rad/s: `Pad.turn`, Pollen's 1.0 since the v8 velstand. robotd
+    /// does not clamp a `robot.move` to it, so this side does: the sticks,
+    /// typed moves and every plan's turn top out here.
+    public static let maxTurn = Pad.turn
 
-    /// Stick deflection below which the axis reads as centred — `padd`'s
-    /// `--deadzone` default, applied per axis exactly as it does.
+    /// Stick deflection below which the axis reads as centred: `Pad.deadzone`.
     ///
     /// THIS IS NOT `deadZone` BELOW. That one is the gait's, in twist units,
     /// and it is about what the ROBOT does with a small command. This one is
     /// the stick's, in stick units, and it is about a thumb that cannot hold
     /// still. Both exist; conflating them would put the wrong number in the
     /// wrong place.
-    public static let stickDeadzone = 0.1
+    public static let stickDeadzone = Pad.deadzone
 
     /// How long one `/intent` holds its command, seconds.
     ///
@@ -206,19 +240,19 @@ public enum DuckDrive {
         let leftX = sticks.left.axis(sticks.left.x)
         let leftY = sticks.left.axis(sticks.left.y)
         let rightX = sticks.right.axis(sticks.right.x)
-        return Twist(vx: leftY * (leftY >= 0 ? maxForward : maxBackward),
-                     vy: -leftX * maxSideways,
-                     vyaw: -rightX * maxTurn)
+        return Twist(vx: leftY * (leftY >= 0 ? Pad.forward : Pad.backward),
+                     vy: -leftX * Pad.sideways,
+                     vyaw: -rightX * Pad.turn)
     }
 
-    /// Full-deflection head travel, radians — `padd`'s `--max-head` default.
+    /// Full-deflection head travel, radians: `Pad.headTravel`.
     ///
     /// GENEROUS ON PURPOSE AND NOT A SERVO LIMIT. `padd`'s own note: "the head
     /// command feeds the policy's observation rather than a servo directly, so
     /// this is the prototype's generous 2.5 — the network itself decides how
     /// far the head actually goes." Clamping it here would be this app deciding
     /// something the policy is trained to decide.
-    public static let maxHead = 2.5
+    public static let maxHead = Pad.headTravel
 
     /// The head pose the sticks mean, in `padd`'s Head mode.
     ///
@@ -237,15 +271,49 @@ public enum DuckDrive {
     /// `head_yaw` are negated relative to stick direction; `padd` marks that
     /// mapping "verified on hardware there, kept verbatim here", which is
     /// exactly the kind of thing this app must copy rather than reason about.
+    ///
+    /// AND THE CURVE IS THEIRS: each axis goes through `Pad.shape` (expo 0.6)
+    /// before the travel, as `stick_frame`'s `look` does (pad-map/src/mapper.rs),
+    /// so half a stick is 28% of the travel and small corrections are possible.
+    /// The speed cap is `HeadGlide`'s, because it needs the last pose sent.
     public static func head(for sticks: Sticks) -> DuckHead {
-        let leftX = sticks.left.axis(sticks.left.x)
-        let leftY = sticks.left.axis(sticks.left.y)
-        let rightX = sticks.right.axis(sticks.right.x)
-        let rightY = sticks.right.axis(sticks.right.y)
+        let leftX = Pad.shape(sticks.left.axis(sticks.left.x))
+        let leftY = Pad.shape(sticks.left.axis(sticks.left.y))
+        let rightX = Pad.shape(sticks.right.axis(sticks.right.x))
+        let rightY = Pad.shape(sticks.right.axis(sticks.right.y))
         return DuckHead(neckPitch: rightY * maxHead,
                         headPitch: -leftY * maxHead,
                         headYaw: -leftX * maxHead,
                         headRoll: rightX * maxHead)
+    }
+
+    /// Pollen's `HeadSlew` (pad-map/src/mapper.rs): the stick-driven head target
+    /// moves at most `Pad.headMaxSpeed` rad/s per joint, so a full snap glides
+    /// instead of jumping. A small move stays under the cap and is untouched.
+    /// The first pose after `reset()` goes out as asked, as theirs does.
+    public struct HeadGlide: Sendable {
+        private var sent: DuckHead?
+        private var at: Date?
+
+        public init() {}
+
+        /// Forget the last pose: the sticks stopped posing the head.
+        public mutating func reset() { sent = nil; at = nil }
+
+        /// The pose to send now, given what the sticks ask for.
+        public mutating func next(_ target: DuckHead, at now: Date) -> DuckHead {
+            let dt = at.map { min(max(now.timeIntervalSince($0), 0), Pad.headMaxStep) } ?? 0
+            at = now
+            guard let from = sent else { sent = target; return target }
+            let step = Pad.headMaxSpeed * dt
+            func toward(_ a: Double, _ b: Double) -> Double { a + min(max(b - a, -step), step) }
+            let out = DuckHead(neckPitch: toward(from.neckPitch, target.neckPitch),
+                               headPitch: toward(from.headPitch, target.headPitch),
+                               headYaw: toward(from.headYaw, target.headYaw),
+                               headRoll: toward(from.headRoll, target.headRoll))
+            sent = out
+            return out
+        }
     }
 
     /// Why a head pose travels beside a zero twist and never beside a live one.
@@ -502,11 +570,10 @@ public enum DuckDrive {
       + "commands — but nothing here has spoken to a duck, and until something has, every number "
       + "on this screen came out of a simulator.\n\n"
       + "The commands are the real ones. Pollen\'s robot.move takes vx, vy and vyaw in the trunk "
-      + "frame, and the speeds these sticks reach are inside Pollen's own pad limits: "
-      + String(format: "%.1f m/s and %.1f rad/s here, ", maxForward, maxTurn)
-      + String(format: "where the pad goes to %.1f m/s and %.1f rad/s. ",
-               DuckCardLoop.envelope.forward, DuckCardLoop.envelope.turn)
-      + "So a stick pushed half way here asks for no more than it would there.\n\n"
+      + "frame, and these sticks reach Pollen's own pad defaults: "
+      + String(format: "%.1f m/s forward, %.1f m/s back and sideways, %.1f rad/s turning. ",
+               Pad.forward, Pad.backward, Pad.turn)
+      + "So a stick pushed half way here asks for what it would there.\n\n"
       + "One thing here is softer than a robot. This world only advances while a command is in "
       + "flight, so letting go stops it mid-stride. A real move expires instead, on a deadman "
       + "this does not need and hardware would."

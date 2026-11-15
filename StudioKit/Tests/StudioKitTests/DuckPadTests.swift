@@ -3,35 +3,13 @@ import DuckKit
 import DuckEvidence
 @testable import StudioKit
 
-/// The pad mapping, pinned against `padd/src/main.rs` in
-/// pollen-robotics/microduck.
-///
-/// ITS HEADER IS THE SPEC AND IT IS SHORT ENOUGH TO QUOTE:
-///
-///     Start        toggle the policy
-///     Y (North)    head mode — sticks pose the head
-///     B (East)     body-pose mode — sticks lean and crouch the standing robot
-///     A (South)    ground pick
-///     LB / RB      left / right kick
-///     DPad-Down    sit ↔ stand
-///     RT / LT      mouth (either trigger; the max wins)
-///     Select, 2 s  sit down, then power off
-///
-/// Muscle memory is the reason to match it exactly.
+/// The pad mapping's shape. Each default against Pollen's source line is
+/// `DuckPadDefaultsTests`; this file is about what the table promises beyond
+/// the values.
 final class DuckPadTests: XCTestCase {
 
     private func binding(_ control: DuckPad.Control) throws -> DuckPad.Binding {
         try XCTUnwrap(DuckPad.binding(for: control))
-    }
-
-    /// The face buttons load the slots `deploy/robotd.toml` names — the same
-    /// skills `padd` triggers, reached the way a bench can reach them.
-    func testTheFaceButtonsMapToTheSlotsPaddTriggers() throws {
-        XCTAssertEqual(try binding(.a).here, .loadSlot(.groundPick))
-        XCTAssertEqual(try binding(.x).here, .loadSlot(.roulade))
-        XCTAssertEqual(try binding(.leftBumper).here, .loadSlot(.kickLeft))
-        XCTAssertEqual(try binding(.rightBumper).here, .loadSlot(.kickRight))
-        XCTAssertEqual(try binding(.dpadDown).here, .loadSlot(.sitstand))
     }
 
     func testTheSticksDrive() throws {
@@ -40,10 +18,10 @@ final class DuckPadTests: XCTestCase {
     }
 
     /// A CONTROL THAT CANNOT WORK MUST SAY SO. Every one of these is a real
-    /// `padd` binding with no counterpart on a physics server, and each has to
+    /// Pollen binding with no counterpart on a physics server, and each has to
     /// carry its own reason rather than being quietly absent.
     func testWhatABenchCannotDoIsNamedRatherThanHidden() throws {
-        for control in [DuckPad.Control.y, .b, .start, .select, .dpadUp,
+        for control in [DuckPad.Control.dpadRight, .dpadDown, .start, .select,
                         .leftTrigger, .rightTrigger] {
             let b = try binding(control)
             XCTAssertFalse(b.isLive, "\(control) should not be live against a bench")
@@ -55,7 +33,17 @@ final class DuckPadTests: XCTestCase {
         }
     }
 
-    /// The mouth is servo 9 and no network drives it — the app says this
+    /// The emotions and head mode are a real duck's: dead on the practice duck,
+    /// and each says why.
+    func testARealDucksControlsAreDeadOnTheBenchAndSaySo() throws {
+        for control in [DuckPad.Control.y, .leftBumper, .rightBumper, .dpadUp] {
+            XCTAssertFalse(try binding(control).isLive, "\(control)")
+        }
+        XCTAssertTrue(DuckPad.onlyOnARealDuck("excited").contains("real duck"))
+        XCTAssertTrue(DuckPad.noHeadOnTheBench.contains("real duck"))
+    }
+
+    /// The mouth is servo 9 and no network drives it. The app says this
     /// everywhere else, and the trigger binding must agree.
     func testTheTriggersExplainTheMouthTheSameWayTheRestOfTheAppDoes() throws {
         XCTAssertTrue(try binding(.rightTrigger).here == .unsupported(
@@ -65,9 +53,10 @@ final class DuckPadTests: XCTestCase {
 
     /// Stop and reset are the bench's, not the pad's, and are labelled so.
     func testTheBenchOnlyControlsDoNotClaimARobotBinding() throws {
-        XCTAssertEqual(try binding(.dpadLeft).here, .stop)
-        XCTAssertEqual(try binding(.dpadRight).here, .reset)
-        XCTAssertEqual(try binding(.dpadLeft).onTheRobot, "—")
+        XCTAssertEqual(try binding(.leftStickClick).here, .stop)
+        XCTAssertEqual(try binding(.rightStickClick).here, .reset)
+        XCTAssertEqual(try binding(.leftStickClick).onTheRobot, "—")
+        XCTAssertEqual(try binding(.rightStickClick).onTheRobot, "—")
     }
 
     func testEveryControlWithABindingHasAFaceLabel() {
@@ -76,12 +65,18 @@ final class DuckPadTests: XCTestCase {
         }
         XCTAssertEqual(DuckPad.binding(for: .a)?.control.face, "A")
         XCTAssertEqual(DuckPad.binding(for: .leftBumper)?.control.face, "LB")
+        XCTAssertEqual(DuckPad.binding(for: .leftStickClick)?.control.face, "L3")
+    }
+
+    func testEveryControlHasExactlyOneRow() {
+        XCTAssertEqual(DuckPad.bindings.count, DuckPad.Control.allCases.count)
+        XCTAssertEqual(Set(DuckPad.bindings.map(\.control)), Set(DuckPad.Control.allCases))
     }
 
     func testLiveIsExactlyTheBindingsThatDoSomething() {
         XCTAssertEqual(Set(DuckPad.live.map(\.control)),
-                       Set([.leftStick, .rightStick, .a, .x, .leftBumper, .rightBumper,
-                            .dpadDown, .dpadLeft, .dpadRight]))
+                       Set([.leftStick, .rightStick, .a, .b, .x,
+                            .dpadLeft, .leftStickClick, .rightStickClick]))
     }
 
     // MARK: - layers

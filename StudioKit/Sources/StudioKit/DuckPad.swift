@@ -19,7 +19,7 @@ import DuckEvidence
 /// WHAT IS HONEST ABOUT THE DIFFERENCE. This app drives a BENCH, not a robot.
 /// Some of `padd`'s bindings have no meaning against a physics server — there
 /// is no power to cut and no motor bus to enable — and the ones that do land
-/// differently: on the robot A triggers the ground-pick skill through
+/// differently: on the robot B triggers the ground-pick skill through
 /// `robotd`'s slot machinery, and here it hot-swaps the loaded policy to the
 /// one filling that slot. `Binding.here` says which is which, and the screen
 /// prints it, because a control that looks live and does nothing is the thing
@@ -52,6 +52,10 @@ public enum DuckPad {
         case dpadUp, dpadDown, dpadLeft, dpadRight
         case start, select
         case leftStick, rightStick
+        /// The sticks pressed in. Pollen's pad reads no stick click at all (`Buttons` has no bit
+        /// for one, pad-map/src/buttons.rs:11-26), so the bench's own Stop and Reset live here
+        /// rather than on a control Pollen binds.
+        case leftStickClick, rightStickClick
 
         /// What is written on the button. `padd` uses gilrs' compass names
         /// (`South`, `East`, `North`, `West`); every pad a person will actually
@@ -74,6 +78,8 @@ public enum DuckPad {
             case .select: return "Select"
             case .leftStick: return "L stick"
             case .rightStick: return "R stick"
+            case .leftStickClick: return "L3"
+            case .rightStickClick: return "R3"
             }
         }
     }
@@ -91,9 +97,25 @@ public enum DuckPad {
         /// Puts the duck back on its feet. Not something a robot can do for
         /// itself, and not something `padd` has: it is the bench's own.
         case reset
+        /// One of the duck's own skills, by `robotd`'s name: Pollen's `[pad]`
+        /// emotions (`excited`, `yes`, `no`). A real duck runs it with
+        /// `robot.do`; the practice duck has no emotions and says so.
+        case skill(String)
+        /// What the sticks mean: Pollen's D-pad selects a mode
+        /// (pad-map/src/mapper.rs:14-19).
+        case selectMode(StickMode)
         /// Nothing here. The robot binding has no counterpart on a physics
         /// server, and the screen says so rather than showing a dead control.
         case unsupported(String)
+    }
+
+    /// The two stick modes this app can draw. Pollen has four (head, head + move, move,
+    /// body + head); the other two are named on their arrows and do nothing here.
+    public enum StickMode: String, Equatable, Sendable {
+        /// D-pad left: the sticks walk, strafe and turn.
+        case move
+        /// D-pad up: both sticks pose the head and the body holds still. A real duck only.
+        case head
     }
 
     /// One row of the mapping.
@@ -112,59 +134,102 @@ public enum DuckPad {
         }
 
         /// Whether pressing it will do anything on this screen.
+        /// On the practice duck, which is what this table describes: a robot
+        /// skill and the head mode are a real duck's, so they read as dead here.
         public var isLive: Bool {
-            if case .unsupported = here { return false }
-            return true
+            switch here {
+            case .unsupported, .skill, .selectMode(.head): return false
+            default: return true
+            }
         }
     }
 
-    /// The mapping, in `padd`'s order.
+    /// The mapping: Pollen's shipped defaults, control by control.
     ///
-    /// THE FACE BUTTONS ARE SLOTS, AND THAT IS NOT A COINCIDENCE. `padd` binds
-    /// A to ground pick, X to roulade, the bumpers to the kicks and DPad-Down
-    /// to sit/stand — and those are exactly the `[policy]` keys in
-    /// `deploy/robotd.toml`. On the robot the daemon owns the switching; on a
-    /// bench the same button loads the same policy. One vocabulary, two
-    /// runtimes.
+    /// EVERY ROW IS POLLEN'S DEFAULT AT pollen-robotics/microduck 094d4bb4
+    /// (release 0.21.1), and `DuckPadDefaultsTests` pins each one to its source
+    /// line: `PadParams::default()` for the six skill buttons
+    /// (robotd-params/src/lib.rs:452-463), `ARROWS` for the D-pad
+    /// (pad-map/src/mapper.rs:14-19) and `padd`'s mapping table for the rest
+    /// (padd/src/main.rs:30-46).
+    ///
+    /// WHERE THIS APP HAS A CONTROL POLLEN DOES NOT, IT SITS WHERE POLLEN HAS
+    /// NOTHING. The roulade is on X, which Pollen ships empty and re-sends
+    /// while held "because it is the button the prototype held the roulade on"
+    /// (pad-map/src/mapper.rs:452-454). Stop and Reset are on the stick clicks,
+    /// which Pollen does not read. The two kicks are in Pollen's set and on no
+    /// Pollen button ("the kicks are still in the set, unbound",
+    /// robotd-params/src/lib.rs:425), so they ship on none here either and
+    /// are a remap or a Moves tile away.
     public static let bindings: [Binding] = [
         Binding(control: .leftStick,
-                onTheRobot: "Translate — forward on y, strafe on x",
+                onTheRobot: "Walk: forward on y, strafe on x",
                 here: .drive),
         Binding(control: .rightStick,
-                onTheRobot: "Heading — yaw on x; in head mode it poses the head",
+                onTheRobot: "Turn on x; in head mode it poses the head",
                 here: .drive),
-        Binding(control: .a, onTheRobot: "Ground pick", here: .loadSlot(.groundPick)),
-        Binding(control: .x, onTheRobot: "Roulade — a forward roll", here: .loadSlot(.roulade)),
-        Binding(control: .leftBumper, onTheRobot: "Kick, left", here: .loadSlot(.kickLeft)),
-        Binding(control: .rightBumper, onTheRobot: "Kick, right", here: .loadSlot(.kickRight)),
-        Binding(control: .dpadDown, onTheRobot: "Sit ↔ stand", here: .loadSlot(.sitstand)),
-        Binding(control: .y, onTheRobot: "Head mode — the sticks pose the head",
-                here: .unsupported("The bench takes a velocity twist and no head pose, so there "
-                                 + "is no head to put the sticks on.")),
-        Binding(control: .b, onTheRobot: "Body-pose mode — lean and crouch while standing",
-                here: .unsupported("Body pose rides in the command block the bench does not "
-                                 + "accept, so this does nothing here.")),
-        Binding(control: .rightTrigger, onTheRobot: "Mouth — and a quack",
+        Binding(control: .a, onTheRobot: "Sit and stand", here: .loadSlot(.sitstand)),
+        Binding(control: .b, onTheRobot: "Ground pick", here: .loadSlot(.groundPick)),
+        Binding(control: .x, onTheRobot: "Nothing until a skill is bound there; held, it repeats",
+                here: .loadSlot(.roulade)),
+        Binding(control: .y, onTheRobot: "Excited (an emotion)", here: .skill("excited")),
+        Binding(control: .leftBumper, onTheRobot: "Yes (an emotion)", here: .skill("yes")),
+        Binding(control: .rightBumper, onTheRobot: "No (an emotion)", here: .skill("no")),
+        Binding(control: .rightTrigger, onTheRobot: "Mouth, and a quack",
                 here: .unsupported("The mouth is servo 9 and no network drives it. Nothing on a "
                                  + "bench opens it.")),
-        Binding(control: .leftTrigger, onTheRobot: "Mouth — and the wheee",
+        Binding(control: .leftTrigger, onTheRobot: "Mouth, and the wheee",
                 here: .unsupported("Same servo, same absence.")),
-        Binding(control: .start, onTheRobot: "Toggle the policy on and off",
+        Binding(control: .dpadUp, onTheRobot: "Head mode: the sticks pose the head",
+                here: .selectMode(.head)),
+        Binding(control: .dpadRight, onTheRobot: "Head and move: left stick walks, right stick looks",
+                here: .unsupported("This app does not drive and look at once yet. Use head mode "
+                                 + "on the arrow up, then move mode on the arrow left.")),
+        Binding(control: .dpadLeft, onTheRobot: "Move mode: the sticks walk, strafe and turn",
+                here: .selectMode(.move)),
+        Binding(control: .dpadDown, onTheRobot: "Body and head: crouch and lean, right stick looks",
+                here: .unsupported("Body pose rides in the command block the bench does not "
+                                 + "accept, so this does nothing here.")),
+        Binding(control: .start,
+                onTheRobot: "Stand up, then toggle the policy; held 1.5 s, home pose",
                 here: .unsupported("There is no motor bus to enable. The bench is always running "
                                  + "whatever is loaded.")),
-        Binding(control: .dpadUp, onTheRobot: "Held 3 s — switch between walk and roller",
-                here: .unsupported("Drive mode is a robot configuration and a restart of robotd. "
-                                 + "Load a roller policy instead.")),
-        Binding(control: .select, onTheRobot: "Held 2 s — sit down, then power off",
+        Binding(control: .select,
+                onTheRobot: "Held 2 s, sit and rest with torque off; held 4 s, power off",
                 here: .unsupported("Nothing here has power to cut.")),
-        // NOT `padd`'s — the bench's own, and named as such. A robot cannot put
-        // itself back on its feet, which is exactly why the physics server has
-        // a control the pad does not.
-        Binding(control: .dpadLeft, onTheRobot: "—",
-                here: .stop),
-        Binding(control: .dpadRight, onTheRobot: "—",
-                here: .reset),
+        // NOT POLLEN'S: the bench's own, on the clicks Pollen's pad never reads.
+        // A robot cannot put itself back on its feet, which is exactly why the
+        // physics server has a control the pad does not.
+        Binding(control: .leftStickClick, onTheRobot: "—", here: .stop),
+        Binding(control: .rightStickClick, onTheRobot: "—", here: .reset),
     ]
+
+    /// The buttons a roller duck leaves unbound whatever `[pad]` says:
+    /// `Config::ROLLER_UNBOUND` (pad-map/src/mapper.rs:141-143, Pollen #576).
+    public static let rollerRunsNothing: [Control] = [.a, .x]
+
+    /// What A and X say on a duck on wheels.
+    public static let onWheelsNothing =
+        "On wheels this button runs nothing, as on Pollen's pad: sit and stand has no meaning there."
+
+    /// What a robot-only skill says on the practice duck.
+    public static func onlyOnARealDuck(_ skill: String) -> String {
+        "\(skill.capitalized) is one of the duck's own emotions and the practice duck has none. "
+      + "On a real duck this button plays it."
+    }
+
+    /// What the arrows say when they change what the sticks mean.
+    public static func modeSaid(_ mode: StickMode) -> String {
+        switch mode {
+        case .move: return "Move mode: the sticks walk, strafe and turn."
+        case .head: return "Head mode: the sticks pose the head and the body holds still."
+        }
+    }
+
+    /// Head mode on the practice duck.
+    public static let noHeadOnTheBench =
+        "The bench takes a velocity twist and no head pose, so there is no head to put the "
+      + "sticks on. On a real duck this arrow is head mode."
 
     public static func binding(for control: Control) -> Binding? {
         bindings.first { $0.control == control }

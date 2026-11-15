@@ -22,8 +22,8 @@ final class DuckDriveTests: XCTestCase {
         XCTAssertEqual(twist(), .still)
     }
 
-    func testFullForwardIsPollensMaxLinear() {
-        XCTAssertEqual(twist(left: (0, 1)).vx, 0.3, accuracy: 1e-12)
+    func testFullForwardIsPollensPadForward() {
+        XCTAssertEqual(twist(left: (0, 1)).vx, 0.4, accuracy: 1e-12)
     }
 
     func testFullBackIsPollensBackwardLimit() {
@@ -56,6 +56,7 @@ final class DuckDriveTests: XCTestCase {
     func testEveryStickLimitIsInsidePollensEnvelope() {
         let env = DuckCardLoop.envelope
         XCTAssertLessThanOrEqual(DuckDrive.maxForward, env.forward)
+        XCTAssertLessThanOrEqual(DuckDrive.Pad.forward, env.forward)
         XCTAssertLessThanOrEqual(DuckDrive.maxBackward, env.backward)
         XCTAssertLessThanOrEqual(DuckDrive.maxSideways, env.sideways)
         XCTAssertLessThanOrEqual(DuckDrive.maxTurn, env.turn)
@@ -79,7 +80,7 @@ final class DuckDriveTests: XCTestCase {
     }
 
     func testTheStickCannotAskForMoreThanFullDeflection() {
-        XCTAssertEqual(twist(left: (0, 40)).vx, DuckDrive.maxForward, accuracy: 1e-12)
+        XCTAssertEqual(twist(left: (0, 40)).vx, DuckDrive.Pad.forward, accuracy: 1e-12)
     }
 
     /// The gait's threshold, not the stick's — a small command makes the duck

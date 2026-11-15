@@ -132,12 +132,13 @@ final class BridgeDriveWireTests: XCTestCase {
     func testTheEnvelopeIsPaddsOwnLimits() {
         let full = DuckDrive.twist(for: DuckDrive.Sticks(left: .init(x: -1, y: 1),
                                                          right: .init(x: -1, y: 0)))
-        XCTAssertLessThanOrEqual(abs(full.vx), 0.3 + 1e-12)
+        // Pollen's pad: 0.4 forward (robotd-params/src/lib.rs:291), 0.3 sideways (:293-294).
+        XCTAssertLessThanOrEqual(abs(full.vx), 0.4 + 1e-12)
         XCTAssertLessThanOrEqual(abs(full.vy), 0.3 + 1e-12)
         XCTAssertLessThanOrEqual(abs(full.vyaw), 1.0 + 1e-12)
         // And the angular range really is wider than the linear one, so a
         // future edit that "tidied" them into one limit fails here.
-        XCTAssertGreaterThan(DuckDrive.maxTurn, DuckDrive.maxForward)
+        XCTAssertGreaterThan(DuckDrive.maxTurn, DuckDrive.Pad.forward)
     }
 
     /// A NaN NEVER REACHES THE WIRE. JSON cannot write one, so a robot would

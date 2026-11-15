@@ -105,7 +105,7 @@ final class CompareTests: XCTestCase {
         XCTAssertEqual(Set(variants.map { $0.sequence.compareDigest }).count, variants.count)
         for v in variants {
             for step in v.sequence.steps {
-                XCTAssertLessThanOrEqual(step.twist.vx, DuckDrive.maxForward)
+                XCTAssertLessThanOrEqual(step.twist.vx, DuckDrive.Pad.forward)
                 XCTAssertLessThanOrEqual(abs(step.twist.vyaw), DuckDrive.maxTurn)
             }
         }

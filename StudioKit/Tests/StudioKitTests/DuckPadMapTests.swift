@@ -82,11 +82,69 @@ final class DuckPadMapTests: XCTestCase {
         XCTAssertEqual(map.buttons[.y], .stop, "and never touches the buttons")
     }
 
-    func testARollerBenchGetsTheWalkingMapAndTheAssumptionIsWrittenDown() {
-        XCTAssertEqual(DuckPadMap.defaults(in: .roller).buttons[.dpadDown],
-                       .loadSlot(.sitstand))
+    /// Pollen #576: on wheels A and X run no skill, whatever `[pad]` binds.
+    func testARollerMapLeavesAAndXRunningNothingAndTheAssumptionIsWrittenDown() {
+        let roller = DuckPadMap.defaults(in: .roller)
+        XCTAssertEqual(Set(roller.buttons.keys), [.a, .x])
+        for control in DuckPad.rollerRunsNothing {
+            XCTAssertEqual(roller.effect(for: control), .notYet(DuckPad.onWheelsNothing))
+        }
+        XCTAssertEqual(roller.effect(for: .b), .loadSlot(.groundPick), "B still runs")
         XCTAssertTrue(DuckPadMap.modeIsAnAssumption.contains("/health"),
                       "the assumption names the endpoint that would settle it")
+    }
+
+    // MARK: - a map nobody touched follows the defaults
+
+    func testAFreshMapIsSparseSoEveryButtonFallsThroughToPollens() {
+        XCTAssertTrue(DuckPadMap.defaults(in: .walk).buttons.isEmpty)
+    }
+
+    /// THE MIGRATION. Up to build 96 a saved map wrote out every shipped entry,
+    /// so a person who never customised carried that table. Reading such a
+    /// file must give them Pollen's defaults, and keep anything they chose.
+    func testABuild96MapNobodyTouchedReadsAsPollensDefaults() throws {
+        var buttons = DuckPadMap.shippedUpTo96
+        let mine = UUID()
+        buttons[.y] = .play(sequence: mine, thenLoading: nil)   // somebody's own
+        let old = DuckPadMap(locomotion: .slot(.walk), buttons: buttons)
+        let read = try DuckPadMap.decode(try old.encoded())
+        XCTAssertEqual(read.buttons, [.y: .play(sequence: mine, thenLoading: nil)])
+        XCTAssertEqual(read.effect(for: .a), .loadSlot(.sitstand))
+        XCTAssertEqual(read.effect(for: .b), .loadSlot(.groundPick))
+        XCTAssertEqual(read.effect(for: .leftBumper), .skill("yes"))
+        XCTAssertEqual(read.effect(for: .dpadLeft), .selectMode(.move))
+        XCTAssertEqual(read.effect(for: .leftStickClick), .stop)
+        XCTAssertFalse(read.shown(for: .a, naming: { _ in nil }).isCustom)
+        XCTAssertTrue(read.shown(for: .y, naming: { _ in "mine" }).isCustom)
+    }
+
+    /// A customisation that is not a build-96 default survives, even on a
+    /// control whose default moved.
+    func testACustomBindingOnAMovedControlIsKept() throws {
+        var map = DuckPadMap(locomotion: .slot(.walk), buttons: [:])
+        map.bind(.loadSlot(.kickLeft), to: .a)
+        let read = try DuckPadMap.decode(try map.encoded())
+        XCTAssertEqual(read.effect(for: .a), .loadSlot(.kickLeft))
+    }
+
+    func testBindingTheDefaultIsClearingIt() {
+        var map = DuckPadMap.defaults(in: .walk)
+        map.bind(.loadSlot(.sitstand), to: .a)
+        XCTAssertNil(map.buttons[.a])
+        map.bind(.stop, to: .a)
+        map.clear(.a)
+        XCTAssertNil(map.buttons[.a])
+        XCTAssertEqual(map.effect(for: .a), .loadSlot(.sitstand))
+    }
+
+    func testTheNewEffectsSurviveTheFile() throws {
+        var map = DuckPadMap.defaults(in: .walk)
+        map.bind(.skill("excited"), to: .a)
+        map.bind(.selectMode(.head), to: .start)
+        let read = try DuckPadMap.decode(try map.encoded())
+        XCTAssertEqual(read.effect(for: .a), .skill("excited"))
+        XCTAssertEqual(read.effect(for: .start), .selectMode(.head))
     }
 
     // MARK: - the readout
@@ -124,6 +182,10 @@ final class DuckPadMapTests: XCTestCase {
                 XCTAssertEqual(bare.effect(for: control), .stop, "\(control)")
             case .reset:
                 XCTAssertEqual(bare.effect(for: control), .reset, "\(control)")
+            case .skill(let name):
+                XCTAssertEqual(bare.effect(for: control), .skill(name), "\(control)")
+            case .selectMode(let mode):
+                XCTAssertEqual(bare.effect(for: control), .selectMode(mode), "\(control)")
             case .unsupported(let why):
                 XCTAssertEqual(bare.effect(for: control), .notYet(why), "\(control)")
             }
@@ -132,7 +194,7 @@ final class DuckPadMapTests: XCTestCase {
 
     func testEveryControlResolvesToSomethingWithASentence() {
         let map = DuckPadMap.defaults(in: .walk)
-        XCTAssertEqual(DuckPad.Control.allCases.count, 16)
+        XCTAssertEqual(DuckPad.Control.allCases.count, 18)
         for control in DuckPad.Control.allCases {
             let shown = map.shown(for: control, naming: { _ in nil })
             XCTAssertFalse(shown.onTheRobot.isEmpty, "\(control) has no robot words")
@@ -150,8 +212,8 @@ final class DuckPadMapTests: XCTestCase {
         XCTAssertTrue(shown.isCustom, "and it is marked as the person's choice")
     }
 
-    func testFourteenControlsAreRemappableAndTheSticksAreNot() {
-        XCTAssertEqual(DuckPadMap.remappable.count, 14)
+    func testSixteenControlsAreRemappableAndTheSticksAreNot() {
+        XCTAssertEqual(DuckPadMap.remappable.count, 16)
         XCTAssertFalse(DuckPadMap.remappable.contains(.leftStick))
         XCTAssertFalse(DuckPadMap.remappable.contains(.rightStick))
         // The seven `padd` binds that a bench cannot do are still buttons a
@@ -301,13 +363,16 @@ final class DuckPadMapTests: XCTestCase {
         XCTAssertTrue(DuckPadMap.mapLivesOnThisPhone.contains("not on the bench"))
     }
 
-    /// THE BUTTON SAYS WHAT IT DOES. X is the roll and A the pick-up; a letter
+    /// THE BUTTON SAYS WHAT IT DOES. X is the roll and B the pick-up; a letter
     /// alone told nobody that. A control that does nothing here has no name,
     /// so Simple can leave it off the pad.
     func testLiveControlsCarryTheMoveNameAndDeadOnesDoNot() {
         let map = DuckPadMap.defaults(in: .walk)
         XCTAssertEqual(map.shown(for: .x, naming: { _ in nil }).name, "Roulade")
-        XCTAssertEqual(map.shown(for: .a, naming: { _ in nil }).name, "Ground pick")
-        XCTAssertNil(map.shown(for: .y, naming: { _ in nil }).name)
+        XCTAssertEqual(map.shown(for: .b, naming: { _ in nil }).name, "Ground pick")
+        XCTAssertNil(map.shown(for: .dpadDown, naming: { _ in nil }).name)
+        // A real duck's emotion keeps its name so a real duck can draw it.
+        XCTAssertEqual(map.shown(for: .y, naming: { _ in nil }).name, "Excited")
+        XCTAssertFalse(map.shown(for: .y, naming: { _ in nil }).isLive)
     }
 }

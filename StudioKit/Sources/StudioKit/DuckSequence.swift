@@ -604,7 +604,7 @@ extension DuckSequence {
         let scaledSteps = steps.map { step in
             Step(atSim: step.atSim * time,
                  twist: DuckDrive.Twist(
-                    vx: clamp(step.twist.vx * speed, -DuckDrive.maxBackward, DuckDrive.maxForward),
+                    vx: clamp(step.twist.vx * speed, -DuckDrive.Pad.backward, DuckDrive.Pad.forward),
                     vy: clamp(step.twist.vy * speed, -DuckDrive.maxSideways, DuckDrive.maxSideways),
                     vyaw: clamp(step.twist.vyaw * speed, -DuckDrive.maxTurn, DuckDrive.maxTurn)),
                  policySaid: step.policySaid)
