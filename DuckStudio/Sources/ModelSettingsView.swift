@@ -148,9 +148,9 @@ struct ModelSettingsView: View {
             .listRowBackground(Theme.surfacePrimary)
 
             // THE SAME "A MODEL, NOT A PERSON" LINE THE HOSTED KEY SCREEN HAS, for the models
-            // on this screen: on this device, downloaded, or on a computer you chose. Tell asks the
-            // one picked under Tell with (build 91), and every step it picks carries the label
-            // shown here (PlannerSafety, gaps 1 and 2).
+            // on this screen: on this device, downloaded, or on a computer you chose. Tell asks Apple's
+            // on-device model (build 91); the others only once the offer rule passes for them. Every
+            // step a model picks carries the label shown here (PlannerSafety, gaps 1 and 2).
             Section {
                 ForEach(LocalPlannerWords.card(store.selected.kind, model: store.selected.model), id: \.self) { line in
                     Text(line)
@@ -167,9 +167,9 @@ struct ModelSettingsView: View {
             }
             .listRowBackground(Theme.surfacePrimary)
 
-            // WHICH MODEL TELL ASKS (build 91), beside the agreement it needs. A hosted vendor shows
-            // here only once its key is on this device.
-            TellPlannerSection(hasKey: { HostedKeyStore.load($0) != nil })
+            // WHICH MODEL TELL ASKS (build 91), beside the agreement it needs. Apple's on-device model
+            // is offered; every other one only once the offer rule passes for it (`TellOffer`).
+            TellPlannerSection(models: store)
 
             ParentalAgreementSection(store: safety)
 

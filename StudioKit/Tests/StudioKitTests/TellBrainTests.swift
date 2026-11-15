@@ -332,6 +332,51 @@ final class TellBrainTests: XCTestCase {
         XCTAssertEqual(label?.headline, PlannerSafetyWords.chosenByModel)
     }
 
+    // MARK: the offer rule for Tell's planners
+
+    func testWithNoEvidenceAHostedPlannerWithAKeyIsNotOfferedAndASavedChoiceFallsBack() {
+        let hosted = HostedVendor.anthropic.info()
+        XCTAssertNil(hosted.evidence, "no Anthropic row exists")
+        let status = TellOffer.status(.anthropic, card: hosted, venue: .practice)
+        XCTAssertEqual(status, .notOfferedYet(TellWords.notOfferedYet(TellWords.hidden(.noEvidence))))
+        // The key is saved and the choice is stored, but Tell uses words only.
+        let used = TellOffer.effective(.anthropic, status: status)
+        XCTAssertEqual(used, .wordsOnly)
+        let text = "go look behind the sofa"
+        XCTAssertEqual(TellRouter.route(text, setup: Self.setup(used, key: true)), .said(ControllerWords.heard(text)))
+        // The same for a model on your network and a downloaded one.
+        let lan = ModelEndpoint(name: "Mac", kind: .openAICompatible, baseURL: "http://192.168.1.5:11434/v1",
+                                model: "qwen3.5:4b")
+        XCTAssertFalse(TellOffer.status(.draftModel, card: TellOffer.draftCard(lan), venue: .practice).isOffered)
+        XCTAssertEqual(TellOffer.status(.draftModel, card: nil, venue: .practice),
+                       .notOfferedYet(TellWords.notOfferedYet(TellWords.noModelPicked)))
+    }
+
+    func testAppleStaysOfferedWithNoEvidenceWhileAHostedOneDoesNot() {
+        let apple = PlannerInfo.appleOnDevice(system: "iOS 26.1")
+        XCTAssertEqual(OfferRule.offer(for: apple, mode: .tell, venue: .practice), .hidden(.noEvidence),
+                       "the rule itself would hide it: the exemption is Tell's, by name")
+        for venue in BrainVenue.allCases {
+            XCTAssertEqual(TellOffer.status(.apple, card: apple, venue: venue), .offered)
+            XCTAssertFalse(TellOffer.status(.openai, card: HostedVendor.openai.info(), venue: venue).isOffered)
+        }
+        XCTAssertEqual(TellOffer.effective(.apple, status: .offered), .apple)
+        XCTAssertEqual(TellOffer.status(.wordsOnly, card: nil, venue: .real), .offered)
+    }
+
+    func testAPlannerThatPassesTheRuleStillWaitsForTheConfirmedBars() {
+        let passing = OfferRuleTests.planner(gold: Tally(9, of: 10))
+        guard case .offered = OfferRule.offer(for: passing, mode: .tell, venue: .practice) else {
+            return XCTFail("the fixture passes the rule")
+        }
+        let status = TellOffer.status(.anthropic, card: passing, venue: .practice)
+        if OfferRule.barsConfirmedByCraig {
+            XCTAssertEqual(status, .offered)
+        } else {
+            XCTAssertEqual(status, .notOfferedYet(TellWords.notOfferedYet(TellWords.barsNotConfirmed)))
+        }
+    }
+
     // MARK: the summary and the words
 
     func testTheSummaryChipCarriesStepsGateCountsAndTheEnding() async {

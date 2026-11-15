@@ -208,6 +208,65 @@ public enum OnDeviceDecision {
     }
 }
 
+// MARK: - which planners Tell may offer
+
+/// Whether a planner may be picked under "Tell with" (brains-layer.md 7, the offer rule).
+///
+/// APPLE'S ON-DEVICE MODEL IS EXEMPT, AND ONLY IT. It runs on this device, needs no key and sends
+/// nothing off it, and the plan's build 91 names it for Tell ("Typed Tell runs DuckTalk first,
+/// then the Apple FM planner ... with a confirm card"). Its steps still show the Go card.
+///
+/// EVERY OTHER MODEL PLANNER (hosted, on your network, downloaded) goes through `OfferRule.offer`
+/// unchanged, for Tell, at the duck's venue, and then through one more lock of Tell's own: the
+/// bars must be confirmed by Craig (`OfferRule.barsConfirmedByCraig`), which `offer` does not read.
+/// A hidden planner says why in the rule's own terms.
+public enum TellOffer {
+    public enum Status: Equatable, Sendable {
+        case offered
+        /// "Not offered yet: it has not been measured on the practice duck."
+        case notOfferedYet(String)
+
+        public var isOffered: Bool { self == .offered }
+    }
+
+    /// The offer for one choice. `card` is the planner the choice would run, or nil when there
+    /// is none to run (no model picked under Draft with).
+    public static func status(_ choice: TellPlannerChoice, card: (any BrainCard)?, venue: BrainVenue) -> Status {
+        switch choice {
+        case .wordsOnly, .apple:
+            return .offered
+        case .draftModel, .anthropic, .openai:
+            guard let card else { return .notOfferedYet(TellWords.notOfferedYet(TellWords.noModelPicked)) }
+            switch OfferRule.offer(for: card, mode: .tell, venue: venue) {
+            case .hidden(let why): return .notOfferedYet(TellWords.notOfferedYet(TellWords.hidden(why)))
+            case .untestedVersion(_, let line): return .notOfferedYet(line)
+            case .offered:
+                guard OfferRule.barsConfirmedByCraig else {
+                    return .notOfferedYet(TellWords.notOfferedYet(TellWords.barsNotConfirmed))
+                }
+                return .offered
+            }
+        }
+    }
+
+    /// The choice Tell uses: a saved choice that is not offered (now, or any more) is "Only what
+    /// this device reads", never a model nobody measured.
+    public static func effective(_ stored: TellPlannerChoice, status: Status) -> TellPlannerChoice {
+        status.isOffered ? stored : .wordsOnly
+    }
+
+    /// The card a model under "Draft with" would run as, for the rule. Nil when Apple's is the
+    /// one picked there (that is the `.apple` choice) or the endpoint cannot be read.
+    public static func draftCard(_ endpoint: ModelEndpoint) -> PlannerInfo? {
+        guard endpoint.kind != .appleOnDevice, let transport = try? ModelTransport.classify(endpoint) else { return nil }
+        return PlannerInfo(id: LocalPlannerWords.providerId(transport: transport, model: endpoint.model),
+                           modelVersion: KeyScrub.scrub(endpoint.model), label: LocalPlannerWords.label(transport),
+                           runsOn: LocalPlannerWords.runsOn(transport),
+                           key: LocalPlannerWords.keyNeed(transport, bearerSet: false),
+                           decisionDeadline: LANPlanner.decisionDeadline)
+    }
+}
+
 // MARK: - the Go card
 
 /// The Go card for one decision, in plain words: what will run, why the planner chose it, who
@@ -367,7 +426,8 @@ public enum TellWords {
     public static func detail(_ c: TellPlannerChoice, device: DeviceWords = .current) -> String {
         switch c {
         case .wordsOnly: return "No model. Tell runs the short commands \(device.this) reads, and nothing else."
-        case .apple: return "On \(device.this). Nothing you type leaves it."
+        case .apple:
+            return "On \(device.this), no key, and nothing you type leaves it. Each step it picks still shows on a card first."
         case .draftModel: return "Downloaded to \(device.this), or on a computer you chose."
         case .anthropic, .openai:
             return "Your sentence and the duck's state go to \(c.hostedVendor?.name ?? "the vendor") for each step, on your key."
@@ -395,6 +455,29 @@ public enum TellWords {
             + "Add one in Studio > Settings > Models, or choose another under Tell with."
     }
     public static func couldNotStart(_ why: String) -> String { "The model could not start: \(why)" }
+
+    // Why a planner is not offered under Tell with (`TellOffer`).
+    public static func notOfferedYet(_ reason: String) -> String { "Not offered yet: \(reason)" }
+    public static let noModelPicked = "no model is picked under Draft with."
+    public static let barsNotConfirmed = "the bar a planner must clear has not been confirmed yet."
+    public static func hidden(_ h: OfferRule.Hidden) -> String {
+        switch h {
+        case .noEvidence: return "it has not been measured on the practice duck."
+        case .noTerms: return "its terms have not been checked."
+        case .termsDoNotPermit: return "its terms do not allow this use."
+        case .rowsForAnotherProvider: return "its measurement is for a different planner."
+        case .notAPracticeDuckRow: return "it has no measurement on the practice duck."
+        case .ungatedRow: return "it was measured without the limits on."
+        case .undated: return "its measurement has no date."
+        case .labelClaimsAssist: return "its label claims an assist it was not measured with."
+        case .realDuckOff: return "it has not been tried on a real duck yet."
+        case .unpinnedLocalModel: return "the model's exact version is not pinned, so no measurement can stand for it."
+        case .holdoutTooSmall(let n): return "it was measured on \(n) starts, fewer than \(OfferRule.minimumHoldout)."
+        case .crossingsAfterGate(let n): return "it crossed the limits \(n) times when measured."
+        case .belowBar: return "it did not beat doing nothing by enough when measured."
+        case .goldBelowAutoBar: return "it picked the wrong step too often when checked."
+        }
+    }
 
     // While a run goes.
     public static func thinking(_ who: String) -> String { "Asking \(who) for the next step." }
@@ -492,7 +575,12 @@ public enum TellWords {
                 .compactMap(reason)
         let asks = [askTitle, answerPlaceholder, answer, closeUnanswered, askFootnote]
         let picker = [pickerHeading, pickerFooter] + TellPlannerChoice.allCases.flatMap { [title($0), detail($0)] }
-        let refusals = [needsAgreement("x"), modelNotReady("x", "y"), noDraftModel("x"), noKey("x", .anthropic),
+        let hiddenAll: [OfferRule.Hidden] = [.noEvidence, .noTerms, .termsDoNotPermit, .rowsForAnotherProvider,
+                                             .notAPracticeDuckRow, .ungatedRow, .undated, .labelClaimsAssist,
+                                             .realDuckOff, .unpinnedLocalModel, .holdoutTooSmall(5),
+                                             .crossingsAfterGate(2), .belowBar(mode: .tell), .goldBelowAutoBar]
+        let offers = hiddenAll.map { notOfferedYet(hidden($0)) } + [notOfferedYet(noModelPicked), notOfferedYet(barsNotConfirmed)]
+        let refusals = offers + [needsAgreement("x"), modelNotReady("x", "y"), noDraftModel("x"), noKey("x", .anthropic),
                         couldNotStart("x"), thinking("x"), running]
         let steps: [String] = [stepsRan(1), stepsRan(3), showSteps, dismiss]
             + [BrainStep.Outcome.ran, .walked(.time), .walked(.odometry), .skillStarted, .held, .declined, .answered, .ended]

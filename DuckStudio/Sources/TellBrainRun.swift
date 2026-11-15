@@ -97,9 +97,26 @@ enum TellPlanners {
         TellPlannerChoice(stored: UserDefaults.standard.string(forKey: TellPlannerChoice.storageKey))
     }
 
-    /// What `TellRouter` needs to know right now.
+    /// The planner card a choice would run as, for the offer rule. Nil for no model, and for
+    /// Apple's, which the rule does not cover (`TellOffer`).
+    static func card(_ choice: TellPlannerChoice, models: EndpointStore) -> PlannerInfo? {
+        switch choice {
+        case .wordsOnly, .apple: return nil
+        case .draftModel: return TellOffer.draftCard(models.selected)
+        case .anthropic, .openai: return choice.hostedVendor?.info()
+        }
+    }
+
+    static func status(_ choice: TellPlannerChoice, models: EndpointStore, venue: BrainVenue) -> TellOffer.Status {
+        TellOffer.status(choice, card: card(choice, models: models), venue: venue)
+    }
+
+    /// What `TellRouter` needs to know right now. A saved choice the offer rule does not pass at
+    /// this duck's venue is "Only what this device reads".
     static func setup(duck: DuckIdentity.Kind?, models: EndpointStore, skills: [String]) -> TellSetup {
-        let choice = stored
+        let saved = stored
+        let choice = TellOffer.effective(saved, status: status(saved, models: models,
+                                                               venue: duck == .real ? .real : .practice))
         return TellSetup(duck: duck, choice: choice, agreement: PlannerSafetyStore.shared.settings.agreementStatus(),
                          apple: appleAvailability, draftModel: models.selected.kind,
                          hostedKeySaved: choice.hostedVendor.map { HostedKeyStore.load($0) != nil } ?? false,
@@ -417,18 +434,22 @@ struct TellAskSheet: View {
 // MARK: - the choice, on Models
 
 /// "Tell with": which planner Tell asks when the phone cannot read a sentence. Apple's on-device
-/// model is the default; a hosted vendor is listed only once its key is on this device.
+/// model is the default. Every other model shows only when the offer rule passes for it
+/// (`TellOffer`); until then it is listed, greyed, with the rule's reason, and cannot be picked.
 struct TellPlannerSection: View {
     @AppStorage(TellPlannerChoice.storageKey) private var stored = TellPlannerChoice.standard.rawValue
-    let hasKey: (HostedVendor) -> Bool
+    @ObservedObject var models: EndpointStore
 
-    private var choices: [TellPlannerChoice] {
-        TellPlannerChoice.allCases.filter { c in c.hostedVendor.map(hasKey) ?? true }
+    /// The choice in force: a saved one the rule hides counts as "Only what this device reads".
+    private var current: TellPlannerChoice {
+        let saved = TellPlannerChoice(stored: stored)
+        return TellOffer.effective(saved, status: TellPlanners.status(saved, models: models, venue: .practice))
     }
 
     var body: some View {
         Section {
-            ForEach(choices, id: \.self) { choice in
+            ForEach(TellPlannerChoice.allCases, id: \.self) { choice in
+                let status = TellPlanners.status(choice, models: models, venue: .practice)
                 Button { stored = choice.rawValue } label: {
                     HStack(spacing: Theme.spacing(.tight)) {
                         VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
@@ -436,9 +457,14 @@ struct TellPlannerSection: View {
                             Text(TellWords.detail(choice))
                                 .font(.caption).foregroundStyle(Theme.textSecondary)
                                 .fixedSize(horizontal: false, vertical: true)
+                            if case .notOfferedYet(let why) = status {
+                                Text(why)
+                                    .font(.caption).foregroundStyle(Theme.textSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
                         }
                         Spacer(minLength: Theme.spacing(.tight))
-                        if TellPlannerChoice(stored: stored) == choice {
+                        if current == choice {
                             Image(systemName: "checkmark")
                                 .foregroundStyle(Theme.brandPrimary)
                                 .accessibilityLabel(Text("Selected"))
@@ -447,6 +473,8 @@ struct TellPlannerSection: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .disabled(!status.isOffered)
+                .opacity(status.isOffered ? 1 : 0.6)
             }
         } header: {
             SectionHeading(text: TellWords.pickerHeading)
