@@ -30,7 +30,7 @@ class Spec(unittest.TestCase):
 
     def test_the_envelope_is_pollens_pad_drive_defaults_at_a_cited_commit(self):
         env = cardloop.ENVELOPE
-        self.assertEqual((env["vx"], env["vy"], env["vyaw"]), ([-0.4, 0.4], [-0.3, 0.3], [-1.0, 1.0]))
+        self.assertEqual((env["vx"], env["vy"], env["vyaw"]), ([-0.3, 0.4], [-0.3, 0.3], [-1.0, 1.0]))
         self.assertIn("robotd-params/src/lib.rs", env["source"])
         self.assertIn("PadDriveParams", env["source"])
         self.assertRegex(env["commit"], r"^[0-9a-f]{40}$")
@@ -41,11 +41,11 @@ class Spec(unittest.TestCase):
     def test_a_spec_past_the_envelope_is_named(self):
         import copy
         spec = copy.deepcopy(cardloop.SPEC)
-        spec["walk"]["back_speed"]["fast"] = 0.45
+        spec["walk"]["back_speed"]["fast"] = 0.4      # the old envelope's reverse; Pollen's is 0.3 now
         spec["turn"]["yaw_rate"]["slow"] = 1.5
         problems = cardloop.envelope_problems(spec)
         self.assertEqual(len(problems), 2, problems)
-        self.assertEqual(problems, ["walk.back_speed.fast is 0.45, past Pollen's pad envelope of 0.4",
+        self.assertEqual(problems, ["walk.back_speed.fast is 0.4, past Pollen's pad envelope of 0.3",
                                     "turn.yaw_rate.slow is 1.5, past Pollen's pad envelope of 1"])
 
     def test_the_runners_timed_twists_are_inside_the_envelope_too(self):
@@ -58,13 +58,22 @@ class Spec(unittest.TestCase):
 
     def test_every_speed_clears_the_dead_band_measured_in_duck_sim(self):
         # cardreader/sim/sysid/sysid.md: v8 velstand under Pollen's robotd in duck-sim stands still
-        # at 0.20 forward and walks every time from 0.25; stands still at -0.30 and walks from
-        # -0.35; turns in place every time from 0.625 left and 0.5 right.
+        # at 0.20 forward and walks every time from 0.25; turns in place every time from 0.625
+        # left and 0.5 right. Walk back is the next test: its dead band is past Pollen's envelope.
         for label in ("slow", "normal", "fast"):
             self.assertGreaterEqual(cardloop.SPEC["walk"]["speed"][label], 0.25)
-            self.assertGreaterEqual(cardloop.SPEC["walk"]["back_speed"][label], 0.35)
             self.assertGreaterEqual(cardloop.SPEC["turn"]["yaw_rate"][label], 0.625)
         self.assertGreaterEqual(cardloop.SPEC["turn"]["trim_rate"], 0.625)
+
+    def test_walk_back_is_the_envelopes_whole_reverse(self):
+        # Pollen's pad backs at 0.3 m/s at most (microduck 145e91b2). v8 velstand in duck-sim stood
+        # still at -0.30 (0 of 3) and walked back from -0.35, and nothing slower has been seen to
+        # step backwards, so every speed backs at the most the duck may be sent. The set robots
+        # run (v9/v10, v7's velstand) is unmeasured backwards; a duck that does not back ends the
+        # card "stuck", and measured cards ship off.
+        back = -cardloop.ENVELOPE["vx"][0]
+        for label in ("slow", "normal", "fast"):
+            self.assertEqual(cardloop.SPEC["walk"]["back_speed"][label], back)
 
     def test_the_caps_fit_the_acceptance_time_bounds(self):
         # docs/PACKS.md, "Acceptance": a Walk card in at most 8 s, a Turn card in at most 6 s.
@@ -242,7 +251,7 @@ class Runs(unittest.TestCase):
         self.assertAlmostEqual(turns[2].lead, (turns[0].coast_deg + turns[1].coast_deg) / 2)
 
     def test_a_card_that_makes_no_progress_is_stuck_and_ends_the_row(self):
-        # v8 velstand in duck-sim stands still below 0.25 forward and -0.35 back
+        # v8 velstand in duck-sim stands still below 0.25 forward and at -0.30 back
         # (cardreader/sim/sysid): a duck that does not move is told so in stall_s, not max_s.
         duck, said = FakeDuck(walk=0.0), []     # stands still
         out = self.run_row(duck, ["walk_forward", "turn_left"], said)

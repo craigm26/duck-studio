@@ -104,8 +104,8 @@ preempts it (the pad always wins); `robot.stop` ends it with `stopped`.
 
 ## Safety envelope
 
-- **Speeds** are clamped to `[pad_drive]` (`PadDriveParams`, today vx -0.4 to 0.4, vyaw -1.0 to
-  1.0), the range the v8 velstand "follows well on the robot". A goal never asks the policy for
+- **Speeds** are clamped to `[pad_drive]` (`PadDriveParams`, today vx -0.3 to 0.4, vyaw -1.0 to
+  1.0), the defaults that "still feel right on the robot". A goal never asks the policy for
   more than the pad can. Clients already hold themselves to it (Studio's `pollen-pad-drive.json`
   is that `Default`, cited by commit), but robotd does not clamp `robot.move`, and a goal is a
   good place to start.

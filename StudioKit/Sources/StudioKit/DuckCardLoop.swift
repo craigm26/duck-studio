@@ -150,9 +150,10 @@ public enum DuckCardLoop {
 
     /// Pollen's pad envelope: `PadDriveParams::default()` in pollen-robotics/microduck
     /// `robotd-params/src/lib.rs`, read at the commit it names, in `Resources/DuckCards/
-    /// pollen-pad-drive.json` (the card reader carries it byte for byte). Pollen's own words: what
-    /// the v8 velstand "follows well on the robot". robotd does not clamp a `robot.move` to it (the
-    /// pad is bounded, other clients are not), so no card, and no stick here, asks for more.
+    /// pollen-pad-drive.json` (the card reader carries it byte for byte). Pollen's own words, in
+    /// its `said`: these "still feel right on the robot", and "Back is 0.3 m/s". robotd does not
+    /// clamp a `robot.move` to it (the pad is bounded, other clients are not), so no card, and no
+    /// stick here, asks for more.
     public struct Envelope: Equatable, Sendable, Decodable {
         public let format: String
         /// Where the numbers were read: file, symbol and lines.

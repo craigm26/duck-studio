@@ -42,7 +42,8 @@ from .layout import Layout
 from .program import Program, Step, read
 
 # DuckDrive and RobotPlan, number for number. Inside Pollen's pad envelope (`cardloop.ENVELOPE`,
-# PadDriveParams::default(): 0.4 m/s, 1.0 rad/s); tests/test_cardloop.py holds them to it.
+# PadDriveParams::default(): 0.4 m/s forward, 0.3 back, 1.0 rad/s); tests/test_cardloop.py holds
+# them to it.
 MAX_FORWARD, MAX_BACKWARD, MAX_TURN = 0.3, 0.3, 1.0
 SHARES = {"slow": 1.0 / 3.0, "normal": 2.0 / 3.0, "fast": 1.0}
 DEFAULT_SECONDS = 2.0

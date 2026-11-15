@@ -421,7 +421,7 @@ The report, shared as `duck-measure-<yyyyMMdd-HHmm>.json` (UTC):
   "robotd": null,
   "policy": "velstand",
   "envelope": { "source": "pollen-robotics/microduck robotd-params/src/lib.rs, ...",
-                "commit": "34b6e7dc...", "vx": [-0.4, 0.4], "vy": [-0.3, 0.3], "vyaw": [-1, 1] },
+                "commit": "094d4bb4...", "vx": [-0.3, 0.4], "vy": [-0.3, 0.3], "vyaw": [-1, 1] },
   "spec": { "digest": "sha256:...", "enabled_on_robot": false, "square_m": 0.3 },
   "grid_cm": 30,
   "runs": [ {
@@ -528,21 +528,27 @@ stop each sample must produce (`cardreader/tests/make_cardloop_vectors.py` write
   where it is, so the row stopped there.").
 - **Pollen's pad envelope bounds every card.** `pollen-pad-drive.json` (StudioKit
   `Resources/DuckCards/`, copied byte for byte to `cardreader/duckcards/`) is
-  `PadDriveParams::default()` in pollen-robotics/microduck `robotd-params/src/lib.rs` (lines 144
-  to 158, commit 34b6e7d): vx -0.4 to 0.4 m/s, vy -0.3 to 0.3, vyaw -1.0 to 1.0 rad/s, "what
-  [the v8 velstand] follows well on the robot". Its training range for yaw is the same -1.0 to
-  1.0. robotd has no velocity clamp of its own (`duck-control/src/safety.rs`: deadman,
+  `PadDriveParams::default()` in pollen-robotics/microduck `robotd-params/src/lib.rs` (lines 285
+  to 299, read at commit 094d4bb): vx -0.3 to 0.4 m/s, vy -0.3 to 0.3, vyaw -1.0 to 1.0 rad/s;
+  in Pollen's words, these "still feel right on the robot" and "Back is 0.3 m/s". Pollen lowered
+  full reverse from 0.4 to 0.3 in 145e91b2 (2026-11-10). The v8 training range for yaw is the
+  same -1.0 to 1.0. robotd has no velocity clamp of its own (`duck-control/src/safety.rs`: deadman,
   non-finite, travel; the pad is bounded, other clients are not), so this side holds it:
   `DuckCardLoop.envelopeProblems` and `cardloop.envelope_problems` name any number in the spec
   past it, both readers' tests fail on one, and so does `scripts/check_duckcards_vectors.sh`.
   Studio's sticks are held inside it too (`DuckDrive.maxTurn` is 1.0, was 1.5).
 - **Speed cards on a distance card** set the speed, not the distance: Walk forward walks at
-  0.30, 0.35 or 0.40 (Slow, Normal, Fast). Walk back walks at 0.40 at every speed and a Turn card
-  turns at 1.0 at every speed, the envelope's limits. **On Pollen's v8 velstand in duck-sim all of
-  them clear the dead band** (`cardreader/sim/sysid/`, steps through `robot.move`): it stands
-  still up to 0.20 forward and walks every time from 0.25; stands still up to -0.30 and walks
-  back every time from -0.35; turns in place every time from 0.625 rad/s left and 0.5 right, at
-  about 64 degrees a second at 1.0. duckbench's canon plant needed more (about 0.45 back, 1.2 to
+  0.30, 0.35 or 0.40 (Slow, Normal, Fast). Walk back walks at 0.30 at every speed and a Turn card
+  turns at 1.0 at every speed, the envelope's limits. **On Pollen's v8 velstand in duck-sim the
+  forward and turning speeds clear the dead band** (`cardreader/sim/sysid/`, steps through
+  `robot.move`): it stands still up to 0.20 forward and walks every time from 0.25; turns in
+  place every time from 0.625 rad/s left and 0.5 right, at about 64 degrees a second at 1.0.
+  **Walk back does not**: v8 stood still at -0.30 (0 of 3) and walked back every time from -0.35,
+  which is past Pollen's 0.3 reverse. Nothing slower than 0.30 has been seen to step backwards, so
+  0.30, the most a duck may be sent, is the only speed with a chance; a duck that will not back at
+  it ends the card "stuck". The set robots run today (v9/v10, v7's velstand; Pollen issue #597)
+  has not been measured walking backwards. The Monte Carlo below ran Walk back at 0.40, before
+  Pollen's change, and has not been rerun at 0.30. duckbench's canon plant needed more (about 0.45 back, 1.2 to
   turn in place); the duckbench numbers below were measured with the unclamped spec on that
   plant.
 - **The off switch.** `duck-card-loop.json` carries `"enabled_on_robot": false` and
@@ -582,7 +588,8 @@ truth); then the controller re-tuned from it (stuck exit, caps inside 8 s and 6 
 that measures its coast and leads by it); then the Monte Carlo, 4,128 rows
 (`cardreader/sim/results/`, RESULTS.md has every number and interval; the conditions and how
 each knob was applied are in its README). Every command stayed inside Pollen's pad envelope and
-v8's training ranges (both vx +-0.4 m/s, vyaw +-1.0 rad/s).
+v8's training ranges as they were then (both vx +-0.4 m/s, vyaw +-1.0 rad/s; Pollen's pad has
+backed at 0.3 at most since microduck 145e91b2).
 
 **The pre-registered rows** (duckbench's seven and Measure my duck's five; position and heading
 over rows that finished, median / p95 / max; a row that ended early fails both):

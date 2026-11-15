@@ -10,7 +10,7 @@
   "chapters": { "cards": 7 },
   "walk": {
     "speed": { "slow": 0.30, "normal": 0.35, "fast": 0.40 },
-    "back_speed": { "slow": 0.40, "normal": 0.40, "fast": 0.40 },
+    "back_speed": { "slow": 0.30, "normal": 0.30, "fast": 0.30 },
     "heading_gain": 1.5,
     "cross_gain": 3.0,
     "max_yaw": 0.6,
