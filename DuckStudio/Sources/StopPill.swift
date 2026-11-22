@@ -210,6 +210,55 @@ final class DuckRuns: ObservableObject {
         return ended
     }
 
+    /// The Dock routine (`DockRoutine`), on the practice duck, as ONE run: one Stop ends all of it.
+    ///
+    /// A REAL DUCK IS REFUSED HERE, IN ITS ONE SENTENCE, AND NOTHING IS SENT. robotd starts nothing
+    /// from the seat but standing up, and every scoot starts seated; this app does not work around
+    /// that. On the practice duck the run is booked like an order from outside Play, so Play steps
+    /// its stick aside and Take over covers it.
+    func runDock() async {
+        guard let duck else {
+            caption = DockRoutine.Refusal.noDuck.sentence
+            return
+        }
+        guard duck == .sim, let bench = peer as? BenchPeer else {
+            caption = DockRoutine.Refusal.realDuck.sentence
+            return
+        }
+        makeWay()
+        let mine = OutsideOrder(id: UUID(), duck: duck, owner: .app, what: DockRoutine.Words.title)
+        outsideOrder = mine
+        defer { if outsideOrder == mine { outsideOrder = nil } }
+        let work = Task { () -> DockRoutine.Outcome in
+            try await bench.runDock(
+                bundled: { file in
+                    let stem = (file as NSString).deletingPathExtension
+                    return Bundle.main.url(forResource: stem, withExtension: "onnx")
+                        .flatMap { try? Data(contentsOf: $0) }
+                },
+                said: { phase in await MainActor.run { DuckRuns.shared.say(phase.caption) } })
+        }
+        let token = track(.command, on: bench) { work.cancel() }
+        let ended = await work.result
+        finished(token)
+        switch ended {
+        case .success(let outcome):
+            caption = outcome.sentence
+        case .failure(let error):
+            if let refusal = error as? DockRoutine.Refusal {
+                caption = refusal.sentence
+            } else if error is CancellationError {
+                // Stopped: StopPath has already said so.
+            } else if case .bench(let said)? = error as? DuckBench.ReadError {
+                caption = said
+            } else if path.admits {
+                // A STOP CUTS THE REQUEST IN FLIGHT, which surfaces as a URL error rather than a
+                // cancellation; only an error nobody stopped is worth a caption.
+                caption = error.localizedDescription
+            }
+        }
+    }
+
     /// Run one order on a named duck: the welcome sheet's quack and Stand up go to the duck just
     /// connected, before Play has switched to it. Registered like any run, so the Stop pill shows
     /// and stops it.

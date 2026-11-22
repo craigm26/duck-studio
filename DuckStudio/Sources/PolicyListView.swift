@@ -835,6 +835,10 @@ struct PolicyListView: View {
 
     private func provenance(of entry: PolicyLibrary.Entry) -> Provenance {
         if isReleased(model.standing(for: entry)) { return .pollen }
+        // RECOGNISED BY ITS WEIGHTS AS SOMEBODY ELSE'S TRAINING, wherever the file came from: the
+        // MicroDock networks ship in the bundle, and "Yours" would credit the person holding the
+        // phone with Vottivott's work.
+        if entry.titleSource == .recognised { return .community }
         switch entry.origin {
         case .fetched: return .community
         case .bundled, .imported: return .brought
@@ -1063,6 +1067,20 @@ struct PolicyDetailView: View {
                 Text(DuckOfficialPolicies.summary(for: standing))
                     .font(.footnote)
                     .foregroundStyle(Theme.textPrimary)
+                // WHOSE IT IS, WHEN THIS APP KNOWS: one of the MicroDock networks, named with its
+                // source, its licence and upstream's own "simulation only", and the way to the dock.
+                if case .parameters(let fingerprint) = shown.identity,
+                   let network = MicroDock.network(fingerprint: fingerprint) {
+                    Text(network.purpose)
+                        .font(.footnote)
+                        .foregroundStyle(Theme.textPrimary)
+                    Text(MicroDock.credit)
+                        .font(.footnote)
+                        .foregroundStyle(Theme.textSecondary)
+                    Link(destination: MicroDock.page) {
+                        Label(DockRoutine.Words.aboutTheDock, systemImage: "safari")
+                    }
+                }
                 nameRow
                 fileNameRow
                 // STACKED, NOT A `TelemetryRow`. A digest is 64 characters
