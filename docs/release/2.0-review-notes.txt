@@ -1,0 +1,37 @@
+WHAT THIS APP IS
+
+Microduck Studio is a free app for the Pollen Robotics Microduck, an open-source hobby robot. It drives the robot, and runs a physics simulation of it on the phone for people who do not have one. There is no account, no login, no purchase and no demo credential.
+
+HOW TO TRY IT WITHOUT A ROBOT
+
+1. On first launch, choose the practice duck. It is a MuJoCo physics simulation that runs inside the app.
+2. Play tab, Drive: move the left stick. The duck walks. The red Stop button is always on screen.
+3. Play tab, Tell: type "walk forward". The app shows the steps it will run, then runs them.
+4. Play tab, Auto, Ask the duck: on a device with Apple Intelligence, an on-device model picks from a fixed list of moves. A preview with Cancel shows before anything runs. Without Apple Intelligence, simple phrases are still planned without the model.
+5. Moves tab, Routines, Dock: the practice duck sits, scoots back on its seat, rests, scoots out and stands up.
+6. Studio tab: open any bundled policy to see what the network reads and outputs.
+
+Moves that only a real robot can make (sounds, head aiming, sitting from Play) say so in one sentence on the practice duck rather than failing silently.
+
+PERMISSIONS, AND WHY
+
+Camera: only to draw the duck at real size on your floor, for Room capture, and for Mimic. No image is recorded, stored or transmitted.
+Microphone and speech recognition: only after the person taps the mic on Tell or Ask the duck. Speech is turned into text on the device; nothing is recorded or sent.
+Bluetooth: only to find and pair with a Microduck and ask which software it runs.
+Local network: to find the person's own robot, or a physics bench on their network, and to contact the ones they save.
+
+SIRI AND SHORTCUTS
+
+App Shortcuts: stop, sit, stand and walk the duck. With no robot connected they act on the practice duck or say why they cannot.
+
+PRIVACY
+
+No analytics, no tracking, no account, and no server run by this developer. Network requests happen only when the person asks: their own robot or bench on their network, a Hugging Face or GitHub download they started, or a language-model service they chose and supplied their own key for (off by default). The App Privacy answer is Data Not Collected.
+
+THIRD-PARTY CONTENT
+
+The bundled policy networks were published by Pollen Robotics under Apache-2.0 and are labelled as theirs. Two networks used by the Dock routine were published by the MicroDock's designer under Apache-2.0 and are credited in the app. Microduck Studio says on its own screens that it is not made by, endorsed by, or affiliated with Pollen Robotics.
+
+ONE APP, NOT SEVERAL
+
+Duck Soccer, Duckboard, Duck Diary, Duck Sounds and a room scanner were once planned as separate apps on this account, and app records exist for some of them. None was ever submitted. They are modes inside this single app instead. Microduck Studio is the only product of this family being brought to the store.

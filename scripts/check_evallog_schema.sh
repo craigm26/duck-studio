@@ -117,6 +117,7 @@ ELSEWHERE=(
   "status OpenAIPlanner.swift"     # OpenAI's Responses API reply, read not written
   "task BallTakes.swift"           # a line of the driver's ball-takes file
   "task DreamDataset.swift"        # LeRobot's meta/tasks.jsonl
+  "task MCPToolPolicy.swift"       # a word that keeps an MCP tool out, not a log key
 )
 
 fail=0

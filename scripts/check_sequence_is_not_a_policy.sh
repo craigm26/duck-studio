@@ -60,6 +60,7 @@ ALLOWED=(
   'recording names one policy'
   'the standing policy takes over'
   "is the policy's business"
+  'Load a roller policy instead.'
 )
 
 ANCHOR='(^|[^A-Za-z])polic(y|ies)'
