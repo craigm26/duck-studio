@@ -129,8 +129,9 @@ sent while it copies you; the sentence beside the thumbnail says so.
 **Behaviours.** The policy library, organised by *provenance* rather than by
 folder: two sections, "Released by Pollen Robotics" and "From elsewhere", and
 which one a policy lands in is decided by its parameter fingerprint, not by
-whether it shipped in the bundle. Nine policies ship (Apache-2.0, upstream),
-plus whatever you import. Discover reaches Pollen's catalogue and the community;
+whether it shipped in the bundle. Nine of Pollen's policies ship (Apache-2.0,
+upstream), plus two MicroDock scoot networks from `microduck-playground` that
+are recognised by fingerprint and listed as Community, plus whatever you import. Discover reaches Pollen's catalogue and the community;
 a policy's own screen holds its detail, its structure table, **Probe this
 network**, and remixing it with another.
 
@@ -326,6 +327,16 @@ would show targets 10% short of what the robot is actually sent.
 - **Bundled.** Nine upstream policies ship in the app (about 6.9 MB,
   Apache-2.0). The app is fully useful with zero user files on first launch,
   which also settles App Review's minimum-functionality question.
+- **The MicroDock scoot networks.** `scoot_dock.onnx` and `scoot_undock.onnx`
+  (about 1.6 MB together, Apache-2.0) are copied byte for byte from
+  `Vottivott/microduck-playground` at `c1ba96f`, `hardware/microdock-v2/policy/`.
+  They are bundled because the practice duck on the phone runs only bundled
+  networks and the Dock routine on Moves drives both. The experimental
+  `scoot_dock_undock.onnx` is not bundled; it is recognised by fingerprint if
+  you fetch it from its pinned address (`MicroDock.scootBoth.sourceURL`).
+  `StudioKit/Sources/StudioKit/MicroDock.swift` holds the three fingerprints,
+  and `MicroDockTests` measures each one from the file. None of them is a
+  Pollen release, and the app never calls it one.
 - **Files, AirDrop and Open With.** This is the workflow that makes the app real:
   your training run finishes on the Mac, you AirDrop the `.onnx`, it lands in
   Microduck Studio. It only works because the app *declares the type* — there is no
@@ -524,9 +535,10 @@ not features that were removed. Nothing below exists in the shipping app.
 |---|---|
 | `StudioKit/` | Pure-Swift, UI-free core. Builds and `swift test`s on Linux aarch64. Every number the app displays is computed here, and so is every sentence that makes a claim about a policy, a motion or a refusal — the ones a test has to be able to assert letter by letter. Ordinary screen furniture (section headers, footers, button titles) is still written in the views. |
 | `StudioKit/Tests/StudioKitTests/Fixtures/policies/` | The nine real upstream `.onnx` files. |
+| `StudioKit/Tests/StudioKitTests/Fixtures/microdock/` | The experimental MicroDock network, the one of the three the app does not bundle, so its fingerprint is measured too. |
 | `StudioKit/Tests/StudioKitTests/Fixtures/refusals/` | The refusal corpus: eleven ONNX files — one per distinct rejection reason, plus a synthetic control that must load, without which the corpus would only prove the generator emits unusable bytes. |
 | `DuckStudio/project.yml` | xcodegen manifest, and the source of truth for `Info.plist` — which is generated, not committed, along with the whole `.xcodeproj`. Carries the type declarations, the document types, and `ITSAppUsesNonExemptEncryption=false`. It declares `NSCameraUsageDescription` (the AR modes under Studio), `NSLocalNetworkUsageDescription` and an `NSAllowsLocalNetworking` ATS exception (the physics bench, at an address you type), `NSBluetoothAlwaysUsageDescription` (finding and pairing with a Microduck) and `NSBonjourServices: _robotd._tcp` (the type `bridge/microduck-bridge.avahi.xml` advertises; iOS refuses a browse for a type that is not listed, silently). It declares **no** motion, microphone or location key. The Bluetooth key is used: `DuckLinkScanner.swift` opens a `CBCentralManager` and scans. The Bonjour key is not yet — nothing in either target opens an `NWBrowser`, so you still type the bridge's address (`RobotBridgeView.swift`). It is declared ahead of the browse because iOS refuses an undeclared type without saying so, and finding that out on a device costs more than declaring it early. |
-| `DuckStudio/Resources/` | The nine bundled policies and `PrivacyInfo.xcprivacy`, which flattens to the app-bundle root. |
+| `DuckStudio/Resources/` | The nine bundled policies, the two MicroDock scoot networks and `PrivacyInfo.xcprivacy`, which flattens to the app-bundle root. |
 | `DuckStudio/Sources/` | SwiftUI only. No arithmetic lives here; `scripts/check_no_studio_math.sh` enforces that. |
 | `scripts/check_no_studio_math.sh` | The guard. Run it before you finish. |
 | `scripts/check_no_atomic_exclusive_write.sh` | No `Data.write` asks for both `.atomic` and `.withoutOverwriting`. On the Swift-native Foundation every device runs, that pair is a trap inside Foundation, not an error, and nothing else can see it: build 58 crashed at the end of every evaluation run there. |
@@ -633,6 +645,14 @@ Hugging Face download counts, GitHub stars. Count the doors people walk through,
 never the people.
 
 ## Attribution
+
+The MicroDock scoot networks (`scoot_dock.onnx`, `scoot_undock.onnx`, and the
+experimental `scoot_dock_undock.onnx` the app recognises) are from
+`Vottivott/microduck-playground` at `c1ba96f`, Apache-2.0, copyright 2026
+Hannes von Essen / Vottivott (that repository's `NOTICE`). They were trained
+and tested in simulation only. The Dock routine's steps and numbers are that
+repository's (`hardware/microdock-v2/sim/docking_seated.py` and
+`undocking_seated.py`), cited per step in `DockRoutine.steps`.
 
 The nine policies, the observation layout, the control constants and the MuJoCo
 model are from `pollen-robotics/microduck` and `pollen-robotics/microduck_rl`,

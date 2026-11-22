@@ -470,6 +470,16 @@ public actor BenchPeer: DuckPeer {
     /// One bench call that is not a duck call, answered with the bench's bytes (`BallRunStart`).
     func ask(_ call: DuckBench.Call) async throws -> Data { try await errand(call) }
 
+    /// One bench call that advances the world, answered as the duck it left, and kept, so the
+    /// stage draws a runner's duck as it moves (`DockRoutine`). A bench that says no is thrown in
+    /// its own words, as `settle` does.
+    func drive(_ call: DuckBench.Call) async throws -> DuckDrive.Live {
+        let answer = try await advance(call, id: nil)
+        if let failure = answer.failure { throw DuckBench.ReadError.bench(failure.message) }
+        guard let live else { throw DuckBench.ReadError.empty }
+        return live
+    }
+
     /// Stand under no command for `seconds` and keep the answer, as `robot.stop` does.
     func settle(_ seconds: Double) async throws {
         let answer = try await advance(try DuckDrive.stop(address, settle: seconds), id: nil)

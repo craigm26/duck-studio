@@ -139,7 +139,7 @@ public enum PhoneBenchReport {
     public static let parametersAreWhatItTakes =
         "A policy this app made — a blend, or a tuned fold — goes onto this bench as the "
       + "parameter bytes its fingerprint is taken over, not as a file. That is the same "
-      + "arrangement the nine bundled networks already use, so what runs here is exactly what "
+      + "arrangement the bundled networks already use, so what runs here is exactly what "
       + "the library screen inspected."
 
     /// WHAT IS NOT KNOWN, IN THE PLACE SOMEBODY WOULD OTHERWISE ASSUME IT. A

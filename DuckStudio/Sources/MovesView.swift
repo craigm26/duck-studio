@@ -185,6 +185,32 @@ struct MoveTileSections: View {
         }
         .listRowBackground(Theme.surfacePrimary)
 
+        // THE DOCK ROUTINE IS THE PRACTICE DUCK'S, THE OPPOSITE WAY ROUND FROM SKILLS: it switches
+        // networks on the bench, which a real duck's robotd refuses from the seat. So on a real
+        // duck the tile is dimmed and the footer is that reason, in one sentence.
+        Section {
+            Button {
+                Task { await runs.runDock() }
+            } label: {
+                Label(DockRoutine.Words.title, systemImage: DockRoutine.Words.symbol)
+            }
+            .disabled(runs.duck != .sim || runs.isRunning)
+            .frame(minHeight: DesignMetric.minimumTarget)
+            Link(destination: MicroDock.page) {
+                Label(DockRoutine.Words.aboutTheDock, systemImage: "safari")
+            }
+            .frame(minHeight: DesignMetric.minimumTarget)
+        } header: {
+            SectionHeading(text: "Routines")
+        } footer: {
+            if runs.duck == .real {
+                Text(DockRoutine.Words.realDuck)
+            } else {
+                Text(DockRoutine.Words.practiceLine + " " + DockRoutine.Words.stopNote)
+            }
+        }
+        .listRowBackground(Theme.surfacePrimary)
+
         Section {
             ForEach(DuckSound.allCases, id: \.self) { sound in
                 tile(sound.rawValue.capitalized, symbol: "speaker.wave.2", order: .sound(sound))

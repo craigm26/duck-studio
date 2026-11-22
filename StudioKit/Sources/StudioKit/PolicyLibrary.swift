@@ -163,6 +163,9 @@ public struct PolicyLibrary: Sendable {
     /// on the envelope, or nothing at all — and the screen says which.
     public enum TitleSource: Equatable, Sendable {
         case typed, release, manifest, fileName, digest
+        /// One of the community networks this app recognises by fingerprint (`MicroDock`): a
+        /// checked fact about the weights, like `release`, but not a claim that Pollen made them.
+        case recognised
     }
 
     public struct Entry: Equatable, Sendable, Identifiable {
@@ -285,6 +288,8 @@ public struct PolicyLibrary: Sendable {
     struct Weighed {
         let identity: Identity
         let release: DuckOfficialPolicies.Release?
+        /// A community network recognised by fingerprint; never set beside `release`.
+        var recognised: MicroDock.Network? = nil
     }
 
     static func weighed(_ data: Data) -> Weighed {
@@ -294,7 +299,8 @@ public struct PolicyLibrary: Sendable {
         if case .released(let matched) = DuckOfficialPolicies.standing(of: policy) {
             return Weighed(identity: .parameters(policy.fingerprint), release: matched)
         }
-        return Weighed(identity: .parameters(policy.fingerprint), release: nil)
+        return Weighed(identity: .parameters(policy.fingerprint), release: nil,
+                       recognised: MicroDock.network(fingerprint: policy.fingerprint))
     }
 
     static func entry(for data: Data, name: String, origin: Origin,
@@ -312,7 +318,8 @@ public struct PolicyLibrary: Sendable {
         // name anything MATCHES on, and a plate that replaced a bundled name
         // broke every clip, kind and export keyed on it.
         let recorded = PolicyNaming.isDigestName(name) ? (nameplate?.fileName ?? name) : name
-        let fileName = repairedFileName(recorded, identity: identity, release: release)
+        let fileName = repairedFileName(recorded, identity: identity, release: release,
+                                        recognised: weighed.recognised)
 
         // A NAMEPLATE'S HOST OVERRIDES `.imported` AND NOTHING ELSE. A bundled
         // file's origin is a fact about the bundle, and a sidecar sitting in
@@ -330,7 +337,8 @@ public struct PolicyLibrary: Sendable {
 
         let (title, source) = titleLadder(typed: nameplate?.title, release: release,
                                           manifestName: authorName,
-                                          fileName: fileName, identity: identity)
+                                          fileName: fileName, identity: identity,
+                                          recognised: weighed.recognised)
         return Entry(fileName: fileName, title: title, titleSource: source,
                      origin: origin, identity: identity, byteCount: data.count,
                      report: report, arrivalWasRecorded: arrivalWasRecorded)
@@ -351,17 +359,18 @@ public struct PolicyLibrary: Sendable {
     /// would not load, so there are no parameters that could have matched —
     /// repairing there would name an unloadable file after a Pollen network.
     static func repairedFileName(_ name: String, identity: Identity,
-                                 release: DuckOfficialPolicies.Release?) -> String {
-        guard PolicyNaming.isDigestName(name), identity.isNetworkIdentity,
-              let release else { return name }
-        return release.filename
+                                 release: DuckOfficialPolicies.Release?,
+                                 recognised: MicroDock.Network? = nil) -> String {
+        guard PolicyNaming.isDigestName(name), identity.isNetworkIdentity else { return name }
+        return release?.filename ?? recognised?.fileName ?? name
     }
 
-    /// The five rungs, in this order. Each one is a different kind of claim and
+    /// The rungs, in this order (2b, the recognised community networks, came after the first five). Each one is a different kind of claim and
     /// the order is the order of how much this app can stand behind them.
     static func titleLadder(typed: String?, release: DuckOfficialPolicies.Release?,
                             manifestName: String?, fileName: String,
-                            identity: Identity) -> (String, TitleSource) {
+                            identity: Identity,
+                            recognised: MicroDock.Network? = nil) -> (String, TitleSource) {
         // 1. A person's own word beats everything.
         if let typed {
             let cleaned = typed.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -373,6 +382,13 @@ public struct PolicyLibrary: Sendable {
         // then agrees with the provenance pill and with what the bench matches.
         if let release {
             return (PolicyNaming.title(fromFileName: release.filename), .release)
+        }
+        // 2b. THE SAME KIND OF CHECKED FACT, ABOUT SOMEBODY ELSE'S WORK. The MicroDock networks
+        // are recognised by their weights, so a renamed copy still reads as what it is; the
+        // provenance stays "community", because the name is upstream's and the training is not
+        // Pollen's.
+        if let recognised {
+            return (recognised.title, .recognised)
         }
         // 3. The author's word for their own policy.
         if let manifestName {
@@ -620,9 +636,12 @@ public struct PolicyLibrary: Sendable {
         }
         let manifestName = storedManifest(forIdentity: entry.id, in: container,
                                           using: fileManager)?.name
+        let recognised = entry.identity.isNetworkIdentity
+            ? MicroDock.network(fingerprint: entry.id) : nil
         let (title, source) = titleLadder(typed: cleaned, release: release,
                                           manifestName: manifestName,
-                                          fileName: entry.fileName, identity: entry.identity)
+                                          fileName: entry.fileName, identity: entry.identity,
+                                          recognised: recognised)
         return .success(entry.retitled(title, source))
     }
 
@@ -868,6 +887,10 @@ extension PolicyLibrary.Entry {
         case .release:
             return "Named after the Pollen release these exact weights match. The fingerprint "
                  + "is what matched, not the file name."
+        case .recognised:
+            return "Named after the MicroDock network these exact weights match, from "
+                 + "microduck-playground. The fingerprint is what matched, not the file name. "
+                 + "It is community work, not a Pollen release."
         case .manifest:
             return "The name its author wrote in the manifest that came with it."
         // Nothing to explain: the row already shows the file name, and the
