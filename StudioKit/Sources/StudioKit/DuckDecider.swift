@@ -27,7 +27,7 @@ extension DuckOrder {
 
     /// The practice duck's refusals.
     public enum PracticeWords {
-        public static let cannotSit = "The practice duck can't sit. Your own duck can."
+        public static let cannotSit = "The practice duck sits only inside the Dock routine in Moves. Your own duck sits on this order."
         public static let noVoice = "The practice duck has no voice. Quack works on your own duck."
         public static let noSkills = "The practice duck has no moves of its own. Your own duck does."
         public static let noHead = "The practice duck can't aim its head. Your own duck can."
