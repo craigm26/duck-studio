@@ -106,7 +106,7 @@ public enum ConversationalExplorationSkill {
                 targetPoint: nil,
                 sweptPath: [],
                 gateViolator: nil,
-                summary: "\(reason) Software HOLD pairs with — never replaces — your physical power/ISO 13850 kill switch.",
+                summary: "\(reason) Software HOLD pairs with, and never replaces, your physical power/ISO 13850 kill switch.",
                 frontierPlan: nil,
                 healthVerdict: nil
             )
@@ -506,7 +506,7 @@ public enum AutonomousMappingWords {
     public static let holdButtonTitle = "SOFTWARE HOLD"
     public static let holdReleaseTitle = "Release Software HOLD"
     public static let holdSafetyNotice =
-        "Software HOLD stops commands in app and bridge. It pairs with — and NEVER replaces — "
+        "Software HOLD stops commands in app and bridge. It pairs with, and NEVER replaces, "
       + "your hardwired power switch or ISO 13850 emergency stop."
 
     public static let goalPlaceholder = "Ask MicroDuck: \"discover the world\", \"explore the hallway\", \"go to lab\""
@@ -538,7 +538,7 @@ public enum AutonomousMappingWords {
         ),
         (
             "Physical Kill Switch Boundary",
-            "Software HOLD and SHA-256 receipts are audit and control layers. They pair with — and never replace — a hardwired battery cutoff or ISO 13850 emergency stop."
+            "Software HOLD and SHA-256 receipts are audit and control layers. They pair with, and never replace, a hardwired battery cutoff or ISO 13850 emergency stop."
         ),
     ]
 }

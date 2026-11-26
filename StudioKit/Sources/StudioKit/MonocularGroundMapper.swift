@@ -28,7 +28,7 @@ public enum MonocularMappingConstants {
     public static let bundleSchema: String = "graft-microduck-dual-demo-bundle/1.0"
     public static let manifestSchema: String = "graft-microduck-environment-manifest/1.0"
     public static let safetyBoundaryStatement: String =
-        "Software gates, HOLD buttons, and SHA-256 receipts pair with — and NEVER replace — "
+        "Software gates, HOLD buttons, and SHA-256 receipts pair with, and NEVER replace, "
       + "a hardwired power cutoff or ISO 13850 emergency stop switch."
 }
 
