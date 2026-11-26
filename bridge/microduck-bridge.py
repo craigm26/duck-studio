@@ -53,6 +53,18 @@ import sys
 import threading
 import time
 
+try:
+    from mapper_bridge import MapperBridgeRefusal, MapperRelay
+except ImportError:
+    import importlib.util as _ilu
+    _mb_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mapper_bridge.py")
+    _mb_spec = _ilu.spec_from_file_location("mapper_bridge", _mb_path)
+    _mb_mod = _ilu.module_from_spec(_mb_spec)
+    assert _mb_spec and _mb_spec.loader
+    _mb_spec.loader.exec_module(_mb_mod)
+    MapperBridgeRefusal = _mb_mod.MapperBridgeRefusal
+    MapperRelay = _mb_mod.MapperRelay
+
 # /2: only motion feeds the deadman, and a hang-up mid-stride sends robot.stop.
 # The hello is unchanged ("microduck": "v1"), so an older app still connects.
 VERSION = "microduck-bridge/2"
@@ -309,12 +321,14 @@ class Relay:
     """One client, one robotd connection, bytes both ways and a deadman."""
 
     def __init__(self, client: socket.socket, robotd: socket.socket,
-                 deadman_ms: int, log=print, installer: Installer | None = None) -> None:
+                 deadman_ms: int, log=print, installer: Installer | None = None,
+                 mapper: MapperRelay | None = None) -> None:
         self.client = client
         self.robotd = robotd
         self.deadman = deadman_ms / 1000 if deadman_ms > 0 else 0
         self.log = log
         self.installer = installer
+        self.mapper = mapper
         # THE DEADMAN IS ARMED BY MOTION AND ONLY BY MOTION. A client that has
         # never sent a move has nothing to go stale; one that has, and then
         # only polls state, has a move going stale and gets a stop.
@@ -383,6 +397,13 @@ class Relay:
             if self.installer is not None and Installer.wants(line):
                 self.client.sendall(self.installer.handle(line))
                 continue
+            if self.mapper is not None and MapperRelay.wants(line):
+                if MapperRelay.is_hold_line(line):
+                    with self.robotd_lock:
+                        self.armed = False
+                        self.to_robotd(STOP_LINE)
+                self.client.sendall(self.mapper.handle(line))
+                continue
             method = line_method(line)
             with self.robotd_lock:
                 if method == STOP_METHOD:
@@ -421,7 +442,8 @@ class Relay:
 
 def serve(host: str, port: int, socket_path: str, token: str,
           deadman_ms: int, log=print, ready=None,
-          policy_dir: str | None = None, robotd_toml: str | None = None) -> None:
+          policy_dir: str | None = None, robotd_toml: str | None = None,
+          mapper_url: str | None = None, mapper_local: bool = False) -> None:
     listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     listener.bind((host, port))
@@ -431,9 +453,12 @@ def serve(host: str, port: int, socket_path: str, token: str,
     # not a line forwarded to a robotd that has no such method and a phone
     # waiting on a reply that never comes.
     installer = Installer(policy_dir, robotd_toml, log=log)
+    mapper = MapperRelay(mapper_url=mapper_url, local_mode=mapper_local, log=log)
     log(f"{VERSION} on {host}:{listener.getsockname()[1]} -> {socket_path}, "
         f"deadman {deadman_ms} ms, studio.installPolicy "
-        + (f"-> {installer.policy_dir}" if installer.policy_dir else "off (no --policy-dir)"))
+        + (f"-> {installer.policy_dir}" if installer.policy_dir else "off (no --policy-dir)")
+        + ", studio.mapper "
+        + (f"-> {mapper.mapper_url}" if mapper.mapper_url else ("local" if mapper.local_mode else "off")))
     if ready:
         ready(listener.getsockname()[1])
     try:
@@ -441,14 +466,15 @@ def serve(host: str, port: int, socket_path: str, token: str,
             client, where = listener.accept()
             threading.Thread(target=_greet,
                              args=(client, where, socket_path, token, deadman_ms, log,
-                                   installer),
+                                   installer, mapper),
                              daemon=True).start()
     finally:
         listener.close()
 
 
 def _greet(client: socket.socket, where, socket_path: str, token: str,
-           deadman_ms: int, log, installer: Installer | None = None) -> None:
+           deadman_ms: int, log, installer: Installer | None = None,
+           mapper: MapperRelay | None = None) -> None:
     client.settimeout(5)
     try:
         hello = b""
@@ -471,10 +497,11 @@ def _greet(client: socket.socket, where, socket_path: str, token: str,
         # button or the sentence without asking and being refused.
         client.sendall(json.dumps({"microduck": "v1", "bridge": VERSION,
                                    "deadman_ms": deadman_ms,
-                                   "policy_install": bool(installer and installer.policy_dir)})
+                                   "policy_install": bool(installer and installer.policy_dir),
+                                   "mapper_bridge": bool(mapper and mapper.enabled)})
                        .encode() + b"\n")
         log(f"relaying {where[0]}")
-        Relay(client, robotd, deadman_ms, log=log, installer=installer).run()
+        Relay(client, robotd, deadman_ms, log=log, installer=installer, mapper=mapper).run()
         robotd.close()
         log(f"closed {where[0]}")
     except socket.timeout:
@@ -507,6 +534,10 @@ def main(argv=None) -> int:
     parser.add_argument("--deadman", type=int, default=DEFAULT_DEADMAN_MS,
                         help="milliseconds without a non-zero robot.move before robot.stop. "
                              "0 disables it, which you should not do on hardware.")
+    parser.add_argument("--mapper-url", default=None,
+                        help="local LAN HTTP URL of robot-gate microduck_mapper service (enables studio.mapper.*)")
+    parser.add_argument("--mapper-local", action="store_true",
+                        help="enable embedded fail-closed studio.mapper.* handler without an upstream HTTP service")
     args = parser.parse_args(argv)
     try:
         token = read_token(args.token_file)
@@ -515,7 +546,11 @@ def main(argv=None) -> int:
         return 2
     try:
         serve(args.host, args.port, args.socket, token, args.deadman,
-              policy_dir=args.policy_dir, robotd_toml=args.robotd_toml)
+              policy_dir=args.policy_dir, robotd_toml=args.robotd_toml,
+              mapper_url=args.mapper_url, mapper_local=args.mapper_local)
+    except MapperBridgeRefusal as refusal:
+        print(f"microduck-bridge: {refusal}", file=sys.stderr)
+        return 2
     except KeyboardInterrupt:
         return 0
     return 0

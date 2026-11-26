@@ -45,6 +45,8 @@ enum StudioDestination: String, Identifiable, Hashable, CaseIterable {
     case mimic
     /// Build 91: the two tabs that folded into Studio.
     case behaviours, learn
+    /// Monocular ground-segmentation autonomous mapping & conversational exploration.
+    case autonomousMapping
 
     var id: String { rawValue }
 

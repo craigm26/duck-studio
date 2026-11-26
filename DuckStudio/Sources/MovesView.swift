@@ -109,6 +109,13 @@ struct MovesView: View {
                     }
                     .foregroundStyle(Theme.textPrimary)
                 }
+                NavigationLink {
+                    AutonomousMappingSkillView()
+                } label: {
+                    HubRow(AutonomousMappingWords.studioRowTitle,
+                           AutonomousMappingWords.studioRowLine,
+                           AutonomousMappingWords.studioRowSymbol)
+                }
             } header: {
                 SectionHeading(text: "Goals")
             }

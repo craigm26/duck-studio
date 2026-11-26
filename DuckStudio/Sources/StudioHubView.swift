@@ -109,6 +109,13 @@ struct StudioHubView: View {
                     HubRow("Scenes", StudioHubWords.scenes, "square.3.layers.3d")
                 }
                 NavigationLink {
+                    place(.autonomousMapping)
+                } label: {
+                    HubRow(AutonomousMappingWords.studioRowTitle,
+                           AutonomousMappingWords.studioRowLine,
+                           AutonomousMappingWords.studioRowSymbol)
+                }
+                NavigationLink {
                     DuckSoundsView()
                 } label: {
                     HubRow("Duck sounds", "Hear and edit the duck's sounds.", "waveform")
@@ -307,6 +314,8 @@ struct StudioHubView: View {
                            models: models, benches: benches, detail: detail)
         case .learn:
             LearnView(detail: detail)
+        case .autonomousMapping:
+            AutonomousMappingSkillView()
         }
     }
 
