@@ -247,7 +247,7 @@ struct DriveView: View {
     @State private var mimicKept: IntentDraft?
 
     private enum Shelf: String, Identifiable {
-        case scene, motions, dream
+        case scene, motions, dream, worlds
         /// The pull-up Moves sheet: the Moves tab's tiles, kept sequences, motions and Plan.
         case moves
         /// More: scene, record a sequence, the pad map, the camera, and the drive settings.
@@ -427,7 +427,53 @@ struct DriveView: View {
     @State private var confirmingWalk = false
     /// The driver the person last said yes to on a real duck (`BallWalk.needsConfirming`).
     @AppStorage("walk.real.confirmed") private var walkConfirmed = ""
+    /// True after the person explicitly presses Stop, so Play does not fight them by auto-resuming.
+    @State private var userStopped = false
+    /// The `peerKey` that `health` and `world` belong to, so bench switches always reconnect cleanly.
+    @State private var connectedPeerKey: String? = nil
+    /// Chosen sky/floor backdrop on the Play stage (`PlayWorld.Backdrop`).
+    @AppStorage("play.backdrop") private var playBackdropRaw = PlayWorld.Backdrop.pond.rawValue
+    /// Whether the Soccer Goal playground's posts and net are drawn on the stage.
+    @State private var showGoalPitch = false
+    /// Edge flag so a goal cheers once until the ball is reset.
+    @State private var goalCelebrated = false
+    /// Synthesized duck voice for instant kid-friendly quacks on Play.
+    @State private var voice = DuckVoicePlayer()
     @Environment(\.scenePhase) private var scenePhase
+
+    private var playBackdrop: PlayWorld.Backdrop {
+        PlayWorld.Backdrop(rawValue: playBackdropRaw) ?? .pond
+    }
+
+    private var playBackdropBinding: Binding<PlayWorld.Backdrop> {
+        Binding(get: { playBackdrop }, set: { playBackdropRaw = $0.rawValue })
+    }
+
+    /// Optional custom stage backdrop; `.pond` stays nil so Pond Day follows Light/Dark scheme.
+    private var selectedStageTheme: StageTheme? {
+        playBackdrop == .pond ? nil : playBackdrop.stageTheme
+    }
+
+    /// True while the built-in phone bench is still binding its port or booting MuJoCo WASM.
+    private var phoneBenchStarting: Bool {
+        venue != .real && bench?.isThisPhone == true && (!benches.phoneReady || benches.phonePort == 0)
+    }
+
+    /// True while anything is actively running or moving the duck.
+    private var isDuckRunning: Bool {
+        running || runs.showsStop || dreamModel.running || telling || brain.running || playback != nil
+    }
+
+    /// True when the top-right disc should offer orange Start (`play.fill`) on the practice duck.
+    /// Never true on a real physical robot (`venue == .real`).
+    private var canStartFromDisc: Bool {
+        venue != .real && !isDuckRunning && posed == nil && !mimicking
+    }
+
+    /// Everything that warrants connecting (or reconnecting) Play to its bench.
+    private var connectKey: String {
+        "\(venue.rawValue)·\(peerKey)·\(bench?.isThisPhone == true ? benches.phoneReady : true)·\(settingsDetail.shouldShowFirstRun)"
+    }
 
     /// A REAL PAD WINS WHILE IT IS BEING HELD. Both inputs are live at once —
     /// a tester can put a thumb on the glass without unpairing anything — and
@@ -551,13 +597,14 @@ struct DriveView: View {
 #endif
         // NO BOTTOM BAR (build 92). The old Drive | Stop | Reset bar duplicated the red disc's
         // Stop, hid the real duck's need for Drive, and cost the picture about 70 points. The
-        // sticks start the duck, the disc stops it, and Put it back on its feet is in More and the
-        // duck pill.
-        // THE WORLD IS RE-READ WHEN THE BENCH CHANGES, for the same reason the
-        // peer is rebuilt: the answer belongs to one machine. A picker still
-        // showing the last bench's staircase would be describing a world this
-        // bench has never been in.
-        .onChange(of: peerKey) { _, _ in flight = Task { await refreshWorld() } }
+        // sticks start the duck, the disc toggles Run/Stop on the practice duck (and stays Stop
+        // on a real duck), and Put it back on its feet is in More and the duck pill.
+        // AUTO-CONNECT AND AUTO-START: waits calmly for the built-in phone bench to finish booting
+        // instead of popping "The bench refused", reconnects whenever the bench or its address
+        // changes, and starts the practice duck live on Play.
+        .task(id: connectKey) {
+            await connectWhenReady()
+        }
         // WHAT STUDIO HOLDS, AS THE PAD SEES IT. A button bound to a motion
         // reads its name from here, and a motion deleted in Studio turns that
         // button into a named not-yet rather than a dead one.
@@ -613,13 +660,7 @@ struct DriveView: View {
             // thing it is about — which teaches the person that the buzz and
             // the stick are unrelated.
             Haptic.prepare()
-            flight = Task { await connect() }
         }
-        // THE PEER IS POINTED AT ONE BENCH WITH ONE TOKEN, and both can change
-        // while this screen is open — the picker changes the first, Manage
-        // benches the second. Rebuilding on either is what stops a peer holding
-        // an address the person has stopped using or a token they have replaced.
-        .onChange(of: peerKey) { _, _ in rebuildPeer() }
         // THE CAMERA'S ANSWER BECOMES THE POSE ON THE PICTURE. Only while
         // the bar is up: an answer arriving after Done would re-pose a duck
         // somebody has gone back to driving.
@@ -629,6 +670,7 @@ struct DriveView: View {
         }
         .onDisappear {
             pad.stop()
+            voice.stop()
             // AND THE CAMERA, which is a session iOS keeps running for a
             // screen nobody is looking at until it is told otherwise.
             if mimicking { stopMimic() }
@@ -657,6 +699,19 @@ struct DriveView: View {
                                           await stand(in: picked)
                                       }
                                   })
+            case .worlds:
+                PlayWorldsSheet(selectedBackdrop: playBackdropBinding,
+                                activeWorldName: world?.name,
+                                busy: busy,
+                                choosePlayground: { picked in
+                                    flight?.cancel()
+                                    flight = Task { await applyPlayground(picked) }
+                                },
+                                openAllScenes: {
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                                        shelf = .scene
+                                    }
+                                })
             case .motions:
                 ControlMotionsSheet(motions: motionRows, running: runningMotion,
                                     outcome: motionOutcome,
@@ -869,6 +924,7 @@ struct DriveView: View {
                 // need the old Drive button first, and nothing on screen said so.
                 guard !running, somethingToDrive,
                       posed == nil, !mimicking, playback == nil, !still else { return }
+                userStopped = false
                 stickStarted = venue == .real
                 coach(.stick)
                 engageLoop()
@@ -1206,12 +1262,17 @@ struct DriveView: View {
     /// refusal from the camera door is NOT collapsed: a venue that cannot be
     /// entered has to say so where the control is.
     private var topChrome: some View {
-        VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
-            // THE CONTROLLER'S TOP: the duck pill, Drive | Tell | Auto, and the solid red Stop.
-            ControllerTopBar(mode: modeBinding, pill: duckPill, stop: { stopNow() })
-            // DRIVE'S OWN ROW: pose, scene, record, sequences and plans from the pad, and the head
-            // on a real duck. Simple no longer hides any of it: these are part of the toy.
-            if arbiter.mode == .drive {
+        VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
+            // THE CONTROLLER'S TOP: the duck pill, Drive | Tell | Auto, and the Run/Stop disc.
+            ControllerTopBar(mode: modeBinding, pill: duckPill,
+                             isRunning: isDuckRunning,
+                             canStart: canStartFromDisc,
+                             start: { startPracticeDuck() },
+                             stop: { stopNow() })
+            // SECONDARY DRIVE ROW ONLY WHEN NEEDED (real-duck Head mode or an active take).
+            // Pose moved into More so Drive keeps ~52pt more open 3D stage height above the duck.
+            if arbiter.mode == .drive,
+               venue == .real || desk.pilot.isRecording || desk.pilot.pending != nil {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: Theme.spacing(.tight)) {
                         if venue == .real {
@@ -1222,29 +1283,13 @@ struct DriveView: View {
                             .font(.footnote)
                             .accessibilityHint(Text(ControllerWords.headModeHint))
                         }
-                        // POSE ON THE PRACTICE DUCK, and the take being recorded. Scene,
-                        // Record, the pad map and the camera went down into More; sequences,
-                        // motions and Plan into the pull-up Moves sheet.
-                        if venue != .real {
-                            playChip(ControlShelf.poseChip, symbol: "hand.draw",
-                                     on: posed != nil && !mimicking) {
-                                if mimicking { stopMimic() }
-                                if posed == nil {
-                                    posed = pose.jointAngles
-                                    poseNote = nil
-                                } else {
-                                    posed = nil
-                                    posedJoint = nil
-                                }
-                            }
-                        }
                         if desk.pilot.isRecording || desk.pilot.pending != nil {
                             playChip(PadPilot.nameItChip, symbol: "record.circle", on: true) {
                                 if desk.pilot.isRecording { desk.pilot.cutOff(.tapped) } else { shelf = .keep }
                             }
                         }
                     }
-                    .padding(.horizontal, Theme.spacing(.hairline))
+                    .padding(.horizontal, Theme.spacing(.snug))
                 }
             }
             // ONE ONE-TIME COACH MARK, a collapsed chip, only in Drive and only with no other line.
@@ -1256,6 +1301,7 @@ struct DriveView: View {
                         .lineLimit(2)
                 }
                 .buttonStyle(.pondChip)
+                .padding(.horizontal, Theme.spacing(.snug))
                 .accessibilityHint(Text(Onboarding.CoachMarks.dismissHint))
                 .transition(.opacity)
             }
@@ -1270,14 +1316,45 @@ struct DriveView: View {
                     .background(Theme.surfacePrimary, in: RoundedRectangle(
                         cornerRadius: Theme.radius(DriveMetric.viewport), style: .continuous))
                     .shadow(color: PondShadow.colour, radius: PondShadow.blur, y: PondShadow.y)
+                    .padding(.horizontal, Theme.spacing(.snug))
             }
-            // A FALLEN PRACTICE DUCK GETS ITS WAY BACK UP RIGHT HERE, one small button.
-            if venue != .real, bench != nil, live.map({ !$0.upright }) == true {
-                Button { flight = Task { await putBack() } } label: {
-                    Label(ControllerWords.putBack, systemImage: "figure.stand")
-                        .font(.footnote.weight(.semibold))
+            // GOAL CELEBRATION BANNER when kicking into the Soccer Goal playground net.
+            if venue == .sim, showGoalPitch, goalCelebrated {
+                HStack(spacing: Theme.spacing(.tight)) {
+                    Label(PlayWorld.Words.goalBanner, systemImage: "trophy.fill")
+                        .font(.system(.subheadline, design: .rounded).weight(.bold))
+                        .foregroundStyle(Theme.onFill)
+                    Spacer(minLength: 0)
+                    Button(ControllerWords.kickAgain) {
+                        flight?.cancel()
+                        flight = Task { await applyPlayground(.soccerGoal) }
+                    }
+                    .buttonStyle(.raisedAction)
+                    .accessibilityHint(Text(ControllerWords.goalHint))
                 }
-                .buttonStyle(.pondChip)
+                .padding(.horizontal, Theme.spacing(.snug))
+                .padding(.vertical, Theme.spacing(.hairline))
+                .background(Theme.actionYellow, in: Capsule())
+                .overlay(Capsule().strokeBorder(Theme.outline, lineWidth: DesignMetric.outlineStroke))
+                .shadow(color: PondShadow.colour, radius: PondShadow.blur, y: PondShadow.y)
+                .padding(.horizontal, Theme.spacing(.snug))
+                .transition(.scale.combined(with: .opacity))
+            }
+            // A FALLEN PRACTICE DUCK GETS A BIG CHEERFUL POP-UP BUTTON right here.
+            if venue != .real, bench != nil, live.map({ !$0.upright }) == true {
+                Button {
+                    userStopped = false
+                    voice.play(.greet, part: .whole)
+                    flight = Task {
+                        await putBack()
+                        if !Task.isCancelled, !userStopped { engageLoop() }
+                    }
+                } label: {
+                    Label(ControllerWords.popBackUp, systemImage: "figure.stand")
+                }
+                .buttonStyle(.secondaryAction)
+                .padding(.horizontal, Theme.spacing(.snug))
+                .accessibilityLabel(Text(ControllerWords.putBack))
                 .accessibilityHint(Text(ControllerWords.fellOver))
             }
             if let refusal = cameraDoor.refusal(for: .venue), venue != .real {
@@ -1285,9 +1362,10 @@ struct DriveView: View {
                 StageLineView(line: StageLine(refusal), stageHeight: glass.height,
                               font: .caption2, colour: Theme.textSecondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, Theme.spacing(.snug))
             }
         }
-        .padding(.vertical, Theme.spacing(.tight))
+        .padding(.bottom, Theme.spacing(.hairline))
         .measuringChromeHeight { topChromeHeight = $0 }
     }
 
@@ -1382,6 +1460,13 @@ struct DriveView: View {
                 }
             } else if phase == .active {
                 _ = arbiter.handle(.foreground, at: Date())
+                // Practice duck resumes cleanly when returning to foreground unless explicitly stopped.
+                // Real hardware (`venue == .real`) NEVER auto-resumes.
+                if venue != .real, !userStopped, health != nil, !running,
+                   !settingsDetail.shouldShowFirstRun, arbiter.mode == .drive,
+                   posed == nil, !mimicking, playback == nil {
+                    engageLoop()
+                }
             }
         }
         // A ROUTE INTO PLAY: a mode another screen asked for (Moves' goal rows).
@@ -1866,7 +1951,8 @@ struct DriveView: View {
     /// promises is drawn at the size it really is.
     @ViewBuilder private var cameraColumn: some View {
         if venue == .sim {
-            StageCameraColumn(orbit: $orbit, showsFollow: true, nearStopIsFitted: orbit.follows)
+            StageCameraColumn(orbit: $orbit, showsFollow: true,
+                              nearStopIsFitted: orbit.follows, collapsible: true)
                 .padding(.trailing, Theme.spacing(.snug))
                 // ABOVE THE PAD, NOT ON IT. Both this column and the Turn stick
                 // are bottom-trailing on the same stage, so the column landed
@@ -2186,13 +2272,52 @@ struct DriveView: View {
         .accessibilityValue(Text(on ? "on" : ""))
     }
 
-    /// Where the drawer handle was: the pull-up Moves sheet and More.
+    /// Compact bottom utility bar: instant Quack (hold for 7 sounds), World picker, Moves and More.
     private var sheetsRow: some View {
-        HStack(spacing: Theme.spacing(.tight)) {
-            playChip(ControllerWords.movesSheet, symbol: "chevron.up") { shelf = .moves }
-                .accessibilityHint(Text(ControllerWords.movesSheetHint))
-            playChip(ControllerWords.more, symbol: "ellipsis.circle") { shelf = .more }
-                .accessibilityHint(Text(ControllerWords.moreHint))
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: Theme.spacing(.hairline)) {
+                quackChip
+                if venue == .sim {
+                    playChip(ControllerWords.worldsChip, symbol: "paintpalette.fill",
+                             on: playBackdrop != .pond || showGoalPitch) {
+                        shelf = .worlds
+                    }
+                    .accessibilityHint(Text(ControllerWords.worldsHint))
+                }
+                playChip(ControllerWords.movesSheet, symbol: "chevron.up") { shelf = .moves }
+                    .accessibilityHint(Text(ControllerWords.movesSheetHint))
+                playChip(ControllerWords.more, symbol: "ellipsis.circle") { shelf = .more }
+                    .accessibilityHint(Text(ControllerWords.moreHint))
+            }
+            .padding(.horizontal, Theme.spacing(.hairline))
+        }
+    }
+
+    /// One-tap synthesized duck voice on the practice duck (or real sound order on a real duck);
+    /// long-press opens all seven duck calls for a six-year-old to explore.
+    private var quackChip: some View {
+        playChip(ControllerWords.quack, symbol: "speaker.wave.2.fill") {
+            triggerSound(.chirp)
+        }
+        .accessibilityHint(Text(ControllerWords.quackHint))
+        .contextMenu {
+            ForEach(PlayWorld.kidSounds, id: \.self) { sound in
+                Button {
+                    triggerSound(sound)
+                } label: {
+                    Label(PlayWorld.soundTitle(sound), systemImage: PlayWorld.soundSymbol(sound))
+                }
+            }
+        }
+    }
+
+    @MainActor private func triggerSound(_ sound: DuckSound) {
+        if venue == .real {
+            tellOrder(.sound(sound))
+        } else {
+            voice.play(sound, part: .whole)
+            Haptic.behaviourStarted()
+            say(PlayWorld.soundTitle(sound))
         }
     }
 
@@ -2302,8 +2427,23 @@ struct DriveView: View {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: Theme.spacing(.tight)) {
                             if venue == .sim {
+                                playChip(ControllerWords.worldsChip, symbol: "paintpalette.fill") {
+                                    shelf = .worlds
+                                }
                                 playChip(ControllerWords.moreScene, symbol: "square.stack.3d.up") {
                                     shelf = .scene
+                                }
+                            }
+                            playChip(ControlShelf.poseChip, symbol: "hand.draw",
+                                     on: posed != nil && !mimicking) {
+                                shelf = nil
+                                if mimicking { stopMimic() }
+                                if posed == nil {
+                                    posed = pose.jointAngles
+                                    poseNote = nil
+                                } else {
+                                    posed = nil
+                                    posedJoint = nil
                                 }
                             }
                             playChip(ControllerWords.moreRecord, symbol: "record.circle") {
@@ -2406,6 +2546,8 @@ struct DriveView: View {
                   handles: poseHandles,
                   onProject: { poseProjections = $0 },
                   rolling: rollingBall,
+                  pitch: showGoalPitch ? .canon : nil,
+                  stageTheme: selectedStageTheme,
                   // ZOOM AND RESET ARE REAL BUTTONS HERE, so they come off the
                   // rotor: one control in two places is two places for it to
                   // drift. The four orbit actions stay — nothing replaces those.
@@ -2682,6 +2824,7 @@ struct DriveView: View {
         // the single claim this venue exists to avoid making. The bench is
         // still connected and nothing on that screen is talking to it.
         if venue == .real { return .asleep }
+        if phoneBenchStarting { return .connecting }
         if health != nil { return .connected }
         // A STOP IS A CALL LIKE ANY OTHER AS FAR AS THE LENS IS CONCERNED. It
         // keeps its own flag so that nothing can disable the button — see
@@ -2869,14 +3012,15 @@ struct DriveView: View {
     /// right size are wider than a phone. The clusters stack instead: shoulders
     /// above, sticks, faces, dpad, and the two system buttons that do nothing
     /// here at the bottom. Order within each cluster is `padd`'s.
-    @ViewBuilder private func padButton(_ control: DuckPad.Control) -> some View {
+    @ViewBuilder private func padButton(_ control: DuckPad.Control,
+                                        fillOverride: PrimaryActionStyle.Fill? = nil) -> some View {
         let shown = desk.map.shown(for: control, naming: desk.name(ofSequence:),
                                    namingMotion: desk.name(ofMotion:))
         // SIMPLE DRAWS ONLY WHAT MOVES THE DUCK, NAMED FOR WHAT IT DOES. The
         // dead controls stay pressable under Everything, where a tester wants
-        // the sentence they produce; somebody playing wants "Roulade", not "X".
+        // the sentence they produce; somebody playing wants "Roll" / "Kick", not "X".
         if !isSimple || liveHere(control, shown: shown) {
-            padButtonBody(control, shown: shown)
+            padButtonBody(control, shown: shown, fillOverride: fillOverride)
         }
     }
 
@@ -2891,14 +3035,27 @@ struct DriveView: View {
         return effect.realDuckOrder != nil
     }
 
-    private func padButtonBody(_ control: DuckPad.Control, shown: DuckPadMap.Shown) -> some View {
+    private func toyButtonIfSimple(_ control: DuckPad.Control) -> PlayWorld.ToyButton? {
+        guard isSimple, venue != .real else { return nil }
+        let effect = desk.map.effect(for: control, naming: desk.name(ofSequence:),
+                                     namingMotion: desk.name(ofMotion:))
+        if case .loadSlot(let slot) = effect {
+            return PlayWorld.toyButton(for: slot)
+        }
+        return nil
+    }
+
+    private func padButtonBody(_ control: DuckPad.Control, shown: DuckPadMap.Shown,
+                               fillOverride: PrimaryActionStyle.Fill? = nil) -> some View {
         let isLive = liveHere(control, shown: shown)
-        let label = isSimple ? (shown.name ?? control.face) : control.face
+        let toy = toyButtonIfSimple(control)
+        let label = toy?.title ?? (isSimple ? (shown.name ?? control.face) : control.face)
         return Group {
             if isLive {
-                padPress(control, label: label).buttonStyle(.faceButton(Self.faceFill(control)))
+                padPress(control, label: label, symbol: toy?.symbol)
+                    .buttonStyle(.faceButton(fillOverride ?? Self.faceFill(control)))
             } else {
-                padPress(control, label: label).buttonStyle(DeadControlStyle())
+                padPress(control, label: label, symbol: nil).buttonStyle(DeadControlStyle())
             }
         }
         // A PRESS THAT CAME FROM THE CONTROLLER, DRAWN LIKE A PRESS. The style
@@ -2935,22 +3092,20 @@ struct DriveView: View {
         }
     }
 
-    private func padPress(_ control: DuckPad.Control, label: String) -> some View {
+    private func padPress(_ control: DuckPad.Control, label: String, symbol: String?) -> some View {
         Button { Task { await press(control) } } label: {
-            // `fixedSize` IS THE GUARANTEE, not the padding. A label that a
-            // layout may compress is a label that can be clipped to a stroke,
-            // which is what "LB" and then "Y" both came out as; this makes the
-            // text refuse to shrink, so a column too narrow for the buttons
-            // folds them instead of gutting them.
-            //
-            // BUT ONLY FOR A FACE. Simple draws the bound move's NAME on the
-            // button, and a name like `beak_strut_vault_r6_c…` held to its full
-            // width ran out of the 60-point circle and over its neighbours
-            // (build 79, 2026-10-02). A face letter keeps `fixedSize`; a name is
-            // held to the button, may take two lines and shrink to half, and may
-            // break after an underscore (a zero-width space, so what is drawn is
-            // still the name).
-            if label.count <= 3 {
+            if let symbol {
+                // Kid-friendly Simple toy button: crisp icon + short 1-word verb.
+                VStack(spacing: 2) {
+                    Image(systemName: symbol)
+                        .font(.system(size: 17, weight: .bold))
+                    Text(label)
+                        .font(.system(.caption2, design: .rounded).weight(.bold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                }
+                .frame(width: DesignMetric.movingTarget - 10)
+            } else if label.count <= 3 {
                 Text(label).lineLimit(1).fixedSize()
             } else {
                 Text(label.replacingOccurrences(of: "_", with: "_\u{200B}"))
@@ -2984,9 +3139,14 @@ struct DriveView: View {
     /// `padButton` for why the clusters no longer flank the sticks.
     @ViewBuilder private func padDeck(compact: Bool) -> some View {
         if compact {
+            // In Simple mode on the practice duck, Y is a real-duck-only emotion (hidden), so
+            // surface Kick (RB) in the yellow slot — giving kids Kick, Roll, Peck and Sit right
+            // on Play instead of hiding Kick inside More.
+            let firstControl: DuckPad.Control = (isSimple && venue != .real) ? .rightBumper : .y
+            let firstFill: PrimaryActionStyle.Fill? = (isSimple && venue != .real) ? .yellow : nil
             HStack(alignment: .bottom, spacing: Theme.spacing(.tight)) {
                 ThumbPad(title: "Move", stick: $touchSticks.left)
-                Spacer(minLength: Theme.spacing(.tight))
+                Spacer(minLength: Theme.spacing(.hairline))
                 VStack(spacing: Theme.spacing(.tight)) {
                     // FOUR ACROSS WHERE THEY FIT, TWO BY TWO WHERE THEY DO NOT.
                     // On the narrowest phone still supported, four sixty-point
@@ -2995,11 +3155,13 @@ struct DriveView: View {
                     // or clipping a target.
                     ViewThatFits(in: .horizontal) {
                         HStack(spacing: Theme.spacing(.tight)) {
-                            padButton(.y); padButton(.x); padButton(.b); padButton(.a)
+                            padButton(firstControl, fillOverride: firstFill)
+                            padButton(.x); padButton(.b); padButton(.a)
                         }
                         VStack(spacing: Theme.spacing(.tight)) {
                             HStack(spacing: Theme.spacing(.tight)) {
-                                padButton(.y); padButton(.x)
+                                padButton(firstControl, fillOverride: firstFill)
+                                padButton(.x)
                             }
                             HStack(spacing: Theme.spacing(.tight)) {
                                 padButton(.b); padButton(.a)
@@ -3007,7 +3169,7 @@ struct DriveView: View {
                         }
                     }
                 }
-                Spacer(minLength: Theme.spacing(.tight))
+                Spacer(minLength: Theme.spacing(.hairline))
                 ThumbPad(title: "Turn", stick: $touchSticks.right, verticalIsLive: false)
             }
             // NO CARD BEHIND THE WHOLE ROW. A full-width opaque band across the
@@ -3578,7 +3740,9 @@ struct DriveView: View {
             // AN UNREAD LIST IS NOT AN EMPTY ONE. With no `/health` yet, "holds no
             // policy" is a claim about a bench nobody has heard from.
             guard health != nil else {
-                lastAction = "\(control.face): \(DuckQuickActions.noBenchAnswering(slot))"
+                lastAction = phoneBenchStarting
+                    ? ControllerWords.wakingUp
+                    : "\(control.face): \(DuckQuickActions.noBenchAnswering(slot))"
                 return
             }
             guard let policy = DuckQuickActions.filename(filling: slot,
@@ -3588,21 +3752,10 @@ struct DriveView: View {
                     : "\(control.face): \(DuckQuickActions.notHeldHere(slot))"
                 return
             }
-            // ONE SWAP, THROUGH THE LOOP, WHERE STOP CAN CUT IT OFF. This was
-            // `flight = Task { await swap(to: policy) }` followed by
-            // `engageLoop()` — and `engageLoop()` begins with `flight?.cancel()`.
-            // Both ran on the same main-actor turn, so with the loop stopped the
-            // swap was cancelled before its request had left the phone, the
-            // cancellation was (correctly) swallowed as a stop, and the line
-            // below still claimed the load. With the loop already running the
-            // swap did land — and the next trip put the walker straight back,
-            // because the map wanted it and the bench said something else was
-            // driving. Either way the duck stood there. The pilot now carries
-            // the name to the next trip's `Go.load`, and `drive()` posts it
-            // through the same `swap` every other load takes.
+            userStopped = false
             desk.request(load: policy)
             // SIMPLE SAYS THE MOVE; EVERYTHING ALSO SAYS THE BUTTON AND THE FILE.
-            lastAction = isSimple ? slot.title
+            lastAction = isSimple ? PlayWorld.toyButton(for: slot).title
                                   : "\(control.face) → \(slot.title): \(policy)"
             // AND IT DRIVES. A network loaded while the loop is stopped is a
             // policy on the servos that nothing is stepping: the duck stands
@@ -3839,6 +3992,15 @@ struct DriveView: View {
             cutOffByStop = false
             return
         }
+        // THE BUILT-IN PHONE BENCH STILL BOOTING IS A WARMUP STATE, NOT A REFUSAL ALERT.
+        // `.task(id: connectKey)` automatically connects the moment `benches.phoneReady` flips true.
+        if let refusal = error as? BenchEndpoint.Refusal, refusal == .phoneBenchNotListening {
+            return
+        }
+        if case .bench(let message) = error as? DuckBench.ReadError,
+           message == PhoneBenchReport.notListening {
+            return
+        }
         // A SAVED BENCH THAT NEVER ANSWERED IS NOT A REFUSAL TO SHOW IN A
         // DIALOG. Pressing Drive or a face button against a switched-off desk
         // bench used to end in "The bench refused: Could not connect to the
@@ -3994,17 +4156,136 @@ struct DriveView: View {
         (error as? URLError)?.code == .appTransportSecurityRequiresSecureConnection
     }
 
-    /// Move Play to the bench inside the app, connect to it, and say which bench was left.
+    /// Move Play to the bench inside the app, connect to it once ready, and say which bench was left.
     @MainActor private func fallBack(from left: BenchEndpoint) async {
         benches.selectedID = BenchEndpoint.thisPhone.id
-        await connect(fallingBack: false)
         lastAction = PhoneBenchReport.fellBack(from: left.name,
                                                to: bench?.name ?? PhoneBenchReport.name)
+        // Only dial immediately if the phone bench is already booted; otherwise `.task(id: connectKey)`
+        // connects and starts automatically the moment `benches.phoneReady` becomes true.
+        if benches.phoneReady && benches.phonePort != 0 {
+            await connect(fallingBack: false)
+        }
+    }
+
+    /// Driven by `.task(id: connectKey)`: waits calmly for the built-in phone bench to finish
+    /// booting, connects automatically as soon as it answers, and starts the practice duck live.
+    @MainActor private func connectWhenReady() async {
+        guard venue != .real else { return }
+        rebuildPeer()
+        if phoneBenchStarting {
+            connectedPeerKey = nil
+            health = nil
+            live = nil
+            return
+        }
+        // If already connected to this exact peer (for example, Welcome sheet just dismissed),
+        // skip the duplicate hello and simply auto-start if ready.
+        if connectedPeerKey == peerKey, health != nil, benchPeer != nil {
+            await autoStartPracticeDuckIfReady()
+            return
+        }
+        if running {
+            running = false
+            flight?.cancel()
+        }
+        connectedPeerKey = nil
+        health = nil
+        live = nil
+        world = nil
+        worldRouteMissing = false
+        worldNote = nil
+        predicted = []
+        worldChoice = .benchOwn
+        userStopped = false
+        await connect()
+    }
+
+    /// Start or resume the practice duck when the person taps the orange Play disc top right.
+    @MainActor private func startPracticeDuck() {
+        guard venue != .real else { return }
+        userStopped = false
+        if phoneBenchStarting {
+            say(ControllerWords.wakingUp)
+            return
+        }
+        say(nil)
+        if health == nil {
+            flight?.cancel()
+            flight = Task { await connect() }
+            return
+        }
+        if live?.upright == false {
+            flight?.cancel()
+            flight = Task {
+                await putBack()
+                if !Task.isCancelled, !userStopped { engageLoop() }
+            }
+            return
+        }
+        engageLoop()
+    }
+
+    /// Auto-start the practice duck once connected on Play, never on a real physical robot.
+    @MainActor private func autoStartPracticeDuckIfReady() async {
+        guard !Task.isCancelled, venue != .real, health != nil,
+              !userStopped, !settingsDetail.shouldShowFirstRun,
+              arbiter.mode == .drive, posed == nil, !mimicking, playback == nil else { return }
+        // The bundled phonebench page runs a 250-tick parity walk at boot, leaving the duck
+        // 0.84 m away from the origin. Reset once on first connect so it stands upright at center.
+        if live == nil, bench?.isThisPhone == true {
+            await putBack()
+        }
+        guard !Task.isCancelled, !running, !userStopped,
+              arbiter.mode == .drive, posed == nil, !mimicking, playback == nil else { return }
+        engageLoop()
+    }
+
+    /// Apply a kid-friendly one-tap Playground preset (blocks, cones, ball, soccer goal, steps).
+    @MainActor private func applyPlayground(_ playground: PlayWorld.Playground) async {
+        guard venue == .sim else { return }
+        userStopped = false
+        goalCelebrated = false
+        showGoalPitch = playground.showsGoal
+        if let suggested = playground.suggestedBackdrop, playBackdrop == .pond {
+            playBackdropRaw = suggested.rawValue
+        }
+        let plan = playground.plan(on: world?.bank ?? .pinned,
+                                   graspables: health?.graspables ?? [])
+        busy = true
+        let wasRunning = running
+        if wasRunning { running = false }
+        defer { busy = false }
+        do {
+            let address = try requireBench()
+            let (data, status) = try await askStatus(try DuckBench.setWorld(address, plan))
+            if status == 404 {
+                worldRouteMissing = true
+                world = nil
+            } else {
+                world = try DuckBench.readWorld(data)
+                worldRouteMissing = false
+                worldNote = nil
+                predicted = plan.predicted
+                worldChoice = standingChoice
+            }
+            // Stand the duck upright at the origin facing the new playground props.
+            live = try DuckDrive.readLive(await ask(try DuckDrive.reset(address)))
+            trips = 0
+            wasNearALimit = false
+            stateSaid = nil
+            voice.play(.greet, part: .whole)
+            Haptic.behaviourStarted()
+            say(playground.title)
+        } catch {
+            report(error)
+        }
+        if !Task.isCancelled, !userStopped, health != nil {
+            engageLoop()
+        }
     }
 
     @MainActor private func connect(fallingBack: Bool = true) async {
-        busy = true
-        defer { busy = false }
         // THE ROBOT VENUE HAS NOTHING TO CONNECT TO AND MUST NOT BUILD ONE.
         // The link is opened by a person on the Robot tab; what this screen
         // does on arrival is ask the robot to start talking, once.
@@ -4012,6 +4293,9 @@ struct DriveView: View {
             await askTheRobotToTalk()
             return
         }
+        if phoneBenchStarting { return }
+        busy = true
+        defer { busy = false }
         rebuildPeer()
         do {
             let peer = try requirePeer()
@@ -4019,46 +4303,24 @@ struct DriveView: View {
             // is the one call every transport in the vocabulary carries, and
             // asking it here is what makes this screen's first move a peer's
             // rather than a bench's.
-            //
-            // IT LANDS ON `/health`, WHICH THE NEXT LINE ASKS AGAIN FOR A
-            // DIFFERENT REASON, and that is two GETs where there used to be
-            // one. It is worth the second: `/health` is a status read that
-            // advances no physics, on a machine on the same desk, and the two
-            // questions are genuinely different — "who are you" is answerable
-            // by every peer this app will ever hold, and "which policies do you
-            // hold" is answerable by none of them but this one. Collapsing them
-            // would mean the handshake was bench-shaped again, which is the
-            // thing this change exists to end.
             let greeting = try await peer.call(.hello)
             if let refusal = greeting.failure {
+                // Still warming up: never show "The bench refused". `.task(id: connectKey)`
+                // retries automatically the instant `benches.phoneReady` turns true.
+                if refusal.isNotListeningYet { return }
                 failure = DuckBench.ReadError.bench(refusal.message).message
                 return
             }
             health = try DuckBench.readHealth(
                 await ask(DuckBench.health(try requireBench())))
+            connectedPeerKey = peerKey
             await askWhatItSaw()
-            // NOT GUESSED, AND NOT POSTED. `/health` lists the policies a bench
-            // HOLDS and says nothing about which one is loaded, and the old
-            // line here loaded the first name in that list on every connect —
-            // which, once My Microduck could load a policy of its own, meant
-            // opening this tab silently undid the quick action somebody had
-            // just launched. The map settles against what this bench holds IN
-            // MEMORY ONLY: a network it does not have is put back with
-            // `DuckPadMap.staleNetwork`, a role it cannot fill keeps its role,
-            // and nothing is asked for.
-            //
-            // `/health` still says nothing about what is loaded — `/intent`'s
-            // reply does, which is why the readout can name it without a
-            // request. The first `POST /policy` of a session happens on the
-            // first round trip after Drive, where the person can see it coming.
             lastAction = desk.settle(against: health?.policies ?? [],
                                      lastLoaded: benches.lastLoaded(for: bench?.id)) ?? lastAction
-            // AND WHAT ROOM IT IS STANDING IN, which is the other half of "what
-            // am I looking at". `/health` says which policies the bench holds;
-            // this says where the duck is, and the stage draws the answer. An
-            // older bench 404s it and the picker goes dead with the reason
-            // under it — see `readWorld`.
             await readWorld(try requireBench())
+            if !Task.isCancelled {
+                await autoStartPracticeDuckIfReady()
+            }
         } catch {
             // THE SIMPLEST BENCH IS THE ONE THAT CANNOT BE SWITCHED OFF. A saved
             // desk bench that never answered left Play with nothing to drive and
@@ -4173,6 +4435,8 @@ struct DriveView: View {
     /// inventing an endpoint.
     @MainActor private func stand(in choice: WorldChoice) async {
         worldNote = nil
+        showGoalPitch = false
+        goalCelebrated = false
         busy = true
         defer { busy = false }
         do {
@@ -4278,6 +4542,12 @@ struct DriveView: View {
                     // A BENCH ANSWERS EVERY CALL AND THE ANSWER IS THE PHYSICS
                     // IT JUST RAN, so the round trip is this loop's clock.
                     live = await bench.live
+                    if showGoalPitch, !goalCelebrated, let ball = live?.ball,
+                       PlayWorld.isGoal(ballX: ball.x, ballY: ball.y) {
+                        goalCelebrated = true
+                        voice.play(.wheee, part: .whole)
+                        Haptic.finished()
+                    }
                 } else {
                     // A ROBOT DOES NOT ANSWER A TWIST AT ALL — the contract's
                     // continuous intents are notifications — so nothing here
@@ -4380,6 +4650,7 @@ struct DriveView: View {
     @MainActor private func latchStop() {
         // THE KIT'S STOP FIRST: robot.stop on its way, the latch shut, every run cancelled, nothing
         // awaited. What follows is this screen putting its own loop and stick down.
+        userStopped = true
         runs.stop()
         coach(.stop)
         say(runs.caption)
@@ -4721,95 +4992,96 @@ struct ThumbPad: View {
     @GestureState private var touching = false
 
     var body: some View {
-        VStack(spacing: Theme.spacing(.tight)) {
-            ZStack {
-                // POND DAY: a pale lavender well with an ink rim (a dusk
-                // well with a lavender rim at night), not a dark hole.
-                pad.fill(Theme.stickPad)
-                pad.strokeBorder(Theme.stickPadRim, lineWidth: DesignMetric.outlineStroke)
-                Circle()
-                    .strokeBorder(Theme.stickPadRim.opacity(0.35),
-                                  lineWidth: DriveMetric.hairlineStroke)
-                    .frame(width: travel * 2, height: travel * 2)
-                Image(systemName: verticalIsLive
-                      ? "arrow.up.and.down.and.arrow.left.and.right"
-                      : "arrow.left.and.right")
-                    .font(.title3)
-                    .foregroundStyle(Theme.textTertiary)
-                PondEyeKnob(load: deflection)
-                    .offset(x: CGFloat(stick.x) * travel,
-                            y: CGFloat(verticalIsLive ? -stick.y : 0) * travel)
-                    // THE PAD IS THE ELEMENT, NOT THE KNOB. `JointNode` carries
-                    // its own label and value, and left visible it would put a
-                    // second thing to swipe past inside a control that already
-                    // says where it is pushed.
-                    .accessibilityHidden(true)
-            }
-            .frame(width: Self.size, height: Self.size)
-            .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .updating($touching) { _, on, _ in on = true }
-                    .onChanged { drag in
-                        // SCREEN Y IS DOWN AND THE ROBOT'S IS FORWARD, so the
-                        // flip belongs here, in the only place that knows about
-                        // glass. `DuckDrive.Stick` documents that it takes the
-                        // already-flipped value.
-                        let x = Double(drag.location.x - radius) / Double(travel)
-                        let y = Double(radius - drag.location.y) / Double(travel)
-                        let next = DuckDrive.Stick(
-                            x: min(max(x, -1), 1),
-                            y: verticalIsLive ? min(max(y, -1), 1) : 0)
-                        // A STICK AT ITS LIMIT IS A WALL, AND `.rigid` IS WHAT A
-                        // WALL FEELS LIKE. Pushing further does nothing, and the
-                        // person is looking at the duck rather than at the pad,
-                        // so the only channel left for "that is as fast as it
-                        // goes" is the one under their thumb. Once, on arrival:
-                        // a thumb parked at the edge would otherwise buzz for as
-                        // long as it stayed there.
-                        let now = abs(next.x) >= 1
-                            || (verticalIsLive && abs(next.y) >= 1)
-                        if now, !atLimit { Haptic.stickAtLimit() }
-                        atLimit = now
-                        stick = next
-                    }
-                    .onEnded { _ in
-                        stick = .centred
-                        atLimit = false
-                    }
-            )
-            // A TOUCH THE SYSTEM CANCELLED AND A PAD TAKEN OFF THE GLASS NEVER REACH `onEnded`, and
-            // a stick left deflected keeps walking a real duck with nobody touching it.
-            .onChange(of: touching) { _, on in
-                if !on { stick = .centred; atLimit = false }
-            }
-            .onDisappear { stick = .centred; atLimit = false }
-            .accessibilityElement(children: .ignore)
-            // DRIVABLE WITHOUT A DRAG. A pad that answers only to
-            // `DragGesture` is a robot nobody using VoiceOver, Switch Control
-            // or Voice Control can move at all — the one screen whose whole
-            // point is moving it. Swipe up/down adjusts the live axis in
-            // quarter steps; the named actions give Voice Control words to say.
-            .accessibilityAdjustableAction { direction in
-                let step = 0.25
-                switch direction {
-                case .increment: nudge(x: 0, y: verticalIsLive ? step : 0, xStep: step)
-                case .decrement: nudge(x: 0, y: verticalIsLive ? -step : 0, xStep: -step)
-                @unknown default: break
-                }
-            }
-            .accessibilityAction(named: Text("Centre")) { stick = .centred }
-            .accessibilityAction(named: Text("Left")) { stick = .init(x: max(stick.x - 0.25, -1), y: stick.y) }
-            .accessibilityAction(named: Text("Right")) { stick = .init(x: min(stick.x + 0.25, 1), y: stick.y) }
-            .accessibilityLabel(Text(title))
-            .accessibilityValue(Text(spoken))
+        ZStack {
+            // POND DAY: a pale lavender well with an ink rim (a dusk
+            // well with a lavender rim at night), not a dark hole.
+            pad.fill(Theme.stickPad)
+            pad.strokeBorder(Theme.stickPadRim, lineWidth: DesignMetric.outlineStroke)
+            Circle()
+                .strokeBorder(Theme.stickPadRim.opacity(0.35),
+                              lineWidth: DriveMetric.hairlineStroke)
+                .frame(width: travel * 2, height: travel * 2)
+            Image(systemName: verticalIsLive
+                  ? "arrow.up.and.down.and.arrow.left.and.right"
+                  : "arrow.left.and.right")
+                .font(.title3)
+                .foregroundStyle(Theme.textTertiary)
+            PondEyeKnob(load: deflection)
+                .offset(x: CGFloat(stick.x) * travel,
+                        y: CGFloat(verticalIsLive ? -stick.y : 0) * travel)
+                // THE PAD IS THE ELEMENT, NOT THE KNOB. `JointNode` carries
+                // its own label and value, and left visible it would put a
+                // second thing to swipe past inside a control that already
+                // says where it is pushed.
+                .accessibilityHidden(true)
+            // Tucked inside the bottom rim of the well so the pad stays 112×112 while
+            // reclaiming 22pt of vertical stage height for the duck.
             Text(title)
-                .font(.caption2)
+                .font(.caption2.weight(.medium))
                 .foregroundStyle(Theme.textSecondary)
-                // The pad above already carries this word as its label; read
-                // out again it is a second element saying nothing new.
+                .padding(.bottom, 4)
+                .frame(maxHeight: .infinity, alignment: .bottom)
+                .allowsHitTesting(false)
                 .accessibilityHidden(true)
         }
+        .frame(width: Self.size, height: Self.size)
+        .contentShape(Rectangle())
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .updating($touching) { _, on, _ in on = true }
+                .onChanged { drag in
+                    // SCREEN Y IS DOWN AND THE ROBOT'S IS FORWARD, so the
+                    // flip belongs here, in the only place that knows about
+                    // glass. `DuckDrive.Stick` documents that it takes the
+                    // already-flipped value.
+                    let x = Double(drag.location.x - radius) / Double(travel)
+                    let y = Double(radius - drag.location.y) / Double(travel)
+                    let next = DuckDrive.Stick(
+                        x: min(max(x, -1), 1),
+                        y: verticalIsLive ? min(max(y, -1), 1) : 0)
+                    // A STICK AT ITS LIMIT IS A WALL, AND `.rigid` IS WHAT A
+                    // WALL FEELS LIKE. Pushing further does nothing, and the
+                    // person is looking at the duck rather than at the pad,
+                    // so the only channel left for "that is as fast as it
+                    // goes" is the one under their thumb. Once, on arrival:
+                    // a thumb parked at the edge would otherwise buzz for as
+                    // long as it stayed there.
+                    let now = abs(next.x) >= 1
+                        || (verticalIsLive && abs(next.y) >= 1)
+                    if now, !atLimit { Haptic.stickAtLimit() }
+                    atLimit = now
+                    stick = next
+                }
+                .onEnded { _ in
+                    stick = .centred
+                    atLimit = false
+                }
+        )
+        // A TOUCH THE SYSTEM CANCELLED AND A PAD TAKEN OFF THE GLASS NEVER REACH `onEnded`, and
+        // a stick left deflected keeps walking a real duck with nobody touching it.
+        .onChange(of: touching) { _, on in
+            if !on { stick = .centred; atLimit = false }
+        }
+        .onDisappear { stick = .centred; atLimit = false }
+        .accessibilityElement(children: .ignore)
+        // DRIVABLE WITHOUT A DRAG. A pad that answers only to
+        // `DragGesture` is a robot nobody using VoiceOver, Switch Control
+        // or Voice Control can move at all — the one screen whose whole
+        // point is moving it. Swipe up/down adjusts the live axis in
+        // quarter steps; the named actions give Voice Control words to say.
+        .accessibilityAdjustableAction { direction in
+            let step = 0.25
+            switch direction {
+            case .increment: nudge(x: 0, y: verticalIsLive ? step : 0, xStep: step)
+            case .decrement: nudge(x: 0, y: verticalIsLive ? -step : 0, xStep: -step)
+            @unknown default: break
+            }
+        }
+        .accessibilityAction(named: Text("Centre")) { stick = .centred }
+        .accessibilityAction(named: Text("Left")) { stick = .init(x: max(stick.x - 0.25, -1), y: stick.y) }
+        .accessibilityAction(named: Text("Right")) { stick = .init(x: min(stick.x + 0.25, 1), y: stick.y) }
+        .accessibilityLabel(Text(title))
+        .accessibilityValue(Text(spoken))
     }
 
     /// The pad's ground, one radius inside the deck's — the concentric rule,

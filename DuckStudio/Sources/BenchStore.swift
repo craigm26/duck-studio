@@ -40,6 +40,8 @@ final class BenchStore: ObservableObject {
     private var saved: [BenchEndpoint] = []
     /// The loopback port the app's own listener came up on, or 0 before it has.
     @Published private(set) var phonePort: Int = 0
+    /// Whether the built-in phone bench has finished booting physics and is ready to answer.
+    @Published private(set) var phoneReady: Bool = false
     @Published private(set) var unreadableNote: String? = nil
     @Published var selectedID: UUID? {
         didSet { UserDefaults.standard.set(selectedID?.uuidString, forKey: Self.selectedKey) }
@@ -136,6 +138,12 @@ final class BenchStore: ObservableObject {
         guard port != phonePort else { return }
         phonePort = port
         recompose()
+    }
+
+    /// The app's own bench finished booting (or reloaded after iOS reclaimed the WebView).
+    func notePhoneBenchReady(_ ready: Bool) {
+        guard ready != phoneReady else { return }
+        phoneReady = ready
     }
 
     /// Bring the one unnamed bench across, once.

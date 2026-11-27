@@ -283,6 +283,9 @@ struct DuckStage: View {
     /// A soccer pitch to draw: goal posts, crossbar, net and lines. Drawn
     /// once, never collided with; the bench scores the goal as a line.
     var pitch: Shoot.Pitch?
+    /// Optional visual backdrop (`StageTheme`) for playful Play worlds. Nil keeps the default
+    /// Pond Day light/dark palette.
+    var stageTheme: StageTheme? = nil
     /// Whether the stage's own rotor carries zoom and reset.
     ///
     /// DEFAULTED TRUE, SO THE SEVEN UNTOUCHED CALLERS COMPILE AND BEHAVE. The
@@ -325,7 +328,8 @@ struct DuckStage: View {
     var body: some View {
         StageSurface(pose: pose, variant: variant, environment: environment,
                      props: props, trail: trail, progress: progress, orbit: $orbit,
-                     handles: handles, onProject: onProject, rolling: rolling, pitch: pitch)
+                     handles: handles, onProject: onProject, rolling: rolling, pitch: pitch,
+                     stageTheme: stageTheme)
             // ONE ELEMENT, NOT ONE PER JOINT. The scene holds a duck of fifteen
             // drawn parts, a grid, a path and whatever props the place has; as
             // elements that is a swipe through dozens of unnamed boxes, and
@@ -435,6 +439,8 @@ struct StageSurface: UIViewRepresentable {
     /// A soccer pitch to draw: goal posts, crossbar, net and lines. Drawn
     /// once, never collided with; the bench scores the goal as a line.
     var pitch: Shoot.Pitch?
+    /// Optional visual backdrop (`StageTheme`) overriding the default Pond Day floor/sky.
+    var stageTheme: StageTheme? = nil
 
     /// POND DAY: the stage follows the scheme. Sky is the page colour, the
     /// floor a teal playmat; RealityKit takes plain colours, so they are
@@ -444,7 +450,8 @@ struct StageSurface: UIViewRepresentable {
     func makeUIView(context: Context) -> ARView {
         let view = ARView(frame: .zero, cameraMode: .nonAR, automaticallyConfigureSession: false)
         context.coordinator.scheme = colorScheme
-        view.environment.background = .color(Theme.stage(.backgroundPrimary, colorScheme))
+        context.coordinator.stageTheme = stageTheme
+        view.environment.background = .color(context.coordinator.skyColor)
 
         let world = AnchorEntity(world: .zero)
         view.scene.addAnchor(world)
@@ -466,7 +473,7 @@ struct StageSurface: UIViewRepresentable {
 
         let fill = DirectionalLight()
         fill.light.intensity = 1200
-        fill.light.color = Theme.stage(.stageLight, colorScheme)
+        fill.light.color = context.coordinator.fillColor
         fill.look(at: .zero, from: SIMD3(-0.9, 0.6, -0.7), relativeTo: nil)
         world.addChild(fill)
         context.coordinator.fill = fill
@@ -538,7 +545,9 @@ struct StageSurface: UIViewRepresentable {
 
     func updateUIView(_ view: ARView, context: Context) {
         let c = context.coordinator
-        if c.scheme != colorScheme { c.apply(colorScheme, to: view) }
+        if c.scheme != colorScheme || c.stageTheme != stageTheme {
+            c.apply(colorScheme, theme: stageTheme, to: view)
+        }
         // PLACED BY DUCKKIT, not by arithmetic here. `bodyPoses` works in the
         // model's world frame with the trunk already 120 mm up, and a recorded
         // root IS the trunk — setting position straight from it added the
@@ -585,6 +594,8 @@ struct StageSurface: UIViewRepresentable {
     @MainActor final class Coordinator {
         /// The scheme the stage was last painted for.
         var scheme: ColorScheme = .light
+        /// Optional Play backdrop theme overriding the default Pond Day floor and sky.
+        var stageTheme: StageTheme? = nil
         var fill: DirectionalLight?
         /// The floor, grid and origin marker, kept so a scheme flip can
         /// repaint them.
@@ -593,18 +604,28 @@ struct StageSurface: UIViewRepresentable {
         /// The scheme's colour for a stage token, as RealityKit wants it.
         func tone(_ token: Palette.Token) -> UIColor { Theme.stage(token, scheme) }
 
+        var skyColor: UIColor { stageTheme?.sky ?? tone(.backgroundPrimary) }
+        var fillColor: UIColor { stageTheme?.sky ?? tone(.stageLight) }
+        var floorColor: UIColor { stageTheme?.floor ?? tone(.stageDeck) }
+        var majorGridColor: UIColor { stageTheme?.grid ?? tone(.stageGridMajor) }
+        var minorGridColor: UIColor {
+            stageTheme?.grid.withAlphaComponent(0.45) ?? tone(.stageGridMinor)
+        }
+        var originColor: UIColor { stageTheme?.accent ?? tone(.actionPrimary) }
+
         /// Ink at 35% by day, black at 55% at night: a contact patch, not a hole.
         static func contactShadow(_ scheme: ColorScheme) -> UIColor {
             scheme == .dark ? UIColor(white: 0, alpha: 0.55)
                             : Theme.stage(.outline, scheme).withAlphaComponent(0.35)
         }
 
-        /// Repaint everything scheme-dependent: sky, fill light, floor, the
-        /// contact shadow, and (by forgetting what was shown) props and path.
-        func apply(_ next: ColorScheme, to view: ARView) {
+        /// Repaint everything scheme- or theme-dependent: sky, fill light, floor,
+        /// the contact shadow, and (by forgetting what was shown) props and path.
+        func apply(_ next: ColorScheme, theme: StageTheme?, to view: ARView) {
             scheme = next
-            view.environment.background = .color(tone(.backgroundPrimary))
-            fill?.light.color = tone(.stageLight)
+            stageTheme = theme
+            view.environment.background = .color(skyColor)
+            fill?.light.color = fillColor
             if let shadow = shadow as? ModelEntity {
                 shadow.model?.materials = [UnlitMaterial(color: Self.contactShadow(next))]
             }
@@ -719,13 +740,13 @@ struct StageSurface: UIViewRepresentable {
             let extent: Float = 1.6
             let deck = ModelEntity(
                 mesh: .generateBox(width: extent * 2, height: 0.002, depth: extent * 2),
-                materials: [SimpleMaterial(color: tone(.stageDeck),
+                materials: [SimpleMaterial(color: floorColor,
                                            roughness: 1.0, isMetallic: false)])
             deck.position = SIMD3(0, -0.001, 0)
             world.addChild(deck)
 
-            let minor = UnlitMaterial(color: tone(.stageGridMinor))
-            let major = UnlitMaterial(color: tone(.stageGridMajor))
+            let minor = UnlitMaterial(color: minorGridColor)
+            let major = UnlitMaterial(color: majorGridColor)
             var line = -extent
             while line <= extent + 1e-4 {
                 let isMajor = abs(line.truncatingRemainder(dividingBy: 0.5)) < 1e-3
@@ -753,12 +774,12 @@ struct StageSurface: UIViewRepresentable {
             // fixed point every distance on screen is measured from.
             let axis = ModelEntity(
                 mesh: .generateBox(width: 0.16, height: 0.0016, depth: 0.006),
-                materials: [UnlitMaterial(color: tone(.actionPrimary))])
+                materials: [UnlitMaterial(color: originColor)])
             axis.position = SIMD3(0.08, 0.0012, 0)
             world.addChild(axis)
             let origin = ModelEntity(
                 mesh: .generatePlane(width: 0.04, depth: 0.04, cornerRadius: 0.02),
-                materials: [UnlitMaterial(color: tone(.actionPrimary))])
+                materials: [UnlitMaterial(color: originColor)])
             origin.position = SIMD3(0, 0.0014, 0)
             world.addChild(origin)
         }
@@ -782,12 +803,22 @@ struct StageSurface: UIViewRepresentable {
         /// visible rather than a number in a footer.
         func addGraspables(_ graspables: [DuckScene.Prop], to world: Entity) {
             for prop in graspables {
-                // The ball is the same Beak Orange everywhere; a block is
-                // shell cream; a leaning rod stays wooden brown (a prop's own
-                // colour, not a theme colour).
-                let colour: UIColor = prop.shape == .ball ? tone(.actionPrimary)
-                    : (prop.graspHeightMillimetres == nil ? tone(.stageProp)
-                                                          : .systemBrown)
+                let lower = prop.name.lowercased()
+                let isCone = lower.hasPrefix("cone")
+                // The ball is Beak Orange; the plant's named toy blocks and cones keep their
+                // bright MJCF colors (red/blue/yellow blocks, orange cones) so kids can spot them.
+                let colour: UIColor
+                if prop.shape == .ball || isCone {
+                    colour = tone(.actionPrimary)
+                } else if lower == "block_a" {
+                    colour = UIColor(red: 0.92, green: 0.30, blue: 0.28, alpha: 1)
+                } else if lower == "block_b" {
+                    colour = UIColor(red: 0.22, green: 0.58, blue: 0.94, alpha: 1)
+                } else if lower == "block_c" {
+                    colour = UIColor(red: 0.98, green: 0.80, blue: 0.18, alpha: 1)
+                } else {
+                    colour = prop.graspHeightMillimetres == nil ? tone(.stageProp) : .systemBrown
+                }
                 let thickness = Float(prop.thicknessMillimetres / 1000)
                 let mesh: MeshResource
                 switch prop.shape {
@@ -796,13 +827,21 @@ struct StageSurface: UIViewRepresentable {
                 case .block:
                     mesh = .generateBox(size: SIMD3<Float>(repeating: Float(prop.length)))
                 case .rod:
-                    mesh = .generateBox(size: SIMD3<Float>(Float(prop.length),
-                                                           thickness, thickness))
+                    if isCone {
+                        // Cones stand upright on the floor so they read as bowling pins/cones.
+                        mesh = .generateBox(size: SIMD3<Float>(thickness, Float(prop.length), thickness),
+                                            cornerRadius: thickness * 0.35)
+                    } else {
+                        mesh = .generateBox(size: SIMD3<Float>(Float(prop.length),
+                                                               thickness, thickness))
+                    }
                 }
                 let entity = ModelEntity(mesh: mesh,
                                          materials: [UnlitMaterial(color: colour)])
                 let x = Float(prop.x), z = Float(-prop.y)
-                if prop.shape == .rod, let height = prop.graspHeightMillimetres {
+                if isCone {
+                    entity.position = SIMD3<Float>(x, Float(prop.length) / 2, z)
+                } else if prop.shape == .rod, let height = prop.graspHeightMillimetres {
                     // Leaning: one end on the floor, the grip at the height
                     // the person set. The angle follows from the two.
                     let grip = Float(height / 1000)
@@ -1625,6 +1664,12 @@ struct StageCameraColumn: View {
     /// Control tab while Following. Elsewhere the stop is the plain 200 mm and
     /// the hint must not claim the whole robot fits, because nothing measured it.
     var nearStopIsFitted = false
+    /// When true (on Play), collapses to a single compact camera toggle button so the 3D stage
+    /// stays wide open until the person opens the camera tools.
+    var collapsible = false
+
+    @State private var expanded = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var distance: Double { Double(orbit.distance) }
     private var home: Double? { orbit.homeDistance.map(Double.init) }
@@ -1634,21 +1679,52 @@ struct StageCameraColumn: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            button(StageCamera.zoomInSaid, symbol: "plus.magnifyingglass",
-                   can: StageCamera.canZoom(inward: true, from: distance, to: orbit.limits),
-                   why: nearStopIsFitted ? StageCamera.nearestSaid : StageCamera.nearStopSaid) {
-                orbit.zoom(by: Float(StageCamera.zoomNotch))
+            if !collapsible || expanded {
+                if collapsible {
+                    Button {
+                        withAnimation(Theme.motion(reduced: reduceMotion)) { expanded = false }
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(Theme.textSecondary)
+                            .frame(width: DesignMetric.minimumTarget,
+                                   height: DesignMetric.minimumTarget)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(Text(ControllerWords.cameraTools))
+                    .accessibilityHint(Text(ControllerWords.cameraToolsHint))
+                }
+                button(StageCamera.zoomInSaid, symbol: "plus.magnifyingglass",
+                       can: StageCamera.canZoom(inward: true, from: distance, to: orbit.limits),
+                       why: nearStopIsFitted ? StageCamera.nearestSaid : StageCamera.nearStopSaid) {
+                    orbit.zoom(by: Float(StageCamera.zoomNotch))
+                }
+                button(StageCamera.zoomOutSaid, symbol: "minus.magnifyingglass",
+                       can: StageCamera.canZoom(inward: false, from: distance, to: orbit.limits),
+                       why: StageCamera.farthestSaid) {
+                    orbit.zoom(by: 1 / Float(StageCamera.zoomNotch))
+                }
+                button(StageCamera.resetSaid, symbol: "camera.metering.center.weighted",
+                       can: true, why: nil) {
+                    orbit.resetView()
+                }
+                if showsFollow { follow }
+            } else {
+                Button {
+                    withAnimation(Theme.motion(reduced: reduceMotion)) { expanded = true }
+                } label: {
+                    Image(systemName: "camera.viewfinder")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(Theme.textPrimary)
+                        .frame(width: DesignMetric.minimumTarget,
+                               height: DesignMetric.minimumTarget)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text(ControllerWords.cameraTools))
+                .accessibilityHint(Text(ControllerWords.cameraToolsHint))
             }
-            button(StageCamera.zoomOutSaid, symbol: "minus.magnifyingglass",
-                   can: StageCamera.canZoom(inward: false, from: distance, to: orbit.limits),
-                   why: StageCamera.farthestSaid) {
-                orbit.zoom(by: 1 / Float(StageCamera.zoomNotch))
-            }
-            button(StageCamera.resetSaid, symbol: "camera.metering.center.weighted",
-                   can: true, why: nil) {
-                orbit.resetView()
-            }
-            if showsFollow { follow }
         }
         .onStageChrome()
         // A COLUMN OF FOUR NAMED BUTTONS IS NOT A GROUP WITH A NAME. Each one

@@ -11,18 +11,21 @@ import StudioKit
 struct ControllerTopBar: View {
     @Binding var mode: ControlArbiter.Mode
     let pill: DuckPill
+    var isRunning: Bool = true
+    var canStart: Bool = false
+    var start: (() -> Void)? = nil
     let stop: () -> Void
 
     var body: some View {
         HStack(alignment: .center, spacing: Theme.spacing(.tight)) {
             pill
-            Spacer(minLength: Theme.spacing(.tight))
+            Spacer(minLength: Theme.spacing(.hairline))
             ModeSwitch(mode: $mode)
-            Spacer(minLength: Theme.spacing(.tight))
-            StopDisc(action: stop)
+            Spacer(minLength: Theme.spacing(.hairline))
+            StopDisc(isRunning: isRunning, canStart: canStart, onStart: start, action: stop)
         }
         .padding(.horizontal, Theme.spacing(.snug))
-        .padding(.top, Theme.spacing(.tight))
+        .padding(.top, Theme.spacing(.hairline))
     }
 }
 
