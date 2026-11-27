@@ -685,62 +685,64 @@ struct DriveView: View {
             flight?.cancel()
         }
         .sheet(item: $shelf) { which in
-            Group {
-            switch which {
-            case .scene:
-                ControlSceneSheet(entries: sceneRows, standing: world?.name,
-                                  choose: { slot in
-                                      guard worldEntries.indices.contains(slot) else { return }
-                                      let picked = worldEntries[slot].choice
-                                      guard picked != standingChoice else { return }
-                                      flight?.cancel()
-                                      flight = Task {
-                                          if running { await halt() }
-                                          await stand(in: picked)
-                                      }
-                                  })
-            case .worlds:
-                PlayWorldsSheet(selectedBackdrop: playBackdropBinding,
-                                activeWorldName: world?.name,
-                                busy: busy,
-                                choosePlayground: { picked in
-                                    flight?.cancel()
-                                    flight = Task { await applyPlayground(picked) }
-                                },
-                                openAllScenes: {
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                                        shelf = .scene
-                                    }
-                                })
-            case .motions:
-                ControlMotionsSheet(motions: motionRows, running: runningMotion,
-                                    outcome: motionOutcome,
-                                    run: { id in Task { await runMotion(id) } })
-            case .moves:
-                movesSheet
-            case .more:
-                moreSheet
-            case .keep:
-                SequenceKeepSheet(desk: desk, bench: bench, token: token,
-                                  engage: { engageLoop() }, library: model)
-            case .plan:
-                NavigationStack {
-                    PlanEditorView(desk: desk, venue: venue, engage: { engageLoop() }, bench: bench,
-                                   models: settingsModels, robot: robot, stopDriving: { await stepAside() })
-                }
-            case .dream:
-                // THE BENCH'S OWN PEER, made if driving has not made it yet: the camera draws its duck.
-                DreamSimSheet(peer: (try? requirePeer()) as? BenchPeer, feed: simHeadCamera,
-                              model: dreamModel, recorder: dreamRecorder,
-                              stopDriving: { await stepAside() })
-            }
-            }
-            .stopPill()
+            shelfContent(which)
+                .stopPill()
         }
         .alert(failureTitle, isPresented: Binding(
             get: { failure != nil }, set: { if !$0 { failure = nil } })) {
             Button("OK", role: .cancel) {}
         } message: { Text(failure ?? "") }
+    }
+
+    private func shelfContent(_ which: Shelf) -> AnyView {
+        switch which {
+        case .scene:
+            return AnyView(ControlSceneSheet(entries: sceneRows, standing: world?.name,
+                                             choose: { slot in
+                                                 guard worldEntries.indices.contains(slot) else { return }
+                                                 let picked = worldEntries[slot].choice
+                                                 guard picked != standingChoice else { return }
+                                                 flight?.cancel()
+                                                 flight = Task {
+                                                     if running { await halt() }
+                                                     await stand(in: picked)
+                                                 }
+                                             }))
+        case .worlds:
+            return AnyView(PlayWorldsSheet(selectedBackdrop: playBackdropBinding,
+                                           activeWorldName: world?.name,
+                                           busy: busy,
+                                           choosePlayground: { picked in
+                                               flight?.cancel()
+                                               flight = Task { await applyPlayground(picked) }
+                                           },
+                                           openAllScenes: {
+                                               DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                                                   shelf = .scene
+                                               }
+                                           }))
+        case .motions:
+            return AnyView(ControlMotionsSheet(motions: motionRows, running: runningMotion,
+                                               outcome: motionOutcome,
+                                               run: { id in Task { await runMotion(id) } }))
+        case .moves:
+            return movesSheet
+        case .more:
+            return moreSheet
+        case .keep:
+            return AnyView(SequenceKeepSheet(desk: desk, bench: bench, token: token,
+                                             engage: { engageLoop() }, library: model))
+        case .plan:
+            return AnyView(NavigationStack {
+                PlanEditorView(desk: desk, venue: venue, engage: { engageLoop() }, bench: bench,
+                               models: settingsModels, robot: robot, stopDriving: { await stepAside() })
+            })
+        case .dream:
+            // THE BENCH'S OWN PEER, made if driving has not made it yet: the camera draws its duck.
+            return AnyView(DreamSimSheet(peer: (try? requirePeer()) as? BenchPeer, feed: simHeadCamera,
+                                         model: dreamModel, recorder: dreamRecorder,
+                                         stopDriving: { await stepAside() }))
+        }
     }
 
     // MARK: - where you are driving it
@@ -804,16 +806,16 @@ struct DriveView: View {
     }
 
     /// The picture, or the absence of one.
-    @ViewBuilder private var venueStage: some View {
+    private var venueStage: AnyView {
         switch venue {
-        case .sim: stage
-        case .ar: arStage
+        case .sim: return AnyView(stage)
+        case .ar: return AnyView(arStage)
         // THE REAL DUCK'S OWN PICTURE, full-bleed, or a calm poster with its state sentence. Never
         // a rendered duck under the real duck's name, and never a list.
         case .real:
-            DuckPictureStage(feed: realFeed, connected: robot.isConnected,
-                             hasAddress: DuckCamera.Address(cameraAddress.isEmpty ? robot.host : cameraAddress) != nil,
-                             connect: { router.duckSheet = true })
+            return AnyView(DuckPictureStage(feed: realFeed, connected: robot.isConnected,
+                                            hasAddress: DuckCamera.Address(cameraAddress.isEmpty ? robot.host : cameraAddress) != nil,
+                                            connect: { router.duckSheet = true }))
         }
     }
 
@@ -832,7 +834,8 @@ struct DriveView: View {
     /// NOTHING HERE IS CLIPPED AND NOTHING HERE IS A CARD. The 300-point cap,
     /// the rounded viewport and its hairline all went with the layout that had
     /// something above and below the picture to be a card against.
-    private var controlStage: some View {
+    private var controlStage: AnyView {
+        AnyView(
         venueStage
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .measuringGlass { glass = $0 }
@@ -938,6 +941,7 @@ struct DriveView: View {
             // glass, the chrome and `follows`, so re-asserting it writes the
             // same value and the second pass changes nothing.
             .onChange(of: orbit.limits) { _, _ in refitCamera() }
+        )
     }
 
     /// A real duck's stick let go: the loop ends, then a zero twist and `robot.stop` go out.
@@ -1261,7 +1265,8 @@ struct DriveView: View {
     /// picture to say something that does not change while you drive. The
     /// refusal from the camera door is NOT collapsed: a venue that cannot be
     /// entered has to say so where the control is.
-    private var topChrome: some View {
+    private var topChrome: AnyView {
+        AnyView(
         VStack(alignment: .leading, spacing: Theme.spacing(.hairline)) {
             // THE CONTROLLER'S TOP: the duck pill, Drive | Tell | Auto, and the Run/Stop disc.
             ControllerTopBar(mode: modeBinding, pill: duckPill,
@@ -1320,25 +1325,10 @@ struct DriveView: View {
             }
             // GOAL CELEBRATION BANNER when kicking into the Soccer Goal playground net.
             if venue == .sim, showGoalPitch, goalCelebrated {
-                HStack(spacing: Theme.spacing(.tight)) {
-                    Label(PlayWorld.Words.goalBanner, systemImage: "trophy.fill")
-                        .font(.system(.subheadline, design: .rounded).weight(.bold))
-                        .foregroundStyle(Theme.onFill)
-                    Spacer(minLength: 0)
-                    Button(ControllerWords.kickAgain) {
-                        flight?.cancel()
-                        flight = Task { await applyPlayground(.soccerGoal) }
-                    }
-                    .buttonStyle(.raisedAction)
-                    .accessibilityHint(Text(ControllerWords.goalHint))
+                PlayGoalBanner {
+                    flight?.cancel()
+                    flight = Task { await applyPlayground(.soccerGoal) }
                 }
-                .padding(.horizontal, Theme.spacing(.snug))
-                .padding(.vertical, Theme.spacing(.hairline))
-                .background(Theme.actionYellow, in: Capsule())
-                .overlay(Capsule().strokeBorder(Theme.outline, lineWidth: DesignMetric.outlineStroke))
-                .shadow(color: PondShadow.colour, radius: PondShadow.blur, y: PondShadow.y)
-                .padding(.horizontal, Theme.spacing(.snug))
-                .transition(.scale.combined(with: .opacity))
             }
             // A FALLEN PRACTICE DUCK GETS A BIG CHEERFUL POP-UP BUTTON right here.
             if venue != .real, bench != nil, live.map({ !$0.upright }) == true {
@@ -1367,6 +1357,7 @@ struct DriveView: View {
         }
         .padding(.bottom, Theme.spacing(.hairline))
         .measuringChromeHeight { topChromeHeight = $0 }
+        )
     }
 
     /// A Stop pressed somewhere other than Play (a sheet's pill, Moves): put Play's loop down
@@ -1387,7 +1378,8 @@ struct DriveView: View {
     /// The stage with the controller's lifecycle on it: the duck Stop goes to, the real duck's
     /// picture, the stick gate, goals as arbiter runs, the foreground rule and routes into Play.
     /// Split out of `body` so the type checker can see it in one piece.
-    private var stageWithController: some View {
+    private var stageWithController: AnyView {
+        AnyView(
         controlStage
         // A STOP PRESSED ON A SHEET OVER PLAY reaches this loop too, and the pill shows while it runs.
         .onChange(of: running) { _, now in runs.playIsDriving = now }
@@ -1506,6 +1498,7 @@ struct DriveView: View {
                 .presentationDetents([.medium])
                 .stopPill()
         }
+        )
     }
 
     // MARK: - the controller's pieces
@@ -1932,7 +1925,8 @@ struct DriveView: View {
     /// is pushed down by the strip's MEASURED height rather than by a guess, and
     /// the floor note comes with it — the bottom corner it used to take is where
     /// a thumb now rests on a stick.
-    private var stageNotes: some View {
+    private var stageNotes: AnyView {
+        AnyView(
         VStack(alignment: .leading, spacing: 0) {
             if hasReadout { hud }
             if worldRouteMissing { floorCaption }
@@ -1941,6 +1935,7 @@ struct DriveView: View {
         // panel alone and the top footprint is strip + panel, not strip twice.
         .measuringChromeHeight { notesHeight = $0 }
         .padding(.top, topChromeHeight + (venue == .ar ? arHudHeight : 0))
+        )
     }
 
     /// The camera's buttons, bottom-trailing — and NOT on your own floor.
@@ -1969,7 +1964,8 @@ struct DriveView: View {
     /// THE HANDLE NEVER MOVES AND IS NEVER THE STOP. Stop is the bar below this,
     /// outside the stage, a `safeAreaInset` that this file does not touch. What
     /// this decides is only whether the sticks or the settings are above it.
-    private var bottomChrome: some View {
+    private var bottomChrome: AnyView {
+        AnyView(
         VStack(spacing: Theme.spacing(.tight)) {
             if drawerIsUp {
                 controls
@@ -2050,11 +2046,13 @@ struct DriveView: View {
         .padding(.horizontal, Theme.spacing(.snug))
         .padding(.bottom, Theme.spacing(.tight))
         .measuringChromeHeight { bottomChromeHeight = $0 }
+        )
     }
 
     /// What a pose can do: which joints the handles are on, hold it on the
     /// bench, keep it in Studio, and put the sticks back.
-    private var poseBar: some View {
+    private var poseBar: AnyView {
+        AnyView(
         VStack(alignment: .leading, spacing: Theme.spacing(.tight)) {
             HStack(spacing: Theme.spacing(.tight)) {
                 Picker(ControlShelf.poseChip, selection: $poseGroup) {
@@ -2101,6 +2099,7 @@ struct DriveView: View {
         }
         .padding(Theme.spacing(.snug))
         .onStageChrome(DriveMetric.viewport.inner)
+        )
     }
 
     /// The focused joint, said and settable: a telemetry row and a slider,
@@ -2173,7 +2172,8 @@ struct DriveView: View {
     // MARK: - mimicking
 
     /// The bar that replaces the pose bar while the camera is posing the duck.
-    private var mimicBar: some View {
+    private var mimicBar: AnyView {
+        AnyView(
         MimicBar(engine: mimic, door: cameraDoor, benchIsHere: bench != nil, busy: busy,
                  keptName: mimicKept?.name, note: poseNote,
                  flip: {
@@ -2191,6 +2191,7 @@ struct DriveView: View {
                  },
                  done: { stopMimic() })
             .onStageChrome(DriveMetric.viewport.inner)
+        )
     }
 
     /// Start posing the duck from the camera. The pose starts as the live
@@ -2253,62 +2254,19 @@ struct DriveView: View {
 
     /// One collapsed chip on the picture. A capsule at the minimum target, never taller.
     private func playChip(_ title: String, symbol: String, on: Bool = false,
-                          act: @escaping () -> Void) -> some View {
-        Button(action: act) {
-            Label(title, systemImage: symbol)
-                .font(.footnote.weight(on ? .semibold : .regular))
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-                .foregroundStyle(on ? Theme.onFill : Theme.textPrimary)
-                .padding(.horizontal, Theme.spacing(.snug))
-                .frame(minHeight: DesignMetric.minimumTarget)
-                .background(on ? Theme.actionTeal : Theme.surfacePrimary, in: Capsule())
-                .overlay(Capsule().strokeBorder(Theme.outline.opacity(on ? 1 : 0.25),
-                                                lineWidth: on ? DesignMetric.outlineStroke : 1))
-                .shadow(color: PondShadow.colour, radius: PondShadow.blur, y: PondShadow.y)
-                .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .accessibilityValue(Text(on ? "on" : ""))
+                          act: @escaping () -> Void) -> PlayChipButton {
+        PlayChipButton(title: title, symbol: symbol, on: on, action: act)
     }
 
     /// Compact bottom utility bar: instant Quack (hold for 7 sounds), World picker, Moves and More.
-    private var sheetsRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: Theme.spacing(.hairline)) {
-                quackChip
-                if venue == .sim {
-                    playChip(ControllerWords.worldsChip, symbol: "paintpalette.fill",
-                             on: playBackdrop != .pond || showGoalPitch) {
-                        shelf = .worlds
-                    }
-                    .accessibilityHint(Text(ControllerWords.worldsHint))
-                }
-                playChip(ControllerWords.movesSheet, symbol: "chevron.up") { shelf = .moves }
-                    .accessibilityHint(Text(ControllerWords.movesSheetHint))
-                playChip(ControllerWords.more, symbol: "ellipsis.circle") { shelf = .more }
-                    .accessibilityHint(Text(ControllerWords.moreHint))
-            }
-            .padding(.horizontal, Theme.spacing(.hairline))
-        }
-    }
-
-    /// One-tap synthesized duck voice on the practice duck (or real sound order on a real duck);
-    /// long-press opens all seven duck calls for a six-year-old to explore.
-    private var quackChip: some View {
-        playChip(ControllerWords.quack, symbol: "speaker.wave.2.fill") {
-            triggerSound(.chirp)
-        }
-        .accessibilityHint(Text(ControllerWords.quackHint))
-        .contextMenu {
-            ForEach(PlayWorld.kidSounds, id: \.self) { sound in
-                Button {
-                    triggerSound(sound)
-                } label: {
-                    Label(PlayWorld.soundTitle(sound), systemImage: PlayWorld.soundSymbol(sound))
-                }
-            }
-        }
+    private var sheetsRow: PlaySheetsBar {
+        PlaySheetsBar(
+            showWorlds: venue == .sim,
+            worldsHighlighted: playBackdrop != .pond || showGoalPitch,
+            onSound: { triggerSound($0) },
+            onWorlds: { shelf = .worlds },
+            onMoves: { shelf = .moves },
+            onMore: { shelf = .more })
     }
 
     @MainActor private func triggerSound(_ sound: DuckSound) {
@@ -2324,7 +2282,8 @@ struct DriveView: View {
     /// THE PULL-UP MOVES SHEET: the Moves tab's tiles over the picture, so most runs happen with
     /// the duck in view. Sequences play on this stick loop; motions run on the bench; Plan opens
     /// the editor with this desk.
-    private var movesSheet: some View {
+    private var movesSheet: AnyView {
+        AnyView(
         NavigationStack {
             List {
                 MoveTileSections()
@@ -2399,10 +2358,12 @@ struct DriveView: View {
         }
         .presentationDetents([.medium, .large])
         .onAppear { desk.reloadShelf() }
+        )
     }
 
     /// MORE: what used to be chips and a drawer over the picture, one level down.
-    private var moreSheet: some View {
+    private var moreSheet: AnyView {
+        AnyView(
         NavigationStack {
             Group {
                 if venue == .real {
@@ -2478,6 +2439,7 @@ struct DriveView: View {
             }
         }
         .presentationDetents([.medium, .large])
+        )
     }
 
     /// The handle that brings the settings up over the picture.
@@ -3046,37 +3008,21 @@ struct DriveView: View {
     }
 
     private func padButtonBody(_ control: DuckPad.Control, shown: DuckPadMap.Shown,
-                               fillOverride: PrimaryActionStyle.Fill? = nil) -> some View {
+                               fillOverride: PrimaryActionStyle.Fill? = nil) -> PadButtonView {
         let isLive = liveHere(control, shown: shown)
         let toy = toyButtonIfSimple(control)
         let label = toy?.title ?? (isSimple ? (shown.name ?? control.face) : control.face)
-        return Group {
-            if isLive {
-                padPress(control, label: label, symbol: toy?.symbol)
-                    .buttonStyle(.faceButton(fillOverride ?? Self.faceFill(control)))
-            } else {
-                padPress(control, label: label, symbol: nil).buttonStyle(DeadControlStyle())
-            }
-        }
-        // A PRESS THAT CAME FROM THE CONTROLLER, DRAWN LIKE A PRESS. The style
-        // darkens its fill under a thumb and cannot see a Bluetooth button at
-        // all, so a hardware press is mirrored with the same delta from out
-        // here. It is the style's number written twice because the style's copy
-        // is private; the two have to feel like one press.
-        .brightness(pad.lastPressed == control ? DriveMetric.pressDelta : 0)
-        .animation(Theme.motion(reduced: reduceMotion), value: pad.lastPressed)
-        .accessibilityLabel(Text(shown.name.map { "\($0), \(control.face)" } ?? control.face))
-        .accessibilityHint(Text(shown.detail))
-        // A REMAPPED CONTROL SAYS SO WITHOUT A WORD ON THE PICTURE. Four points
-        // in the measured colour, and the sentence itself is in `shown.detail`
-        // above, which is what VoiceOver reads.
-        .overlay(alignment: .topTrailing) {
-            if shown.isCustom {
-                Circle().fill(Theme.measured)
-                    .frame(width: DriveMetric.remapDot, height: DriveMetric.remapDot)
-                    .accessibilityHidden(true)
-            }
-        }
+        return PadButtonView(
+            label: label,
+            symbol: isLive ? toy?.symbol : nil,
+            isLive: isLive,
+            fill: fillOverride ?? Self.faceFill(control),
+            isHighlighted: pad.lastPressed == control,
+            reduceMotion: reduceMotion,
+            accessibilityLabel: shown.name.map { "\($0), \(control.face)" } ?? control.face,
+            accessibilityHint: shown.detail,
+            isCustom: shown.isCustom,
+            action: { Task { await press(control) } })
     }
 
     /// Pond Day's face buttons: A orange, B lavender, X teal, Y yellow, the
@@ -3089,31 +3035,6 @@ struct DriveView: View {
         case .x: return .teal
         case .y: return .yellow
         default: return .raised
-        }
-    }
-
-    private func padPress(_ control: DuckPad.Control, label: String, symbol: String?) -> some View {
-        Button { Task { await press(control) } } label: {
-            if let symbol {
-                // Kid-friendly Simple toy button: crisp icon + short 1-word verb.
-                VStack(spacing: 2) {
-                    Image(systemName: symbol)
-                        .font(.system(size: 17, weight: .bold))
-                    Text(label)
-                        .font(.system(.caption2, design: .rounded).weight(.bold))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.75)
-                }
-                .frame(width: DesignMetric.movingTarget - 10)
-            } else if label.count <= 3 {
-                Text(label).lineLimit(1).fixedSize()
-            } else {
-                Text(label.replacingOccurrences(of: "_", with: "_\u{200B}"))
-                    .lineLimit(2)
-                    .multilineTextAlignment(.center)
-                    .minimumScaleFactor(0.5)
-                    .frame(width: DesignMetric.movingTarget - 8)
-            }
         }
     }
 
@@ -3137,14 +3058,14 @@ struct DriveView: View {
     /// and the same sixty-point `PrimaryActionStyle.moves` target. Somebody who
     /// has driven the robot should not have to read either layout — see
     /// `padButton` for why the clusters no longer flank the sticks.
-    @ViewBuilder private func padDeck(compact: Bool) -> some View {
+    private func padDeck(compact: Bool) -> AnyView {
         if compact {
             // In Simple mode on the practice duck, Y is a real-duck-only emotion (hidden), so
             // surface Kick (RB) in the yellow slot — giving kids Kick, Roll, Peck and Sit right
             // on Play instead of hiding Kick inside More.
             let firstControl: DuckPad.Control = (isSimple && venue != .real) ? .rightBumper : .y
             let firstFill: PrimaryActionStyle.Fill? = (isSimple && venue != .real) ? .yellow : nil
-            HStack(alignment: .bottom, spacing: Theme.spacing(.tight)) {
+            return AnyView(HStack(alignment: .bottom, spacing: Theme.spacing(.tight)) {
                 ThumbPad(title: "Move", stick: $touchSticks.left)
                 Spacer(minLength: Theme.spacing(.hairline))
                 VStack(spacing: Theme.spacing(.tight)) {
@@ -3171,12 +3092,12 @@ struct DriveView: View {
                 }
                 Spacer(minLength: Theme.spacing(.hairline))
                 ThumbPad(title: "Turn", stick: $touchSticks.right, verticalIsLive: false)
-            }
+            })
             // NO CARD BEHIND THE WHOLE ROW. A full-width opaque band across the
             // bottom of a live picture is the thing this layout exists to avoid;
             // the pads and the buttons each carry their own surface already.
         } else {
-            VStack(spacing: Theme.spacing(.snug)) {
+            return AnyView(VStack(spacing: Theme.spacing(.snug)) {
                 // THE BUMPERS LIVE HERE NOW. On the picture they were a third
                 // row in a column about 129 points wide, where two labels of
                 // two characters each do not fit and were squeezed to a
@@ -3209,7 +3130,7 @@ struct DriveView: View {
             // says where a surface starts. It is not a decoration here, it is
             // the boundary.
             .overlay(deckCard.strokeBorder(Theme.separator,
-                                           lineWidth: DriveMetric.hairlineStroke))
+                                           lineWidth: DriveMetric.hairlineStroke)))
         }
     }
 
@@ -3221,7 +3142,8 @@ struct DriveView: View {
 
     // MARK: - the controls
 
-    private var controls: some View {
+    private var controls: AnyView {
+        AnyView(
         List {
             if benches.benches.isEmpty {
                 Section {
@@ -3376,6 +3298,7 @@ struct DriveView: View {
         // is ever set on the ground the palette says is short of 4.5:1.
         .scrollContentBackground(.hidden)
         .background(Theme.backgroundSecondary)
+        )
     }
 
     // MARK: - the robot venue
@@ -5125,5 +5048,174 @@ struct ThumbPad: View {
                                 stick.x > 0 ? "right" : "left"))
         }
         return parts.joined(separator: ", ")
+    }
+}
+
+// MARK: - Extracted Play subviews (keeps SwiftUI generic type depth shallow on iOS)
+
+/// One collapsed pill chip on the Play overlay. Extracted as a nominal View so every call site
+/// adds 1 type node instead of 14 nested ModifiedContent layers to DriveView's body metadata.
+private struct PlayChipButton: View {
+    let title: String
+    let symbol: String
+    var on: Bool = false
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label(title, systemImage: symbol)
+                .font(.footnote.weight(on ? .semibold : .regular))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .foregroundStyle(on ? Theme.onFill : Theme.textPrimary)
+                .padding(.horizontal, Theme.spacing(.snug))
+                .frame(minHeight: DesignMetric.minimumTarget)
+                .background(on ? Theme.actionTeal : Theme.surfacePrimary, in: Capsule())
+                .overlay(Capsule().strokeBorder(Theme.outline.opacity(on ? 1 : 0.25),
+                                                lineWidth: on ? DesignMetric.outlineStroke : 1))
+                .shadow(color: PondShadow.colour, radius: PondShadow.blur, y: PondShadow.y)
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityValue(Text(on ? "on" : ""))
+    }
+}
+
+/// One-tap synthesized duck voice on the practice duck (or real sound order on a real duck);
+/// long-press opens all seven duck calls for a six-year-old to explore.
+private struct PlayQuackChip: View {
+    let onSound: (DuckSound) -> Void
+
+    var body: some View {
+        PlayChipButton(title: ControllerWords.quack, symbol: "speaker.wave.2.fill") {
+            onSound(.chirp)
+        }
+        .accessibilityHint(Text(ControllerWords.quackHint))
+        .contextMenu {
+            ForEach(PlayWorld.kidSounds, id: \.self) { sound in
+                Button {
+                    onSound(sound)
+                } label: {
+                    Label(PlayWorld.soundTitle(sound), systemImage: PlayWorld.soundSymbol(sound))
+                }
+            }
+        }
+    }
+}
+
+/// Compact bottom utility bar on Play: instant Quack, World picker, Moves and More.
+private struct PlaySheetsBar: View {
+    let showWorlds: Bool
+    let worldsHighlighted: Bool
+    let onSound: (DuckSound) -> Void
+    let onWorlds: () -> Void
+    let onMoves: () -> Void
+    let onMore: () -> Void
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: Theme.spacing(.hairline)) {
+                PlayQuackChip(onSound: onSound)
+                if showWorlds {
+                    PlayChipButton(title: ControllerWords.worldsChip,
+                                   symbol: "paintpalette.fill",
+                                   on: worldsHighlighted,
+                                   action: onWorlds)
+                        .accessibilityHint(Text(ControllerWords.worldsHint))
+                }
+                PlayChipButton(title: ControllerWords.movesSheet,
+                               symbol: "chevron.up",
+                               action: onMoves)
+                    .accessibilityHint(Text(ControllerWords.movesSheetHint))
+                PlayChipButton(title: ControllerWords.more,
+                               symbol: "ellipsis.circle",
+                               action: onMore)
+                    .accessibilityHint(Text(ControllerWords.moreHint))
+            }
+            .padding(.horizontal, Theme.spacing(.hairline))
+        }
+    }
+}
+
+/// Cheerful banner when the ball crosses the Soccer Goal playground line.
+private struct PlayGoalBanner: View {
+    let onKickAgain: () -> Void
+
+    var body: some View {
+        HStack(spacing: Theme.spacing(.tight)) {
+            Label(PlayWorld.Words.goalBanner, systemImage: "trophy.fill")
+                .font(.system(.subheadline, design: .rounded).weight(.bold))
+                .foregroundStyle(Theme.onFill)
+            Spacer(minLength: 0)
+            Button(ControllerWords.kickAgain, action: onKickAgain)
+                .buttonStyle(.raisedAction)
+                .accessibilityHint(Text(ControllerWords.goalHint))
+        }
+        .padding(.horizontal, Theme.spacing(.snug))
+        .padding(.vertical, Theme.spacing(.hairline))
+        .background(Theme.actionYellow, in: Capsule())
+        .overlay(Capsule().strokeBorder(Theme.outline, lineWidth: DesignMetric.outlineStroke))
+        .shadow(color: PondShadow.colour, radius: PondShadow.blur, y: PondShadow.y)
+        .padding(.horizontal, Theme.spacing(.snug))
+        .transition(.scale.combined(with: .opacity))
+    }
+}
+
+/// One gamepad button on Play (either a kid-friendly icon+verb toy button or a classic face button).
+private struct PadButtonView: View {
+    let label: String
+    let symbol: String?
+    let isLive: Bool
+    let fill: PrimaryActionStyle.Fill
+    let isHighlighted: Bool
+    let reduceMotion: Bool
+    let accessibilityLabel: String
+    let accessibilityHint: String
+    let isCustom: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Group {
+            if isLive {
+                buttonBody.buttonStyle(.faceButton(fill))
+            } else {
+                buttonBody.buttonStyle(DeadControlStyle())
+            }
+        }
+        .brightness(isHighlighted ? DriveMetric.pressDelta : 0)
+        .animation(Theme.motion(reduced: reduceMotion), value: isHighlighted)
+        .accessibilityLabel(Text(accessibilityLabel))
+        .accessibilityHint(Text(accessibilityHint))
+        .overlay(alignment: .topTrailing) {
+            if isCustom {
+                Circle().fill(Theme.measured)
+                    .frame(width: DriveMetric.remapDot, height: DriveMetric.remapDot)
+                    .accessibilityHidden(true)
+            }
+        }
+    }
+
+    private var buttonBody: some View {
+        Button(action: action) {
+            if let symbol {
+                VStack(spacing: 2) {
+                    Image(systemName: symbol)
+                        .font(.system(size: 17, weight: .bold))
+                    Text(label)
+                        .font(.system(.caption2, design: .rounded).weight(.bold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                }
+                .frame(width: DesignMetric.movingTarget - 10)
+            } else if label.count <= 3 {
+                Text(label).lineLimit(1).fixedSize()
+            } else {
+                Text(label.replacingOccurrences(of: "_", with: "_\u{200B}"))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .minimumScaleFactor(0.5)
+                    .frame(width: DesignMetric.movingTarget - 8)
+            }
+        }
     }
 }
