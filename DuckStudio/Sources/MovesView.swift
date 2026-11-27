@@ -81,6 +81,11 @@ struct MovesView: View {
                     HubRow("Duck soccer", "Practice duck only. Score on a pitch.", "soccerball")
                 }
                 NavigationLink {
+                    DuckChessView(models: models)
+                } label: {
+                    HubRow("Sim Chess", StudioHubWords.simChess, "crown")
+                }
+                NavigationLink {
                     GhostDuckView()
                 } label: {
                     HubRow("Golf, fetch and more", "Practice duck only. Games on the ghost duck.",

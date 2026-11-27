@@ -116,6 +116,11 @@ struct StudioHubView: View {
                            AutonomousMappingWords.studioRowSymbol)
                 }
                 NavigationLink {
+                    DuckChessView(models: models)
+                } label: {
+                    HubRow("Sim Chess", StudioHubWords.simChess, "crown")
+                }
+                NavigationLink {
                     DuckSoundsView()
                 } label: {
                     HubRow("Duck sounds", "Hear and edit the duck's sounds.", "waveform")
