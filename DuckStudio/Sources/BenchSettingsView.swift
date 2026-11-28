@@ -158,8 +158,8 @@ struct BenchSettingsView: View {
                     Label(PhoneBenchReport.name(onPad: UIDevice.current.userInterfaceIdiom == .pad),
                           systemImage: Self.deviceSymbol)
                         .foregroundStyle(Theme.textPrimary)
-                    Text(store.phonePort == 0 ? PhoneBenchReport.notListening
-                                              : PhoneBenchReport.phoneRowNote)
+                    Text((store.phonePort == 0 || !store.phoneReady) ? PhoneBenchReport.notListening
+                                                                     : PhoneBenchReport.phoneRowNote)
                         .font(.caption).foregroundStyle(Theme.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }

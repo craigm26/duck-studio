@@ -328,29 +328,75 @@ extension View {
     func stopPill() -> some View { modifier(StopPillModifier()) }
 }
 
-/// The solid red Stop disc on Play. Never glass: legibility cannot depend on a tint.
+/// The top-right Run/Stop disc on Play. Never glass: legibility cannot depend on a tint.
+///
+/// While anything is running it is the solid red Stop disc (`#D92A2A` with white `stop.fill`).
+/// When stopped on the practice duck (`canStart == true`), it flips to Beak Orange with
+/// `play.fill` so tapping it wakes and starts the duck cleanly. On a real robot (`canStart == false`),
+/// it stays Stop and never unexpectedly moves hardware, switching to a calm outlined Stop when idle
+/// so running vs stopped is immediately clear.
 struct StopDisc: View {
     var size: CGFloat = StopMetric.disc
+    var isRunning: Bool = true
+    var canStart: Bool = false
+    var onStart: (() -> Void)? = nil
     let action: () -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var showsPlay: Bool { !isRunning && canStart && onStart != nil }
+
     var body: some View {
-        Button(action: action) {
-            Image(systemName: "stop.fill")
-                .font(.system(size: size * 0.38, weight: .bold))
-                .foregroundStyle(.white)
-                .frame(width: size, height: size)
-                .background(StopMetric.red, in: Circle())
-                // A 3pt white ring inside a 2pt ink outline: the ring carries
-                // the disc on the dark floor (red is 2.00:1 there), the ink
-                // carries it on the light page.
-                .overlay(Circle().strokeBorder(.white, lineWidth: 3)
-                    .padding(DesignMetric.outlineStroke))
-                .overlay(Circle().strokeBorder(Theme.outline,
-                                               lineWidth: DesignMetric.outlineStroke))
+        Button {
+            if showsPlay {
+                onStart?()
+            } else {
+                action()
+            }
+        } label: {
+            ZStack {
+                if showsPlay {
+                    Circle().fill(Theme.actionPrimary)
+                    Circle().strokeBorder(.white, lineWidth: 3)
+                        .padding(DesignMetric.outlineStroke)
+                    Circle().strokeBorder(Theme.outline,
+                                          lineWidth: DesignMetric.outlineStroke)
+                    Image(systemName: "play.fill")
+                        .font(.system(size: size * 0.40, weight: .bold))
+                        .foregroundStyle(Theme.onFill)
+                        .offset(x: 1.5)
+                } else if isRunning {
+                    Circle().fill(StopMetric.red)
+                    // A 3pt white ring inside a 2pt ink outline: the ring carries
+                    // the disc on the dark floor (red is 2.00:1 there), the ink
+                    // carries it on the light page.
+                    Circle().strokeBorder(.white, lineWidth: 3)
+                        .padding(DesignMetric.outlineStroke)
+                    Circle().strokeBorder(Theme.outline,
+                                          lineWidth: DesignMetric.outlineStroke)
+                    Image(systemName: "stop.fill")
+                        .font(.system(size: size * 0.38, weight: .bold))
+                        .foregroundStyle(.white)
+                } else {
+                    Circle().fill(Theme.surfacePrimary)
+                    Circle().strokeBorder(StopMetric.red, lineWidth: 3)
+                        .padding(DesignMetric.outlineStroke)
+                    Circle().strokeBorder(Theme.outline,
+                                          lineWidth: DesignMetric.outlineStroke)
+                    Image(systemName: "stop.fill")
+                        .font(.system(size: size * 0.36, weight: .bold))
+                        .foregroundStyle(StopMetric.red)
+                }
+            }
+            .frame(width: size, height: size)
+            .shadow(color: PondShadow.colour, radius: PondShadow.blur, y: PondShadow.y)
+            .animation(Theme.motion(reduced: reduceMotion), value: isRunning)
+            .animation(Theme.motion(reduced: reduceMotion), value: showsPlay)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(Text(ControllerWords.stop))
-        .accessibilityHint(Text(ControllerWords.stopHint))
+        .accessibilityLabel(Text(showsPlay ? ControllerWords.runDuck : ControllerWords.stop))
+        .accessibilityValue(Text(isRunning ? ControllerWords.runningState : ControllerWords.stoppedState))
+        .accessibilityHint(Text(showsPlay ? ControllerWords.runDuckHint : ControllerWords.stopHint))
         .accessibilitySortPriority(2)
     }
 }

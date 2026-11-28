@@ -37,10 +37,17 @@ public struct MotionProposal: Equatable, Sendable {
         public let moves: [Move]
         /// 0 closed … 1 open. The one channel no policy can drive.
         public let mouthOpen: Double
+        /// A saved pose this moment starts from, by name. When set, `moves`
+        /// are offsets from that pose rather than from standing. Nil (or
+        /// blank) is standing, which is what every key meant before poses.
+        public let pose: String?
 
-        public init(atSeconds: Double, moves: [Move], mouthOpen: Double = 0) {
+        public init(atSeconds: Double, moves: [Move], mouthOpen: Double = 0,
+                    pose: String? = nil) {
             self.atSeconds = atSeconds; self.moves = moves
             self.mouthOpen = mouthOpen
+            let trimmed = pose?.trimmingCharacters(in: .whitespacesAndNewlines)
+            self.pose = (trimmed?.isEmpty ?? true) ? nil : trimmed
         }
     }
 
@@ -150,6 +157,8 @@ public struct MotionProposal: Equatable, Sendable {
     public enum Unresolvable: Error, Equatable {
         case noKeyframes
         case unknownJoint(String, closest: String?)
+        /// A key named a saved pose this person does not have.
+        case unknownPose(String, closest: String?)
 
         public var message: String {
             switch self {
@@ -160,6 +169,8 @@ public struct MotionProposal: Equatable, Sendable {
                     ?? " The joints are: " + MotionProposal.jointVocabulary.map(\.word)
                         .joined(separator: ", ") + "."
                 return "\"\(word)\" is not a joint this robot has.\(hint)"
+            case .unknownPose(let name, let closest):
+                return PoseLibrary.Refusal.unknownPose(name, closest: closest).message
             }
         }
     }
@@ -174,7 +185,11 @@ public struct MotionProposal: Equatable, Sendable {
     /// speed against the measured corpus, the mouth caution — is the same
     /// `IntentDraft.problems` machinery every hand-made draft goes through,
     /// because a generated draft is not a special kind of draft.
-    public func resolve() throws -> IntentDraft {
+    ///
+    /// `poses` is the person's saved library. A key that names one starts
+    /// from it; a key that names one they do not have is refused with the
+    /// nearest saved name, never quietly turned into standing.
+    public func resolve(poses: [DuckPose] = []) throws -> IntentDraft {
         guard !keys.isEmpty else { throw Unresolvable.noKeyframes }
 
         var draftKeys: [IntentDraft.Key] = []
@@ -191,6 +206,14 @@ public struct MotionProposal: Equatable, Sendable {
 
         for key in ordered {
             var pose = DuckModel.homePose
+            if let named = key.pose {
+                guard let saved = PoseLibrary.find(named, in: poses) else {
+                    throw Unresolvable.unknownPose(
+                        named, closest: PoseLibrary.closest(to: named, in: poses))
+                }
+                pose = saved.angles
+            }
+            let base = pose
             for move in key.moves {
                 // A blank joint is a small model's way of writing "nothing
                 // moves here" — a no-op, not a refusal.
@@ -202,7 +225,7 @@ public struct MotionProposal: Equatable, Sendable {
                 for target in targets {
                     let index = DuckModel.jointIndex(of: target.joint)!
                     let range = DuckModel.jointRanges[index]
-                    let radians = DuckModel.homePose[index] + target.degrees * .pi / 180
+                    let radians = base[index] + target.degrees * .pi / 180
                     pose[index] = min(max(radians, range.lower), range.upper)
                 }
             }
@@ -313,6 +336,14 @@ public struct MotionProposal: Equatable, Sendable {
     /// What the model is told, built from the same vocabulary the resolver
     /// matches against — so the words it is offered and the words that resolve
     /// are one list that cannot drift apart.
+    ///
+    /// With `poses`, the saved-pose paragraph follows, so a model that is told
+    /// about a pose is told in the same breath how a key uses one.
+    public static func grounding(poses: [DuckPose]) -> String {
+        let library = PoseLibrary.grounding(poses)
+        return library.isEmpty ? grounding() : grounding() + "\n\n" + library
+    }
+
     public static func grounding() -> String {
         let joints = jointVocabulary.map { entry in
             let index = DuckModel.jointIndex(of: entry.joint)!

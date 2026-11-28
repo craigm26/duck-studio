@@ -58,9 +58,10 @@ enum DraftEngine {
     /// what came back.
     static func ask(_ endpoint: ModelEndpoint, kind: ChatDraft.Kind,
                     prompt: String, knownIntents: Set<String>,
-                    instructions override: String? = nil) async throws -> Answer {
+                    instructions override: String? = nil,
+                    poses: [DuckPose] = []) async throws -> Answer {
         let instructions = override
-            ?? ChatDraft.instructions(for: kind, knownIntents: knownIntents)
+            ?? ChatDraft.instructions(for: kind, knownIntents: knownIntents, poses: poses)
         switch endpoint.kind {
         case .appleOnDevice:
             return try await askApple(instructions: instructions, prompt: prompt)

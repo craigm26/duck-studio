@@ -18,6 +18,8 @@ struct MovesView: View {
     @ObservedObject private var runs = DuckRuns.shared
     @ObservedObject private var drivers = PhoneDrivers.shared
     @EnvironmentObject private var router: AppRouter
+    /// Saved poses, for the My poses row.
+    @EnvironmentObject private var poseLibrary: PoseStore
 
     /// The sequences kept on this phone, read here for the list; playing one is Play's stick
     /// loop, so a tap sends Play the sequence.
@@ -59,6 +61,20 @@ struct MovesView: View {
 
             Section {
                 NavigationLink {
+                    PoseLibraryView(drafts: drafts)
+                } label: {
+                    HubRow(poseLibrary.poses.isEmpty ? PoseLibrary.Words.heading
+                               : PoseLibrary.Words.row(poseLibrary.poses.count),
+                           poseLibrary.poses.isEmpty ? PoseLibrary.Words.none : PoseLibrary.Words.rowLine,
+                           "figure.stand")
+                }
+            } header: {
+                SectionHeading(text: PoseLibrary.Words.heading)
+            }
+            .listRowBackground(Theme.surfacePrimary)
+
+            Section {
+                NavigationLink {
                     PlanEditorView(desk: nil, venue: .sim, engage: {}, models: models, robot: robot)
                 } label: {
                     HubRow(PlanEditorWords.studioRow, StudioHubWords.plan, PlanEditorWords.studioRowSymbol)
@@ -79,6 +95,11 @@ struct MovesView: View {
                     DuckSoccerView(library: model, drafts: drafts, benches: benches)
                 } label: {
                     HubRow("Duck soccer", "Practice duck only. Score on a pitch.", "soccerball")
+                }
+                NavigationLink {
+                    DuckChessView(models: models)
+                } label: {
+                    HubRow("Sim Chess", StudioHubWords.simChess, "crown")
                 }
                 NavigationLink {
                     GhostDuckView()
@@ -108,6 +129,13 @@ struct MovesView: View {
                         HubRow(goal.title, goal.subtitle(on: runs.duck), goal.symbol)
                     }
                     .foregroundStyle(Theme.textPrimary)
+                }
+                NavigationLink {
+                    AutonomousMappingSkillView()
+                } label: {
+                    HubRow(AutonomousMappingWords.studioRowTitle,
+                           AutonomousMappingWords.studioRowLine,
+                           AutonomousMappingWords.studioRowSymbol)
                 }
             } header: {
                 SectionHeading(text: "Goals")

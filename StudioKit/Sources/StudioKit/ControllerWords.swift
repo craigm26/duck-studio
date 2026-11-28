@@ -37,11 +37,18 @@ public enum ControllerWords {
         }
     }
 
-    // MARK: - Stop
+    // MARK: - Stop and Run
 
     public static let stop = "Stop"
     /// The VoiceOver hint on every Stop. Honest about a started skill.
     public static let stopHint = "Stops the duck now. A move the duck has already started finishes first."
+    /// The top-right disc when the practice duck is stopped and ready to start.
+    public static let runDuck = "Start the duck"
+    public static let runDuckHint = "Wakes the practice duck so you can drive it."
+    public static let runningState = "Running"
+    public static let stoppedState = "Stopped"
+    /// Shown calmly while the built-in practice duck finishes waking up at launch.
+    public static let wakingUp = "Practice duck is waking up..."
     /// The floating pill on other tabs and sheets while something runs.
     public static let stopPill = "Stop the duck"
     public static let stopPillLine = "Something is running on your duck."
@@ -101,10 +108,14 @@ public enum ControllerWords {
 
     /// Reset, renamed for what it does, in More and the duck pill menu, and on the stage after a fall.
     public static let putBack = "Put it back on its feet"
+    public static let popBackUp = "Pop up!"
     public static let putBackHint = "Lifts the practice duck upright where it is."
     public static let fellOver = "The duck fell over."
     /// The camera rail's own reset: a different job, so a different name and glyph.
     public static let recentreCamera = "Recentre the camera"
+    /// Collapsible camera toggle on Play.
+    public static let cameraTools = "Camera controls"
+    public static let cameraToolsHint = "Show or hide zoom, recentre and follow buttons."
 
     // MARK: - an Auto run
 
@@ -143,11 +154,25 @@ public enum ControllerWords {
     public static let movesNoDuckLine = "Open Play to drive the Practice duck, or tap the duck pill there to add your own."
     public static let movesGoPlay = "Open Play"
 
+    // MARK: - Play quick fun controls (kid-friendly)
+
+    public static let quack = "Quack"
+    public static let quackHint = "Tap to quack. Hold for more duck sounds."
+    public static let soundsMenu = "Duck sounds"
+    public static let worldsChip = "World"
+    public static let worldsHint = "Pick a colorful floor or a fun playground for the duck."
+    public static let goalScored = "GOAL!"
+    public static let kickAgain = "Kick again"
+    public static let goalHint = "Resets the ball in front of the duck for another shot."
+
     public static var sheetWords: [String] {
         [movesSheet, movesSheetHint, motions, more, moreHint, moreScene, moreRecord, moreRecordLine,
-         moreCamera, moreCameraLine, moreSettings, moreRealDuck, putBack, putBackHint, fellOver,
-         recentreCamera, takeOver, takeOverHint, otherHelpers, autoRunning("Walk", elapsed: 4, cap: 60),
-         movesNoDuckTitle, movesNoDuckLine, movesGoPlay]
+         moreCamera, moreCameraLine, moreSettings, moreRealDuck, putBack, popBackUp, putBackHint, fellOver,
+         recentreCamera, cameraTools, cameraToolsHint, takeOver, takeOverHint, otherHelpers,
+         autoRunning("Walk", elapsed: 4, cap: 60),
+         movesNoDuckTitle, movesNoDuckLine, movesGoPlay,
+         runDuck, runDuckHint, runningState, stoppedState, wakingUp,
+         quack, quackHint, soundsMenu, worldsChip, worldsHint, goalScored, kickAgain, goalHint]
     }
 }
 

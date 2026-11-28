@@ -32,8 +32,9 @@ public enum StudioHubWords {
     public static let behaviours = "Networks on this phone, and where to find more."
     public static let learn = "Ten short lessons, one tool at a time."
     public static let drivers = "Drivers that run on this phone. None is installed yet."
+    public static let simChess = "Play chess vs Local AI, Cloud AI, Engine, or 2-Player."
 
-    public static let all: [String] = [expertToolsLine, behaviours, learn, drivers, shoot, motions, scenes, draft, plan, mimic, compare,
+    public static let all: [String] = [expertToolsLine, behaviours, learn, drivers, simChess, shoot, motions, scenes, draft, plan, mimic, compare,
                                        measure, tune, weights, hub, moveSearch, challenges,
                                        evaluations, multiDuck, toolsLine]
 }

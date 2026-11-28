@@ -440,6 +440,7 @@ final class PhoneBenchHost: NSObject, ObservableObject {
     private var server: PhoneBenchServer?
     private var webView: WKWebView?
     private var ready = false
+    private var loadRetries = 0
     private var readiness: Task<Void, Never>?
     /// The tail of the request chain. ONE CALL AT A TIME, because the thing on
     /// the other end is a world with a pose in it: two `/intent`s in flight
@@ -507,6 +508,7 @@ final class PhoneBenchHost: NSObject, ObservableObject {
     private func load() {
         guard let webView, let url = URL(string: "http://127.0.0.1:\(port)/index.html") else { return }
         ready = false
+        benches?.notePhoneBenchReady(false)
         webView.load(URLRequest(url: url))
     }
 
@@ -562,8 +564,13 @@ final class PhoneBenchHost: NSObject, ObservableObject {
         } catch {
             // The commonest way to get here is the content process dying
             // mid-call, which is exactly the case that must not come back as a
-            // partial result; the other is the deadline above.
+            // partial result; the other is the deadline above. Reload once so a
+            // deadline wedge does not leave the phone bench permanently stuck.
+            let shouldReload = !lost
+            ready = false
             lost = true
+            benches?.notePhoneBenchReady(false)
+            if shouldReload { load() }
             return Self.errorJSON(PhoneBenchReport.worldLost)
         }
     }
@@ -713,6 +720,8 @@ final class PhoneBenchHost: NSObject, ObservableObject {
                 if state == "ready" {
                     ready = true
                     lost = false
+                    loadRetries = 0
+                    benches?.notePhoneBenchReady(true)
                     return
                 }
                 if Date() > deadline {
@@ -724,7 +733,12 @@ final class PhoneBenchHost: NSObject, ObservableObject {
                     // "building" means the page never got that far, and there
                     // is nothing to open — so the loop stops rather than
                     // asking the same dead page every quarter second forever.
-                    if state == "settling" { ready = true; lost = false }
+                    if state == "settling" {
+                        ready = true
+                        lost = false
+                        loadRetries = 0
+                        benches?.notePhoneBenchReady(true)
+                    }
                     return
                 }
                 try? await Task.sleep(nanoseconds: 250_000_000)
@@ -741,11 +755,24 @@ extension PhoneBenchHost: WKNavigationDelegate {
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
         ready = false
+        benches?.notePhoneBenchReady(false)
+        retryLoadIfNeeded()
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!,
                  withError error: Error) {
         ready = false
+        benches?.notePhoneBenchReady(false)
+        retryLoadIfNeeded()
+    }
+
+    private func retryLoadIfNeeded() {
+        guard loadRetries < 3 else { return }
+        loadRetries += 1
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            self?.load()
+        }
     }
 
     /// iOS TOOK THE MEMORY BACK. Everything in that process is gone: the duck's
@@ -761,6 +788,7 @@ extension PhoneBenchHost: WKNavigationDelegate {
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
         ready = false
         lost = true
+        benches?.notePhoneBenchReady(false)
         readiness?.cancel()
         // Printed rather than only published, because this is the one failure
         // whose whole cost is being invisible: a measurement that quietly
