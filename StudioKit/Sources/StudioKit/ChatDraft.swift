@@ -62,8 +62,21 @@ public enum ChatDraft {
         """
     }
 
-    public static func instructions(for kind: Kind, knownIntents: Set<String> = []) -> String {
+    public static func instructions(for kind: Kind, knownIntents: Set<String> = [],
+                                    poses: [DuckPose] = []) -> String {
         switch kind {
+        case .motion where !PoseLibrary.offered(poses).isEmpty:
+            // THE SAME SHAPE WITH ONE MORE FIELD, offered only when there is
+            // something to put in it: a model shown a "pose" field and no
+            // poses invents pose names.
+            return """
+            \(MotionProposal.grounding(poses: poses))
+
+            Answer with JSON and nothing else. No explanation, no markdown fence.
+            Exactly this shape ("pose" is optional; leave it out for standing):
+            {"name":"Short name","keys":[{"atSeconds":0.8,"pose":"\(PoseLibrary.offered(poses)[0].name)",\
+            "mouthOpen":0.0,"moves":[{"joint":"neck","degrees":10}]}]}
+            """
         case .motion:
             return """
             \(MotionProposal.grounding())
@@ -164,7 +177,8 @@ public enum ChatDraft {
             }
             guard let at = number(key["atSeconds"]) else { throw DraftError.missing("atSeconds") }
             return MotionProposal.Key(atSeconds: at, moves: moves,
-                                      mouthOpen: number(key["mouthOpen"]) ?? 0)
+                                      mouthOpen: number(key["mouthOpen"]) ?? 0,
+                                      pose: key["pose"] as? String)
         }
         return MotionProposal(name: name, keys: keys)
     }

@@ -88,7 +88,7 @@ public struct DraftGate {
     }
 
     /// One attempt at turning a model's proposal into an editable draft.
-    public mutating func draft(_ proposal: MotionProposal) -> Outcome {
+    public mutating func draft(_ proposal: MotionProposal, poses: [DuckPose] = []) -> Outcome {
         // 1. THE ABORT FLAG. Once stopped, stopped — and it repeats the reason
         //    rather than inventing a second one, so a caller that keeps asking
         //    keeps getting the same sentence instead of a growing story.
@@ -118,7 +118,7 @@ public struct DraftGate {
 
         // 9. EXECUTE.
         do {
-            let draft = try proposal.resolve()
+            let draft = try proposal.resolve(poses: poses)
             // 10. RECORD. A draft that resolved is a success even when the
             //     editor will flag it: `IntentDraft.problems` is a report on a
             //     motion that exists, and this counter is about whether the

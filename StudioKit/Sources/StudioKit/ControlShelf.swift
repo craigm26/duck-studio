@@ -157,11 +157,20 @@ public enum ControlShelf {
         "Kept as \(name). It is in Studio with the other motions, and it is on the Motions chip."
     }
 
+    /// Keeping the built pose by name, so it can be used again and the chat
+    /// can pick it from a list.
+    public static let keepItAsAPose = "Keep it as a pose"
+
+    /// The pose went into the library, named.
+    public static func keptAsAPose(_ name: String) -> String {
+        "Kept as the pose \"\(name)\". It is under Moves > Poses, and the chat can use it by name."
+    }
+
     /// Everything this type says, so a screen can be checked against it.
     public static let everySentence: [String] = [
         sceneChip, poseChip, posingNow, motionsChip, runItHere, whatHappened, holdIt,
         keepItAsAMotion, doneposing, posingSaid, holdingSaid, thisIsTheRun, sceneSheetSaid, motionSheetSaid, runsInItsOwnRoom,
         runningStopsTheDrive, authoredAnywhere, noMotionsYet, alsoOnAButton, watching("x"),
-        mimicChip, mimickingNow, mimicSaid,
+        mimicChip, mimickingNow, mimicSaid, keepItAsAPose, keptAsAPose("x"),
     ]
 }

@@ -42,6 +42,8 @@ import FoundationModels
 struct AutomationChatView: View {
 
     @ObservedObject var drafts: DraftStore
+    /// Saved poses: the chat drafts motions from them by name. Root-injected.
+    @EnvironmentObject private var poseLibrary: PoseStore
     @ObservedObject var scenes: SceneStore
     /// Which model writes the draft. Apple's, a box on your network, or
     /// another app on this phone — the draft lands in the same checker either
@@ -702,6 +704,11 @@ struct AutomationChatView: View {
         var moves: [DraftedMove]
         @Guide(description: "Beak: 0 closed to 1 open.")
         var mouthOpen: Double
+        // NOT `.anyOf`: the saved names are the person's and change at run
+        // time, and a schema is a type. An unknown name is refused by the
+        // resolver with the nearest saved one, and the gate counts the try.
+        @Guide(description: "Exactly one of the listed saved pose names, or empty for standing.")
+        var pose: String
     }
 
     @available(iOS 26.0, macOS 26.0, *)
@@ -792,7 +799,8 @@ struct AutomationChatView: View {
             }
 
             let answer = try await DraftEngine.ask(endpoint, kind: mode.draftKind,
-                                                   prompt: asked, knownIntents: knownIntents)
+                                                   prompt: asked, knownIntents: knownIntents,
+                                                   poses: poseLibrary.poses)
             var timing = String(format: "%@ took %.0f s", endpoint.model, answer.seconds)
             if let rate = answer.tokensPerSecond {
                 timing += String(format: " (%.1f tokens/s)", rate)
@@ -807,7 +815,7 @@ struct AutomationChatView: View {
                 // THE SAME GATE AND THE SAME JUDGE the Apple path faces. A
                 // server-drafted motion is not a different kind of draft.
                 let draft: IntentDraft
-                switch gate.draft(proposal) {
+                switch gate.draft(proposal, poses: poseLibrary.poses) {
                 case .drafted(let resolved):
                     draft = resolved
                 case .feedback(let reason), .stopped(let reason):
@@ -958,7 +966,7 @@ struct AutomationChatView: View {
         let instructions = """
             You turn one sentence into one short motion for a small robot duck.
 
-            \(MotionProposal.grounding())
+            \(MotionProposal.grounding(poses: poseLibrary.poses))
             """
         do {
             let session = LanguageModelSession(instructions: instructions)
@@ -972,7 +980,8 @@ struct AutomationChatView: View {
                         moves: key.moves.map {
                             MotionProposal.Move(joint: $0.joint, degrees: $0.degrees)
                         },
-                        mouthOpen: key.mouthOpen)
+                        mouthOpen: key.mouthOpen,
+                        pose: key.pose)
                 })
             // THE CHOKE-POINT, AND NOW ALSO THE BUDGET. Names, units and
             // travel are judged in tested code exactly as a typed draft would
@@ -981,7 +990,7 @@ struct AutomationChatView: View {
             // way. A refusal and a stop look the same on screen; the
             // difference is that after a stop the field is closed.
             let draft: IntentDraft
-            switch gate.draft(proposal) {
+            switch gate.draft(proposal, poses: poseLibrary.poses) {
             case .drafted(let resolved):
                 draft = resolved
             case .feedback(let reason), .stopped(let reason):

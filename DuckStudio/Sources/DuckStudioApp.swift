@@ -182,6 +182,8 @@ struct DuckStudioApp: App {
     @StateObject private var scenes = SceneStore()
     @StateObject private var drafts = DraftStore()
     @StateObject private var plans = PlanStore()
+    /// Saved poses: kept on Play, listed on Moves, offered to the chat by name.
+    @StateObject private var poses = PoseStore()
     /// Which model writes drafts. One store, shared: Studio's Draft screen uses
     /// it and the Models screen edits it.
     @StateObject private var models = EndpointStore()
@@ -309,6 +311,7 @@ struct DuckStudioApp: App {
                                   machines: machines, remote: remote, robot: robot)
                 }
                 .environmentObject(router)
+                .environmentObject(poses)
                 .stopPill()
             }
             // "ADD YOUR DUCK", from the Duck sheet: the welcome again, from the Wi-Fi page.
@@ -350,6 +353,7 @@ struct DuckStudioApp: App {
             // somebody has signed in.
             .task { await remote.list() }
             .environmentObject(router)
+            .environmentObject(poses)
             // LARGE TITLES ARE THE DEFAULT AND THE ROOT DOES NOT IMPOSE THEM.
             // A `NavigationStack` root already gets a large title, so every tab
             // root is large without a word being said — and a screen that wants

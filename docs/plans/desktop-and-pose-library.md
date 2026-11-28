@@ -3,7 +3,12 @@
 Written 2026-11-28 after a TestFlight tester asked for a Windows 11 or browser
 version: a bigger monitor, a mouse and a keyboard for making and editing
 movements. They use the joint controls and custom movements, and they already
-work out poses with a chatbot on the side. Status: plan, nothing built.
+work out poses with a chatbot on the side.
+
+**Decided 2026-11-28:** Tauri for the desktop app; desktop chat offers both
+bring-your-own-key and local Ollama, the user picks; ship both the browser
+version and the desktop app. Pose library started first (branch
+`feat/pose-library`).
 
 ## What we already have that carries over
 
@@ -29,9 +34,13 @@ work out poses with a chatbot on the side. Status: plan, nothing built.
 | Real duck | no (https page cannot reach a LAN `http://` robot) | yes, the Rust side talks to robotd over LAN and BLE |
 | Updates | every deploy | Tauri updater, signed `latest.json` on Cloudflare |
 
-- **Front end:** TypeScript + three.js drawing the same MuJoCo scene,
-  physics from the vendored duckbench `.mjs` and `.wasm`, checked by digest the
-  way `make_phone_bench.sh` already does.
+- **Front end:** TypeScript over duckbench's `site/`, which is already a
+  working browser duck: MuJoCo wasm physics, its own small WebGL renderer over
+  the real meshes (`render.js`, `duck-visual.bin`, 70 meshes, no three.js),
+  gamepad and touch input, intents and sequences. It is deployed today as the
+  Cloudflare Pages project `microduck-sim`. Studio's screens (posing, poses,
+  timeline, chat) go on top; the physics and renderer are vendored and checked
+  by digest the way `make_phone_bench.sh` already does.
 - **Why not native Swift on Windows/Linux:** Swift compiles there, but there is
   no SwiftUI or RealityKit, and the cross-platform Swift UI toolkits cannot
   draw a 3D duck. We would be rewriting the UI anyway.
@@ -128,7 +137,8 @@ one-line description.
 
 ## Open decisions
 
-- Tauri + web front end (recommended) vs. something else.
-- Desktop chat: BYOK only, or also local Ollama in 0.1.
-- Whether the browser version ships at all, or desktop only.
 - Windows code signing now or later.
+- Where the desktop code lives: recommended `desktop/` in this repo, so the
+  shared fixtures and the parity list sit beside the code they constrain.
+- The Pi needs `libwebkit2gtk-4.1-dev` (and friends) to build the Linux
+  desktop app; installing it needs sudo.

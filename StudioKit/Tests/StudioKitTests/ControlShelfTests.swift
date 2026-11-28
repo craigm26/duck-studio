@@ -59,7 +59,7 @@ final class ControlShelfTests: XCTestCase {
         // would be a sentence pretending to be a control.
         let labels = [ControlShelf.sceneChip, ControlShelf.poseChip, ControlShelf.motionsChip,
                       ControlShelf.runItHere, ControlShelf.whatHappened,
-                      ControlShelf.holdIt, ControlShelf.keepItAsAMotion,
+                      ControlShelf.holdIt, ControlShelf.keepItAsAMotion, ControlShelf.keepItAsAPose,
                       ControlShelf.doneposing, ControlShelf.posingNow,
                       ControlShelf.mimicChip, ControlShelf.mimickingNow]
         for said in labels { XCTAssertFalse(said.hasSuffix("."), said) }

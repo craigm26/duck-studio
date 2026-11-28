@@ -231,6 +231,8 @@ struct DriveView: View {
     @State private var playback: DuckIntentClip?
     @State private var playhead: TimeInterval = 0
     @State private var poseNote: String?
+    /// The saved poses, for "Keep it as a pose". Injected at the app's root.
+    @EnvironmentObject private var poseLibrary: PoseStore
 
     /// THE PERSON IN FRONT OF THE CAMERA, AS A POSE. While `mimicking` the
     /// engine writes the duck's retargeted stance into `posed` on every
@@ -2096,6 +2098,16 @@ struct DriveView: View {
                     .foregroundStyle(Theme.actionInk)
                     .frame(minHeight: DesignMetric.minimumTarget)
             }
+            // ITS OWN ROW, AND TYPE-ERASED. Three buttons do not fit one row on
+            // a small phone, and build 102's launch crash was this view's
+            // generic type growing too deep; AnyView keeps the addition flat.
+            AnyView(
+                Button(ControlShelf.keepItAsAPose) { keepThePoseByName() }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Theme.actionInk)
+                    .frame(minHeight: DesignMetric.minimumTarget)
+                    .disabled(posed == nil)
+            )
         }
         .padding(Theme.spacing(.snug))
         .onStageChrome(DriveMetric.viewport.inner)
@@ -2240,6 +2252,18 @@ struct DriveView: View {
     }
 
     /// Keep the pose as a motion in Studio, where every other motion lives.
+    /// Into the pose library under the next free "Pose N"; renamed and
+    /// described from Moves > Poses. No naming sheet here: the picture is the
+    /// duck being posed, and a modal over it would hide the thing being kept.
+    @MainActor private func keepThePoseByName() {
+        guard let posed else { return }
+        if let kept = poseLibrary.keep(named: "\(ControlShelf.poseChip) \(poseLibrary.poses.count + 1)",
+                                       angles: posed) {
+            poseNote = ControlShelf.keptAsAPose(kept.name)
+            Haptic.behaviourStarted()
+        }
+    }
+
     @MainActor private func keepThePose() {
         guard let posed else { return }
         var draft = IntentDraft.blank(named: "\(ControlShelf.poseChip) \(drafts.drafts.count + 1)")

@@ -18,6 +18,8 @@ struct MovesView: View {
     @ObservedObject private var runs = DuckRuns.shared
     @ObservedObject private var drivers = PhoneDrivers.shared
     @EnvironmentObject private var router: AppRouter
+    /// Saved poses, for the My poses row.
+    @EnvironmentObject private var poseLibrary: PoseStore
 
     /// The sequences kept on this phone, read here for the list; playing one is Play's stick
     /// loop, so a tap sends Play the sequence.
@@ -54,6 +56,20 @@ struct MovesView: View {
                 }
             } header: {
                 SectionHeading(text: MoveTileSections.mySequences)
+            }
+            .listRowBackground(Theme.surfacePrimary)
+
+            Section {
+                NavigationLink {
+                    PoseLibraryView(drafts: drafts)
+                } label: {
+                    HubRow(poseLibrary.poses.isEmpty ? PoseLibrary.Words.heading
+                               : PoseLibrary.Words.row(poseLibrary.poses.count),
+                           poseLibrary.poses.isEmpty ? PoseLibrary.Words.none : PoseLibrary.Words.rowLine,
+                           "figure.stand")
+                }
+            } header: {
+                SectionHeading(text: PoseLibrary.Words.heading)
             }
             .listRowBackground(Theme.surfacePrimary)
 
